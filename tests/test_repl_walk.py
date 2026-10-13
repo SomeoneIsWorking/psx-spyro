@@ -34,7 +34,7 @@ class FakePort:
     """A product whose Spyro walks straight along the camera's forward axis (+y) at a fixed speed
     while `up` is held, with a camera trailing him by `lag` units. Gamestate comes from a script."""
 
-    FIELD_SPEED = 20  # world units per field
+    STEP_SPEED = 40  # world units per product step (the REPL `run` unit, two fields)
 
     def __init__(self, gamestates=(0,), lag=3000, level=10, start=(0, 0, 0)):
         self.position = list(start)
@@ -44,11 +44,11 @@ class FakePort:
         self.held: set[str] = set()
         self.pressed_log: list[frozenset] = []
         self.taps: list[str] = []
-        self.fields = 0
+        self.steps = 0
 
     @property
     def gamestate(self) -> int:
-        return self.gamestates[min(self.fields, len(self.gamestates) - 1)]
+        return self.gamestates[min(self.steps, len(self.gamestates) - 1)]
 
     def press(self, button: str) -> None:
         self.held.add(button)
@@ -63,9 +63,9 @@ class FakePort:
         self.pressed_log.append(frozenset(self.held))
         for _ in range(frames):
             if self.gamestate == 0 and "up" in self.held:
-                self.position[1] += self.FIELD_SPEED
-            self.fields += 1
-        return self.fields
+                self.position[1] += self.STEP_SPEED
+            self.steps += 1
+        return self.steps
 
     def words(self, address: int, count: int = 1) -> list[int]:
         if address == guest_globals.kGamestate:
@@ -94,7 +94,7 @@ def forward_target(distance: int) -> Target:
 
 class CutsceneHandling(unittest.TestCase):
     def test_a_cutscene_is_waited_out_and_is_not_a_stall(self) -> None:
-        # 400 fields of GS_Dragon, far more than the 15-decision stall rule would tolerate.
+        # 400 steps of GS_Dragon, far more than the 15-decision stall rule would tolerate.
         port = FakePort(gamestates=[8] * 400 + [0])
         repl_walk.Seeker(port, "ahead", [forward_target(8000)], budget=4000, arrived=400,
                          from_player=True).walk()
@@ -120,7 +120,7 @@ class CutsceneHandling(unittest.TestCase):
                          stop=lambda: port.gamestate == 11,
                          stop_is="the fairy opened", from_player=True).walk()
         self.assertEqual(port.position[1], 0)
-        self.assertEqual(port.fields, 0, "the stop is honoured before any cutscene step")
+        self.assertEqual(port.steps, 0, "the stop is honoured before any cutscene step")
 
 
 class Measurement(unittest.TestCase):
@@ -141,7 +141,7 @@ class Jumping(unittest.TestCase):
     def test_a_jump_is_a_cross_press_and_release_before_the_direction(self) -> None:
         port = FakePort()
         with self.assertRaises(Refusal):  # the budget ends before 6000 units are walked
-            repl_walk.Seeker(port, "ahead", [forward_target(6000)], budget=200, arrived=100,
+            repl_walk.Seeker(port, "ahead", [forward_target(6000)], budget=100, arrived=100,
                              hop_within=1 << 30, from_player=True).walk()
         self.assertEqual(port.taps, [], "tap replaces the pad, so it would drop the direction")
         self.assertEqual(port.pressed_log[0], frozenset({"cross"}))
@@ -152,15 +152,15 @@ class Jumping(unittest.TestCase):
     def test_a_jump_is_not_restarted_while_airborne(self) -> None:
         port = FakePort()
         with self.assertRaises(Refusal):
-            repl_walk.Seeker(port, "ahead", [forward_target(6000)], budget=200, arrived=100,
+            repl_walk.Seeker(port, "ahead", [forward_target(6000)], budget=100, arrived=100,
                              hop_within=1 << 30, from_player=True).walk()
         presses = sum(1 for held in port.pressed_log if held == frozenset({"cross"}))
-        self.assertLessEqual(presses, 200 // repl_walk.Seeker.JUMP_AIRTIME + 1)
+        self.assertLessEqual(presses, 100 // repl_walk.Seeker.JUMP_AIRTIME + 1)
 
     def test_no_hop_means_no_cross(self) -> None:
         port = FakePort()
         with self.assertRaises(Refusal):
-            repl_walk.Seeker(port, "ahead", [forward_target(6000)], budget=200, arrived=100,
+            repl_walk.Seeker(port, "ahead", [forward_target(6000)], budget=100, arrived=100,
                              from_player=True).walk()
         self.assertTrue(all("cross" not in held for held in port.pressed_log))
 

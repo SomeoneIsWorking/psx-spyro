@@ -1,6 +1,7 @@
 #include "config_vars.h"
 #include "emulated_time.h"
 #include "execution_services.h"
+#include "field_owner.h"
 #include "fps60.h"
 #include "frame_pacer.h"
 #include "game.h"
@@ -188,7 +189,7 @@ void test_unpresented_field_advances_time_and_full_root_once() {
   fixture.checkCallbacks(1u);
   CHECK(fixture.game->core.lightrecExecutor().counters().executedBlocks > 0u);
   CHECK_EQ(fixture.fields.counter(), 1);
-  CHECK_EQ(fixture.game->run.fields(), 1u);
+  CHECK_EQ(spyro::fieldOwner(fixture.game->core).fields(), 1u);
   CHECK_EQ(fixture.fields.fieldsThisLogicFrame(), 1u);
   CHECK_EQ(fixture.game->presentation.fence(), 0u);
   const auto fieldTicks = psx::frame::displayFieldCpuTicks(
@@ -208,7 +209,7 @@ void test_pending_edge_uses_hook_continuation_once() {
   fixture.checkCallbacks(1u);
   CHECK_EQ(fixture.game->core.mem_r32(kResumeCalls), 1u);
   CHECK_EQ(fixture.fields.counter(), 1);
-  CHECK_EQ(fixture.game->run.fields(), 1u);
+  CHECK_EQ(spyro::fieldOwner(fixture.game->core).fields(), 1u);
   CHECK_EQ(fixture.game->core.mem_r32(kIStat) & 1u, 0u);
   CHECK_EQ(fixture.game->core.pending_work & Core::PW_IRQ, 0u);
 }
@@ -222,11 +223,11 @@ void test_presentation_after_delivered_field_does_not_deliver_another_root() {
 
   const auto deliveredTime = fixture.game->timing.emulatedCpuTicks();
   // The actual Core backend delegates to Spyro 1's runtime pacing owner. The former combined
-  // pacer call here reproduced counter=2 while the scheduler and SessionRun each counted one.
+  // pacer call here reproduced counter=2 while the scheduler and field owner each counted one.
   fixture.game->presentation.commit(&fixture.game->core, 1);
   psx::cpu::servicePendingWork(fixture.game->core);
   fixture.checkRegisters();
-  CHECK_EQ(fixture.game->run.fields(), 1u);
+  CHECK_EQ(spyro::fieldOwner(fixture.game->core).fields(), 1u);
   CHECK_EQ(fixture.fields.fieldsThisLogicFrame(), 1u);
   CHECK_EQ(fixture.game->core.mem_r32(kIStat) & 1u, 0u);
   CHECK_EQ(fixture.game->core.pending_work & Core::PW_IRQ, 0u);
@@ -250,7 +251,7 @@ void test_root_without_hook_survives_pending_work_inside_guest_dispatch() {
   fixture.checkCallbacks(1u);
   CHECK(fixture.game->core.lightrecExecutor().counters().executedBlocks > 0u);
   CHECK_EQ(fixture.fields.counter(), 1);
-  CHECK_EQ(fixture.game->run.fields(), 1u);
+  CHECK_EQ(spyro::fieldOwner(fixture.game->core).fields(), 1u);
   CHECK_EQ(fixture.game->core.mem_r32(kResumeCalls), 0u);
   // No registered IRQ path owns the hardware acknowledgement. The scheduler's direct root still
   // runs once; Hle retires the service gate without inventing a guest write to the VBlank latch.
@@ -296,7 +297,7 @@ void test_temporal_split_presents_do_not_advance_delivered_time() {
     fixture.checkRegisters();
     fixture.checkCallbacks((frame + 1u) * 2u);
     CHECK_EQ(fixture.fields.counter(), (frame + 1u) * 2u);
-    CHECK_EQ(fixture.game->run.fields(), (frame + 1u) * 2u);
+    CHECK_EQ(spyro::fieldOwner(fixture.game->core).fields(), (frame + 1u) * 2u);
     CHECK_EQ(fixture.game->timing.emulatedCpuTicks(), deliveredTime);
     CHECK_EQ(fixture.game->presentation.fence(), frame + 1u);
     CHECK_EQ(fixture.game->core.mem_r32(kIStat) & 1u, 0u);
@@ -318,7 +319,7 @@ void test_default_runtime_presentation_still_delivers_hardware_fields() {
   fixture.checkRegisters();
   fixture.checkCallbacks(1u);
   CHECK_EQ(fixture.fields.counter(), 1);
-  CHECK_EQ(fixture.game->run.fields(), 0u);
+  CHECK_EQ(spyro::fieldOwner(fixture.game->core).fields(), 0u);
   CHECK_EQ(fixture.game->core.mem_r32(kResumeCalls), 1u);
 }
 
@@ -330,7 +331,7 @@ void test_masked_hook_edge_dispatches_once_when_unmasked() {
   CHECK(fixture.fields.deliver({"test-second-masked-hook", false, false}));
   const int maskedCounter = fixture.fields.counter();
   fixture.checkRegisters();
-  CHECK_EQ(fixture.game->run.fields(), 2u);
+  CHECK_EQ(spyro::fieldOwner(fixture.game->core).fields(), 2u);
   CHECK_EQ(fixture.game->core.mem_r32(kIStat) & 1u, 1u);
   fixture.game->core.mem_w32(kIMask, 1u);
   psx::cpu::servicePendingWork(fixture.game->core);
@@ -351,7 +352,7 @@ void test_critical_section_defers_hook_root_until_irq_service_resumes() {
   fixture.checkRegisters();
   fixture.checkCallbacks(0u);
   CHECK_EQ(fixture.fields.counter(), 0);
-  CHECK_EQ(fixture.game->run.fields(), 1u);
+  CHECK_EQ(spyro::fieldOwner(fixture.game->core).fields(), 1u);
   CHECK_EQ(fixture.fields.fieldsThisLogicFrame(), 1u);
   CHECK_EQ(fixture.game->core.mem_r32(kIStat) & 1u, 1u);
   CHECK((fixture.game->core.pending_work & Core::PW_IRQ) != 0u);
@@ -360,7 +361,7 @@ void test_critical_section_defers_hook_root_until_irq_service_resumes() {
   fixture.checkRegisters();
   fixture.checkCallbacks(1u);
   CHECK_EQ(fixture.fields.counter(), 1);
-  CHECK_EQ(fixture.game->run.fields(), 1u);
+  CHECK_EQ(spyro::fieldOwner(fixture.game->core).fields(), 1u);
   CHECK_EQ(fixture.game->core.mem_r32(kResumeCalls), 1u);
   CHECK_EQ(fixture.game->core.mem_r32(kIStat) & 1u, 0u);
   CHECK_EQ(fixture.game->core.pending_work & Core::PW_IRQ, 0u);
@@ -377,7 +378,7 @@ void test_bootstrap_without_root_keeps_host_counter_ownership() {
   fixture.checkRegisters();
   fixture.checkCallbacks(0u);
   CHECK_EQ(fixture.fields.counter(), 1);
-  CHECK_EQ(fixture.game->run.fields(), 1u);
+  CHECK_EQ(spyro::fieldOwner(fixture.game->core).fields(), 1u);
   const auto fieldTicks = psx::frame::displayFieldCpuTicks(
       1, 1, fixture.game->framePacer.fieldRateMilliHz(fixture.game->core));
   CHECK_EQ(fixture.game->timing.emulatedCpuTicks(), fieldTicks);

@@ -65,14 +65,15 @@ class Seeker:
     does the walk.
     """
 
-    # Fields the guest may spend outside GS_Playing before the walk refuses. The opening dragon
-    # dialogue alone is ~1600 fields of Cross taps (measured), and it is not walking, so it is
-    # bounded on its own instead of eating the walking budget.
-    CUTSCENE_BUDGET = 6000
-    JUMP_PRESS = 3  # fields Cross is held before it is released
-    JUMP_SETTLE = 4  # fields with nothing held between the release and the direction
-    JUMP_AIRTIME = 60  # fields during which a jump is not started again
-    STEP = 24  # fields per steering decision; a whole walk cycle, short enough to correct a wall
+    # Product steps (the REPL's `run N` unit, two fields each in gameplay) the guest may spend outside
+    # GS_Playing before the walk refuses. The opening dragon dialogue alone is ~1600 fields of Cross
+    # taps (measured), and it is not walking, so it is bounded on its own instead of eating the walking
+    # budget.
+    CUTSCENE_BUDGET = 3000
+    JUMP_PRESS = 2  # steps Cross is held before it is released
+    JUMP_SETTLE = 2  # steps with nothing held between the release and the direction
+    JUMP_AIRTIME = 30  # steps during which a jump is not started again
+    STEP = 12  # steps per steering decision; a whole walk cycle, short enough to correct a wall
 
     def __init__(self, port: ReplPort, what: str, targets, budget: int = 6000,
                  arrived: int | None = None, stop: Callable[[], bool] | None = None,
@@ -111,7 +112,7 @@ class Seeker:
         self._waited += self._step
         if self._waited > self.CUTSCENE_BUDGET:
             raise Refusal(
-                f"the guest stayed in gamestate {state} for {self._waited} field(s) without "
+                f"the guest stayed in gamestate {state} for {self._waited} step(s) without "
                 "returning to GS_Playing, so the pad is not steering anything"
             )
         print(f"seek: gamestate {state}, not steering", file=sys.stderr)
@@ -144,7 +145,7 @@ class Seeker:
             if self._cutscene_step():
                 continue
             if self._stop is not None and self._stop():
-                print(f"seek: {self._stop_is} after {spent} field(s), "
+                print(f"seek: {self._stop_is} after {spent} step(s), "
                       f"{self._walk.closest} from the nearest {self._walk.what}", file=sys.stderr)
                 return self._walk.closest or 0
             decision = self._walk.next(self._view(self._port.words))
@@ -173,6 +174,6 @@ class Seeker:
         if self._stop is not None:
             raise Refusal(
                 f"walked to within {self._walk.closest} of a {self._walk.what} over {spent} "
-                f"field(s), but {self._stop_is} never happened: being next to one is not entering it"
+                f"step(s), but {self._stop_is} never happened: being next to one is not entering it"
             )
         raise self._walk.exhausted(spent)

@@ -37,7 +37,7 @@ Within the pre-arrival window the ONLY gamestate that recurs is the one the run 
 re-arming has no consumer and one hazard; the rule is one edge per condition, and a second visit to
 the same screen is not re-armed.
 
-A run samples the gamestate every `Port.SAMPLE_FRAMES` fields, so a screen up for 400 fields is
+A run samples the gamestate every `Port.SAMPLE_STEPS` product steps, so a screen up for 200 steps is
 sampled 40 times; firing per sample would be 40 edges on one screen and the port's `FieldScheduler`
 would see a held button where the player pressed once.
 
@@ -306,7 +306,7 @@ def _selftest_navigator_seam() -> None:
     navigator._advance()
     assert port.edges == [("start", EDGE_FRAMES)], \
         f"a second sample of the same screen must not re-fire: {port.edges}"
-    print(f"  Navigator._advance over 3 samples -> {port.edges} after {port.frame} field(s)")
+    print(f"  Navigator._advance over 3 samples -> {port.edges} after {port.frame} step(s)")
 
 
 def _selftest_port_seam() -> None:
@@ -331,11 +331,11 @@ def _selftest_port_seam() -> None:
     port._await_prompt = lambda: port.frame  # type: ignore[method-assign]
     port.chunks: list[str] = []
 
-    port.run(30)  # three 10-field samples, every one of them in GS_LevelTransition
-    assert port.chunks == ["run 10", "run 10", "run 10"], port.chunks
+    port.run(15)  # three 5-step samples, every one of them in GS_LevelTransition
+    assert port.chunks == ["run 5", "run 5", "run 5"], port.chunks
     assert port.edges == [("start", EDGE_FRAMES)], \
         f"one edge out of three samples of the same screen, and no re-arm: {port.edges}"
-    print(f"  Port.run(30) in GS_LevelTransition -> chunks {port.chunks}, edges {port.edges}")
+    print(f"  Port.run(15) in GS_LevelTransition -> chunks {port.chunks}, edges {port.edges}")
 
     # The pause menu's two words are 0xA8 apart, and reading them as one contiguous pair returns a
     # submenu flag that is not there. This is here because that bug was WRITTEN and shipped once: the

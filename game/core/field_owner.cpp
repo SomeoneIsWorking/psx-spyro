@@ -1,6 +1,5 @@
 #include "field_owner.h"
 
-#include "cfg.h"
 #include "core.h"
 #include "fps60.h"
 #include "frame_pacer.h"
@@ -136,29 +135,6 @@ bool FieldOwner::dispatchCallbacks() {
   return root != 0;
 }
 
-void FieldOwner::serviceRepl() {
-  Core &core = game_.core;
-  if (!cfg_on("PSXPORT_REPL")) {
-    return;
-  }
-  if (!replQuit_ && replBudget_ <= 0) {
-    while ((replBudget_ = game_.repl.read(&core, static_cast<std::uint32_t>(counter()))) == 0) {
-    }
-    if (replBudget_ == -2) {
-      lucent::info("repl", "end — ending the run cleanly");
-      game_.run.requestEnd();
-      replQuit_ = true;
-    }
-    if (replBudget_ < 0) {
-      replQuit_ = true;
-      lucent::info("repl", "quit — running free");
-    }
-  }
-  if (replBudget_ > 0) {
-    --replBudget_;
-  }
-}
-
 void FieldOwner::reportField(const FieldRequest &request, int queueSize, bool queueWasUnconsumed) {
   const double elapsedMs =
       std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - epoch_).count();
@@ -199,8 +175,6 @@ bool FieldOwner::deliver(FieldRequest request) {
   }
   inField_ = true;
   activeDeliverySite_ = request.site;
-
-  serviceRepl();
 
   const int queueSize = game_.rq.n;
   const bool queueWasUnconsumed = queueSize > 0 && !game_.rq.consumed;
@@ -267,7 +241,6 @@ bool FieldOwner::deliver(FieldRequest request) {
   reportField(request, queueSize, queueWasUnconsumed);
   activeDeliverySite_ = nullptr;
   inField_ = false;
-  game_.run.fieldDelivered();
   return true;
 }
 

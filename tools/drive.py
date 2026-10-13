@@ -22,7 +22,7 @@ addresses):
 
 Usage:
   drive.py gameplay --shot scratch/screenshots/gameplay.ppm
-  drive.py gameplay --hold left --hold-frames 60 --shot scratch/screenshots/left.ppm
+  drive.py gameplay --hold left --hold-steps 30 --shot scratch/screenshots/left.ppm
   drive.py gameplay --tap circle --after 120 --shot scratch/screenshots/flame.ppm
   drive.py gameplay --press-while 0:start --shot scratch/screenshots/boot-pressed.ppm
 """
@@ -200,17 +200,18 @@ class Port:
 
     # -- public API ---------------------------------------------------------
 
-    # A state the game passes through in a few frames is invisible to a sampler that only looks once
-    # per call, and calls here are as long as --hold-frames. Advancing in bounded chunks costs a REPL
+    # A state the game passes through in a few steps is invisible to a sampler that only looks once
+    # per call, and calls here are as long as --hold-steps. Advancing in bounded chunks costs a REPL
     # round trip each and gives every run the same resolution; the guest advances the same number of
-    # frames either way, and held buttons are separate commands so chunking cannot drop an input.
-    SAMPLE_FRAMES = 10
+    # steps either way, and held buttons are separate commands so chunking cannot drop an input.
+    # The unit is the REPL's `run N`: product steps, about two fields each in Spyro 1 gameplay.
+    SAMPLE_STEPS = 5
 
-    def run(self, frames: int) -> int:
-        remaining = max(1, frames)
+    def run(self, steps: int) -> int:
+        remaining = max(1, steps)
         result = 0
         while remaining > 0:
-            step = min(self.SAMPLE_FRAMES, remaining)
+            step = min(self.SAMPLE_STEPS, remaining)
             self._send(f"run {step}")
             result = self._await_prompt()
             remaining -= step
@@ -246,7 +247,7 @@ class Port:
         """
         total = sum(self.gamestate_census.values())
         if not total:
-            return "gamestates: nothing sampled (no frames were advanced)"
+            return "gamestates: nothing sampled (no steps were advanced)"
         seen = ", ".join(f"{GAMESTATE_NAMES.get(state, str(state))}={count}"
                          for state, count in sorted(self.gamestate_census.items()))
         # The states NOT seen, each with the presentation it owns: "the balloonist flight never
@@ -255,7 +256,7 @@ class Port:
         missing = [f"{name} ({GAMESTATE_PRESENTATION.get(state, '?')})"
                    for state, name in sorted(GAMESTATE_NAMES.items())
                    if state not in self.gamestate_census]
-        line = (f"gamestates over {total} samples ({self.SAMPLE_FRAMES} frames apart): {seen}"
+        line = (f"gamestates over {total} samples ({self.SAMPLE_STEPS} steps apart): {seen}"
                 + (f"; never reached: {', '.join(missing)}" if missing else ""))
         after = {state: count - self._census_at_arrival.get(state, 0)
                  for state, count in self.gamestate_census.items()
@@ -397,7 +398,7 @@ class Port:
 class Navigator:
     """Boot -> title -> save picker -> a loaded, playable level, decided from guest state."""
 
-    STEP = 20  # frames between observations; small enough to catch a one-shot menu state
+    STEP = 10  # product steps between observations; small enough to catch a one-shot menu state
 
     def __init__(self, port: Port, budget: int = 12000, skip_transitions: bool = False,
                  presses: "press_conditions.PressConditions | None" = None,
@@ -480,7 +481,7 @@ class Navigator:
             spent += self.STEP
             self._advance()
         raise Refusal(
-            f"never reached the save picker (TSM_Loading) within {self._budget} frames; "
+            f"never reached the save picker (TSM_Loading) within {self._budget} steps; "
             f"last gamestate={self._port.gamestate()} title={self._port.title()}"
         )
 
@@ -499,7 +500,7 @@ class Navigator:
             spent += self.STEP
             self._advance()
         raise Refusal(
-            f"the save picker never committed a slot within {self._budget} frames; "
+            f"the save picker never committed a slot within {self._budget} steps; "
             f"last title={self._port.title()}"
         )
 
@@ -514,7 +515,7 @@ class Navigator:
             spent += self.STEP
             self._advance()
         raise Refusal(
-            f"never reached GS_Playing within {self._budget} frames; "
+            f"never reached GS_Playing within {self._budget} steps; "
             f"gamestate={self._port.gamestate()} load_stage={self._port.word(G_LOAD_STAGE)}"
         )
 
@@ -561,7 +562,7 @@ def quit_to_home(port: Port, budget: int = 4000) -> None:
             port.tap(button)
         port.run(Navigator.STEP)
         spent += Navigator.STEP
-    raise Refusal(f"the pause menu never handed off to GS_ExitLevel within {budget} fields; "
+    raise Refusal(f"the pause menu never handed off to GS_ExitLevel within {budget} steps; "
                   f"last gamestate={port.gamestate()}")
 
 
@@ -633,9 +634,9 @@ def main() -> int:
     parser.add_argument(
         "--settle",
         type=int,
-        default=120,
-        help="frames to run after arrival before any input; the level fades in and hands the player "
-        "control some frames after GS_Playing is entered, so an input issued at frame 0 is eaten",
+        default=60,
+        help="product steps to run after arrival before any input; the level fades in and hands the "
+        "player control some steps after GS_Playing is entered, so an input issued at once is eaten",
     )
     parser.add_argument(
         "--skip-transitions",
@@ -683,9 +684,9 @@ def main() -> int:
         + ".",
     )
     parser.add_argument("--hold", action="append", default=[], help="button held after arrival")
-    parser.add_argument("--hold-frames", type=int, default=60)
+    parser.add_argument("--hold-steps", type=int, default=30, help="product steps the --hold buttons are held")
     parser.add_argument("--tap", action="append", default=[], help="button tapped after arrival")
-    parser.add_argument("--after", type=int, default=0, help="frames to run after the taps")
+    parser.add_argument("--after", type=int, default=0, help="product steps to run after the taps")
     parser.add_argument(
         "--repeat", type=int, default=1, help="how many times to repeat the tap/after cycle"
     )
@@ -732,7 +733,7 @@ def main() -> int:
         default="",
         metavar="PATH",
         help="write what the scene proved here as JSON: the target, the guest words it read and the "
-        "fields it spent. A scene route that did not reach its target writes NO file, so the "
+        "steps it spent. A scene route that did not reach its target writes NO file, so the "
         "reach corpus can require one rather than parse a sentence out of a log",
     )
     parser.add_argument(
@@ -746,7 +747,7 @@ def main() -> int:
         "--quit-budget",
         type=int,
         default=4000,
-        help="fields --quit-home may spend answering the pause menu before refusing",
+        help="product steps --quit-home may spend answering the pause menu before refusing",
     )
     parser.add_argument(
         "--repl",
@@ -852,7 +853,7 @@ def main() -> int:
             )
         if args.scene:
             proof = route_scenes.run_scene(args.scene, port)
-            print(f"scene {proof.scene}: proved {proof.target} in {proof.frames} field(s)",
+            print(f"scene {proof.scene}: proved {proof.target} in {proof.frames} step(s)",
                   file=sys.stderr)
             if proof.detail:
                 print(f"scene {proof.scene}: {proof.detail}", file=sys.stderr)
@@ -883,7 +884,7 @@ def main() -> int:
         for button in args.hold:
             port.press(button)
         if args.hold:
-            port.run(args.hold_frames)
+            port.run(args.hold_steps)
             for button in args.hold:
                 port.release(button)
         for _ in range(max(1, args.repeat)):

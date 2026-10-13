@@ -10,7 +10,7 @@ conversation's words one character at a time after the box opens (and the box sh
 end), so a capture taken while the box is opening or closing has a box and no glyphs, and the same run
 captured later shows the whole speech. This route makes that a measured fact instead of an impression:
 it walks forward until the guest's own game state says "conversation", then photographs the box every
-SAMPLE fields and counts glyph-coloured pixels in the box body for each photograph.
+SAMPLE steps and counts glyph-coloured pixels in the box body for each photograph.
 
 WHAT COUNTS AS DRAWN TEXT. The state must have been the title's conversation state; at least MIN_CAPTURES
 captures must have been taken inside it; and the body must hold at least MIN_GLYPH_PIXELS glyph pixels in
@@ -48,9 +48,9 @@ from title_route import (
 )
 
 GLYPH_COLOURS = frozenset({(176, 136, 8), (192, 144, 8)})  # the two font colours, measured from the captures
-WALK_BUDGET = 400  # fields of walking allowed to open the conversation (Spyro 2 opens it in ~40)
-SAMPLE = 30  # fields between captures inside the conversation
-CAPTURE_BUDGET = 900  # fields allowed inside the conversation before the route gives up
+WALK_BUDGET = 200  # product steps of walking allowed to open the conversation (Spyro 2 opens it in ~20)
+SAMPLE = 15  # steps between captures inside the conversation
+CAPTURE_BUDGET = 450  # steps allowed inside the conversation before the route gives up
 MIN_CAPTURES = 6
 MIN_GLYPH_PIXELS = 1000
 # The box body as fractions of the frame, excluding the speaker-name strip that sits above the box.
@@ -67,7 +67,7 @@ class Capture:
 
 @dataclass
 class ConversationEvidence:
-    arrival_field: int = 0
+    arrival_step: int = 0
     level: LevelIdentity | None = None
     opened_after: int = 0
     captures: list[Capture] = field(default_factory=list)
@@ -130,7 +130,7 @@ def converse(port: RoutePort, entry: TitleProfile, shot_dir: Path, root: Path = 
     state_dialogue, button = _require_dialogue(entry)
     evidence = ConversationEvidence()
     seen = Evidence()
-    evidence.arrival_field = reach_playing(port, entry, seen)
+    evidence.arrival_step = reach_playing(port, entry, seen)
     port.run(SETTLE)
     if entry.level is not None:
         evidence.level = read_level(port, entry.level)
@@ -141,7 +141,7 @@ def converse(port: RoutePort, entry: TitleProfile, shot_dir: Path, root: Path = 
         walked += STEP
         if walked >= WALK_BUDGET:
             port.release(button)
-            raise Refusal(f"{entry.label}: {button} for {WALK_BUDGET} fields never opened a conversation (state {state_dialogue})")
+            raise Refusal(f"{entry.label}: {button} for {WALK_BUDGET} steps never opened a conversation (state {state_dialogue})")
     port.release(button)
     evidence.opened_after = walked
     elapsed = 0
@@ -167,12 +167,12 @@ def verdict(entry: TitleProfile, evidence: ConversationEvidence) -> None:
 
 def report(entry: TitleProfile, evidence: ConversationEvidence) -> str:
     lines = [
-        f"{entry.label}: conversation opened {evidence.opened_after} fields into the walk "
-        f"(arrival at field {evidence.arrival_field})",
+        f"{entry.label}: conversation opened {evidence.opened_after} steps into the walk "
+        f"(arrival at step {evidence.arrival_step})",
     ]
     if evidence.level is not None:
         lines.append(f"  level {evidence.level.name} (id {evidence.level.level_id})")
-    lines.append(f"  glyph pixels per capture, every {SAMPLE} fields, of {evidence.captures[0].region_pixels} body pixels:")
+    lines.append(f"  glyph pixels per capture, every {SAMPLE} steps, of {evidence.captures[0].region_pixels} body pixels:")
     lines += [f"    {c.path.name}: {c.glyph_pixels}" for c in evidence.captures]
     lines.append(f"  peak {evidence.peak()} (>= {MIN_GLYPH_PIXELS} required), first {evidence.captures[0].glyph_pixels}")
     return "\n".join(lines)

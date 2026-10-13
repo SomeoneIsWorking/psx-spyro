@@ -83,7 +83,7 @@ private:
   std::uint32_t minimumFieldsPerProductStep_ = 2;
 };
 
-// The one definition of "a display field happened": park the REPL, sample the pad, advance the
+// The one definition of "a display field happened": sample the pad, advance the
 // display clock, run the guest vblank callbacks, advance the field counter, let the title observe,
 // snapshot, cross the presentation fence when visible, service audio, release the host-turn token.
 class FieldOwner {
@@ -148,7 +148,6 @@ private:
   // True while a guest root owns its counter, including an IRQ deferred by masking or critical
   // state. Returns whether the guest root ticked the counter itself.
   bool dispatchCallbacks();
-  void serviceRepl();
   void armHandlerStack(Core &core);
   void reportField(const FieldRequest &request, int queueSize, bool queueWasUnconsumed);
   // The fields a paced present waits out: every one delivered since the previous paced present.
@@ -162,8 +161,6 @@ private:
   const char *activeDeliverySite_ = nullptr;
   bool handlerStackArmed_ = false;
   bool hostClockArmed_ = false;
-  bool replQuit_ = false;
-  long replBudget_ = 0;
   std::uint64_t refused_ = 0;
   std::uint64_t fields_ = 0;
   std::uint64_t paces_ = 0;

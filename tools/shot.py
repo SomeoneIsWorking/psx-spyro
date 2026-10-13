@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""shot.py — get a PNG of what the game actually drew, at a frame you choose.
+"""shot.py — get a PNG of what the game actually drew, at a product step you choose.
 
 WHY THIS IS NOT ONE COMMAND ALREADY. Two of the port's capture paths look right and lie:
 
@@ -13,14 +13,13 @@ The one capture that has never lied here is the REPL's full-VRAM dump: both fram
 1024x512 image, so you can SEE which one holds the frame instead of trusting an origin. This wraps
 that, and crops the framebuffer for you.
 
-AND IT PICKS AN ODD FRAME. This port submits ~1600 primitives on odd frames and ZERO on even ones
-(double buffered). Every early capture attempt in this project landed on an even frame and produced
-a picture of nothing. Asking for an even frame here bumps it by one and says so.
+The position is a product step (the REPL's `run N` unit): every step presents one drawn frame, so
+any step is a picture, unlike the delivered fields this used to count, half of which drew nothing.
 
 Usage:
-  shot.py 46501                        # -> scratch/screenshots/f46501.png (the framebuffer)
-  shot.py 46501 --full                 # the whole 1024x512 VRAM, texture atlas included
-  shot.py 46501 --secs 240
+  shot.py 23250                        # -> scratch/screenshots/f23250.png (the framebuffer)
+  shot.py 23250 --full                 # the whole 1024x512 VRAM, texture atlas included
+  shot.py 23250 --secs 240
 """
 import argparse
 import os
@@ -37,27 +36,18 @@ REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # launch, the env and the disc lookup, and the copies drift -- which is how a "screenshot" ends up
 # being one run's picture filed under another's name. `title` selects the identity; everything after
 # it is shared.
-#
-# `double_buffered` is measured per title, not assumed: Spyro 1 submits its primitives on odd frames
-# and zero on even ones, and this port's Spyro 2 boot has no such cadence measured yet, so its
-# captures must be asked for by the frame the caller wants rather than silently nudged.
 TITLES = {
     "spyro1": {
         "disc_var": "PSXPORT_SPYRO_DISC",
         "image": "scratch/assets/spyro1/SCUS_942.28",
-        "double_buffered": True,
     },
     "spyro2": {
         "disc_var": "PSXPORT_SPYRO2_DISC",
         "image": "scratch/assets/spyro2/SCUS_944.25",
-        "double_buffered": False,
     },
     "spyro3": {
         "disc_var": "PSXPORT_SPYRO3_DISC",
         "image": "scratch/assets/spyro3/SCUS_944.67",
-        # No cadence has been measured for SCUS_944.67: no frame of this title has been presented
-        # yet, so this is asked for by the frame the caller wants rather than silently nudged.
-        "double_buffered": False,
     },
 }
 
@@ -122,7 +112,7 @@ def write_png(path, w, h, ch, rows):
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("frame", type=int)
+    ap.add_argument("step", type=int, help="product step to capture after (the REPL `run N` unit)")
     ap.add_argument("--full", action="store_true", help="keep the whole 1024x512 VRAM")
     ap.add_argument("--width", type=int, default=512,
                     help="framebuffer width to crop (default 512 = this game's 4:3 frame). A WIDER "
@@ -135,11 +125,7 @@ def main():
     a = ap.parse_args()
 
     title = TITLES[a.title]
-    frame = a.frame
-    if title["double_buffered"] and frame % 2 == 0:
-        frame += 1
-        print(f"frame {a.frame} is EVEN and submits no primitives in {a.title} — using {frame}",
-              file=sys.stderr)
+    frame = a.step
 
     disc = disc_path(title["disc_var"])
     if not disc or not os.path.exists(disc):
@@ -151,7 +137,7 @@ def main():
     os.makedirs(out, exist_ok=True)
     vram = os.path.join(out, f"vram_f{frame}.png")
 
-    # PSXPORT_NOPACE: drive to the requested frame as fast as the host can — headless is paced like
+    # PSXPORT_NOPACE: drive to the requested step as fast as the host can — headless is paced like
     # a windowed run now (they are one program), so "fast" has to be ASKED for.
     env = dict(os.environ, PSXPORT_REPL="1", PSXPORT_VK_HEADLESS="1", PSXPORT_NOAUDIO="1",
                PSXPORT_NOPACE="1", PSXPORT_WATCHDOG="0", PSXPORT_ASSET_DIR="external/psxport", **{title["disc_var"]: disc})
@@ -160,7 +146,7 @@ def main():
     # had to be SIGKILLed by `timeout` and the run-end reporters never printed — the log then could
     # not say which bodies ran, which is the one thing a picture cannot tell you on its own.
     script = f"run {frame}\nvram {os.path.relpath(vram, REPO)}\nend\n"
-    print(f"running to frame {frame} …", file=sys.stderr)
+    print(f"running to step {frame} …", file=sys.stderr)
     # KEEP THE RUN'S LOG. It used to go to DEVNULL, which made a capture unable to answer the one
     # question that decides what the picture is evidence OF: which bodies actually ran. Two pictures
     # that match prove nothing if the thing under test was never installed — and this port has had
@@ -175,7 +161,7 @@ def main():
                        cwd=REPO, env=env, input=script, text=True,
                        stdout=logf, stderr=subprocess.STDOUT)
     if not os.path.exists(vram):
-        sys.exit(f"no VRAM dump produced — did the run reach frame {frame} within {a.secs}s?")
+        sys.exit(f"no VRAM dump produced — did the run reach step {frame} within {a.secs}s?")
     if pre_mtime is not None and os.path.getmtime(vram) == pre_mtime:
         sys.exit(f"{vram} was NOT rewritten by this run — it is a PREVIOUS capture. Refusing to "
                  f"hand it back: copying this file would silently mislabel one run's picture as "

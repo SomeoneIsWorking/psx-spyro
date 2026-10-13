@@ -257,7 +257,7 @@ def flight_level(port: ScenePort) -> Proof:
                   budget=1800):
         raise Refusal(
             f"entered level {FLIGHT_LEVEL_ID} but g_IsFlightLevel (0x{G_IS_FLIGHT_LEVEL:08X}) is "
-            f"still {port.word(G_IS_FLIGHT_LEVEL)} after {port.spent()} field(s): the level loaded "
+            f"still {port.word(G_IS_FLIGHT_LEVEL)} after {port.spent()} step(s): the level loaded "
             "and the flight flag did not, which is a level-loading defect rather than a route one"
         )
     index = port.word(G_LEVEL_INDEX)
@@ -275,7 +275,7 @@ def flight_level(port: ScenePort) -> Proof:
                   "GS_Playing in the flight level", budget=2400):
         raise Refusal(
             f"g_IsFlightLevel is set but the guest never returned to GS_Playing (gamestate "
-            f"{port.word(guest_globals.kGamestate)}) after {port.spent()} field(s), so the level "
+            f"{port.word(guest_globals.kGamestate)}) after {port.spent()} step(s), so the level "
             "loaded and the hand-off to the player did not"
         )
     return Proof(
@@ -325,7 +325,7 @@ def boss_level(port: ScenePort) -> Proof:
                   "GS_Playing in the boss level", budget=1800):
         raise Refusal(
             f"entered level {BOSS_LEVEL_ID} but the guest never returned to GS_Playing "
-            f"(gamestate {port.word(guest_globals.kGamestate)}) after {port.spent()} field(s)"
+            f"(gamestate {port.word(guest_globals.kGamestate)}) after {port.spent()} step(s)"
         )
     # g_LevelIndex is the guest's OWN arithmetic on the level it just loaded, loaders.c:1398
     # `g_Homeworld = (g_LevelId / 10) - 1` then `g_LevelIndex = (g_Homeworld * 6) + (g_LevelId % 10)`.
@@ -414,7 +414,7 @@ def _death_proof(port: ScenePort, sector: str, fields: int, lives_before: int,
                   "GS_Playing after the respawn", budget=1800):
         raise Refusal(
             f"the guest entered gamestate {state} (the death) but never returned to GS_Playing "
-            f"after {port.spent()} field(s); it is still {port.word(guest_globals.kGamestate)}, "
+            f"after {port.spent()} step(s); it is still {port.word(guest_globals.kGamestate)}, "
             "so the respawn never completed"
         )
     return Proof(
@@ -449,22 +449,23 @@ def _death_proof(port: ScenePort, sector: str, fields: int, lives_before: int,
 # (0x80031EF4 `slti $v0,$v0,0x8`), which is why the loop waits on the guest and reads the option
 # back instead of pressing on a schedule.
 FAIRY_MENU_OPTION = 0
-FAIRY_MENU_FIELDS_PER_STEP = 60
-FAIRY_CARD_FIELDS = 1800
+# Counts are product steps, the REPL's `run N` unit, two fields each in gameplay.
+FAIRY_MENU_WATCH_STEPS = 30
+FAIRY_CARD_STEPS = 900
 FAIRY_MENU_STEPS = 24
 # The card machine's own steps, watched this finely because it finishes inside one menu step
 # (measured: page 0 -> 2 -> 7 across 26 fields, with the card stage climbing 0..4 every two or three
-# fields), so a sample coarser than this walks over page 2 and cannot prove the write was entered.
-FAIRY_WATCH_FIELDS = 2
+# fields), so a sample coarser than one step walks over page 2 and cannot prove the write was entered.
+FAIRY_WATCH_STEPS = 1
 
 
 # The fairy's trigger radius is 0x400 world units and a view unit is a quarter of one, so 150 view
-# units (600 world) is well inside it. The stand is the guest's own idle wait, in fields; the fairy
+# units (600 world) is well inside it. The stand is the guest's own idle wait, in steps; the fairy
 # wanders, so the approach is repeated against her current position.
 FAIRY_STAND_VIEW_DISTANCE = 150
-FAIRY_STAND_FIELDS = 45
+FAIRY_STAND_STEPS = 23
 FAIRY_APPROACH_ATTEMPTS = 30
-FAIRY_APPROACH_FIELDS = 900
+FAIRY_APPROACH_STEPS = 450
 
 
 def _approach_fairy(port: ScenePort, opened, fairies) -> None:
@@ -481,7 +482,7 @@ def _approach_fairy(port: ScenePort, opened, fairies) -> None:
         targets = moby_class_targets(port.words, FAIRY_MOBY_CLASS) or fairies
         try:
             _walk_until(port, f"class {FAIRY_MOBY_CLASS} (the fairy)", targets, opened,
-                        "the fairy cutscene opened", budget=FAIRY_APPROACH_FIELDS,
+                        "the fairy cutscene opened", budget=FAIRY_APPROACH_STEPS,
                         arrived=FAIRY_STAND_VIEW_DISTANCE, route=route if attempt == 0 else None,
                         from_player=True)
         except Refusal:
@@ -489,13 +490,13 @@ def _approach_fairy(port: ScenePort, opened, fairies) -> None:
                 return
             raise
         if opened() or _await(port, opened, "the fairy cutscene to open once Spyro stands still",
-                              budget=FAIRY_STAND_FIELDS):
+                              budget=FAIRY_STAND_STEPS):
             return
         print(f"fairy: attempt {attempt + 1} stood still without the trigger firing", file=sys.stderr)
     fairy = moby_class_targets(port.words, FAIRY_MOBY_CLASS)[0].position
     raise Refusal(
         f"{FAIRY_APPROACH_ATTEMPTS} approach(es) to within {FAIRY_STAND_VIEW_DISTANCE} view units of "
-        f"the fairy, each followed by {FAIRY_STAND_FIELDS} field(s) standing still, and g_Gamestate "
+        f"the fairy, each followed by {FAIRY_STAND_STEPS} step(s) standing still, and g_Gamestate "
         f"stayed {port.word(guest_globals.kGamestate)}: the trigger (OctDistance < 0x400, |dz| < "
         f"0x200, body state 0 or 0xD, health > 0) was not met; Spyro is at "
         f"({port.signed(G_SPYRO_X)}, {port.signed(G_SPYRO_Y)}, {port.signed(G_SPYRO_Z)}) in body "
@@ -535,9 +536,9 @@ def _answer_menu(port: ScenePort, has_card: int) -> tuple[int, int]:
     Two things the loop must not do, both measured. The option word must be re-checked against the
     PAGE first, because from page 1 on that word is the card machine's stage: pressing DOWN to "fix"
     a selection of 4 while the guest is already saving presses a button the guest's page does not
-    read. And the choice must be followed by FAIRY_WATCH_FIELDS-sized steps rather than one long
+    read. And the choice must be followed by FAIRY_WATCH_STEPS-sized runs rather than one long
     run, because the guest ignores CROSS until its own m_AnimationTimer reaches 8 (0x80031EF4) and
-    the whole card machine then finishes inside one 60-field step -- measured: page 0 -> 2 -> 7 in
+    the whole card machine then finishes inside one 30-step watch -- measured: page 0 -> 2 -> 7 in
     26 fields, the stage word climbing 0..4 every two or three fields. A route that ran a coarse
     step after pressing CROSS walked straight over page 2 and could not prove the write at all.
     """
@@ -554,15 +555,15 @@ def _answer_menu(port: ScenePort, has_card: int) -> tuple[int, int]:
             print(f"save: pressing CROSS on option {option} (step {step})", file=sys.stderr)
             port.tap("cross", 8)
         # Watch at the card machine's own resolution until the page leaves the menu.
-        for _ in range(FAIRY_MENU_FIELDS_PER_STEP // FAIRY_WATCH_FIELDS):
-            port.run(FAIRY_WATCH_FIELDS)
+        for _ in range(FAIRY_MENU_WATCH_STEPS // FAIRY_WATCH_STEPS):
+            port.run(FAIRY_WATCH_STEPS)
             if port.word(G_FAIRY_PAGE) != 0:
                 return port.word(G_FAIRY_PAGE), option
     page = port.word(G_FAIRY_PAGE)
     if page == 0:
         raise Refusal(
             f"the fairy's menu stayed on page 0 with m_MenuSelectedOption {option} after "
-            f"{FAIRY_MENU_STEPS} step(s) of {FAIRY_MENU_FIELDS_PER_STEP} field(s): DOWN moves the "
+            f"{FAIRY_MENU_STEPS} press(es) watched for {FAIRY_MENU_WATCH_STEPS} step(s) each: DOWN moves the "
             f"option towards {FAIRY_MENU_OPTION} and CROSS takes it, and the guest took neither"
         )
     return page, option
@@ -575,7 +576,7 @@ def _await_write(port: ScenePort, page_before: int, option: int, has_card: int) 
     (0x80032230), and page 7 is the page the guest ends the cutscene on, captioned "GAME SAVED"
     (the string at 0x80010CC4, laid out for page 7 by game/render/frame/scene/fairy_menu_recipe.cpp). So the
     proof is the page SEQUENCE the guest walked -- it must contain 2 and end on 7 -- and not a
-    sample of the page alone, because the machine finishes inside one 60-field step.
+    sample of the page alone, because the machine finishes inside one menu watch.
 
     Every other page it can land on (3, 4, 5, 6) is a failure the guest words for itself: "NO
     MEMORY CARD", "NO SAVE FILE", "SAVE ERROR", "SAVE FAILED". They are named, never folded into a
@@ -583,19 +584,19 @@ def _await_write(port: ScenePort, page_before: int, option: int, has_card: int) 
     """
     seen: list[int] = []
     spent = 0
-    while spent < FAIRY_CARD_FIELDS:
+    while spent < FAIRY_CARD_STEPS:
         page = port.word(G_FAIRY_PAGE)
         if not seen or seen[-1] != page:
             seen.append(page)
-            print(f"save: m_MenuDialoguePage {page} at field {port.spent()}", file=sys.stderr)
+            print(f"save: m_MenuDialoguePage {page} at step {port.spent()}", file=sys.stderr)
         if page == SAVE_PAGE_SAVED:
             break
         if page in range(SAVE_PAGE_FAILED_FIRST, SAVE_PAGE_FAILED_FIRST + 4):
             break
         if page == 0:
             break
-        port.run(FAIRY_WATCH_FIELDS)
-        spent += FAIRY_WATCH_FIELDS
+        port.run(FAIRY_WATCH_STEPS)
+        spent += FAIRY_WATCH_STEPS
     walked = " -> ".join(dict.fromkeys(
         [str(page_before), str(SAVE_PAGE_WRITE)] + [str(page) for page in seen]))
     if SAVE_PAGE_WRITE not in seen:
@@ -611,7 +612,7 @@ def _await_write(port: ScenePort, page_before: int, option: int, has_card: int) 
     if port.word(G_FAIRY_PAGE) != SAVE_PAGE_SAVED:
         raise Refusal(
             f"m_MenuDialoguePage walked {walked}: the write page {SAVE_PAGE_WRITE} was entered and "
-            f"the guest ended on {port.word(G_FAIRY_PAGE)} after {port.spent()} field(s) instead "
+            f"the guest ended on {port.word(G_FAIRY_PAGE)} after {port.spent()} step(s) instead "
             f"of page {SAVE_PAGE_SAVED} ('GAME SAVED'), so the guest did not report the save"
         )
     return Proof(
@@ -641,8 +642,8 @@ def _await(port: ScenePort, predicate: Callable[[], bool], what: str, budget: in
     while spent < budget:
         if predicate():
             return True
-        port.run(10)
-        spent += 10
+        port.run(5)
+        spent += 5
     return predicate()
 
 
@@ -719,7 +720,7 @@ def _selftest() -> int:
 
     fake = FakePort()
     port = ScenePort(fake, fake.frame)
-    check(_await(port, lambda: fake.ran == [10, 10, 10], "a predicate met on the third step",
+    check(_await(port, lambda: fake.ran == [5, 5, 5], "a predicate met on the third step",
                  budget=100), "_await returned False for a predicate that did become true")
     fake = FakePort()
     port = ScenePort(fake, fake.frame)

@@ -2,7 +2,7 @@
 """determinism_check.py — prove two runs of the same binary on the same inputs are the same run.
 
     uv run --frozen python tools/determinism_check.py --title spyro2
-    uv run --frozen python tools/determinism_check.py --title spyro3 --fields 1500
+    uv run --frozen python tools/determinism_check.py --title spyro3 --steps 1500
     uv run --frozen python tools/determinism_check.py --selftest
 
 WHAT IT MEASURES. The framework's `fielddigest` channel (psxport `runtime/psx/debug/field_digest.h`) prints one
@@ -18,8 +18,8 @@ for fields 0..244 and differed at 245, where the guest first reads the card. Thi
 named that field the first time.
 
 THE NEGATIVE. A check that has only ever printed PASS has not shown it can fail. After the two identical legs
-the tool runs a THIRD whose only difference is one pad tap at `PERTURB_FIELD`; it must diverge, and not before
-that field. A tool whose perturbed leg still matches is refused as blind. Needs the disc and the built port;
+the tool runs a THIRD whose only difference is one pad tap at product step `PERTURB_STEP`; it must diverge, and
+not before field `PERTURB_STEP` (a step is at least one field, so the tap's field is no earlier). A tool whose perturbed leg still matches is refused as blind. Needs the disc and the built port;
 the comparison logic is exercised without either by `--selftest` (a ctest).
 """
 
@@ -40,9 +40,10 @@ from title_profile import Refusal
 
 EXIT_OK, EXIT_NOT_DETERMINISTIC, EXIT_REFUSED = 0, 1, 2
 
-DEFAULT_FIELDS = 1200  # past the boot logos and the first card reads of both titles
-PERTURB_FIELD = 300  # the pad tap of the negative leg; late enough that both titles are past their first card read
-CHUNK = 10  # fields per REPL round trip, the resolution every route samples at
+# Run lengths are product steps, the REPL's `run N` unit; the digest itself is per field.
+DEFAULT_STEPS = 1200  # past the boot logos and the first card reads of both titles
+PERTURB_STEP = 300  # the pad tap of the negative leg; late enough that both titles are past their first card read
+CHUNK = 5  # steps per REPL round trip, the resolution every route samples at
 CHANNEL_ENVIRONMENT = {"PSXPORT_DEBUG": "fielddigest"}
 
 _LINE = re.compile(
@@ -102,7 +103,7 @@ def _describe(divergence: Divergence | None) -> str:
 def judge(baseline: Sequence[FieldState], repeat: Sequence[FieldState], perturbed: Sequence[FieldState],
           perturb_field: int) -> list[str]:
     """The reasons the check fails; empty means it passed. Separate from the live legs so the selftest can
-    show it fail for each reason."""
+    show it fail for each reason. `perturb_field` is the earliest field the tap can land on."""
     failures: list[str] = []
     repeated = first_divergence(baseline, repeat)
     if repeated is not None:
@@ -111,25 +112,25 @@ def judge(baseline: Sequence[FieldState], repeat: Sequence[FieldState], perturbe
     # the guest reacting to an input, which is what a match between the identical legs must be worth.
     seen = first_divergence(baseline, perturbed, ("ram",))
     if seen is None:
-        failures.append(f"the perturbed leg (a pad tap at field {perturb_field}) left guest RAM identical to "
+        failures.append(f"the perturbed leg (a pad tap at field {perturb_field} or later) left guest RAM identical to "
                         "the baseline: the digest is blind, so a match above means nothing")
     elif seen.field < perturb_field:
-        failures.append(f"the perturbed leg's RAM diverged at field {seen.field}, before its only difference at "
-                        f"field {perturb_field}: something other than the input differs between runs")
+        failures.append(f"the perturbed leg's RAM diverged at field {seen.field}, before its only difference, "
+                        f"no earlier than field {perturb_field}: something other than the input differs between runs")
     return failures
 
 
-def _run_leg(name: str, executable: Path, log: Path, fields: int, tap_at: int | None) -> list[FieldState]:
+def _run_leg(name: str, executable: Path, log: Path, steps: int, tap_at: int | None) -> list[FieldState]:
     import drive
     import title_route
 
     _, port = title_route.open_port(name, executable, log, CHANNEL_ENVIRONMENT)
     try:
         spent = 0
-        while spent < fields:
+        while spent < steps:
             if tap_at is not None and spent == tap_at:
                 port.tap("start", 6)
-            port.run(min(CHUNK, fields - spent))
+            port.run(min(CHUNK, steps - spent))
             spent += CHUNK
     except drive.Refusal as refusal:
         raise Refusal(str(refusal)) from refusal
@@ -138,17 +139,17 @@ def _run_leg(name: str, executable: Path, log: Path, fields: int, tap_at: int | 
     return parse_digest(log.read_text())
 
 
-def run_live(name: str, executable: Path, fields: int, log_dir: Path) -> int:
+def run_live(name: str, executable: Path, steps: int, log_dir: Path) -> int:
     import drive
 
-    if fields <= PERTURB_FIELD + CHUNK:
-        raise Refusal(f"--fields {fields} leaves no room after the perturbation at field {PERTURB_FIELD}")
+    if steps <= PERTURB_STEP + CHUNK:
+        raise Refusal(f"--steps {steps} leaves no room after the perturbation at step {PERTURB_STEP}")
     (drive.ROOT / log_dir).mkdir(parents=True, exist_ok=True)
     legs = {}
-    for label, tap_at in (("baseline", None), ("repeat", None), ("perturbed", PERTURB_FIELD)):
-        legs[label] = _run_leg(name, executable, drive.ROOT / log_dir / f"{name}.{label}.log", fields, tap_at)
+    for label, tap_at in (("baseline", None), ("repeat", None), ("perturbed", PERTURB_STEP)):
+        legs[label] = _run_leg(name, executable, drive.ROOT / log_dir / f"{name}.{label}.log", steps, tap_at)
         print(f"  {label}: {len(legs[label])} fields digested")
-    failures = judge(legs["baseline"], legs["repeat"], legs["perturbed"], PERTURB_FIELD)
+    failures = judge(legs["baseline"], legs["repeat"], legs["perturbed"], PERTURB_STEP)
     print(f"{name}: baseline vs repeat {_describe(first_divergence(legs['baseline'], legs['repeat']))}; "
           f"baseline vs perturbed {_describe(first_divergence(legs['baseline'], legs['perturbed']))}; "
           f"first guest RAM difference {_describe(first_divergence(legs['baseline'], legs['perturbed'], ('ram',)))}")
@@ -217,7 +218,7 @@ def _selftest() -> int:
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--title", choices=("spyro2", "spyro3"))
-    parser.add_argument("--fields", type=int, default=DEFAULT_FIELDS)
+    parser.add_argument("--steps", type=int, default=DEFAULT_STEPS, help="product steps per leg")
     parser.add_argument("--executable", type=Path, default=Path("build/bin/spyro_port"))
     parser.add_argument("--log-dir", type=Path, default=Path("scratch/determinism"))
     parser.add_argument("--selftest", action="store_true")
@@ -227,7 +228,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     if not args.title:
         parser.error("--title is required")
     try:
-        return run_live(args.title, args.executable, args.fields, args.log_dir)
+        return run_live(args.title, args.executable, args.steps, args.log_dir)
     except Refusal as refusal:
         print(f"REFUSED: {refusal}", file=sys.stderr)
         return EXIT_REFUSED

@@ -118,7 +118,7 @@ def main(argv: Sequence[str] | None = None, *, runner: Runner = subprocess.run, 
         "--frames",
         type=int,
         default=None,
-        help="stop after this many delivered fields (PSXPORT_NATIVE_FRAMES): a run length, reported as a cap",
+        help="stop after this many presentation-fence steps (PSXPORT_NATIVE_FRAMES): a run length, reported as a cap",
     )
     parser.add_argument("--timeout", type=int, default=400)
     parser.add_argument("--require-cd-match", action="store_true")
@@ -155,7 +155,7 @@ def main(argv: Sequence[str] | None = None, *, runner: Runner = subprocess.run, 
 _SPYRO3_BASELINE = """\
 [t] [cd] CdRead 1 sector(s) x 2048 bytes from LBA 500 -> 0x8006D264 (mode 0x80)
 [t] [frameloop:error] Spyro 3's boot prefix ran 480 step(s) without returning and delivered 483 field(s) in total (step bound 480); it is polling rather than waiting -- ending the run at resume 0x800504F0
-[t] [runtime] run complete: fields=484 product_steps=481 presentation_fences=481 translated_blocks=429 executed_blocks=23373822 executed_instructions=135585657 cache_hits=1 cache_misses=2 host_dispatches=506 invalidations=9 faults=0
+[t] [runtime] run complete: product_steps=481 presentation_fences=481 translated_blocks=429 executed_blocks=23373822 executed_instructions=135585657 cache_hits=1 cache_misses=2 host_dispatches=506 invalidations=9 faults=0
 [t] [executor] Lightrec fallback telemetry [run-complete]: executor_calls=966 executed_blocks=1 fallback_blocks=0 fallback_instructions=0 reasons{compilation_failed=0,self_modifying_code=0} refused_fallback_blocks=0 refused_reasons{compilation_failed=0,self_modifying_code=0}
 """
 
@@ -177,12 +177,12 @@ _SPYRO3_CAPPED = """\
 [t] [cdirq] stock CdRead of 27 sector(s) queued its data-ready completion (I_STAT=0x004)
 [t] [cdirq] CD data-ready -> callback 0x80050504 (slot 0x8006B3D0, controller status 0x02, a0=2 a1=0) -- 1 of 1 owed completions delivered
 [t] [boot-native] Spyro 3's retail boot prefix returned after 336 step(s) and 546 field(s); the per-frame update now owns each step
-[t] [runtime] run complete: fields=600 product_steps=400 presentation_fences=400 translated_blocks=9 executed_blocks=9 executed_instructions=9 cache_hits=1 cache_misses=2 host_dispatches=3 invalidations=4 faults=0
+[t] [runtime] run complete: product_steps=400 presentation_fences=400 translated_blocks=9 executed_blocks=9 executed_instructions=9 cache_hits=1 cache_misses=2 host_dispatches=3 invalidations=4 faults=0
 """
 
 _SPYRO2_FIELD_BOUND = """\
 [t] [frameloop:error] Spyro 2's boot prefix delivered 2 field(s) in one call without returning and gave up on the guest at resume 0x800772FC (bound 64); ending the run
-[t] [runtime] run complete: fields=65 product_steps=16 presentation_fences=16 translated_blocks=9 executed_blocks=9 executed_instructions=9 cache_hits=1 cache_misses=2 host_dispatches=3 invalidations=4 faults=0
+[t] [runtime] run complete: product_steps=16 presentation_fences=16 translated_blocks=9 executed_blocks=9 executed_instructions=9 cache_hits=1 cache_misses=2 host_dispatches=3 invalidations=4 faults=0
 """
 
 
@@ -198,7 +198,7 @@ def selftest() -> int:
 
     done = boot_log.parse(_SPYRO3_BASELINE)
     check("completed run is a named resume", done.end_kind == "resume" and done.end_pc == "0x800504F0")
-    check("completed run reads its totals", (done.fields, done.faults, done.fallback_blocks) == (484, 0, 0))
+    check("completed run reads its totals", (done.fields, done.faults, done.fallback_blocks) == (483, 0, 0))
     check("one read with no delivery is a MISMATCH", len(done.reads) == 1 and not done.cd_matches)
 
     stopped = boot_log.parse(_SPYRO2_STOPPED)

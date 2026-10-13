@@ -402,7 +402,7 @@ bool spyro::render::emitScreenQueue(Core &core, SpriteQueueOffsetObserver *obser
                 "native screen queue: present={} state={} timer={} emitted={} candidates=(tri "
                 "{},quad {}) culled=(tri {},quad {}; nclip {},{} depth {},{}) rejected_world={} "
                 "rejected_variant={} bbox=({},{})..({},{})",
-                c->game->run.fields(),
+                c->game->presentation.fence(),
                 c->mem_r32(spyro::stage13_text_run::kStateAddress),
                 (int32_t)c->mem_r32(spyro::stage13_text_run::kTimerAddress),
                 emitted,

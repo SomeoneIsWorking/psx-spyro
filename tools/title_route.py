@@ -12,7 +12,7 @@ state to decide every press rather than counting frames, because a cutscene or a
 than a count turns a frame-counted route into a capture of the wrong screen.
 
 THE ROUTE, as observed on both titles. Wait for the title state; tap Start once; then, until the guest
-reports the playing state, alternate Cross and Start every PRESS_PERIOD fields. Cross confirms the menu's
+reports the playing state, alternate Cross and Start every PRESS_PERIOD steps. Cross confirms the menu's
 New Game, and either button skips the intro cutscenes (Start on Spyro 3, Cross on Spyro 2, which is why
 both are pressed). Nothing is written into guest memory: every transition is a pad edge.
 
@@ -45,15 +45,16 @@ from title_profile import LevelFacts, Refusal, TitleProfile, profile
 
 EXIT_OK, EXIT_NOT_PLAYING, EXIT_REFUSED = 0, 1, 2
 
-STEP = 10  # fields per observation; the same resolution `drive.Port.run` samples at
-PRESS_PERIOD = 150  # fields between presses on the way in: long enough for a press to be consumed
-TITLE_BUDGET = 3000  # fields allowed for boot to reach the title
-ROUTE_BUDGET = 16000  # fields allowed from the title to gameplay: Spyro 3's two cutscenes take ~9000
-SETTLE = 200  # fields after arrival before any input; the level fades in first
-HOLD_WALK = 60
-HOLD_JUMP = 16
-REST = 90  # fields to stand still after the run, so a rise in z is the jump and not the slope
-MIN_MOVE = 100  # world units; 40 fields of walking moved Spyro 3's y by 1201
+# Counts are product steps, the REPL's `run N` unit; a step is one presented frame, at least one field.
+STEP = 5  # steps per observation; the same resolution `drive.Port.run` samples at
+PRESS_PERIOD = 75  # steps between presses on the way in: long enough for a press to be consumed
+TITLE_BUDGET = 3000  # steps allowed for boot to reach the title
+ROUTE_BUDGET = 16000  # steps allowed from the title to gameplay: Spyro 3's two cutscenes take ~9000 fields
+SETTLE = 100  # steps after arrival before any input; the level fades in first
+HOLD_WALK = 30
+HOLD_JUMP = 8
+REST = 45  # steps to stand still after the run, so a rise in z is the jump and not the slope
+MIN_MOVE = 100  # world units; 20 steps of walking moved Spyro 3's y by 1201
 
 
 class RoutePort(Protocol):
@@ -74,7 +75,7 @@ Position = tuple[int, int, int]
 @dataclass
 class Evidence:
     states_seen: list[int] = field(default_factory=list)
-    arrival_field: int = 0
+    arrival_step: int = 0
     settled: Position = (0, 0, 0)
     after_up: Position = (0, 0, 0)
     rested: Position = (0, 0, 0)
@@ -133,21 +134,21 @@ def _advance(port: RoutePort, evidence: Evidence) -> int:
 
 
 def reach_playing(port: RoutePort, entry: TitleProfile, evidence: Evidence) -> int:
-    """Drive the title into gameplay; returns the fields spent. Refuses by name when the route does not
+    """Drive the title into gameplay; returns the steps spent. Refuses by name when the route does not
     arrive in budget or arrives without having shown the title and loading states first."""
-    fields = 0
+    steps = 0
     while _advance(port, evidence) != entry.state_title:
-        fields += STEP
-        if fields >= TITLE_BUDGET:
+        steps += STEP
+        if steps >= TITLE_BUDGET:
             raise Refusal(
-                f"{entry.label}: no title screen (state {entry.state_title}) within {TITLE_BUDGET} fields; "
+                f"{entry.label}: no title screen (state {entry.state_title}) within {TITLE_BUDGET} steps; "
                 f"states seen {evidence.states_seen}"
             )
     port.tap("start", 6)
     spent, presses = 0, 0
     while True:
         if _advance(port, evidence) == entry.state_playing and entry.state_loading in evidence.states_seen:
-            return fields + spent
+            return steps + spent
         spent += STEP
         if spent % PRESS_PERIOD == 0:
             port.tap(("cross", "start")[presses % 2], 6)
@@ -155,7 +156,7 @@ def reach_playing(port: RoutePort, entry: TitleProfile, evidence: Evidence) -> i
         if spent >= ROUTE_BUDGET:
             raise Refusal(
                 f"{entry.label}: gameplay (state {entry.state_playing}) not reached within {ROUTE_BUDGET} "
-                f"fields of the title; states seen {evidence.states_seen}"
+                f"steps of the title; states seen {evidence.states_seen}"
             )
 
 
@@ -179,7 +180,7 @@ def prove_movement(port: RoutePort, entry: TitleProfile, evidence: Evidence, sho
         port.shot(str(shot_dir / "moved.ppm"))
     if evidence.moved() < MIN_MOVE:
         raise Refusal(
-            f"{entry.label}: {entry.walk_button} for {HOLD_WALK} fields moved the position by {evidence.moved()} (< {MIN_MOVE}): "
+            f"{entry.label}: {entry.walk_button} for {HOLD_WALK} steps moved the position by {evidence.moved()} (< {MIN_MOVE}): "
             f"{evidence.settled} -> {evidence.after_up}; this word is not the player or the player did not move"
         )
     port.run(REST)
@@ -195,7 +196,7 @@ def prove_movement(port: RoutePort, entry: TitleProfile, evidence: Evidence, sho
 
 def play(port: RoutePort, entry: TitleProfile, shot_dir: Path | None = None) -> Evidence:
     evidence = Evidence()
-    evidence.arrival_field = reach_playing(port, entry, evidence)
+    evidence.arrival_step = reach_playing(port, entry, evidence)
     prove_movement(port, entry, evidence, shot_dir)
     return evidence
 
@@ -209,7 +210,7 @@ def report(entry: TitleProfile, evidence: Evidence) -> str:
     )
     return "\n".join(
         (
-            f"{entry.label}: reached gameplay after {evidence.arrival_field} fields; states seen {evidence.states_seen}",
+            f"{entry.label}: reached gameplay after {evidence.arrival_step} steps; states seen {evidence.states_seen}",
             level_line,
             f"  settled    {evidence.settled}",
             f"  after walk {evidence.after_up}  (moved {evidence.moved()} units horizontally)",
