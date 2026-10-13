@@ -29,6 +29,7 @@
 #include "paired_actor_temporal.h"
 #include "pause_menu_scene.h"
 #include "presentation_owner.h"
+#include "scene_draw_env.h"
 #include "screen_border.h"
 #include "screen_fade.h"
 #include "screen_fade_recipe.h"
@@ -62,9 +63,9 @@ using spyro::render::kStagePauseMenu;
 using spyro::render::kStageRespawn;
 using spyro::render::Scene;
 constexpr uint32_t kStageSubSubstate = 0x80078D7Cu;
+using spyro::guest::kGameplayDrawFrame;
 using spyro::guest::kLoadStage;
 using spyro::guest::kStateSwitch;
-constexpr uint32_t kGameplayDrawFrame = 0x8007593Cu;
 
 // One message per layer of 0x80019698, naming the producer that refused.
 const char *modelChainRefusal(unsigned producer) {
@@ -162,15 +163,6 @@ void spyro::render::FrameRenderer::referenceOtWalk() const {
       *mC, kFrameRenderDrv, psx::cpu::ExecutionBudget::currentTurn(*mC), "frame-render-drv");
 }
 
-// Render-only state a stage needs before the frame's draw env is programmed.
-void spyro::render::FrameRenderer::prepareScene(const Scene &sc) const {
-  if (sc.stage == kStageCutscene || sc.stage == kStageLevelTransition ||
-      sc.stage == kStageEntranceAnimation) {
-    const auto state = spyro::cutscene_scene_recipe::read(mC);
-    spyro::cutscene_scene_recipe::prepareFrame(mC, state);
-  }
-}
-
 // One branch per stage that has a producer, composing its layers in the guest's authored draw
 // order. Any other stage — and any stage whose producer refuses its current input — is handed to
 // the guest renderer: unported guest behaviour through Lightrec is this product's architecture.
@@ -197,8 +189,6 @@ spyro::render::SceneOwner spyro::render::FrameRenderer::renderScene(const Scene 
       }
       return SceneOwner::NativeProducers;
     }
-    const auto background = spyro::cutscene_scene_recipe::read(mC);
-    spyro::cutscene_scene_recipe::prepareFrame(mC, background);
     // Retail clears g_SonyImage.m_ShadedMobys immediately before func_80019300, and the native
     // actor producer does not consume that list; reproduce the lifecycle boundary here.
     mC->mem_w32(0x800720F4u, 0u);
@@ -456,7 +446,7 @@ void spyro::render::FrameRenderer::drawFrame() {
   spyro::presentationOwner(*mC).beginNativeFrame();
   // Nothing flips the draw env on this leg, so the producers would emit into the buffer that is not
   // on screen; frameBegin owns that from the game's own DRAWENV.
-  prepareScene(sc);
+  spyro::render::prepareSceneDrawEnv(mC, sc.stage);
   mEnv = spyro::render::frameBegin(mC);
   const SceneOwner owner = renderScene(sc);
   if (owner == SceneOwner::GuestArm) {
