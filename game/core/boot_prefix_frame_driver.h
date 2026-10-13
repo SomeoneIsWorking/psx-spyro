@@ -85,7 +85,7 @@ private:
                        std::uint64_t fieldBound);
   // False when `$r[31]` would end the call in the middle of itself; no guest work runs.
   bool enterCall(std::uint32_t entry);
-  void deliverField(const char *site, bool present);
+  void deliverField(const char *site, bool present, bool pace);
   void stepBoot(Core &core);
   void stepMainLoop(Core &core);
   [[nodiscard]] std::uint32_t entryOf(LoopCall call) const;
