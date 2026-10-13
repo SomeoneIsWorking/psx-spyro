@@ -72,8 +72,8 @@ bool BootPrefixFrameDriver::enterCall(std::uint32_t entry) {
   return true;
 }
 
-void BootPrefixFrameDriver::deliverField(const char *site, bool present) {
-  if (!fields_.deliver({.site = site, .present = present, .pace = present})) {
+void BootPrefixFrameDriver::deliverField(const char *site, bool present, bool pace) {
+  if (!fields_.deliver({.site = site, .present = present, .pace = pace})) {
     lucent::error("frameloop", "{}: field owner refused the field at {}", facts_.titleName, site);
     std::abort();
   }
@@ -118,8 +118,9 @@ BootPrefixFrameDriver::runCall(Core &core,
       std::abort();
     }
     if (step.reason == psx::cpu::ExecutionExitReason::FrameBoundary) {
-      // A guest display wait: real time and the guest's own vblank work, not presented.
-      deliverField(site, false);
+      // A guest display wait: real time and the guest's own vblank work, not presented. A boot call
+      // waits up to its whole field bound in one step, so each boot wait is paced on its own.
+      deliverField(site, false, phase_ == Phase::Boot);
       if (fields_.fields() >= fieldBound) {
         // The guest answers every display wait with another, so it will never return.
         return CallProgress::FieldBoundReached;
@@ -234,7 +235,7 @@ void BootPrefixFrameDriver::stepFrame(Core &core, std::uint32_t frame) {
   }
 
   // Exactly one presentation fence per step; its last field is the visible one.
-  deliverField(phase_ == Phase::Boot ? "boot-tail" : "frame-tail", true);
+  deliverField(phase_ == Phase::Boot ? "boot-tail" : "frame-tail", true, true);
   // Without a logic-frame clock OtAttr never drops its packet spans and attributes reused pool
   // words to stale writers.
   core.rsub.otAttr.beginLogicFrame(frame);

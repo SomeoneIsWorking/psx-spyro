@@ -38,14 +38,17 @@
 #include "execution_exit.h"
 #include "execution_services.h"
 #include "field_owner.h"
+#include "fps60.h"
 #include "game.h"
 #include "lightrec_executor.h"
 #include "native_dispatch.h"
+#include "pace_plan.h"
 #include "resumable_guest_call.h"
 #include "spyro2_runtime.h"
 #include "spyro_context.h"
 #include "testutil.h"
 
+#include <chrono>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -106,6 +109,10 @@ std::vector<std::uint32_t> spinningBody() {
 constexpr std::uint32_t kEndlessEntry = kBodies + 0x500u;
 constexpr std::uint32_t kSpinningBody = kBodies + 0x600u;
 constexpr std::uint32_t kSpinningEntry = kBodies + 0x700u;
+// A guest interrupt handler registered through the BIOS chain, as Spyro 2 and 3 route their VBlank.
+constexpr std::uint32_t kIrqBody = kBodies + 0x800u;
+constexpr std::uint32_t kIrqEntry = kBodies + 0x900u;
+constexpr std::uint32_t kIrqElement = 0x80080000u;
 
 // One counting leaf per body, so "the update ran twice" is a named number rather than a field count
 // two different bodies could have produced between them.
@@ -114,11 +121,13 @@ constexpr std::uint32_t kCountBoot = kLeaves + 0x00u;
 constexpr std::uint32_t kCountUpdate = kLeaves + 0x10u;
 constexpr std::uint32_t kCountDraw = kLeaves + 0x20u;
 constexpr std::uint32_t kCountEndless = kLeaves + 0x30u;
+constexpr std::uint32_t kCountIrq = kLeaves + 0x40u;
 
 std::uint32_t gVisitBoot = 0;
 std::uint32_t gVisitUpdate = 0;
 std::uint32_t gVisitDraw = 0;
 std::uint32_t gVisitEndless = 0;
+std::uint32_t gVisitIrq = 0;
 std::uint32_t gVBlankQueries = 0;
 std::uint32_t gVBlankWaits = 0;
 
@@ -189,6 +198,7 @@ constexpr BodySpec kBodiesSpec[] = {
     // A boot prefix that never returns: far more waits than the bound the test sets.
     {kEndlessEntry, kEndlessBody, kCountEndless, "synthetic-boot-prefix-count-endless", 40},
     {kSpinningEntry, kSpinningBody, 0u, "synthetic-boot-prefix-spin", 0u},
+    {kIrqEntry, kIrqBody, kCountIrq, "synthetic-boot-prefix-count-irq", 0u},
 };
 
 void countLeaf(Core *core) {
@@ -198,6 +208,8 @@ void countLeaf(Core *core) {
     ++gVisitUpdate;
   } else if (core->pc == kCountDraw) {
     ++gVisitDraw;
+  } else if (core->pc == kCountIrq) {
+    ++gVisitIrq;
   } else {
     ++gVisitEndless;
   }
@@ -323,6 +335,7 @@ void resetCounters() {
   gVisitUpdate = 0;
   gVisitDraw = 0;
   gVisitEndless = 0;
+  gVisitIrq = 0;
   gVBlankQueries = 0;
   gVBlankWaits = 0;
 }
@@ -506,6 +519,8 @@ void test_boot_prefix_that_never_returns_is_bounded() {
   CHECK_EQ(fixture.driver.fields().fields(), gVBlankWaits + 1u);
   CHECK(fixture.driver.fields().fields() <= 4u + 1u);
   CHECK_EQ(fixture.driver.fields().presents(), 1u);
+  // Each boot wait is paced on its own, so a long boot call reaches the host one field at a time.
+  CHECK_EQ(fixture.driver.fields().paces(), fixture.driver.fields().fields());
   // The run is asked to end by name rather than spun on, through the framework's own completion
   // path, so the process still reaches its shutdown accounting.
   CHECK(core.game->run.shouldEnd());
@@ -614,6 +629,117 @@ void test_reentrant_field_delivery_is_refused() {
   CHECK_EQ(owner.presents(), 0u);
 }
 
+constexpr spyro::FieldOwnerFacts kNoRootFacts{
+    .titleName = "Synthetic title (no vblank root)",
+    .handlerStackTop = 0x8000E000u,
+    .handlerStackBytes = 8192u,
+    .fieldsPerLogicFrame = 2,
+};
+
+// A title with no host-dispatched vblank root takes VBlank through its own interrupt chain. The
+// frame-tail field follows the draw's wait field with no guest execution between them, so unless
+// each field hands its edge to the guest the two latch into one and the guest counts half the
+// fields: Spyro 2's limiter then spans four delivered fields per logic frame.
+void test_each_field_hands_its_vblank_to_the_guest_chain() {
+  psx::config::cv_nopace.set(psx::config::Layer::Runtime, true);
+  psx::config::cv_repl.set(psx::config::Layer::Runtime, false);
+  resetCounters();
+  BootFixture fixture;
+  CHECK(fixture.install());
+  Core &core = fixture.game->core;
+  core.mem_w32(kIrqElement + 4u, kIrqEntry);
+  core.mem_w32(kIrqElement + 8u, 0u);
+  fixture.game->hle.irqEnq(0u, kIrqElement);
+  fixture.game->hle.i_mask = 1u;
+
+  spyro::FieldOwner owner(*fixture.game, kNoRootFacts);
+  CHECK(owner.deliver({.site = "draw-wait", .present = false, .pace = false}));
+  CHECK(owner.deliver({.site = "frame-tail", .present = false, .pace = false}));
+  CHECK_EQ(gVisitIrq, 2u);
+}
+
+// A presented field waits out every field delivered since the previous paced one. A step of the
+// boot-prefix driver delivers the draw's wait field unpaced and then presents; pacing only the
+// presented one ran the guest at two fields per host field.
+void test_a_paced_field_waits_for_every_field_since_the_last() {
+  psx::config::cv_nopace.set(psx::config::Layer::Runtime, false);
+  psx::config::cv_repl.set(psx::config::Layer::Runtime, false);
+  spyro::Context context;
+  spyro2::Spyro2Runtime runtime;
+  std::unique_ptr<Game> game = newGame(context, runtime);
+  spyro::FieldOwner owner(*game, kNoRootFacts);
+  const auto nowMs = [] {
+    return std::chrono::duration<double, std::milli>(
+               std::chrono::steady_clock::now().time_since_epoch())
+        .count();
+  };
+
+  CHECK(owner.deliver({.site = "draw-wait", .present = false, .pace = false}));
+  const double before = nowMs();
+  CHECK(owner.deliver({.site = "frame-tail", .present = true, .pace = true}));
+
+  // The pacer carries its deadline; one more one-field plan exposes it.
+  const unsigned rate = game->framePacer.fieldRateMilliHz(game->core);
+  CHECK(rate != 0u);
+  const double fieldMs = 1000000.0 / static_cast<double>(rate);
+  const psx::frame::PacePlan probe =
+      game->framePacer.plan({.quota = 1, .parts = 1, .fieldRateMilliHz = rate, .nowMs = 0.0});
+  const double deadline = probe.nextMs - fieldMs;
+  CHECK(deadline - before >= 2.0 * fieldMs - 0.01);
+  psx::config::cv_nopace.set(psx::config::Layer::Runtime, true);
+}
+
+// A paced field that presents nothing still waits its field out. A boot call delivers up to its
+// whole field bound in one step; pacing only its present handed the host ~120 fields at once.
+void test_a_paced_wait_field_waits_without_presenting() {
+  psx::config::cv_nopace.set(psx::config::Layer::Runtime, false);
+  psx::config::cv_repl.set(psx::config::Layer::Runtime, false);
+  spyro::Context context;
+  spyro2::Spyro2Runtime runtime;
+  std::unique_ptr<Game> game = newGame(context, runtime);
+  spyro::FieldOwner owner(*game, kNoRootFacts);
+  const double before =
+      std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now().time_since_epoch())
+          .count();
+
+  CHECK(owner.deliver({.site = "boot", .present = false, .pace = true}));
+  CHECK_EQ(owner.presents(), 0u);
+
+  const unsigned rate = game->framePacer.fieldRateMilliHz(game->core);
+  CHECK(rate != 0u);
+  const double fieldMs = 1000000.0 / static_cast<double>(rate);
+  const psx::frame::PacePlan probe =
+      game->framePacer.plan({.quota = 1, .parts = 1, .fieldRateMilliHz = rate, .nowMs = 0.0});
+  CHECK(probe.nextMs - fieldMs >= before + fieldMs - 0.01);
+  psx::config::cv_nopace.set(psx::config::Layer::Runtime, true);
+}
+
+// A temporal title defers a visible field whose ordering table no producer drew; the field still
+// happened, so it is waited out rather than left unpaced. Spyro 3's boot defers every field, so
+// skipping the wait ran it several times faster than the display.
+void test_a_deferred_paced_field_still_waits() {
+  psx::config::cv_nopace.set(psx::config::Layer::Runtime, false);
+  psx::config::cv_repl.set(psx::config::Layer::Runtime, false);
+  spyro::Context context;
+  spyro2::Spyro2Runtime runtime;
+  std::unique_ptr<Game> game = newGame(context, runtime);
+  game->temporalPresentation = std::make_unique<Fps60>(*game);
+  spyro::FieldOwner owner(*game, kNoRootFacts);
+  const double before =
+      std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now().time_since_epoch())
+          .count();
+
+  CHECK(owner.deliver({.site = "boot-tail", .present = true, .pace = true}));
+  CHECK_EQ(owner.temporalDeferrals(), 1u);
+
+  const unsigned rate = game->framePacer.fieldRateMilliHz(game->core);
+  const double fieldMs = 1000000.0 / static_cast<double>(rate);
+  const psx::frame::PacePlan probe =
+      game->framePacer.plan({.quota = 1, .parts = 1, .fieldRateMilliHz = rate, .nowMs = 0.0});
+  CHECK(probe.nextMs - fieldMs >= before + fieldMs - 0.01);
+  psx::config::cv_nopace.set(psx::config::Layer::Runtime, true);
+}
+
 void test_negative_vsync_query_answers_the_derived_counter() {
   // A Core with its Game, not a bare one: the counter word is served by the framework's peripheral
   // model, which dereferences `core.game`. A bare Core answers the query with a null dereference
@@ -659,5 +785,9 @@ int main() {
   RUN(boot_prefix_that_polls_without_asking_for_a_field_is_bounded);
   RUN(reentrant_field_delivery_is_refused);
   RUN(negative_vsync_query_answers_the_derived_counter);
+  RUN(each_field_hands_its_vblank_to_the_guest_chain);
+  RUN(a_paced_field_waits_for_every_field_since_the_last);
+  RUN(a_deferred_paced_field_still_waits);
+  RUN(a_paced_wait_field_waits_without_presenting);
   return pt_summary();
 }
