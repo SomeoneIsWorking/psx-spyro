@@ -498,6 +498,43 @@ void test_the_two_endpoints_are_exact() {
   }
 }
 
+// Consecutive frames draw into opposite buffers (draw offset y 0 and 240). A flip alone moves
+// nothing on screen, so a sample between the two must not move any draw either.
+void test_a_buffer_flip_alone_moves_no_draw() {
+  State before = fieldState();
+  before.drawOffsetY = 0;
+  State after = fieldState();
+  after.drawOffsetY = 240;
+  Overlay previous;
+  Overlay current;
+  CHECK_EQ(spyro::field_2d_overlay_recipe::derive(before, previous), Status::Ready);
+  CHECK_EQ(spyro::field_2d_overlay_recipe::derive(after, current), Status::Ready);
+  Overlay sampled = current;
+  Census census;
+  CHECK_EQ(spyro::field_2d_overlay_recipe::interpolate(sampled, previous, 0.5, census),
+           Status::Ready);
+  CHECK_EQ(sampled.draws.size(), current.draws.size());
+  for (size_t i = 0; i < sampled.draws.size() && i < current.draws.size(); ++i) {
+    CHECK_EQ(sampled.draws[i].rect.x, current.draws[i].rect.x);
+    CHECK_EQ(sampled.draws[i].rect.y, current.draws[i].rect.y);
+    CHECK_EQ(sampled.draws[i].rect.h, current.draws[i].rect.h);
+  }
+  // The sample draws into the current frame's buffer.
+  const Draw *fade = findPart(sampled, Part::Fade, 0);
+  CHECK(fade != nullptr);
+  if (fade != nullptr) {
+    const auto rect = spyro::field_2d_overlay_recipe::destination(sampled, fade->rect);
+    CHECK_EQ(rect.y, 248);
+    CHECK_EQ(rect.h, 224);
+  }
+  // A sprite keeps the guest's own rect; its submitter adds the offset.
+  const Draw *orb = findPart(sampled, Part::Sprite, 0);
+  CHECK(orb != nullptr);
+  if (orb != nullptr) {
+    CHECK_EQ(orb->rect.y, 40);
+  }
+}
+
 void test_a_draw_the_previous_frame_omitted_is_absent_not_misattributed() {
   State before = fieldState();
   before.collectables.lifeOrbCount = 1;
@@ -781,6 +818,7 @@ int main() {
   RUN(interpolates_position_and_colour_but_never_the_texture);
   RUN(the_sampler_reaches_every_rect_field_and_no_other);
   RUN(the_two_endpoints_are_exact);
+  RUN(a_buffer_flip_alone_moves_no_draw);
   RUN(a_draw_the_previous_frame_omitted_is_absent_not_misattributed);
   RUN(every_identity_rule_is_provoked_and_counted);
   RUN(a_refused_pair_is_counted_by_reason_and_keeps_its_own_endpoint);

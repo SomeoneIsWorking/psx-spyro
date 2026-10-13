@@ -38,11 +38,12 @@ inline screen_fade_recipe::Recipe fadeRecipe(const Overlay &overlay) {
     if (draw.part != Part::Fade) {
       continue;
     }
+    const auto rect = field_2d_overlay_recipe::destination(overlay, draw.rect);
     recipe = {.visible = true,
-              .x0 = draw.rect.x,
-              .y0 = draw.rect.y,
-              .x1 = draw.rect.x + draw.rect.w,
-              .y1 = draw.rect.y + draw.rect.h,
+              .x0 = rect.x,
+              .y0 = rect.y,
+              .x1 = rect.x + rect.w,
+              .y1 = rect.y + rect.h,
               .r = draw.r,
               .g = draw.g,
               .b = draw.b,
@@ -61,14 +62,15 @@ inline screen_border_recipe::Recipe borderRecipe(const Overlay &overlay) {
     if (draw.part != Part::Border) {
       continue;
     }
-    x0 = draw.rect.x;
-    x1 = draw.rect.x + draw.rect.w;
+    const auto rect = field_2d_overlay_recipe::destination(overlay, draw.rect);
+    x0 = rect.x;
+    x1 = rect.x + rect.w;
     if (draw.slot == field_2d_overlay_recipe::kBorderTopSlot) {
-      topY0 = draw.rect.y;
-      topY1 = draw.rect.y + draw.rect.h;
+      topY0 = rect.y;
+      topY1 = rect.y + rect.h;
     } else {
-      bottomY0 = draw.rect.y;
-      bottomY1 = draw.rect.y + draw.rect.h;
+      bottomY0 = rect.y;
+      bottomY1 = rect.y + rect.h;
     }
     ++bars;
   }
@@ -93,9 +95,8 @@ inline field_collectables_recipe::Recipe spriteRecipe(const Overlay &overlay) {
     if (draw.part != Part::Sprite) {
       continue;
     }
-    // The overlay's coordinates are 32-bit because the border and the fade are laid out against a
-    // widened draw area; a sprite rect is the guest's own 16-bit value with the draw offset already
-    // folded in.
+    // The overlay's coordinates are 32-bit for the widened fade and border; a sprite rect is the
+    // guest's own 16-bit value.
     field_collectables_recipe::Sprite sprite{};
     sprite.rect = {.x = static_cast<int16_t>(draw.rect.x),
                    .y = static_cast<int16_t>(draw.rect.y),
