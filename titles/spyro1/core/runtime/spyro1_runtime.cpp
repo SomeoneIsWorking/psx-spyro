@@ -213,6 +213,8 @@ const PlatformHlePlan *Spyro1Runtime::platformHlePlan() const {
     p.bindings[7] = {kCdSync, cd_sync_stock_sync};
     p.bindings[8] = {kCdCw, cd_command_stock_sync};
     p.bindingCount = 9;
+    // libcd command-send writers: 0x80064DDC Setloc, 0x80064E08 Setmode, 0x80064EA4 command byte.
+    p.stockCdWorkArea = {0x80074E50u, 0x80074E54u, 0x80074E55u};
     p.windowLo[0] = 0x8005B000u;
     p.windowHi[0] = 0x80066000u;
     return p;
