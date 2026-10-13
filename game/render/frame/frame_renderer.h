@@ -91,9 +91,8 @@ public:
   Scene classifyScene() const;
 
 private:
-  void referenceOtWalk() const;             // the guest's render driver, unmodified
-  void prepareScene(const Scene &sc) const; // render-only state needed before nativeFrameBegin
-  SceneOwner renderScene(const Scene &sc);  // the native picture — dispatches producers
+  void referenceOtWalk() const;            // the guest's render driver, unmodified
+  SceneOwner renderScene(const Scene &sc); // the native picture — dispatches producers
   // The backlog owner, not a fatal. A stage with no native recipe is a gap in the port; it is
   // reported in full and handed to the guest renderer. An abort here would crash on every
   // unported player-reachable scene.

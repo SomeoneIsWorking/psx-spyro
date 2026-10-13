@@ -39,6 +39,9 @@ inline constexpr std::uint32_t kLoadStage = 0x80075864u;
 // g_TitlescreenState (titlescreen.h): m_Mode through m_OptionSelected, in that order.
 inline constexpr std::uint32_t kTitlescreenState = 0x80078D78u;
 
+// Non-zero while the respawn/game-over arm fades over a frozen gameplay frame.
+inline constexpr std::uint32_t kGameplayDrawFrame = 0x8007593Cu;
+
 // g_LevelMobys (moby.h): pointer to the level's Moby array.
 inline constexpr std::uint32_t kLevelMobys = 0x80075828u;
 

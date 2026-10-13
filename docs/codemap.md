@@ -83,10 +83,14 @@ framework's own delivery path, and host input during it is the framework's
 
 `spyro::FieldOwner::deliver` is the ONE definition of "a display field happened", shared by every
 title in the lineage. In order: park the REPL → sample the host pad → advance the display clock →
-dispatch this title's guest vblank root (`spyro::FieldOwner::dispatchCallbacks`) → advance the field
-counter → the title observes (`spyro::FieldObserver::onField`) → snapshot → cross the presentation
-fence when the field is visible → service audio (`psx::audio::SpuAudio::frame`) → release the
-host-turn token. `spyro::FieldOwner::hostTurnThunk` is the host-turn entry: one more physical field,
+dispatch this title's guest vblank root (`spyro::FieldOwner::dispatchCallbacks`; a title with no
+host-dispatched root takes the edge through its own interrupt chain, `Hle::irqPoll`, inside the same
+field) → advance the field counter → the title observes (`spyro::FieldObserver::onField`) → snapshot →
+cross the presentation fence when the field is visible → service audio (`psx::audio::SpuAudio::frame`)
+→ release the host-turn token. A paced field waits out every field delivered since the previous paced
+one (`spyro::FieldOwner::takePacedFields`), whether it is presented, deferred by the temporal
+product, or a wait that presents nothing (each boot-prefix wait, so a long boot call reaches the host
+and the audio queue one field at a time). `spyro::FieldOwner::hostTurnThunk` is the host-turn entry: one more physical field,
 never a second presentation fence.
 
 `spyro1::FieldScheduler` is the Spyro 1 `FieldObserver`: the shared sequence plus the two things
@@ -125,7 +129,7 @@ psx::input::HostInput        the ONE host-input owner (external/psxport/runtime/
 spyro::render::FrameRenderer::drawFrame
   ├─ classifyScene()                    which guest stage selector is on screen
   ├─ [reference leg]  referenceOtWalk() the guest's own render driver, unmodified
-  ├─ [native leg]     prepareScene() → frame_env nativeFrameBegin
+  ├─ [native leg]     prepareSceneDrawEnv() → frame_env frameBegin
   │                   renderScene()  → one producer per field layer
   │                                     (the layer submit chain, spyro::render::FrameRenderer::titleMenuRender,
   │                                      ::stage13Mode3Render)
@@ -268,6 +272,7 @@ A new module goes in the directory of the subsystem it belongs to; nothing lands
 | `scene.{h,cpp}` | `spyro::render` | `Scene`, `SceneOwner`, `StageArm`, `FieldLayer` and the stage selectors: the field arm's layer list is the native-renderer backlog, declared once here. |
 | `presentation_owner.{h,cpp}` | `spyro` | `PresentationOwner`: per-Game statement of which producer owns the next present. |
 | `frame_env.{h,cpp}` | `spyro` | The native leg's frame open/close and display environment. |
+| `scene_draw_env.{h,cpp}` | `spyro::render` | `prepareSceneDrawEnv`: the DRAWENV background colour each stage's guest arm writes before its `PutDrawEnv`, applied before `frameBegin` emits the isbg fill. Issue 0185. |
 | `guest_actor_pool.h` | `spyro::guest_actor_pool` | SCUS_942.28's actor pool: the cursor, the end, and one record's size. Four producers read or move it, so it is stated once here rather than as a literal in each. |
 | `draw_area.h`, `producer_refusal.h`, `scene_painter_order.*`, `painter_submission_preflight.*` | `spyro` | The draw-destination check, the refusal vocabulary, and the painter order and preflight shared by producers. |
 | `gpu_packet_decode.{h,cpp}`, `guest_trig.{h,cpp}`, `gte_color_ops.h`, `projection_stream.{h,cpp}`, `scene_camera_inputs.h` | `spyro::gpu_packet_decode`, `spyro::guest_trig`, `spyro::gte_color`, `spyro` | The packet and coprocessor vocabulary and the projection sampler the producers share. |

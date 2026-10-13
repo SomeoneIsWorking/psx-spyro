@@ -532,11 +532,7 @@ bool spyro::render::FrameRenderer::stage13Mode3Render() const {
   const uint32_t state = c->mem_r32(spyro::stage13_text_run::kStateAddress);
   spyro::stage13_text_run::present(c, originalPool);
 
-  // The handler clears both draw-env background colours, then rebuilds the request queue.
-  for (uint32_t a :
-       {0x80076EF9u, 0x80076EFAu, 0x80076EFBu, 0x80076F7Du, 0x80076F7Eu, 0x80076F7Fu}) {
-    c->mem_w8(a, 0);
-  }
+  // The handler's background clear is scene_draw_env's; it rebuilds the request queue here.
   c->mem_w32(kQueue, 0);
   append_pending_actors(c);
   const bool complete_queue = spyro::render::emitScreenQueue(*c, mQueueObserver);
