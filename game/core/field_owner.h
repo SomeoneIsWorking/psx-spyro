@@ -129,6 +129,10 @@ public:
     return presents_;
   }
 
+  std::uint64_t paces() const {
+    return paces_;
+  }
+
   std::uint64_t temporalDeferrals() const {
     return temporalDeferrals_;
   }
@@ -147,6 +151,8 @@ private:
   void serviceRepl();
   void armHandlerStack(Core &core);
   void reportField(const FieldRequest &request, int queueSize, bool queueWasUnconsumed);
+  // The fields a paced present waits out: every one delivered since the previous paced present.
+  int takePacedFields(const FieldRequest &request);
 
   Game &game_;
   FieldOwnerFacts facts_;
@@ -161,6 +167,7 @@ private:
   std::uint64_t refused_ = 0;
   std::uint64_t fields_ = 0;
   std::uint64_t paces_ = 0;
+  std::uint64_t fieldsSincePace_ = 0;
   std::uint64_t presents_ = 0;
   // Visible fields a temporal product swallowed: the guest's ordering table was empty, so the
   // 60 Hz output's real/in-between pair already covered the field.
