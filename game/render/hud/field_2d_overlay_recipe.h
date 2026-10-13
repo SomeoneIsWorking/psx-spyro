@@ -116,7 +116,15 @@ struct Overlay {
   int32_t barHeight = 0;
   // Which of the guest's three call sites ran on THIS frame, so `draws=0` carries its reason.
   Gates gates{};
+  // The frame's draw offset. Draw rects exclude it: consecutive frames draw into opposite buffers.
+  int32_t drawOffsetX = 0;
+  int32_t drawOffsetY = 0;
 };
+
+// A fade or border rect in its frame's buffer; the sprite submitter applies the offset itself.
+inline Rect destination(const Overlay &overlay, const Rect &rect) {
+  return {rect.x + overlay.drawOffsetX, rect.y + overlay.drawOffsetY, rect.w, rect.h};
+}
 
 inline constexpr uint32_t kFadeSlot = 0u;
 inline constexpr uint32_t kBorderTopSlot = 0u;
@@ -193,11 +201,12 @@ inline const char *statusName(Status status) {
 
 inline Status derive(const State &state, Overlay &overlay) {
   overlay.draws.clear();
+  overlay.drawOffsetX = state.drawOffsetX;
+  overlay.drawOffsetY = state.drawOffsetY;
   overlay.gates = {
       .fade = armedFade(state), .border = armedBorder(state), .sprites = armedSprites(state)};
 
-  const auto fade = screen_fade_recipe::field(
-      state.fade, state.drawOffsetX, state.drawOffsetY, state.renderWidth);
+  const auto fade = screen_fade_recipe::field(state.fade, 0, 0, state.renderWidth);
   if (overlay.gates.fade && fade.visible) {
     overlay.draws.push_back({.part = Part::Fade,
                              .instance = instanceOf(Part::Fade, 0),
@@ -213,8 +222,8 @@ inline Status derive(const State &state, Overlay &overlay) {
   const auto border = screen_border_recipe::field(state.borderEnabled,
                                                   state.barHeight,
                                                   state.deltaTime,
-                                                  state.drawOffsetX,
-                                                  state.drawOffsetY,
+                                                  0,
+                                                  0,
                                                   state.renderWidth);
   // The guest commits the stepped height whether or not the bar ended up with one. Stepping while
   // the call site is shut is a no-op: the gate at draw.c:2743 is false only when
@@ -240,8 +249,7 @@ inline Status derive(const State &state, Overlay &overlay) {
     overlay.draws.clear();
     return Status::InvalidCount;
   }
-  // The sprite positions are the guest's own RECTs; the port adds the frame's draw offset exactly
-  // where field_collectables did.
+  // The sprite positions are the guest's own RECTs; field_collectables' emit adds the draw offset.
   //
   // The call-site gate is applied HERE, not inside field_collectables_recipe::derive, because the
   // recipe models 0x80019300's BODY and the body really does compute the sprites on a flight
@@ -251,10 +259,7 @@ inline Status derive(const State &state, Overlay &overlay) {
     overlay.draws.push_back({.part = Part::Sprite,
                              .instance = instanceOf(Part::Sprite, static_cast<uint8_t>(i)),
                              .slot = static_cast<uint8_t>(i),
-                             .rect = {sprite.rect.x + state.drawOffsetX,
-                                      sprite.rect.y + state.drawOffsetY,
-                                      sprite.rect.w,
-                                      sprite.rect.h},
+                             .rect = {sprite.rect.x, sprite.rect.y, sprite.rect.w, sprite.rect.h},
                              .r = sprite.r,
                              .g = sprite.g,
                              .b = sprite.b,
