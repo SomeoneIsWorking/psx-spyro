@@ -85,6 +85,11 @@ bool FieldOwner::dispatchCallbacks() {
       facts_.rootHandlerSlot != 0 ? core.mem_r32(facts_.rootHandlerSlot) : 0u;
   const std::uint32_t target = root != 0 ? root : callbackFallback_;
   if (target == 0) {
+    // The guest's own chain takes this field's edge now; a following field would latch over it.
+    if (spyro::hasPendingEnabledVblank(core.irqStatLatch(), game_.hle.i_mask) &&
+        game_.hle.canDispatchInterrupt(core)) {
+      game_.hle.irqPoll(&core);
+    }
     return false;
   }
   const bool rootOwnsIrq = root != 0 && game_.hle.exception_exit_buf != 0;
@@ -173,6 +178,15 @@ void FieldOwner::reportField(const FieldRequest &request, int queueSize, bool qu
                 queueWasUnconsumed ? 1 : 0);
 }
 
+int FieldOwner::takePacedFields(const FieldRequest &request) {
+  if (!request.pace) {
+    return 0;
+  }
+  const auto fields = static_cast<int>(fieldsSincePace_);
+  fieldsSincePace_ = 0;
+  return fields;
+}
+
 bool FieldOwner::deliver(FieldRequest request) {
   Core &core = game_.core;
   if (inField_) {
@@ -208,6 +222,7 @@ bool FieldOwner::deliver(FieldRequest request) {
     core.mem_w32(facts_.fieldCounter, core.mem_r32(facts_.fieldCounter) + 1u);
   }
   cadence_.delivered();
+  ++fieldsSincePace_;
   if (observer_ != nullptr) {
     observer_->onField(core, startEdge);
   }
@@ -222,13 +237,18 @@ bool FieldOwner::deliver(FieldRequest request) {
     if (temporal != nullptr && (!isSceneField || game_.presentation.capturedCount() == 0)) {
       game_.presentation.commitUnpresented(&core);
       ++temporalDeferrals_;
+      if (request.pace) {
+        game_.framePacer.waitPresentedFields(core, takePacedFields(request), 1);
+      }
     } else if (temporal != nullptr) {
-      temporal->frame_commit(&core, request.pace ? 1 : 0);
+      temporal->frame_commit(&core, takePacedFields(request));
       ++presents_;
     } else {
-      game_.presentation.commit(&core, request.pace ? 1 : 0);
+      game_.presentation.commit(&core, takePacedFields(request));
       ++presents_;
     }
+  } else if (request.pace) {
+    game_.framePacer.waitPresentedFields(core, takePacedFields(request), 1);
   }
   game_.spu_audio.frame();
   if (request.pace) {
