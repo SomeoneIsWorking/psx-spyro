@@ -83,7 +83,6 @@ def parse(log: str) -> BootReport:
     for line in log.splitlines():
         if (m := _RUN_COMPLETE.search(line)) is not None:
             counts = _pairs(m["body"])
-            report.fields = counts.get("fields")
             report.product_steps = counts.get("product_steps")
             report.presentation_fences = counts.get("presentation_fences")
             report.translated_blocks = counts.get("translated_blocks")

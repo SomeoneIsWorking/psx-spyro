@@ -21,7 +21,7 @@ behavior or native owner it observed; it does not prove that the native/Lightrec
 | S003 | Stage-13 title mode 2 presents the three-slot save screen natively | verified | S002 | G003 |
 | S004 | Spyro 1 boot and gameplay advance under a title-owned frame/field scheduler without guest VSync | partial | S001 | G002, G003 |
 | S005 | Spyro 1 exposes native rendering and presentation settings through title-owned capability policy | partial | S002, S004 | G003 |
-| S006 | Spyro 2 has identity-derived executable facts and a title-local native boot owner through the pre-display boundary | partial — the finite three-field bootstrap and its `0x80011B1C` stop are DELETED; the retail boot prefix `0x80011E9C` executes through Lightrec and, since issue 0156, RETURNS: the loader's modules are published as images (framework `stockCdReadLanded`, psxport `guest_code_module.*`), the boot prefix returns after 43 steps and 133 fields with instantaneous CD reads (359 steps and 606 fields once reads take the drive's time, issue 0164), and the per-frame update `0x8001B140`/draw `0x800156FC` then run 784 product steps / 1,500 fields with 0 faults (`tools/boot_run.py --title spyro2 --frames 1500`); the loader's CD completion is fixed (psxport `28682cde`, issue 0143). Nothing is claimed about what those frames draw, and zero interpreter fallback is still refused by a Lightrec self-modifying-block false positive at `0x8005FFFC` (37 blocks, issue 0092 section 4) | — | G001 **MEASURED 2026-10-01 (commits a8781a3, 02a9514, 3bbaf41, 9a7bb73; issues 0159-0162): the title screen is PRESENTED.** Captures at steps 300..2400 (`PSXPORT_PRESENT_SHOT_AT`, headless): logo sign at 300 (555,363 of 691,200 pixels non-black), Spyro flies in at 600 (621,978), the "Spyro Ripto's Rage" logo with "press start" from step 900 (621,534; 621,363 at 2400). Blockers cleared: the frame driver ran one call per step (0162), negative VSync answered the HBlank timer instead of `[0x80066618]` (0160), retail CdControlB `0x80058994` waited out a 0x3C0-vblank deadline before each XA Setmode (0161), native CdInit removed (0159). Not compared pixel-for-pixel against the full-console oracle; fields-per-step is an assumption (2). |
+| S006 | Spyro 2 has identity-derived executable facts and a title-local native boot owner through the pre-display boundary | partial — the finite three-field bootstrap and its `0x80011B1C` stop are DELETED; the retail boot prefix `0x80011E9C` executes through Lightrec and, since issue 0156, RETURNS: the loader's modules are published as images (framework `stockCdReadLanded`, psxport `guest_code_module.*`), the boot prefix returns after 43 steps and 133 fields with instantaneous CD reads (359 steps and 606 fields once reads take the drive's time, issue 0164), and the per-frame update `0x8001B140`/draw `0x800156FC` then run 784 product steps / 1,500 fields with 0 faults (`tools/boot_run.py --title spyro2 --frames 784`, fence steps); the loader's CD completion is fixed (psxport `28682cde`, issue 0143). Nothing is claimed about what those frames draw, and zero interpreter fallback is still refused by a Lightrec self-modifying-block false positive at `0x8005FFFC` (37 blocks, issue 0092 section 4) | — | G001 **MEASURED 2026-10-01 (commits a8781a3, 02a9514, 3bbaf41, 9a7bb73; issues 0159-0162): the title screen is PRESENTED.** Captures at steps 300..2400 (`PSXPORT_PRESENT_SHOT_AT`, headless): logo sign at 300 (555,363 of 691,200 pixels non-black), Spyro flies in at 600 (621,978), the "Spyro Ripto's Rage" logo with "press start" from step 900 (621,534; 621,363 at 2400). Blockers cleared: the frame driver ran one call per step (0162), negative VSync answered the HBlank timer instead of `[0x80066618]` (0160), retail CdControlB `0x80058994` waited out a 0x3C0-vblank deadline before each XA Setmode (0161), native CdInit removed (0159). Not compared pixel-for-pixel against the full-console oracle; fields-per-step is an assumption (2). |
 | S007 | Spyro 1 accepts held digital input and moves the player after the New Game field handoff | partial | S004 | G001, G003 |
 | S008 | psxport executes remaining Spyro guest code through a per-Core Lightrec runtime with bounded, accounted fallback | partial | — | G002, G004 |
 | S009 | Spyro 1 reaches both stage-13 800/900 discriminators through Lightrec and native frame ownership | verified | S004, S008 | G001, G002 |
@@ -271,7 +271,7 @@ denominator is exact.
 
 **MEASURED ON GAMEPLAY 2026-09-29 (issue 0157): the interpolated present is now verified against real
 gameplay, and the four things it was missing all have numbers.** Driven to the Artisans courtyard with
-`tools/drive.py gameplay --hold RIGHT --hold-frames 400`, 3,221 logic frames, the new per-category
+`tools/drive.py gameplay --hold RIGHT --hold-steps 200`, 3,221 logic frames, the new per-category
 census (`interpcensus`, `game/render/temporal/interp_census.*`) reports:
 
 | category | captured items | reconstructed | latest-only | why |
@@ -484,8 +484,8 @@ built test oracle.
 
 ### S004 — Native frame and field ownership
 
-Evidence: `Spyro1Runtime` creates one title-local `Spyro1FrameDriver`; `dc_boot_init` returns and the
-framework shell calls one finite `stepFrame`. The driver owns the measured input-latch/update/frame-
+Evidence: `Spyro1Runtime` creates one title-local `Spyro1FrameDriver`; `psx::host::TitleSession::boot`
+returns and the framework shell calls one finite `stepFrame`. The driver owns the measured input-latch/update/frame-
 step/render order, while `FieldScheduler` owns the 60 Hz counter, pad service, guest callback root,
 audio, BIOS events, present/pace, host-turn acknowledgement, and producer boundary. Boot
 `0x800127C0`/`0x8001286C` is recovered as a resumable sequence of its four eight-field fades, two
@@ -791,11 +791,11 @@ backdrop; native render width is 684 versus the 512-wide baseline. Interpolation
 this still image and menu run do not qualify smooth gameplay or all renderer arms.
 
 Reproduce using `build/bin/spyro_port` with `PSXPORT_NOAUDIO=1`, `PSXPORT_VK_WINDOW=0`,
-`PSXPORT_ASSET_DIR=external/psxport`, `PSXPORT_NATIVE_FRAMES=900`, and
+`PSXPORT_ASSET_DIR=external/psxport`, `PSXPORT_NATIVE_FRAMES=474` (fence steps; the 900-field run above), and
 `PSXPORT_FORCE_BUTTONS=FFF7`. Use `PSXPORT_SETTINGS` pointing to an isolated file containing
 `aspect=1`, `ires=1`, and `fps60=1`; `PSXPORT_ASPECT` is not a supported option.
-`PSXPORT_PRESENT_SHOT_AT=450` captures the inspected menu. The idle discriminator uses an 800-field
-cap and no forced input. These observations establish wiring, not representative gameplay.
+`PSXPORT_PRESENT_SHOT_AT=450` captures the inspected menu. The idle discriminator uses
+`PSXPORT_NATIVE_FRAMES=600` (fence steps; the 800-field run above) and no forced input. These observations establish wiring, not representative gameplay.
 
 ### S010 — Resumable world execution
 
@@ -1291,9 +1291,9 @@ Live play is now a first-class verification path rather than a REPL-only one. Th
 debug endpoint could not be started at all until 2026-09-26: `PSXPORT_DEBUG_SERVER` was declared
 nowhere, so the configuration owner named it UNKNOWN and it did nothing, and Spyro 1 additionally owns
 its own frame driver rather than entering the framework's boot loop where the endpoint was started
-(psxport `92a0ddcc`, `0a0e454b`). `DbgServer::attach()` is now the one call a title-owned spine makes
-before its loop, answering both "start the endpoint" and "what frame cap may I run under", because a
-client-driven run must not be capped by the smoke-run quota. `tools/live_play.py` then plays the RUNNING
+(psxport `92a0ddcc`, `0a0e454b`). `psx::Machine::attachControlChannel` starts the endpoint before the
+loop, and `psx::host::RunBudget` leaves a client-driven run uncapped, so the smoke-run quota cannot end
+it. `tools/live_play.py` then plays the RUNNING
 product over that endpoint -- real pad edges across presented frames, guest state sampled while the
 picture keeps updating, a screenshot of what is on screen.
 
@@ -1395,7 +1395,8 @@ near-eye acceptance, native-width behavior, and animation of newly admitted sect
 
 On the Lightrec product (2026-09-18, `external/psxport/tools/port/looks_right.py --repository .
 --binary build/bin/spyro_port --replay replays/gameplay/artisans-arrival.pad --frames 7200
---shot-at 3700,3300,3750 --env PSXPORT_WATCHDOG=60`): the 4:3 and 16:9 runs both reach 7,201 fields
+--shot-at 3700,3300,3750 --env PSXPORT_WATCHDOG=60`; `--frames` then counted fields and now counts
+fence steps): the 4:3 and 16:9 runs both reach 7,201 fields
 with no failure mark, and the wide frame differs from the 4:3 one. The Artisans courtyard capture
 at the dragon rescue shows a genuinely wider field of view — the hedge and arena rim on the left
 and a further castle building on the right that the 4:3 picture cannot see — at unchanged object
@@ -1942,7 +1943,7 @@ sets and consults no run, so the withdrawn attribution above does not reach it.
 **2026-09-20: the forward snap is EXPLAINED, and it is correct output.** It needed no attribution
 machinery at all, which is why it survived psxport issue 0120 being open.
 
-Two measurements, both on `tools/drive.py gameplay --hold left --hold-frames 478` at 4:3 with
+Two measurements, both on `tools/drive.py gameplay --hold left --hold-steps 239` at 4:3 with
 fps60 on. First, the same captured images the withdrawn tables came from, classified per PIXEL
 instead of per tile, at a forced interpolation factor rather than by tile identity. For every pixel
 whose two real endpoints differ, force `t=0` and ask where it went:
@@ -2028,7 +2029,7 @@ forward snap means reconstructing more of what the in-between present replays, n
 interpolation; which producer to start with needs psxport issue 0120 resolved first. The looks-right verdicts have been re-taken on gameplay. They were previously run through
 `replays/gameplay/artisans-arrival.pad`, which never leaves the save-file dialog (issue 0116);
 `external/psxport/tools/port/looks_right.py` now takes `--route`, a command template the title fills
-in, and Spyro's is `tools/drive.py gameplay --hold left --hold-frames 180`. On that route all three
+in, and Spyro's is `tools/drive.py gameplay --hold left --hold-steps 90`. On that route all three
 verdicts pass: reaches with no failure mark, widescreen differing from 4:3, and fps60 reporting
 3,125,946 interpolated prims over 3,105 extra presents (psxport b1ed4202). The 4:3 and 16:9 captures
 show Artisans with Spyro, the archway and a gem in them, and the 16:9 one shows world to the left

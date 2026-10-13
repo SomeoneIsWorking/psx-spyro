@@ -36,7 +36,7 @@ Goals are in `docs/project-goals.md`, status in `docs/project-state.md`, placeme
   Historical evidence assigns the 60 Hz counter, input, callback root, audio, BIOS events,
   presentation, pacing, and host-turn acknowledgement to a title-local field owner.
 - The recorded dynamic discriminator must preserve stage 13 mode 0/1 title presentation and mode 2's
-  three-slot save picker at the existing 800- and 900-field caps.
+  three-slot save picker (the 900-field run; `PSXPORT_NATIVE_FRAMES=474` fence steps).
 - Spyro 2 is `SCUS_944.25`, entry `0x8005478C`, game main `0x80011ADC`, display bootstrap
   `0x80011BBC`, and libetc VSync `0x80058EDC`. Its current measured boundary stops after three black
   display fields at `0x80011B1C`.

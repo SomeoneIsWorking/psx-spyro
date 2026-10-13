@@ -12,7 +12,7 @@ updated: 2026-10-08
 
 `tools/shipping_settings.ini` (aspect=1, fps60=1), build of 2026-10-08, deterministic:
 
-- `spyro_port scratch/assets/spyro3/SCUS_944.67` with `PSXPORT_NATIVE_FRAMES=1500` aborts at product step 6 of the
+- `spyro_port scratch/assets/spyro3/SCUS_944.67` with `PSXPORT_NATIVE_FRAMES=1500` (then a field cap; now fence steps) aborts at product step 6 of the
   frame loop (frame 802 in `FrameLoopShell::step`), last log line
   `[terrsink:error] refusing a 0-word packet at 0x801E3D20 in a 143360-byte arena: the tag's own word count is 0`.
 - Backtrace: `Fps60::tier1Render` -> `spyro::TerrainWorldPass::reconstruct` -> `terrain_packet_sink.h` `std::abort()`.

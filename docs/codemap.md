@@ -53,21 +53,21 @@ Every chain names the owner and the method at each hop. Framework classes are `p
 ### The frame turn
 
 ```text
-spyro::ProductHost::runToEnd            one loop per entered title; also the selector's loop
-  └─ spyro::TitleSession::step          honour pause, honour the run cap, then one product step
-       ├─ psx::debug::DbgServer::honourPause
-       └─ dc_step_frame → psx::FrameLoopShell::step
-            └─ <FrameDriver>::stepFrame          the title's one finite native frame step
-                 ├─ spyro1::Spyro1FrameDriver::stepFrame   (SCUS_942.28)
-                 │    ├─ spyro1::BootSequence::step        until the boot prefix has returned
-                 │    ├─ runGuestUpdate                   the retail main-loop iteration, draw-less
-                 │    │                                   iterations chained first
-                 │    ├─ spyro::render::FrameRenderer::drawFrame
-                 │    └─ spyro::deliverNativeField("native-frame-tail")
-                 └─ spyro::BootPrefixFrameDriver::stepFrame   (SCUS_944.25 / SCUS_944.67)
-                      ├─ spyro::GuestCall::begin / resume     the retail boot prefix, across steps
-                      └─ spyro::FieldOwner::deliver          one presented field per step
-            └─ psx::debug::DbgServer::service        the control channel's own per-step service
+psx::host::ProductHost::runToEnd        one loop per entered title
+  └─ psx::host::TitleSession::step      end checks, REPL pump, then one product step
+       ├─ psx::frame::FieldTurn::beginField → psx::debug::DbgServer::honourPause
+       ├─ psx::frame::FrameLoopShell::step
+       │    └─ <FrameDriver>::stepFrame          the title's one finite native frame step
+       │         ├─ spyro1::Spyro1FrameDriver::stepFrame   (SCUS_942.28)
+       │         │    ├─ spyro1::BootSequence::step        until the boot prefix has returned
+       │         │    ├─ runGuestUpdate                   the retail main-loop iteration, draw-less
+       │         │    │                                   iterations chained first
+       │         │    ├─ spyro::render::FrameRenderer::drawFrame
+       │         │    └─ spyro::deliverNativeField("native-frame-tail")
+       │         └─ spyro::BootPrefixFrameDriver::stepFrame   (SCUS_944.25 / SCUS_944.67)
+       │              ├─ spyro::GuestCall::begin / resume     the retail boot prefix, across steps
+       │              └─ spyro::FieldOwner::deliver          one presented field per step
+       └─ psx::frame::FieldTurn::endField → psx::debug::DbgServer::service
 ```
 
 **While a movie or a blocking CD call holds the turn.** No title code runs inside a blocking guest
@@ -82,7 +82,7 @@ framework's own delivery path, and host input during it is the framework's
 ### The delivery of one display field
 
 `spyro::FieldOwner::deliver` is the ONE definition of "a display field happened", shared by every
-title in the lineage. In order: park the REPL → sample the host pad → advance the display clock →
+title in the lineage. In order: sample the host pad → advance the display clock →
 dispatch this title's guest vblank root (`spyro::FieldOwner::dispatchCallbacks`; a title with no
 host-dispatched root takes the edge through its own interrupt chain, `Hle::irqPoll`, inside the same
 field) → advance the field counter → the title observes (`spyro::FieldObserver::onField`) → snapshot →
@@ -119,7 +119,7 @@ psx::input::HostInput        the ONE host-input owner (external/psxport/runtime/
   back out of the renderer.
 * **The debug control channel.** `psx::debug::DbgServer` is attached per session by
   `psx::host::TitleSession::boot` and serviced once per product step by `psx::host::TitleSession::step`,
-  between `dc_step_frame` and the next frame. Its forced-input path is separate from the player's
+  after `psx::frame::FrameLoopShell::step` and before the next step. Its forced-input path is separate from the player's
   SDL path; `psx::host::PickerSession::serviceInput` is the one place the picker reads the pad and the
   channel together.
 

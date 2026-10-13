@@ -34,11 +34,11 @@ WHAT THIS OWNS, and what it deliberately does not:
 
 The report names the state it actually observed, and "arrived" means a level, not a gamestate: Spyro
 runs its boot prefix at gamestate 0, so a probe that only asks for gamestate 0 reports arrival at
-frame 0 and describes a logo.
+step 0 and describes a logo.
 
     uv run --frozen python tools/pad_replay.py \\
         --pad replays/gameplay/artisans-arrival.pad \\
-        --card-seed scratch/saves/pad_seed.mcr --frames 6600 --shot scratch/pad.fpm
+        --card-seed scratch/saves/pad_seed.mcr --steps 3300 --shot scratch/pad.fpm
 """
 from __future__ import annotations
 
@@ -129,18 +129,18 @@ def run(args: argparse.Namespace) -> int:
     left_boot_at = None
     arrived_at = None
     try:
-        for frame in range(args.frames):
+        for step in range(args.steps):
             port._send("run 1")
             port._await_prompt()
             key = (port.gamestate(), port.word(port_driver.G_LEVEL_ID))
             if key != previous:
-                print(f"  frame {frame}: gs={key[0]}/level={key[1]:#x}")
+                print(f"  step {step}: gs={key[0]}/level={key[1]:#x}")
             # gs == GS_PLAYING is also the boot prefix, so arrival is a LEVEL, not a gamestate.
             if key[0] == port_driver.GS_PLAYING and key[1] != 0 and left_boot_at is not None:
                 if arrived_at is None:
-                    arrived_at = frame
+                    arrived_at = step
             if key[0] != port_driver.GS_PLAYING or key[1] != 0:
-                left_boot_at = frame
+                left_boot_at = step
             previous = key
         if args.shot:
             Path(args.shot).parent.mkdir(parents=True, exist_ok=True)
@@ -150,9 +150,9 @@ def run(args: argparse.Namespace) -> int:
         port.end()
 
     if arrived_at is not None:
-        print(f"ARRIVED IN A LEVEL (gs={port_driver.GS_PLAYING}, level!=0) at frame {arrived_at}")
+        print(f"ARRIVED IN A LEVEL (gs={port_driver.GS_PLAYING}, level!=0) at step {arrived_at}")
     else:
-        print(f"NEVER ARRIVED IN A LEVEL in {args.frames} frames; last state "
+        print(f"NEVER ARRIVED IN A LEVEL in {args.steps} steps; last state "
               f"gs={previous[0]}/level={previous[1]:#x}")
         print("  (gs=0/level=0 is the boot prefix, not gameplay; a run that stays there never played)")
         return 1
@@ -236,7 +236,8 @@ def main(argv: list[str] | None = None) -> int:
                         help="the card image as it was at RECORDING time; copied into the private "
                              "card before the run so the start state is the recorded one")
     parser.add_argument("--card", default="", help="the private card image (default scratch/saves/pad_replay.mcr)")
-    parser.add_argument("--frames", type=int, default=6600)
+    parser.add_argument("--steps", type=int, default=3300,
+                        help="product steps to replay, one REPL `run 1` each (two fields in gameplay)")
     parser.add_argument("--shot", default="", help="capture one frame at the end, as a .ppm")
     parser.add_argument("--executable", default="build/bin/spyro_port",
                         help="the port executable; a maintainer tool names it because zero-argument "
