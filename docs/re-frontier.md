@@ -30,7 +30,7 @@ Statuses: ✅ re-verified · 🟡 re-partial · 🔬 in-progress · ⬜ todo · 
 - status: re-partial
 - deps: boot.provision
 - evidence: psxport exposes per-Core `dispatchGuest`, scoped `callOriginal`, typed exits, image identity, and invalidation; Spyro enters the boundary at authenticated crt0.
-- where: external/psxport/runtime/cpu; game/core/guest_execution.*; game/core/main.cpp
+- where: external/psxport/runtime/cpu; game/core/guest_execution.*; external/psxport/runtime/psx/host/product_main.cpp
 - gap: Real Spyro media executes nonzero JIT blocks across budget yields (S008); CD synchronization, complete title dispatch, and bounded-fallback conformance remain unverified.
 - notes: This is a shared-runtime prerequisite, not a title-specific code-generation task.
 

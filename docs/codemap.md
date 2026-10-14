@@ -210,10 +210,10 @@ psx::debug::DbgServer         per session, attached in spyro::TitleSession::boot
 
 | File | Namespace | Owner | Responsibility |
 | --- | --- | --- | --- |
-| `main.cpp` | — | `main` | Process entry: zero-argument selector, or one executable. Composes only. |
+| — | — | `psxport_add_product` | Entry is the framework main: `spyro_port` runs `createCatalog()` through `psx::host::ProductHost`. |
 | `spyro_context.{h,cpp}` | `spyro` | `spyro::Context`, `spyro::context` | The per-Core context every subsystem's state is published through, and the only way an override reaches a title object from a `Core`. |
 | `spyro_runtime.{h,cpp}` | `spyro` | `spyro::SpyroRuntime` | Engine-lineage runtime root: image identity, title, logo facts, the run-complete report. |
-| `title_runtime_registry.{h,cpp}` | `spyro` | `runtimeFor`, `SpyroCatalog` | Which title runtime owns which serial, and Spyro's catalog for the framework's multi-title host (`psx::host::TitleCatalog`). |
+| `title_runtime_registry.{h,cpp}` | `spyro` | `runtimeFor`, `SpyroCatalog`, `createCatalog` | Which title runtime owns which serial, and Spyro's catalog for the framework's multi-title host (`psx::host::TitleCatalog`), provisioned under `scratch/assets`. |
 | `title_logo.{h,cpp}` | `spyro` | `extractPanelLogo`, `titleLogoGateOpen` | Reads a title's own wordmark out of its live VRAM for its picker panel. |
 | `title_logo_facts.h` | `spyro` | `TitleLogoFacts` | Where a disc's own wordmark lands in VRAM and how it is encoded. |
 | `field_owner.{h,cpp}` | `spyro` | `FieldOwner`, `FieldRequest`, `FieldOwnerFacts`, `FieldObserver`, `FrameTailObserver`, `FieldCadence` | The one delivery sequence every title's display field goes through, and the per-Core accessor. |
@@ -243,8 +243,8 @@ psx::debug::DbgServer         per session, attached in spyro::TitleSession::boot
 
 The selector, panel sessions, title sessions and the run cap live in the framework as `psx::host`
 (`external/psxport/docs/title-host.md`). Spyro supplies only its catalog (`SpyroCatalog`), its
-runtimes' `panelLogo`/`reportRun` overrides, and `main.cpp` composing
-`psx::host::ProductHost` with that catalog.
+runtimes' `panelLogo`/`reportRun` overrides, and `createCatalog`; the entry is the framework main
+(`psxport_add_product`), which owns the command line and help.
 
 ### `game/render/` — namespace `spyro` (and `spyro::render` for the picture owner)
 

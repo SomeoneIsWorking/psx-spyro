@@ -3,8 +3,6 @@
 
 from __future__ import annotations
 
-import importlib.util
-import os
 import re
 import subprocess
 import sys
@@ -28,30 +26,8 @@ RETIRED_PRODUCT_VOCABULARY = (
     re.compile(r"\bgen_func_[0-9A-Fa-f]+\b"),
     re.compile(r"\b(?:ensure_recomp|recomp_seeds|static_dispatch)\b"),
 )
-SHARED_CANDIDATES = (
-    Path(os.environ["RE_HARNESS_DIR"]) / "tools" / "source_boundary.py"
-    if os.environ.get("RE_HARNESS_DIR")
-    else Path("__missing_re_harness_override__"),
-    # Every ancestor's workspace, nearest first: a title checkout is ~/repo/psx/<title>, but a
-    # worktree of it is ~/repo/psx/<title>/scratch/wt/<branch>, where a fixed parents[1] missed.
-    *(parent / "shared" / "re-harness" / "tools" / "source_boundary.py" for parent in ROOT.parents),
-    Path.home() / ".codex" / "bin" / "source_boundary.py",
-    Path.home() / ".claude" / "bin" / "source_boundary.py",
-)
-
-
-def load_shared_scanner():
-    for candidate in SHARED_CANDIDATES:
-        if not candidate.is_file():
-            continue
-        spec = importlib.util.spec_from_file_location("re_harness_source_boundary", candidate)
-        if spec is None or spec.loader is None:
-            continue
-        module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
-        return module
-    attempted = "\n".join(f"  - {path}" for path in SHARED_CANDIDATES)
-    raise SystemExit(f"source_policy: shared scanner not found; attempted:\n{attempted}")
+sys.path.insert(0, str(ROOT / "external" / "psxport" / "tools"))
+from policy import harness  # noqa: E402  (the framework's re-harness locator)
 
 
 def inspect_product_boundaries(paths, contents):
@@ -99,7 +75,7 @@ def product_boundary_selftest():
 
 
 def main():
-    scanner = load_shared_scanner()
+    scanner = harness.require("source_boundary")
     if "--selftest" in sys.argv:
         result = scanner.main(ROOT, MANIFEST)
         failures = product_boundary_selftest()
