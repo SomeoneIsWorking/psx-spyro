@@ -19,7 +19,8 @@ through any symlink this tool did not create.** Git runs only in a staging direc
 or with `git -C` naming a real checkout directory, and a published tree is moved into place by one
 atomic rename rather than being written in place.
 
-`PSXPORT_FRAMEWORK_URL` names a fork or mirror for the no-sibling clone.
+`PSXPORT_FRAMEWORK_URL` names a fork or mirror for the no-sibling clone. The same clone also fetches
+re-harness through the framework's own locator (`tools/policy/harness.py --fetch`, `RE_HARNESS_URL`).
 
 Lightrec is still PINNED (`PSXPORT_LIGHTREC_REVISION` in `cmake/lightrec_dependency.cmake`) — that is a
 third-party fork pin, not a workspace layout choice. `--lightrec` materialises that revision as a
@@ -141,12 +142,23 @@ def do_clone(link):
         except OSError as error:           # another clone landed in the same window
             print(f"[psxport] REFUSED: external/psxport was taken while the clone was in progress "
                   f"({error.strerror or error}). The staged clone was discarded.")
-        if published:
-            print(f"[psxport] external/psxport cloned from {branch}")
-        return 0 if published else 2
+        if not published:
+            return 2
+        print(f"[psxport] external/psxport cloned from {branch}")
+        return fetch_harness(link)
     finally:
         if not published:
             shutil.rmtree(staging, ignore_errors=True)
+
+
+def fetch_harness(link):
+    """The policy tools a cloned framework's gates run, located or cloned by the framework itself."""
+    locator = os.path.join(link, "tools", "policy", "harness.py")
+    if not os.path.isfile(locator):
+        print("[psxport] REFUSED: the cloned framework has no tools/policy/harness.py to fetch re-harness.")
+        return 2
+    done = subprocess.run([sys.executable, locator, "--fetch"], cwd=os.path.dirname(link))
+    return 0 if done.returncode == 0 else 2
 
 
 def init_submodules(root):

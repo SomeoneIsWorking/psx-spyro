@@ -13,6 +13,10 @@ std::string_view SpyroCatalog::productName() const {
   return "Spyro";
 }
 
+std::filesystem::path SpyroCatalog::provisioningRoot() const {
+  return "scratch/assets";
+}
+
 std::span<const psx::host::TitleIdentity> SpyroCatalog::titles() const {
   return generated::kExecutableCatalog;
 }
@@ -23,6 +27,10 @@ SpyroTitle SpyroCatalog::title(std::size_t index) const {
 
 SpyroRuntime &SpyroCatalog::runtime(std::size_t index) const {
   return runtimeFor(title(index));
+}
+
+std::unique_ptr<psx::host::TitleCatalog> createCatalog() {
+  return std::make_unique<SpyroCatalog>();
 }
 
 SpyroRuntime &runtimeFor(SpyroTitle title) {

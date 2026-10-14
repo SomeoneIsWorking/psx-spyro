@@ -314,11 +314,12 @@ target_include_directories(spyro_runtime PUBLIC
   ${CMAKE_BINARY_DIR}/generated)
 target_link_libraries(spyro_runtime PUBLIC psxport OpenSSL::Crypto)
 
-add_executable(spyro_port
-  game/core/main.cpp
-  game/core/world_guest_execution.cpp)
+psxport_add_product(spyro_port
+  CATALOG spyro::createCatalog
+  HEADER title_runtime_registry.h
+  SOURCES game/core/world_guest_execution.cpp
+  LIBRARIES spyro_runtime)
 add_dependencies(spyro_port gen_gpu_shaders)
-target_link_libraries(spyro_port PRIVATE spyro_runtime)
 set_target_properties(spyro_port PROPERTIES
   ENABLE_EXPORTS ON
   RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
@@ -417,6 +418,9 @@ if(BUILD_TESTING)
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/source_policy.py)
   add_test(NAME source_policy_selftest
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/source_policy.py --selftest)
+  add_test(NAME cpp_ownership
+    COMMAND ${Python3_EXECUTABLE} ${PSXPORT_DIR}/tools/check_cpp_style.py --ownership-only
+            --root ${CMAKE_SOURCE_DIR} --compile-commands ${CMAKE_BINARY_DIR})
   # The agent drivers read their guest addresses out of game/core/guest_globals.h. If that parser
   # ever silently stops matching the header's form, every driver would fall back to nothing at all.
   # The Spyro 2/3 boot report. Its cases are pairs: a completed run and an aborted one (the aborted run's
