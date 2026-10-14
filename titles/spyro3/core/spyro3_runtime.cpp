@@ -242,10 +242,6 @@ const PlatformHlePlan *Spyro3Runtime::platformHlePlan() const {
   return &platformHlePlan_;
 }
 
-const char *Spyro3Runtime::discEnvVar() const {
-  return "PSXPORT_SPYRO3_DISC";
-}
-
 const GuestCdStreamCallbackLayout *Spyro3Runtime::guestCdStreamCallbackLayout() const {
   return &cdStreamCallbackLayout_;
 }

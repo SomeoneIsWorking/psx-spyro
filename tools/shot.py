@@ -29,6 +29,8 @@ import subprocess
 import sys
 import zlib
 
+import provision_title
+
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
@@ -37,18 +39,8 @@ REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # being one run's picture filed under another's name. `title` selects the identity; everything after
 # it is shared.
 TITLES = {
-    "spyro1": {
-        "disc_var": "PSXPORT_SPYRO_DISC",
-        "image": "scratch/assets/spyro1/SCUS_942.28",
-    },
-    "spyro2": {
-        "disc_var": "PSXPORT_SPYRO2_DISC",
-        "image": "scratch/assets/spyro2/SCUS_944.25",
-    },
-    "spyro3": {
-        "disc_var": "PSXPORT_SPYRO3_DISC",
-        "image": "scratch/assets/spyro3/SCUS_944.67",
-    },
+    slug: {"disc_var": spec.disc_env, "image": str(spec.executable)}
+    for slug, spec in provision_title.SPECS.items()
 }
 
 

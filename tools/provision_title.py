@@ -22,38 +22,42 @@ class Refused(Exception):
     """The selected input cannot support the requested title."""
 
 
+GENERIC_DISC_KEY = "PSXPORT_DISC"
+# Relative to the repository root; the product's catalog names the same root.
+PROVISIONING_ROOT = pathlib.Path("scratch") / "assets"
+
+
 @dataclass(frozen=True)
 class ProvisionSpec:
     title: str
     slug: str
     serial: str
-    env_keys: tuple[str, ...]
+    disc_env: str
     cache_dir: pathlib.Path
 
+    @property
+    def executable(self) -> pathlib.Path:
+        """The provisioned executable, relative to the repository root."""
+        return PROVISIONING_ROOT / self.slug / self.serial
 
-SPECS = {
-    "spyro1": ProvisionSpec(
-        "Spyro the Dragon",
-        "spyro1",
-        "SCUS_942.28",
-        ("PSXPORT_SPYRO1_DISC", "PSXPORT_SPYRO_DISC", "PSXPORT_DISC"),
-        ROOT / "scratch" / "assets" / "spyro1",
-    ),
-    "spyro2": ProvisionSpec(
-        "Spyro 2: Ripto's Rage!",
-        "spyro2",
-        "SCUS_944.25",
-        ("PSXPORT_SPYRO2_DISC", "PSXPORT_DISC"),
-        ROOT / "scratch" / "assets" / "spyro2",
-    ),
-    "spyro3": ProvisionSpec(
-        "Spyro: Year of the Dragon",
-        "spyro3",
-        "SCUS_944.67",
-        ("PSXPORT_SPYRO3_DISC", "PSXPORT_DISC"),
-        ROOT / "scratch" / "assets" / "spyro3",
-    ),
-}
+    @property
+    def env_keys(self) -> tuple[str, ...]:
+        """The keys the product reads, in its order: the title's own, then the generic one."""
+        return (self.disc_env, GENERIC_DISC_KEY)
+
+    @classmethod
+    def from_manifest(cls, slug: str) -> ProvisionSpec:
+        manifest = title_identity.load_manifest(slug)
+        return cls(
+            str(manifest["title"]),
+            slug,
+            str(manifest["serial"]),
+            str(manifest["disc_env"]),
+            ROOT / PROVISIONING_ROOT / slug,
+        )
+
+
+SPECS = {slug: ProvisionSpec.from_manifest(slug) for slug in ("spyro1", "spyro2", "spyro3")}
 
 
 @dataclass(frozen=True)

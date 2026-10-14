@@ -44,6 +44,8 @@ def render(*, root: pathlib.Path = ROOT) -> str:
                     f"        .textSize = 0x{facts['text_size']:08X}u,",
                     f"        .stackAddress = 0x{facts['stack_address']:08X}u,",
                     f"        .stackOffset = 0x{facts['stack_offset']:08X}u,",
+                    f"        .discEnvVar = {_cpp_string(manifest['disc_env'])},",
+                    f"        .discExecutablePath = {_cpp_string(manifest['disc_executable'])},",
                     "    },",
                 )
             )

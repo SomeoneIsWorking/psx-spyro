@@ -24,7 +24,6 @@ ROOT = Path(__file__).resolve().parent.parent
 PLAYER_BUILD = ROOT / "build/player"
 FRAMEWORK_BUILD = ROOT / "build/player-tools"
 MAINTAINER_BUILD = ROOT / "build"
-GENERIC_DISC_KEY = "PSXPORT_DISC"
 
 
 class Refusal(RuntimeError):
@@ -452,9 +451,7 @@ def launch_environment(psxport, discs):
     env.setdefault("PSXPORT_ASSET_DIR", str(psxport))
     env.setdefault("PSXPORT_DEBUG_SERVER", "1")
     for spec, disc in discs.items():
-        for key in spec.env_keys:
-            if key != GENERIC_DISC_KEY:
-                env[key] = str(disc)
+        env[spec.disc_env] = str(disc)
     return env
 
 

@@ -219,7 +219,6 @@ class LauncherTest(unittest.TestCase):
         self.assertEqual(env["PSXPORT_DEBUG_SERVER"], "0")
         self.assertEqual(env["PSXPORT_ASSET_DIR"], str(psxport))
         self.assertEqual(env["PSXPORT_SPYRO_DISC"], str(disc))
-        self.assertEqual(env["PSXPORT_SPYRO1_DISC"], str(disc))
         # One disc must never answer for a title it was not provisioned for.
         self.assertNotIn("PSXPORT_DISC", env)
         self.assertNotIn("PSXPORT_SPYRO2_DISC", env)

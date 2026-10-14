@@ -231,7 +231,7 @@ def _selftest() -> int:
 
     entry = profile("spyro2")
     entry = TitleProfile(
-        entry.label, entry.image, entry.disc_variable, 0x80000000, 11, 5, 0, 0x80000100, "down", 1, "up"
+        entry.label, entry.slug, 0x80000000, 11, 5, 0, 0x80000100, "down", 1, "up"
     )
     failures = 0
     with tempfile.TemporaryDirectory() as tmp:

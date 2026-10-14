@@ -342,7 +342,7 @@ def _selftest_level() -> bool:
 
 def _selftest() -> int:
     entry = profile("spyro3")
-    entry = TitleProfile(entry.label, entry.image, entry.disc_variable, 0x80000000, 11, 5, 0, 0x80000100, "up")
+    entry = TitleProfile(entry.label, entry.slug, 0x80000000, 11, 5, 0, 0x80000100, "up")
     route = ((0, 11), (500, 5), (800, 6), (1100, 5), (1400, 0))
 
     def attempt(label: str, scripted: _Scripted, expect: str | None) -> bool:
