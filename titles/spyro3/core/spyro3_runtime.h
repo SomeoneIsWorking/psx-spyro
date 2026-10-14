@@ -31,7 +31,6 @@ public:
   createTemporalFramePresentation(Game &game) override;
 
   const PlatformHlePlan *platformHlePlan() const override;
-  const char *discEnvVar() const override;
   const GuestCdStreamCallbackLayout *guestCdStreamCallbackLayout() const override;
   std::unique_ptr<FrameDriver> createFrameDriver(Game &game) override;
 

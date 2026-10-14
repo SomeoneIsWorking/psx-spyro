@@ -52,6 +52,8 @@ def load_manifest(slug: str, *, root: pathlib.Path = ROOT) -> dict[str, object]:
         "region",
         "serial",
         "executable",
+        "disc_env",
+        "disc_executable",
         "file_size",
         "sha1",
         "sha256",

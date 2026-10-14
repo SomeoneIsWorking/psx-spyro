@@ -141,8 +141,26 @@ class ResolverTest(unittest.TestCase):
                 SPYRO2,
                 None,
                 root=self.root / "empty",
-                environ={"PSXPORT_SPYRO1_DISC": str(disc)},
+                environ={"PSXPORT_SPYRO_DISC": str(disc)},
             )
+
+    def test_provisioning_reads_the_disc_key_the_product_reads(self) -> None:
+        # The product opens `disc_env` before PSXPORT_DISC; a provisioner with its own key list would
+        # extract from one disc and the product would boot from another.
+        own = self.root / "own.chd"
+        own.write_bytes(b"own fixture")
+        other = self.root / "other.chd"
+        other.write_bytes(b"other fixture")
+        for slug, spec in provision_title.SPECS.items():
+            manifest = title_identity.load_manifest(slug)
+            self.assertEqual(spec.env_keys, (manifest["disc_env"], "PSXPORT_DISC"))
+        resolved = provision_title.resolve_disc(
+            SPYRO1,
+            None,
+            root=self.root / "empty",
+            environ={"PSXPORT_SPYRO1_DISC": str(other), "PSXPORT_SPYRO_DISC": str(own)},
+        )
+        self.assertEqual(resolved.path, own)
 
     def test_multiple_dropins_are_refused_as_ambiguous(self) -> None:
         (self.root / "one.chd").write_bytes(b"one")
@@ -209,6 +227,7 @@ class CatalogGenerationTest(unittest.TestCase):
             self.assertIn(f"SpyroTitle::{enum_name}", catalog)
             self.assertIn(str(manifest["serial"]), catalog)
             self.assertIn(str(manifest["sha256"]), catalog)
+            self.assertIn(f'.discEnvVar = "{manifest["disc_env"]}"', catalog)
         self.assertNotIn("GameConfig", catalog)
 
 

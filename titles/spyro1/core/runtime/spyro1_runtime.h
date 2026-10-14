@@ -34,9 +34,6 @@ public:
   bool guestVramIsPicture(const Game &game) const override;
   bool guestPictureIsNativeWidth(const Game &game) const override;
   void pacePresentation(Core &core, int fields, int parts) override;
-  const char *discEnvVar() const override {
-    return "PSXPORT_SPYRO_DISC";
-  }
   const GuestPadBufferLayout *guestPadBufferLayout() const override;
   std::unique_ptr<psx::frame::TemporalFramePresentation>
   createTemporalFramePresentation(Game &game) override;

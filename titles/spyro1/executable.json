@@ -3,6 +3,8 @@
   "region": "USA",
   "serial": "SCUS_942.28",
   "executable": "SCUS_942.28",
+  "disc_env": "PSXPORT_SPYRO_DISC",
+  "disc_executable": "SCUS_942.28",
   "file_size": 417792,
   "sha1": "84e3728ab94720d0873e2514adf4aade4935e0c5",
   "sha256": "a533d75cab8afaae6107ec35a02a9a5fe979a92c7c955f9cf1ee50f693a1b998",

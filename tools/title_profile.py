@@ -51,6 +51,8 @@ import sys
 from collections.abc import Mapping
 from dataclasses import dataclass
 
+import provision_title
+
 
 class Refusal(RuntimeError):
     """The requested title or profile is not one this driver can play honestly."""
@@ -75,8 +77,7 @@ class LevelFacts:
 @dataclass(frozen=True)
 class TitleProfile:
     label: str
-    image: str
-    disc_variable: str
+    slug: str
     gamestate_word: int
     state_title: int
     state_loading: int
@@ -97,6 +98,14 @@ class TitleProfile:
         if len(states) != 3:
             raise Refusal(f"{self.label}: title, loading and playing must be three distinct game states")
 
+    @property
+    def image(self) -> str:
+        return str(provision_title.SPECS[self.slug].executable)
+
+    @property
+    def disc_variable(self) -> str:
+        return provision_title.SPECS[self.slug].disc_env
+
     def position_words(self) -> tuple[int, int, int]:
         return self.position_word, self.position_word + 4, self.position_word + 8
 
@@ -104,8 +113,7 @@ class TitleProfile:
 TITLES: Mapping[str, TitleProfile] = {
     "spyro2": TitleProfile(
         label="Spyro 2 (SCUS_944.25)",
-        image="scratch/assets/spyro2/SCUS_944.25",
-        disc_variable="PSXPORT_SPYRO2_DISC",
+        slug="spyro2",
         gamestate_word=0x800681C8,
         state_title=11,
         state_loading=5,
@@ -123,8 +131,7 @@ TITLES: Mapping[str, TitleProfile] = {
     ),
     "spyro3": TitleProfile(
         label="Spyro 3 (SCUS_944.67)",
-        image="scratch/assets/spyro3/SCUS_944.67",
-        disc_variable="PSXPORT_SPYRO3_DISC",
+        slug="spyro3",
         gamestate_word=0x8006E344,
         state_title=11,
         state_loading=5,
@@ -150,7 +157,7 @@ def _selftest() -> int:
     assert TITLES["spyro2"].gamestate_word != TITLES["spyro3"].gamestate_word
     for label, attempt in {
         "unknown title": lambda: profile("spyro9"),
-        "indistinct route states": lambda: TitleProfile("x", "i", "V", 0x80000000, 5, 5, 0, 0x80000010, "up"),
+        "indistinct route states": lambda: TitleProfile("x", "spyro2", 0x80000000, 5, 5, 0, 0x80000010, "up"),
     }.items():
         try:
             attempt()
