@@ -22,8 +22,7 @@ void cd_retry_step(Core *core) {
   psx::cpu::callOriginalToReturn(
       *core, 0x800163E4u, psx::cpu::ExecutionBudget::currentTurn(*core), "cd-retry-step");
   if (spyro::session(*core).archiveTransfer.takeCompletion()) {
-    psx::cpu::dispatchGuestToReturn1(
-        *core, 0x80016490u, 2u, psx::cpu::ExecutionBudget::currentTurn(*core), "cd-complete");
+    psx::cpu::callGuestNow(*core, "cd-complete", 0x80016490u, 2u);
     lucent::debug("cdq", "delivered CD completion -> gate now {}", core->mem_r32(kGate));
   }
 }
@@ -38,12 +37,8 @@ spyro::ArchiveRead archiveReadFromRegisters(Core &core) {
 
 void publishTransferState(Core &core, const spyro::ArchiveRead &read, bool pending) {
   // The retained Sony leaf used by both retail loader bodies owns LBA -> CdlLOC encoding.
-  psx::cpu::dispatchGuestToReturn2(core,
-                                   0x80064094u,
-                                   read.baseLba + read.byteOffset / 2048u,
-                                   kTransferPosition,
-                                   psx::cpu::ExecutionBudget::currentTurn(core),
-                                   "cd-position");
+  psx::cpu::callGuestNow(
+      core, "cd-position", 0x80064094u, read.baseLba + read.byteOffset / 2048u, kTransferPosition);
   core.mem_w32(kTransferSectorCount, (read.length + 2047u) / 2048u);
   core.mem_w32(kTransferDestination, read.destination);
   core.mem_w32(kGate, pending ? 1u : 0u);

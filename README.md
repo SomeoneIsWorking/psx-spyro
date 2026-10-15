@@ -47,7 +47,7 @@ architecture.
 
 `./run.sh` enters the frozen `uv` environment, authenticates the selected disc, provisions only the
 PS-X EXE, builds the native/Lightrec product without offline guest translation, and launches it.
-psxport is the live sibling checkout (`tools/psxport_fetch.py`), with Lightrec pinned by revision. The
+psxport is the live sibling checkout (psxport's `tools/psxport_fetch.py`, run from psxport `main`), with Lightrec pinned by revision. The
 real-media execution evidence and remaining gaps are recorded in
 [`docs/project-state.md`](docs/project-state.md#s008--runtime-lightrec-execution). Lightrec remains the
 sole product executor, with only the shared framework's bounded fallback after a classified JIT refusal.

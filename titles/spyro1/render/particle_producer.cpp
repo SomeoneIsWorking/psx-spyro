@@ -102,7 +102,7 @@ void ParticleProducer::render(const psx::present::StateInterval &states,
   host.overlay(after.reads);
   actors::mapBytes(host, state.record, particleBetween(before.header.bytes, state.bytes, states.t));
 
-  const psx::present::GteGuard gte;
+  const psx::present::GteGuard gte(core_.gte());
   EmitList list(core_, host, spyro::presentedBounds(core_, spyro1::terrain::kSharedFacts));
   list.begin();
   if (list.draw(state.record) == Outcome::Drawn) {

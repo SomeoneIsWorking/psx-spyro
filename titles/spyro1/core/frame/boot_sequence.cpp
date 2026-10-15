@@ -24,14 +24,12 @@ void call(Core &core,
           std::uint32_t a1 = 0,
           std::uint32_t a2 = 0,
           std::uint32_t a3 = 0) {
-  psx::cpu::dispatchGuestToReturn4(core,
-                                   address,
-                                   a0,
-                                   a1,
-                                   a2,
-                                   a3,
-                                   psx::cpu::ExecutionBudget::fromCycles(kBootCallBudgetCycles),
-                                   "boot-native");
+  psx::cpu::dispatchGuestWithArgumentsToReturn(
+      core,
+      address,
+      std::array<std::uint32_t, 4>{a0, a1, a2, a3},
+      psx::cpu::ExecutionBudget::fromCycles(kBootCallBudgetCycles),
+      "boot-native");
 }
 
 void writeRect(Core &core,

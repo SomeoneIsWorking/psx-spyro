@@ -118,7 +118,7 @@ void SpriteQueueProducer::render(const psx::present::StateInterval &states,
   host.mapEmpty(kShadowListEnd, 4);
   host.w32(kShadowListEnd, kShadowList);
 
-  const psx::present::GteGuard gte;
+  const psx::present::GteGuard gte(core_.gte());
   SpriteQueue queue(core_, host, presentedQueueView(core_));
   queue.begin();
   const std::optional<QueuedChain> chain = queue.draw(state.record, state.hudShift);

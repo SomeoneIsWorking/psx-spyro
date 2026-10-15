@@ -1,6 +1,7 @@
 // A picker panel's logo is read from the GPU device's VRAM, where the guest's uploads land.
 #include "core.h"
 #include "core/title_logo.h"
+#include "gpu_ports.h"
 #include "test_game.h"
 #include "testutil.h"
 
@@ -35,7 +36,7 @@ void test_the_logo_is_read_from_the_device_vram() {
   core.mem_w8(kRecord + 5, 2);
   std::array<std::uint16_t, 8> texels{};
   texels.fill(kWhite);
-  core.gpuDevice.loadImage(0, 0, 4, 2, texels);
+  psx::gpu::loadImage(core, {0, 0, 4, 2}, texels);
 
   const auto logo = spyro::extractPanelLogo(core, kFacts);
   CHECK(logo.has_value());
@@ -58,5 +59,5 @@ void test_a_closed_gate_reads_nothing() {
 int main() {
   RUN(the_logo_is_read_from_the_device_vram);
   RUN(a_closed_gate_reads_nothing);
-  return pt_summary();
+  return psx::test::summary();
 }

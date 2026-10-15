@@ -59,9 +59,8 @@ S2 and S3 take the BIOS pad path.
 
 | hop | title | joins | owner |
 |---|---|---|---|
-| 1 | all | psxport F-RENDER.1 | `Spyro{1,2,3}Runtime::renderCapabilities` — Record, guest VRAM is the picture |
-| 2 | S2 | psxport F-RENDER.2 | `titles/spyro2/core/runtime.cpp:spyro2::Runtime::packetPool` — both parity pools between `0x80069998` and `0x8006B2A4` |
-| 3 | S1 | psxport F-RENDER.4 | `titles/spyro1/core/runtime/runtime.cpp:spyro1::Runtime::guestPictureIsNativeWidth` — true until the boot logos are done |
+| 1 | S2 | psxport F-RENDER.2 | `titles/spyro2/core/runtime.cpp:spyro2::Runtime::packetPool` — both parity pools between `0x80069998` and `0x8006B2A4` |
+| 2 | S1 | psxport F-RENDER.4 | `titles/spyro1/core/runtime/runtime.cpp:spyro1::Runtime::guestPictureIsNativeWidth` — true until the boot logos are done |
 
 ## F-WIDE
 

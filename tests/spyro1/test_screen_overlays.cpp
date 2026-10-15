@@ -267,7 +267,7 @@ int main() {
     RUN(the_tint_composes_its_colour_between_two_frames);
     RUN(a_tint_that_changes_blend_composes_as_drawn);
     RUN(the_letterbox_composes_its_bars_between_two_frames);
-    return pt_summary();
+    return psx::test::summary();
   } catch (const std::exception &error) {
     lucent::error("test_spyro1_screen_overlays", "FAIL: {}", error.what());
     return 1;

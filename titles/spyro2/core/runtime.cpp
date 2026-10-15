@@ -108,7 +108,8 @@ constexpr psx::cd::GuestInterruptLibcd::Completion kCdCompletion{.status = 2, .p
 } // namespace
 
 Runtime::Runtime()
-    : spyro::Runtime(spyro::Title::Spyro2), vsync_(kVSync, kVSyncQueryCounter),
+    : spyro::Runtime(spyro::Title::Spyro2),
+      vsync_({.entry = kVSync, .queryCounter = kVSyncQueryCounter}),
       libgpu_({.timeoutArm = kGpuTimeoutArm,
                .timeoutCheck = kGpuTimeoutCheck,
                .timeoutDeadlineWord = kGpuTimeoutDeadline,
@@ -153,18 +154,6 @@ std::optional<psx::gpu::PacketPoolExtent> Runtime::packetPool(Core &core) const 
 }
 
 bool Runtime::interpolates() const {
-  return true;
-}
-
-RenderCapabilities Runtime::renderCapabilities() const {
-  return RenderCapabilities{
-      .defaultPath = RenderPath::Record,
-      .nativeRenderPath = false,
-  };
-}
-
-bool Runtime::guestVramIsPicture(const Game &) const {
-  // Every presented field is the guest's own drawing; producers only key its packets.
   return true;
 }
 

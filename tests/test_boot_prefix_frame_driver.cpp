@@ -234,7 +234,7 @@ void vsyncLeaf(Core *core) {
 // Unpaced removes host sleeps while simulated display edges remain.
 std::unique_ptr<Game> newGame(spyro::test::SessionRuntime &runtime, bool unpaced = true) {
   auto game = std::make_unique<Game>(runtime, psx::config::Config{.unpaced = unpaced});
-  game->gpu_dev.s_gpu_on = 0; // exercise the real Core presentation backend without a window
+  game->disablePresentation(); // exercise the real Core presentation backend without a window
   // The synthetic bodies push a real frame, so they need a real stack. A Core starts with `$sp` at
   // 0, and `addiu $sp,$sp,-0x18` then gives 0xFFFFFFE8 -- which Lightrec correctly rejects as an
   // invalid access. The product's own entry gets this from the executable header (`loadPsxExeImage`
@@ -729,5 +729,5 @@ int main() {
   RUN(each_field_hands_its_vblank_to_the_guest_chain);
   RUN(a_paced_field_waits_for_every_field_since_the_last);
   RUN(a_paced_wait_field_waits_without_presenting);
-  return pt_summary();
+  return psx::test::summary();
 }

@@ -211,5 +211,5 @@ int main() {
   RUN(rx_is_the_left_factor);
   RUN(repeatable_and_in_range);
   RUN(shortest_way_round);
-  return pt_summary();
+  return psx::test::summary();
 }

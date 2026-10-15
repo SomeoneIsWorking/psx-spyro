@@ -221,7 +221,7 @@ int main() {
     RUN(the_margin_draws_what_four_three_culls);
     RUN(the_margin_leaves_the_sector_marks_as_retail);
     RUN(the_composer_draws_the_terrain_between_two_fields);
-    return pt_summary();
+    return psx::test::summary();
   } catch (const std::exception &error) {
     lucent::error("test_spyro1_terrain", "FAIL: {}", error.what());
     return 1;

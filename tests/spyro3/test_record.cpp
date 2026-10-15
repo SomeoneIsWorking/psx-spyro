@@ -33,11 +33,8 @@ constexpr std::uint32_t kDrawFlatten = 0x8001EB74u;
 constexpr std::uint32_t kStateFourSecondFlatten = 0x8001EA38u;
 constexpr std::uint32_t kStateDSecondFlatten = 0x8001EB44u;
 
-void test_spyro3_replays_its_record_and_interpolates_it() {
+void test_spyro3_interpolates() {
   const spyro3::Runtime spyro3;
-  const RenderCapabilities caps = spyro3.renderCapabilities();
-  CHECK(caps.defaultPath == RenderPath::Record);
-  CHECK(!caps.nativeRenderPath);
   CHECK(spyro3.interpolates());
 }
 
@@ -122,10 +119,10 @@ void test_the_composer_draws_the_terrain_between_two_fields() {
 } // namespace
 
 int main() {
-  RUN(spyro3_replays_its_record_and_interpolates_it);
+  RUN(spyro3_interpolates);
   RUN(a_fresh_runtime_seals_a_cut_first);
   RUN(the_cut_reads_spyro3s_scene_and_camera);
   RUN(only_the_first_pass_flatten_assigns_bins);
   RUN(the_composer_draws_the_terrain_between_two_fields);
-  return pt_summary();
+  return psx::test::summary();
 }

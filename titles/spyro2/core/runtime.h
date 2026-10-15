@@ -23,8 +23,6 @@ public:
   std::optional<psx::gpu::PacketPoolExtent> packetPool(Core &core) const override;
 
   bool interpolates() const override;
-  RenderCapabilities renderCapabilities() const override;
-  bool guestVramIsPicture(const Game &game) const override;
   bool sealedFrameIsCut(Core &core) const override;
   // Where this disc's own logo is; see titles/spyro2/core/logo_facts.h.
   const spyro::TitleLogoFacts &logoFacts() const override;

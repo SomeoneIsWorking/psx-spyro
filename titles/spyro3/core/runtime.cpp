@@ -112,7 +112,8 @@ constexpr psx::cd::GuestInterruptLibcd::Completion kCdCompletion{.status = 2, .p
 } // namespace
 
 Runtime::Runtime()
-    : spyro::Runtime(spyro::Title::Spyro3), vsync_(kVSync, kVSyncQueryCounter),
+    : spyro::Runtime(spyro::Title::Spyro3),
+      vsync_({.entry = kVSync, .queryCounter = kVSyncQueryCounter}),
       libcd_({.read = kCdRead, .command = kCdCommand, .sync = kCdSync},
              {},
              kCdReadyCallbackPointer,
@@ -148,18 +149,6 @@ void Runtime::stockCdReadLanded(Core &core, const psx::cd::StockReadLanding &lan
 }
 
 bool Runtime::interpolates() const {
-  return true;
-}
-
-RenderCapabilities Runtime::renderCapabilities() const {
-  return RenderCapabilities{
-      .defaultPath = RenderPath::Record,
-      .nativeRenderPath = false,
-  };
-}
-
-bool Runtime::guestVramIsPicture(const Game &) const {
-  // Every presented field is the guest's own drawing; producers only key its packets.
   return true;
 }
 

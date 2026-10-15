@@ -483,8 +483,8 @@ void test_the_composer_draws_a_reflective_moby_between_two_fields() {
 void test_a_moby_past_the_narrow_edge_is_drawn_wide() {
   for (const actors::EmitterPass *pass : {&actors::kRegularEmitter, &actors::kLitEmitter}) {
     ActorScene scene;
-    scene.plantMoby(0x400, false);
-    scene.placeMoby(kFieldCamera, 0x4A00);
+    scene.plantMoby(0x100, false);
+    scene.placeMoby(kFieldCamera, 0x3A00);
     const DrawnFrame narrow = scene.drawMoby(kFieldCamera, 0, *pass);
     scene.core().game->guestDisplay.latch(spyro::test::recordWidePlan());
     const DrawnFrame wide = scene.drawMoby(kFieldCamera, 1, *pass);
@@ -498,9 +498,9 @@ void test_a_moby_past_the_narrow_edge_is_drawn_wide() {
 void test_the_margin_leaves_the_drawn_mark_as_retail() {
   ActorScene scene;
   Core &core = scene.core();
-  scene.plantMoby(0x400, false);
+  scene.plantMoby(0x100, false);
   scene.core().game->guestDisplay.latch(spyro::test::recordWidePlan());
-  scene.placeMoby(kFieldCamera, 0x4A00);
+  scene.placeMoby(kFieldCamera, 0x3A00);
   CHECK_EQ(primitives(scene.drawMoby(kFieldCamera, 0, actors::kRegularEmitter).shown).size(), 1u);
   CHECK_EQ(core.mem_r8(kMobyRecord + actors::moby::kDrawn), 0);
   scene.placeMoby(kFieldCamera, 0);
@@ -596,7 +596,7 @@ int main() {
     RUN(the_margin_leaves_the_queued_mark_as_retail);
     RUN(the_hud_icons_take_the_wide_edges);
     RUN(the_hud_quads_take_the_wide_edges);
-    return pt_summary();
+    return psx::test::summary();
   } catch (const std::exception &error) {
     lucent::error("test_spyro1_actors", "FAIL: {}", error.what());
     return 1;

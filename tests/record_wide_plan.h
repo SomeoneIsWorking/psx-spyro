@@ -6,7 +6,7 @@
 namespace spyro::test {
 
 inline GuestProjectionPlan recordWidePlan() {
-  return guest_projection_plan({
+  return psx::present::guestProjectionPlan({
       .path = RenderPath::Record,
       .requested = PresentationAspect::Wide16x9,
       .nativePresentation = {512, 240},

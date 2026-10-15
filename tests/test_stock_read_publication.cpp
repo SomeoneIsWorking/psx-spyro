@@ -40,7 +40,7 @@ constexpr std::uint32_t kModuleLba = 570u;
 // in both the executed result and their SHA-256.
 std::uint32_t gValue = 7u;
 
-int fakeSector(DiscState *, std::uint32_t lba, std::uint8_t *out, std::uint32_t) {
+bool fakeSector(psx::cd::Disc *, std::uint32_t lba, std::uint8_t *out, std::uint32_t) {
   for (std::uint32_t i = 0; i < 2352u; ++i) {
     out[i] = static_cast<std::uint8_t>(lba + i);
   }
@@ -52,7 +52,7 @@ int fakeSector(DiscState *, std::uint32_t lba, std::uint8_t *out, std::uint32_t)
       }
     }
   }
-  return 1;
+  return true;
 }
 
 // One stock CdRead: its sector count, destination and the drive's seek target.
@@ -66,7 +66,7 @@ class Machine {
 public:
   explicit Machine(spyro::Title title) : booted_(title) {
     Game &game = booted_.game();
-    game.gpu_dev.s_gpu_on = 0;
+    game.disablePresentation();
     game.core.r[29] = 0x801FFF00u;
     game.core.r[30] = 0x801FFF00u;
     game.cdc.disc_read_raw_fn = fakeSector;
@@ -161,8 +161,8 @@ void checkTitle(spyro::Title title) {
   CHECK(!machine.read({.sectors = 1u, .destination = kModule + 0x4000u, .lba = -1}));
   CHECK(!core.currentImageIdentity(kModule + 0x4000u).has_value());
   machine.game().cdc.disc_read_raw_fn =
-      [](DiscState *, std::uint32_t, std::uint8_t *, std::uint32_t) -> int {
-    return 0;
+      [](psx::cd::Disc *, std::uint32_t, std::uint8_t *, std::uint32_t) -> bool {
+    return false;
   };
   CHECK(!machine.read({.sectors = 1u,
                        .destination = kModule + 0x4000u,
@@ -212,7 +212,7 @@ int main() {
     RUN(spyro2_publishes_a_stock_read_module);
     RUN(spyro3_publishes_a_stock_read_module);
     RUN(an_unpublishable_landing_is_a_runtime_fault);
-    return pt_summary();
+    return psx::test::summary();
   } catch (const std::exception &error) {
     lucent::error("test_stock_read_publication", "FAIL: {}", error.what());
     return 1;

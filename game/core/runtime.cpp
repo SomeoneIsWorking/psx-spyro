@@ -33,8 +33,8 @@ const psx::present::StateProducer *Runtime::stateProducer(Core &core,
   return session(core).stateProducers.find(producer);
 }
 
-void Runtime::pacePresentation(Core &core, int guestFields, int parts) {
-  core.game->framePacer.waitPresentedFields(core, guestFields, parts);
+void Runtime::pacePresentation(Core &core, psx::frame::FieldCadence cadence) {
+  core.game->framePacer.waitPresentedFields(core, cadence);
 }
 
 std::optional<psx::host::LogoImage> Runtime::panelLogo(Core &core) const {
@@ -46,9 +46,6 @@ const GuestWidescreenProjection *Runtime::guestWidescreenProjection() const {
 }
 
 void Runtime::reportRun(Core &core) const {
-  // These counters are incremented inside the framework's guest-OT classifier, which a run whose
-  // producers are all guest code never executes; a zero here means "never ran", not "no coverage".
-  render_depth_coverage_report(&core, "run-complete");
   core.rsub.census.report("spyro run-complete");
 }
 

@@ -22,8 +22,6 @@ public:
 
   std::optional<psx::gpu::PacketPoolExtent> packetPool(Core &core) const override;
   bool interpolates() const override;
-  RenderCapabilities renderCapabilities() const override;
-  bool guestVramIsPicture(const Game &game) const override;
   // The boot logos are uploads at the native width; no widening applies to them.
   bool guestPictureIsNativeWidth(const Game &game) const override;
   bool sealedFrameIsCut(Core &core) const override;

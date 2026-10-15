@@ -86,5 +86,5 @@ int main() {
   RUN(window_starts_above_everything_the_frame_owns);
   RUN(window_is_large_enough_for_a_field);
   RUN(no_window_is_a_refusal_not_a_clamp);
-  return pt_summary();
+  return psx::test::summary();
 }

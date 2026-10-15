@@ -40,12 +40,9 @@ const spyro::test::TerrainTitle kSpyro2{
     .imageEnd = 0x49000u,
 };
 
-void test_spyro2_replays_its_record_and_interpolates_it() {
+void test_spyro2_interpolates() {
   const spyro2::Runtime spyro2;
-  const RenderCapabilities caps = spyro2.renderCapabilities();
-  CHECK(caps.defaultPath == RenderPath::Record);
   CHECK(spyro2.interpolates());
-  CHECK(!caps.nativeRenderPath);
 }
 
 // One step of the driver: a draw returns (walking its table), then the step's tail.
@@ -337,7 +334,7 @@ void test_the_composer_draws_the_terrain_between_two_fields() {
 } // namespace
 
 int main() {
-  RUN(spyro2_replays_its_record_and_interpolates_it);
+  RUN(spyro2_interpolates);
   RUN(a_cut_is_a_new_game_state_or_level);
   RUN(a_cut_is_a_camera_placement_inside_one_scene);
   RUN(the_scene_is_sampled_when_the_table_is_walked);
@@ -347,5 +344,5 @@ int main() {
   RUN(a_saved_field_keeps_only_level_words);
   RUN(the_render_between_two_cameras_differs_and_is_finite);
   RUN(the_composer_draws_the_terrain_between_two_fields);
-  return pt_summary();
+  return psx::test::summary();
 }

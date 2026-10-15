@@ -226,7 +226,8 @@ void vscale_native(Core *c) {
   const uint32_t p = c->r[4];
   const uint32_t a2v = c->r[6] << 12;
   c->r[6] = a2v;
-  cpu_div(c, a2v, c->r[5]); // sets c->lo (quotient) and c->hi (remainder)
+  psx::cpu::divide(
+      c, {.numerator = a2v, .denominator = c->r[5]}); // sets c->lo (quotient) and c->hi (remainder)
 
   c->gte().writeData(9, c->mem_r32(p + 0));
   c->gte().writeData(10, c->mem_r32(p + 4));
@@ -294,8 +295,9 @@ void vec_scale_to_length_native(Core *c) {
   }
 
   const SqrtTail r = sqrt_tail(c, sum);
-  cpu_div(c, c->r[5] << 12, r.v0); // sll a1,12 then the signed divide
-  const uint32_t scale = c->lo;    // mflo
+  psx::cpu::divide(
+      c, {.numerator = c->r[5] << 12, .denominator = r.v0}); // sll a1,12 then the signed divide
+  const uint32_t scale = c->lo;                              // mflo
 
   const uint32_t scaledX = scaled_component(c, x, scale);
   const uint32_t scaledY = scaled_component(c, y, scale);

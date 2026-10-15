@@ -316,7 +316,7 @@ void resolveOutOfShape(Walker &w, std::uint32_t record, const ShapeOutcome &outc
         denominator = 1u; // the `j`'s delay slot
       }
     }
-    cpu_div(c, scaled, denominator);
+    psx::cpu::divide(c, {.numerator = scaled, .denominator = denominator});
     const std::uint32_t quotient = c->lo;
     c->gte().writeData(kGteLzcs, quotient);
     std::uint32_t reach = quotient;

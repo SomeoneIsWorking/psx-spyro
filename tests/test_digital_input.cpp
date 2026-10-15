@@ -120,7 +120,8 @@ int main(int argc, char **argv) {
   }
   auto game = std::make_unique<spyro::test::StubGame>();
   Core &core = game->core;
-  load_exe(argv[1], &core);
+  const psx::cpu::PsxExeLoadResult loaded = game->runtime.admitExecutable(core, selected.bytes);
+  require(static_cast<bool>(loaded), "the selected Spyro 1 executable must load");
   core.mem_w32(kActivePadPointer, kBufferedPad);
   core.mem_w16(kCameraRotation, static_cast<std::uint16_t>(kCameraAngle));
   core.mem_w8(kBodyRotation, kBodyAngle);

@@ -18,7 +18,10 @@ constexpr std::uint32_t kTurnLimit = 240;
 } // namespace
 
 void FrameDraw::run(Core &core, FieldScheduler &fields) {
-  call_.begin(core, "frame-draw", kFrameDraw, kFrameDrawReturn, psx::cpu::kUnboundedCallTurns);
+  call_.begin(core,
+              "frame-draw",
+              psx::cpu::GuestCallSite{kFrameDraw, kFrameDrawReturn},
+              psx::cpu::kUnboundedCallTurns);
   for (std::uint32_t turn = 0; turn < kTurnLimit; ++turn) {
     const psx::cpu::CallStep step = call_.advance();
     if (step.outcome == psx::cpu::CallOutcome::Returned) {

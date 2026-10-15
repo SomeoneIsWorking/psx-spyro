@@ -94,7 +94,7 @@ void runHandoff(Core &core) {
 }
 
 void enableSyntheticFields(Game &game) {
-  game.gpu_dev.s_gpu_on = 0;
+  game.disablePresentation();
 }
 
 void resetWords(Core &core) {
@@ -353,5 +353,5 @@ int main() {
   RUN(late_reset_survives_more_than_64_routine_ticks);
   RUN(padv_sync_bracket_keeps_callback_origin_after_boring_prefix);
   RUN(unreached_stage_reports_no_padv_sync_bracket);
-  return pt_summary();
+  return psx::test::summary();
 }

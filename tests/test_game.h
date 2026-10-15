@@ -18,13 +18,6 @@ public:
   void registerOverrides(Game &game) override {
     (void)game;
   }
-  RenderCapabilities renderCapabilities() const override {
-    return RenderCapabilities::direct();
-  }
-  bool guestVramIsPicture(const Game &game) const override {
-    (void)game;
-    return false;
-  }
 };
 
 // Built before the Game or Core that keeps a reference to it.
