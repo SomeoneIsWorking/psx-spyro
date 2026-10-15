@@ -1,5 +1,5 @@
 // spyro3_render_facts.h — SCUS_944.67's own render-routine facts, read out of its bytes, plus the
-// two native overrides that bind them.
+// native overrides that bind them.
 //
 // The routines themselves live in game/render/ and are shared with SCUS_944.25. That is a measured
 // claim, not an assumed one: the terrain drawer (0x80022378 here, 0x80023BB4 there) is 5,487
@@ -12,12 +12,10 @@
 // instruction in this image rather than derived by arithmetic).
 #pragma once
 
-#include "core.h"
-#include "guest_moby_visibility.h"
-#include "guest_render_globals.h"
-#include "guest_terrain_drawer.h"
-#include "guest_terrain_facts.h"
-#include "native_execution.h"
+#include "engine_render_overrides.h"
+
+#include <array>
+#include <cstdint>
 
 namespace spyro3 {
 
@@ -159,23 +157,25 @@ inline constexpr spyro::guest_moby::Facts kMobyFacts{
     .sineTable = 0x800658A0u,
 };
 
-// The two override bodies: one line each, because an override is a plain `void (*)(Core *)` with
-// nowhere to hang a back-pointer, so the title's facts are bound here and the routine they name is
-// the shared one.
-inline void terrainDrawerOverride(Core *core) {
-  spyro::guest_terrain::draw(*core, kTerrainFacts, kRenderGlobals);
-}
+// The flatten, FUN_8004E664: FUN_8001B2A8's body over this image's table (8006C634) and mark
+// (8006C7D4), plus the chain's tail stored at 8006C6B0. The draw 0x8001E638 calls it once per frame
+// (8001EB74, or 8001E994 / 8001EAC0 in states 4 and 0xD); FUN_80020168 calls it at 80020290.
+inline constexpr std::uint32_t kFlatten = 0x8004E664u;
 
-inline void mobyVisibilityOverride(Core *core) {
-  spyro::guest_moby::walk(*core, kMobyFacts, kRenderGlobals);
-}
+// States 4 and 0xD then link a second pass into the emptied bins (state 4 the moby walk 0x80030478
+// and 0x80031124, state 0xD 0x8003CDA0), flatten it again and chain it after the first through
+// 8006C6B0. Its packets are drawn after the whole first chain, not in their bins' place, so these
+// two calls assign nothing.
+inline constexpr std::array<std::uint32_t, 2> kSecondPassFlattenReturns = {0x8001EA40u,
+                                                                           0x8001EB4Cu};
 
-// Install both overrides for this Core's resident SCUS_944.67 image.
-inline void registerRenderOverrides(Core &core) {
-  psx::cpu::installNativeOverride(
-      core, kTerrainFacts.entry, kTerrainFacts.overrideName, terrainDrawerOverride);
-  psx::cpu::installNativeOverride(
-      core, kMobyFacts.entry, kMobyFacts.overrideName, mobyVisibilityOverride);
-}
+inline constexpr spyro::EngineRenderFacts kRenderFacts{
+    .globals = kRenderGlobals,
+    .terrain = kTerrainFacts,
+    .moby = kMobyFacts,
+    .flatten = kFlatten,
+    .flattenName = "spyro3-depth-bins",
+    .unbinnedFlattens = kSecondPassFlattenReturns,
+};
 
 } // namespace spyro3

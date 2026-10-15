@@ -23,16 +23,16 @@ inline constexpr std::uint32_t kJalReturnOffset = 8u;
 
 // `$ra` for a nested call is whatever the override last put there, never the guest's own, and a
 // callee may keep it (`func_8004BE4C` spills `$ra` to a save area on entry at 0x8004BE80).
-// `jalSite` is the address of the `jal` the retail body executes.
+struct JalSite {
+  std::uint32_t jal = 0; // the `jal` the retail body executes
+  std::uint32_t target = 0;
+};
+
 template <typename... Args>
   requires(sizeof...(Args) <= 4 && (std::convertible_to<Args, std::uint32_t> && ...))
-void callGuestJumpedFrom(Core &core,
-                         std::string_view owner,
-                         std::uint32_t jalSite,
-                         std::uint32_t address,
-                         Args... args) {
-  core.r[31] = jalSite + kJalReturnOffset;
-  psx::cpu::callGuestNow(core, owner, address, args...);
+void callGuestJumpedFrom(Core &core, std::string_view owner, JalSite site, Args... args) {
+  core.r[31] = site.jal + kJalReturnOffset;
+  psx::cpu::callGuestNow(core, owner, site.target, args...);
 }
 
 // A retail body returns with the `$ra` it entered with; the differential compares the register.

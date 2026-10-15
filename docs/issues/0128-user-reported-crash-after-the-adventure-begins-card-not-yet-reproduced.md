@@ -1,12 +1,12 @@
 ---
 id: 128
 title: "The crash after THE ADVENTURE BEGINS is the particle producer refusing type 3 — and the refusal path killed itself before saying so"
-status: open
+status: resolved
 symptom: the product renders the "THE ADVENTURE BEGINS..." flyby card and then dies. REPRODUCED 2026-09-22 on the player launch path: the field particles producer refuses particle type 3, and abortUnimplemented then segfaults on a null Core::cfg two lines into its own report
 state_items: S011
 tags: crash,render,producer,transition,repro
 created: 2026-09-19
-updated: 2026-10-01
+updated: 2026-10-15
 ---
 
 ## The observation outranks the runs
@@ -361,3 +361,7 @@ GS_Playing at frame 6,360.
 1. Capture the abort text from a real `./run.sh` session — the last ~20 lines of the terminal.
 2. Failing that, reproduce with audio enabled and real SDL input on the actual GPU.
 3. Do not close this on the strength of green agent runs. See C228.
+
+## Resolution
+
+Obsolete (2026-10-15): The native particle producer is deleted; on Record the guest draws particles.

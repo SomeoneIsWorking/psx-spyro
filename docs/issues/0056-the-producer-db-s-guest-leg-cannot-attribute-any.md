@@ -1,9 +1,10 @@
 ---
 id: 56
-title: The producer DB's guest leg cannot attribute anything on spyro: GameConfig::packetPoolBase is 0 (the packet pool is not RE'd)
+title: The census cannot attribute Spyro 1 or Spyro 3 packets to their pool, because neither runtime answers packetPool
 status: open
 symptom: OtAttr span table is empty / producer census reports 0 attributed prims and a span_miss count equal to every prim, on spyro
 tags: render,producers,re,gameconfig,blocked
+features: [F-RENDER]
 created: 2026-08-11
 updated: 2026-08-11
 ---
@@ -12,12 +13,9 @@ updated: 2026-08-11
 
 The graphics producer DB (`external/psxport/docs/plans/graphics-producer-db.md`) attributes each drawn
 primitive to the guest fn that submitted it by looking the packet's address up in OtAttr's span table.
-That table only records stores that land inside the game's PACKET POOL, and the pool range comes from
-`GameConfig::packetPoolBase` / `packetPoolStride`.
-
-    spyro/game/core/game_config.cpp:  .packetPoolBase = 0u,  .packetPoolStride = 0u,
-
-Zero is the honest value — this port has not RE'd the pool — but the consequence is that on spyro the
+That table only records stores that land inside the game's PACKET POOL, and the pool comes from
+`GameRuntime::packetPool(Core&)`. Spyro 2 answers it (`Spyro2Runtime::packetPool`); Spyro 1 and Spyro 3
+do not, because neither pool is RE'd, and on those two the
 guest leg of the census is **structurally blind**: every prim lands in `span_miss` and no producer row is
 ever created from the guest side. That is not "spyro's guest draws nothing".
 
@@ -41,8 +39,8 @@ empirically. Cross-check against the guest's own allocator: whatever global hold
 (Tomba!2's is `0x800BF544`) is written every submission, so `PSXPORT_WWATCH=<lo>,<hi>` with
 `PSXPORT_WWATCH_BT=1` names the writer.
 
-Fill `packetPoolBase` / `packetPoolStride` with the disassembly that justifies them, per this repo's rule
-that every filled GameConfig field carries its evidence. Do NOT copy Tomba!2's values.
+Answer `packetPool` with the disassembly that justifies it, per this repo's rule
+that every packetPool answer carries its evidence. Do NOT copy Tomba!2's values.
 
 ## Same for spider1
 

@@ -18,9 +18,13 @@ struct Normalization {
   std::uint32_t tableByteOffset = 0;  // offset into 0x80074B84, already doubled for the halfword
 };
 
-// `value` must be non-zero; every guest caller branches around this on zero and leaves its result
-// registers at 0.
-Normalization normalize(std::uint32_t value, std::uint32_t leadingZeros);
+struct NormalizeInput {
+  // Non-zero; every guest caller branches around this on zero and leaves its result registers at 0.
+  std::uint32_t value = 0;
+  std::uint32_t leadingZeros = 0;
+};
+
+Normalization normalize(NormalizeInput input);
 
 // The guest's tail: the signed table halfword shifted back up by the halved magnitude, keeping the
 // 12 fractional bits its callers then discard themselves.

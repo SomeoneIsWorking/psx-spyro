@@ -4,7 +4,7 @@
 #include "execution_control.h"
 #include "native_dispatch.h"
 #include "native_execution.h"
-#include "spyro2_widescreen_facts.h"
+#include "spyro2_render_facts.h"
 #include "ui_anchor.h"
 
 namespace spyro2::hud_anchor {
@@ -14,7 +14,7 @@ namespace {
 // decision, or the title's authored window when it is not widening. Equal widths before the plan
 // latches and whenever it does not widen, which makes every correction below zero.
 spyro::ui_anchor::Frame frame(Core &core) {
-  return spyro::ui_anchor::widescreenFrame(core, spyro2::kWidescreenFacts.nativeWidth);
+  return spyro::ui_anchor::widescreenFrame(core, spyro2::kTerrainFacts.nativeWidth);
 }
 
 void shiftArgument(Core &core, std::uint32_t reg, std::int32_t correction) {

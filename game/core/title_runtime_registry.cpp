@@ -1,8 +1,5 @@
 #include "title_runtime_registry.h"
 
-#include "spyro1_runtime.h"
-#include "spyro2_runtime.h"
-#include "spyro3_runtime.h"
 #include "spyro_title_catalog.generated.h"
 
 #include <cstdlib>
@@ -26,29 +23,19 @@ SpyroTitle SpyroCatalog::title(std::size_t index) const {
 }
 
 SpyroRuntime &SpyroCatalog::runtime(std::size_t index) const {
-  return runtimeFor(title(index));
+  switch (title(index)) {
+  case SpyroTitle::Spyro1:
+    return spyro1_;
+  case SpyroTitle::Spyro2:
+    return spyro2_;
+  case SpyroTitle::Spyro3:
+    return spyro3_;
+  }
+  std::abort();
 }
 
 std::unique_ptr<psx::host::TitleCatalog> createCatalog() {
   return std::make_unique<SpyroCatalog>();
-}
-
-SpyroRuntime &runtimeFor(SpyroTitle title) {
-  switch (title) {
-  case SpyroTitle::Spyro1: {
-    static spyro1::Spyro1Runtime runtime;
-    return runtime;
-  }
-  case SpyroTitle::Spyro2: {
-    static spyro2::Spyro2Runtime runtime;
-    return runtime;
-  }
-  case SpyroTitle::Spyro3: {
-    static spyro3::Spyro3Runtime runtime;
-    return runtime;
-  }
-  }
-  std::abort();
 }
 
 } // namespace spyro

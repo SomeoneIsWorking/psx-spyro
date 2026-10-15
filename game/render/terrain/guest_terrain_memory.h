@@ -12,22 +12,44 @@
 //   the fogged colours    [foggedColours, +0x1000)  the DPCS-faded copy a sector's polygons read
 //
 // Everything else the passes touch — sector records, polygon records, texture records, the crack
-// and piece tables, the camera, the level's globals — is the LEVEL, and stays on `Core`.
+// and piece tables, the camera, the level's globals — is the LEVEL. The passes read it through the
+// accessor too: the real field records each word as it first read it, and an in-between reads
+// those (`overlay`), because the guest rewrites level words between fields (sector animation,
+// streamed data) before the field is presented.
 //
 // WHY TWO PLACES. The real field must read and write exactly the bytes retail did, so it runs over
 // `GuestMemory`, which forwards to `Core` and is byte-identical by construction. An in-between
 // field runs the identical passes with no guest code and no guest write, so it runs over
-// `HostMemory`: guest-shaped ranges backed by host bytes, where a read of an unmapped address still
-// falls through to the guest (level geometry is legitimately there) and a WRITE of an unmapped
-// address is refused by name, because that is the one mistake that would change the real field.
+// `HostMemory`: guest-shaped ranges backed by host bytes, where a read of an unmapped address falls
+// through to the field's saved words, then to the guest (level geometry is legitimately there) and
+// a WRITE of an unmapped address is refused by name, because that is the one mistake that would
+// change the real field.
 #pragma once
 
 #include "core.h"
 
 #include <cstdint>
+#include <span>
+#include <unordered_map>
 #include <vector>
 
 namespace spyro::guest_terrain {
+
+// [base, base + bytes) of guest address space.
+struct GuestRange {
+  std::uint32_t base = 0;
+  std::uint32_t bytes = 0;
+
+  [[nodiscard]] bool contains(std::uint32_t address) const {
+    return address - base < bytes;
+  }
+};
+
+// A guest word as a real field first read it.
+struct LevelWord {
+  std::uint32_t address = 0;
+  std::uint32_t value = 0;
+};
 
 // The working-memory accessor every pass reads and writes through. Three widths, because the
 // traversal packs GP0 tag address fields, 16-bit screen words and 8-bit flags into the same ranges.
@@ -47,18 +69,22 @@ public:
   [[nodiscard]] virtual bool mapped(std::uint32_t address) const = 0;
 };
 
-// The guest's own RAM, byte for byte. What the real field runs over.
+// The guest's own RAM, byte for byte. What the real field runs over. Reads outside `working`, the
+// ranges the traversal owns, are level words and are kept for the field's in-betweens.
 class GuestMemory final : public TerrainMemory {
 public:
-  explicit GuestMemory(Core &core) : core_(core) {}
+  GuestMemory(Core &core, std::span<const GuestRange> working) : core_(core), working_(working) {}
 
   [[nodiscard]] std::uint32_t r32(std::uint32_t address) const override {
+    recordRead(address);
     return core_.mem_r32(address);
   }
   [[nodiscard]] std::uint16_t r16(std::uint32_t address) const override {
+    recordRead(address);
     return core_.mem_r16(address);
   }
   [[nodiscard]] std::uint8_t r8(std::uint32_t address) const override {
+    recordRead(address);
     return core_.mem_r8(address);
   }
   void w32(std::uint32_t address, std::uint32_t value) override {
@@ -75,8 +101,23 @@ public:
     return true;
   }
 
+  // Every level word read so far, with the value it held when first read.
+  [[nodiscard]] std::vector<LevelWord> firstReads() const;
+
 private:
+  void recordRead(std::uint32_t address) const {
+    const std::uint32_t word = address & ~3u;
+    for (const GuestRange &range : working_) {
+      if (range.contains(word)) {
+        return;
+      }
+    }
+    firstReads_.try_emplace(word, core_.mem_r32(word));
+  }
+
   Core &core_;
+  std::span<const GuestRange> working_;
+  mutable std::unordered_map<std::uint32_t, std::uint32_t> firstReads_;
 };
 
 // Guest-shaped ranges backed by host bytes.
@@ -102,7 +143,10 @@ public:
   // reason the in-between can have a table at all.
   void mapEmpty(std::uint32_t base, std::uint32_t bytes);
 
-  // Forget every mapping and every counted read and write.
+  // Read these words in place of the guest's wherever no mapping owns them.
+  void overlay(std::span<const LevelWord> words);
+
+  // Forget every mapping, overlay and counted read and write.
   void clear();
 
   [[nodiscard]] std::uint32_t r32(std::uint32_t address) const override;
@@ -124,13 +168,8 @@ public:
     return refusedWrites_;
   }
 
-  // The merged ranges, in address order. Read by the tests and by a diagnostic that has to name
-  // what an in-between field actually reserved.
-  struct Range {
-    std::uint32_t base = 0;
-    std::uint32_t bytes = 0;
-  };
-  [[nodiscard]] std::vector<Range> ranges() const;
+  // The merged ranges, in address order.
+  [[nodiscard]] std::vector<GuestRange> ranges() const;
 
 private:
   struct Segment {
@@ -144,8 +183,12 @@ private:
   [[nodiscard]] std::uint8_t guestByte(std::uint32_t address) const;
   void refuseWrite(std::uint32_t address, std::uint32_t bytes) const;
 
+  // The overlaid word at a 4-aligned address, or nullptr.
+  [[nodiscard]] const std::uint32_t *overlaid(std::uint32_t address) const;
+
   Core &core_;
   std::vector<Segment> segments_;
+  std::unordered_map<std::uint32_t, std::uint32_t> overlay_;
   mutable std::uint64_t guestReads_ = 0;
   mutable std::uint64_t refusedWrites_ = 0;
 };

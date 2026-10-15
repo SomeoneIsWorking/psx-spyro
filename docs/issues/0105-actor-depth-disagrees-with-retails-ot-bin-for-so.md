@@ -1,11 +1,11 @@
 ---
 id: 105
 title: Actor depth disagrees with retail's OT bin for some instance pairs, and the geometry says retail is right
-status: open
+status: resolved
 symptom: about 10% of ordered actor primitive pairs sort in the opposite order from retail, and for the worst pair the port places the FARTHER moby in front
 tags: render,field,actor,depth,oracle
 created: 2026-09-10
-updated: 2026-09-19
+updated: 2026-10-15
 ---
 
 ## Symptom
@@ -252,3 +252,7 @@ Run it with:
 
  <log> --frame -1
  --selftest x # proves the report shows BOTH answers
+
+## Resolution
+
+Obsolete (2026-10-15): The native actor ordering is deleted; on Record the device draws the guest's own ordering table.

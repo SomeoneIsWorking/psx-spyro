@@ -5,7 +5,7 @@
 
 namespace spyro {
 
-enum class MemcardOperation : uint32_t {
+enum class MemcardOperation : std::uint8_t {
   Exist = 1u,
   Accept = 2u,
 };

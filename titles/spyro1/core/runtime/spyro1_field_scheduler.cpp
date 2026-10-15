@@ -4,8 +4,8 @@
 #include "core.h"
 #include "game.h"
 #include "spyro1_frame_driver.h"
-#include "spyro_context.h"
 #include "spyro_game.h"
+#include "spyro_session.h"
 
 #include <lucent/log.h>
 #include <stdlib.h>
@@ -52,7 +52,6 @@ FieldScheduler::FieldScheduler(Game &game)
                   .rootHandlerSlot = kRootHandlers,
                   .handlerStackTop = kHandlerStackTop,
                   .handlerStackBytes = kHandlerStackBytes,
-                  .fieldsPerLogicFrame = spyro1::kFieldsPerLogicFrame,
               },
               this) {}
 
@@ -165,11 +164,6 @@ FieldScheduler &fieldScheduler(Core &core) {
 
 const FieldScheduler &fieldScheduler(const Core &core) {
   return frameDriver(core).fields();
-}
-
-bool deliverNativeField(Core &core, const char *site, bool fps60CommitPending) {
-  return fieldScheduler(core).deliver(
-      {.site = site, .present = !fps60CommitPending, .pace = !fps60CommitPending});
 }
 
 void beginBootSequence(Core &core) {

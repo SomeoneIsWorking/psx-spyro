@@ -5,6 +5,7 @@ status: open
 symptom: `TransitionSkip` has three arms and the fourth screen the skip map names, `GS_EntranceAnimation` (stage 9), is absent. The map's stated reason is that its terminal "would have to leave the camera mid-rotation, which is a state question, not a flag". That reason was never checked, and checking it changes both the reason and the shape of the answer.
 state_items: S011
 tags: transition,skip,input,re,frontend
+features: [F-LOAD]
 created: 2026-09-28
 ---
 

@@ -5,8 +5,8 @@
 #include "hud_draw_context.h"
 #include "native_dispatch.h"
 #include "native_execution.h"
-#include "spyro3_widescreen_facts.h"
-#include "spyro_context.h"
+#include "spyro3_render_facts.h"
+#include "spyro_session.h"
 #include "ui_anchor.h"
 
 #include <cstdint>
@@ -18,13 +18,13 @@ namespace {
 // decision, or the title's authored window when it is not widening, which makes every correction
 // zero rather than a guess.
 spyro::ui_anchor::Frame frame(Core &core) {
-  return spyro::ui_anchor::widescreenFrame(core, spyro3::kWidescreenFacts.nativeWidth);
+  return spyro::ui_anchor::widescreenFrame(core, spyro3::kTerrainFacts.nativeWidth);
 }
 
 // Shift the X argument of an emitter ($a1) by the widget's anchor class, if the widget in progress
 // has one. The element is the drawer's own argument and is never written; only this register moves.
 void shiftEmitterArgument(Core &core) {
-  const std::uint32_t element = spyro::context(core).hudDraw.current();
+  const std::uint32_t element = spyro::session(core).hudDraw.current();
   if (const auto anchor = counterAnchor(element)) {
     core.r[5] = static_cast<std::uint32_t>(
         static_cast<std::int32_t>(core.r[5]) +
@@ -37,26 +37,26 @@ void shiftEmitterArgument(Core &core) {
 // so every emitter call inside the draw reads this widget and every call outside reads none. Both
 // drawers are the same body: publish, run the original unchanged, clear.
 void counterDrawer(Core *core) {
-  spyro::context(*core).hudDraw.begin(core->r[4]);
+  spyro::session(*core).hudDraw.begin(core->r[4]);
   (void)psx::cpu::completeOrPropagate(
       *core,
       psx::cpu::callOriginal(*core, kCounterDrawer, psx::cpu::ExecutionBudget::currentTurn(*core)));
-  spyro::context(*core).hudDraw.end();
+  spyro::session(*core).hudDraw.end();
 }
 
 void livesDrawer(Core *core) {
-  spyro::context(*core).hudDraw.begin(core->r[4]);
+  spyro::session(*core).hudDraw.begin(core->r[4]);
   (void)psx::cpu::completeOrPropagate(
       *core,
       psx::cpu::callOriginal(*core, kLivesDrawer, psx::cpu::ExecutionBudget::currentTurn(*core)));
-  spyro::context(*core).hudDraw.end();
+  spyro::session(*core).hudDraw.end();
 }
 
 // A widget's OWN icon is what its anchor class moves. The same emitter is also called from INSIDE
 // the value emitter, once per digit glyph, and those calls are not this widget's icon to move: see
 // the value emitter below.
 void iconEmitter(Core *core) {
-  if (!spyro::context(*core).hudDraw.insideValue()) {
+  if (!spyro::session(*core).hudDraw.insideValue()) {
     shiftEmitterArgument(*core);
   }
   (void)psx::cpu::completeOrPropagate(
@@ -72,11 +72,11 @@ void iconEmitter(Core *core) {
 // right edge, which reads as the icon and the count having swapped sides.
 void valueEmitter(Core *core) {
   shiftEmitterArgument(*core);
-  spyro::context(*core).hudDraw.beginValue();
+  spyro::session(*core).hudDraw.beginValue();
   (void)psx::cpu::completeOrPropagate(
       *core,
       psx::cpu::callOriginal(*core, kValueEmitter, psx::cpu::ExecutionBudget::currentTurn(*core)));
-  spyro::context(*core).hudDraw.endValue();
+  spyro::session(*core).hudDraw.endValue();
 }
 
 } // namespace

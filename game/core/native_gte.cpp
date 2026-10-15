@@ -1,6 +1,5 @@
-// Geometry leaves that use the GTE (COP2). The scalar logic around a command belongs to the port;
-// the command is hardware, so the native bodies call the framework's gte_op()/gte_read_data()/
-// gte_write_data() rather than reimplementing COP2.
+// Geometry leaves that use the GTE (COP2). The command is hardware, so the bodies run it on the
+// Core's own GTE rather than reimplementing COP2.
 #include "core.h"
 #include "game.h"
 #include "guest_globals.h"
@@ -42,7 +41,8 @@ struct SqrtTail {
 
 SqrtTail sqrt_tail(Core *c, uint32_t val) {
   // LZCR — the mtc2 to LZCS already happened.
-  const auto step = spyro::guest_magnitude::normalize(val, gte_read_data(31));
+  const auto step =
+      spyro::guest_magnitude::normalize({.value = val, .leadingZeros = c->gte().readData(31)});
   SqrtTail r{};
   r.a1 = step.evenLeadingZeros;
   r.shift = step.exponent;
@@ -57,7 +57,7 @@ SqrtTail sqrt_tail(Core *c, uint32_t val) {
 // 0x80017A38 — integer square root of a0 through the same table; the shift amount lives in `at`.
 void isqrt_native(Core *c) {
   const uint32_t val = c->r[4];
-  gte_write_data(30, val); // LZCS
+  c->gte().writeData(30, val); // LZCS
   if (val == 0) {
     c->r[8] = 0;
     c->r[2] = 0;
@@ -75,23 +75,23 @@ void isqrt_native(Core *c) {
 void veclen_native(Core *c) {
   const uint32_t p = c->r[4], with_z = c->r[5];
 
-  gte_write_data(9, c->mem_r32(p + 0));  // IR1 = x
-  gte_write_data(11, 0);                 // IR3 = 0
-  gte_write_data(10, c->mem_r32(p + 4)); // IR2 = y — the delay slot, unconditional
+  c->gte().writeData(9, c->mem_r32(p + 0));  // IR1 = x
+  c->gte().writeData(11, 0);                 // IR3 = 0
+  c->gte().writeData(10, c->mem_r32(p + 4)); // IR2 = y — the delay slot, unconditional
   if (with_z != 0) {
-    gte_write_data(11, c->mem_r32(p + 8));
+    c->gte().writeData(11, c->mem_r32(p + 8));
   }
 
-  gte_op(c, 0x4AA00428u); // SQR
+  c->gte().execute(0x4AA00428u); // SQR
 
-  const uint32_t mac1 = gte_read_data(25);
-  const uint32_t mac2 = gte_read_data(26);
-  const uint32_t mac3 = gte_read_data(27);
+  const uint32_t mac1 = c->gte().readData(25);
+  const uint32_t mac2 = c->gte().readData(26);
+  const uint32_t mac3 = c->gte().readData(27);
   const uint32_t sum = mac1 + mac2 + mac3;
 
-  gte_write_data(30, sum); // LZCS — triggers the count
-  c->r[1] = sum;           // at
-  c->r[3] = mac3;          // v1
+  c->gte().writeData(30, sum); // LZCS — triggers the count
+  c->r[1] = sum;               // at
+  c->r[3] = mac3;              // v1
 
   if (sum == 0) {
     // The zero arm: t0 = 0 from the delay slot, v0 = 0 from the return delay slot. a0/a1 keep the
@@ -121,24 +121,24 @@ void veclen_native(Core *c) {
 void mvmva_native(Core *c) {
   const uint32_t m = c->r[4], v = c->r[5], out = c->r[6];
 
-  gte_write_ctrl(0, c->mem_r32(m + 0));
-  gte_write_ctrl(1, c->mem_r32(m + 4));
-  gte_write_ctrl(2, c->mem_r32(m + 8));
-  gte_write_ctrl(3, c->mem_r32(m + 12));
-  gte_write_ctrl(4, c->mem_r32(m + 16));
+  c->gte().writeControl(0, c->mem_r32(m + 0));
+  c->gte().writeControl(1, c->mem_r32(m + 4));
+  c->gte().writeControl(2, c->mem_r32(m + 8));
+  c->gte().writeControl(3, c->mem_r32(m + 12));
+  c->gte().writeControl(4, c->mem_r32(m + 16));
 
   const uint32_t x = c->mem_r32(v + 0);
   const uint32_t y = 0u - c->mem_r32(v + 4);
   const uint32_t z = 0u - c->mem_r32(v + 8);
-  gte_write_data(11, x); // IR3
-  gte_write_data(9, y);  // IR1
-  gte_write_data(10, z); // IR2
+  c->gte().writeData(11, x); // IR3
+  c->gte().writeData(9, y);  // IR1
+  c->gte().writeData(10, z); // IR2
 
-  gte_op(c, 0x4A49E012u); // MVMVA
+  c->gte().execute(0x4A49E012u); // MVMVA
 
-  const uint32_t r_at = gte_read_data(27);      // MAC3
-  const uint32_t r_v0 = 0u - gte_read_data(25); // MAC1, negated
-  const uint32_t r_v1 = 0u - gte_read_data(26); // MAC2, negated
+  const uint32_t r_at = c->gte().readData(27);      // MAC3
+  const uint32_t r_v0 = 0u - c->gte().readData(25); // MAC1, negated
+  const uint32_t r_v1 = 0u - c->gte().readData(26); // MAC2, negated
   c->mem_w32(out + 0, r_at);
   c->mem_w32(out + 4, r_v0);
   c->mem_w32(out + 8, r_v1);
@@ -156,15 +156,15 @@ void mvmva_native(Core *c) {
 void mvmva_resident_native(Core *c) {
   const uint32_t v = c->r[4], out = c->r[5];
 
-  gte_write_data(11, c->mem_r32(v + 0));      // IR3
-  gte_write_data(9, 0u - c->mem_r32(v + 4));  // IR1, negated
-  gte_write_data(10, 0u - c->mem_r32(v + 8)); // IR2, negated
+  c->gte().writeData(11, c->mem_r32(v + 0));      // IR3
+  c->gte().writeData(9, 0u - c->mem_r32(v + 4));  // IR1, negated
+  c->gte().writeData(10, 0u - c->mem_r32(v + 8)); // IR2, negated
 
-  gte_op(c, 0x4A49E012u); // MVMVA
+  c->gte().execute(0x4A49E012u); // MVMVA
 
-  const uint32_t r_at = gte_read_data(27);      // MAC3
-  const uint32_t r_v0 = 0u - gte_read_data(25); // MAC1, negated
-  const uint32_t r_v1 = 0u - gte_read_data(26); // MAC2, negated
+  const uint32_t r_at = c->gte().readData(27);      // MAC3
+  const uint32_t r_v0 = 0u - c->gte().readData(25); // MAC1, negated
+  const uint32_t r_v1 = 0u - c->gte().readData(26); // MAC2, negated
   c->mem_w32(out + 0, r_at);
   c->mem_w32(out + 4, r_v0);
   c->mem_w32(out + 8, r_v1);
@@ -186,24 +186,24 @@ constexpr std::uint32_t kCameraMatrix = spyro::guest::kCamera + 0x14u; // 0x8007
 void mvmva_camera_matrix_native(Core *c) {
   const std::uint32_t point = c->r[4], out = c->r[5];
 
-  gte_write_ctrl(0, c->mem_r32(kCameraMatrix + 0));
-  gte_write_ctrl(1, c->mem_r32(kCameraMatrix + 4));
-  gte_write_ctrl(2, c->mem_r32(kCameraMatrix + 8));
-  gte_write_ctrl(3, c->mem_r32(kCameraMatrix + 12));
-  gte_write_ctrl(4, c->mem_r32(kCameraMatrix + 16));
+  c->gte().writeControl(0, c->mem_r32(kCameraMatrix + 0));
+  c->gte().writeControl(1, c->mem_r32(kCameraMatrix + 4));
+  c->gte().writeControl(2, c->mem_r32(kCameraMatrix + 8));
+  c->gte().writeControl(3, c->mem_r32(kCameraMatrix + 12));
+  c->gte().writeControl(4, c->mem_r32(kCameraMatrix + 16));
 
   const std::uint32_t x = c->mem_r32(point + 0);
   const std::uint32_t y = 0u - c->mem_r32(point + 4);
   const std::uint32_t z = 0u - c->mem_r32(point + 8);
-  gte_write_data(11, x); // IR3
-  gte_write_data(9, y);  // IR1
-  gte_write_data(10, z); // IR2
+  c->gte().writeData(11, x); // IR3
+  c->gte().writeData(9, y);  // IR1
+  c->gte().writeData(10, z); // IR2
 
-  gte_op(c, 0x4A49E012u); // MVMVA
+  c->gte().execute(0x4A49E012u); // MVMVA
 
-  const std::uint32_t r_at = gte_read_data(25); // MAC1
-  const std::uint32_t r_v0 = gte_read_data(26); // MAC2
-  const std::uint32_t r_v1 = gte_read_data(27); // MAC3
+  const std::uint32_t r_at = c->gte().readData(25); // MAC1
+  const std::uint32_t r_v0 = c->gte().readData(26); // MAC2
+  const std::uint32_t r_v1 = c->gte().readData(27); // MAC3
   c->mem_w32(out + 0, r_at);
   c->mem_w32(out + 4, r_v0);
   c->mem_w32(out + 8, r_v1);
@@ -228,22 +228,22 @@ void vscale_native(Core *c) {
   c->r[6] = a2v;
   cpu_div(c, a2v, c->r[5]); // sets c->lo (quotient) and c->hi (remainder)
 
-  gte_write_data(9, c->mem_r32(p + 0));
-  gte_write_data(10, c->mem_r32(p + 4));
-  gte_write_data(11, c->mem_r32(p + 8));
-  gte_write_data(25, 0);
-  gte_write_data(26, 0);
-  gte_write_data(27, 0);
+  c->gte().writeData(9, c->mem_r32(p + 0));
+  c->gte().writeData(10, c->mem_r32(p + 4));
+  c->gte().writeData(11, c->mem_r32(p + 8));
+  c->gte().writeData(25, 0);
+  c->gte().writeData(26, 0);
+  c->gte().writeData(27, 0);
 
   const uint32_t q = c->lo; // mflo a1
   c->r[5] = q;
-  gte_write_data(8, q); // IR0
+  c->gte().writeData(8, q); // IR0
 
-  gte_op(c, 0x4BA0003Eu); // GPL
+  c->gte().execute(0x4BA0003Eu); // GPL
 
-  const uint32_t r1 = (uint32_t)((int32_t)gte_read_data(25) >> 12); // sra 12
-  const uint32_t r2 = (uint32_t)((int32_t)gte_read_data(26) >> 12);
-  const uint32_t r3 = (uint32_t)((int32_t)gte_read_data(27) >> 12);
+  const uint32_t r1 = (uint32_t)((int32_t)c->gte().readData(25) >> 12); // sra 12
+  const uint32_t r2 = (uint32_t)((int32_t)c->gte().readData(26) >> 12);
+  const uint32_t r3 = (uint32_t)((int32_t)c->gte().readData(27) >> 12);
   c->mem_w32(p + 0, r1);
   c->mem_w32(p + 4, r2);
   c->mem_w32(p + 8, r3);
@@ -276,14 +276,14 @@ void vec_scale_to_length_native(Core *c) {
   const uint32_t y = c->mem_r32(vector + 4);
   const uint32_t z = c->mem_r32(vector + 8);
 
-  gte_write_data(9, x);
-  gte_write_data(10, y);
-  gte_write_data(11, z);
+  c->gte().writeData(9, x);
+  c->gte().writeData(10, y);
+  c->gte().writeData(11, z);
 
-  gte_op(c, 0x4AA00428u); // SQR
+  c->gte().execute(0x4AA00428u); // SQR
 
-  const uint32_t sum = gte_read_data(25) + gte_read_data(26) + gte_read_data(27);
-  gte_write_data(30, sum); // LZCS — the count happens on the write, before the branch
+  const uint32_t sum = c->gte().readData(25) + c->gte().readData(26) + c->gte().readData(27);
+  c->gte().writeData(30, sum); // LZCS — the count happens on the write, before the branch
   if (sum == 0) {
     c->mem_w32(vector + 0, 0);
     c->mem_w32(vector + 4, 0);
@@ -320,19 +320,19 @@ void vec_mul_scalar_native(Core *c) {
   const uint32_t out = c->r[4];
   const uint32_t vector = c->r[5];
 
-  gte_write_data(9, c->mem_r32(vector + 0));
-  gte_write_data(10, c->mem_r32(vector + 4));
-  gte_write_data(11, c->mem_r32(vector + 8));
-  gte_write_data(25, 0);
-  gte_write_data(26, 0);
-  gte_write_data(27, 0);
-  gte_write_data(8, c->r[6]);
+  c->gte().writeData(9, c->mem_r32(vector + 0));
+  c->gte().writeData(10, c->mem_r32(vector + 4));
+  c->gte().writeData(11, c->mem_r32(vector + 8));
+  c->gte().writeData(25, 0);
+  c->gte().writeData(26, 0);
+  c->gte().writeData(27, 0);
+  c->gte().writeData(8, c->r[6]);
 
-  gte_op(c, 0x4BA0003Eu); // GPL
+  c->gte().execute(0x4BA0003Eu); // GPL
 
-  c->mem_w32(out + 0, gte_read_data(25));
-  c->mem_w32(out + 4, gte_read_data(26));
-  c->mem_w32(out + 8, gte_read_data(27));
+  c->mem_w32(out + 0, c->gte().readData(25));
+  c->mem_w32(out + 4, c->gte().readData(26));
+  c->mem_w32(out + 8, c->gte().readData(27));
 }
 
 } // namespace

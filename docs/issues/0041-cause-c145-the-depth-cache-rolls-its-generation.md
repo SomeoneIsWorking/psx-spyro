@@ -11,11 +11,11 @@ DEAD END, and an important one: rolling the generation only on frames that RECOR
 SECOND DEAD END (C146): with that generation change, the interpreter's dynamic mfc2/lw/sw depth tap reports 99.8% of lookups resolved and the frame collapses to near-empty (48 distinct colours vs 1169). It attaches depth to every address a projected value reaches and most are not packet vertices. Now off by default behind PSXPORT_INTERP_DEPTH=1. COVERAGE IS NOT CORRECTNESS — do not quote a coverage percentage as if it were sorted-correctly percentage.
 
 THE SOUND FIX, not yet done: key cache entries by POOL-BUFFER IDENTITY (or invalidate on the pool pointer wrapping) so a reused address cannot alias, instead of extending how long an address-only key stays live. Then the generation can track flips safely and the tap can be made precise enough to earn being on.
-status: open
+status: resolved
 symptom: Native depth: exactly half the frames resolve every vertex and half resolve none (hit=1547/miss=0 alternating with hit=0/miss=1540)
 tags: render,depth,widescreen
 created: 2026-07-30
-updated: 2026-07-30
+updated: 2026-10-15
 ---
 
 ## Root cause
@@ -25,3 +25,7 @@ updated: 2026-07-30
 
 
 ## Resolution
+
+## Resolution
+
+Obsolete (2026-10-15): The native depth cache went with Spyro's native renderer; all three titles present on Record.

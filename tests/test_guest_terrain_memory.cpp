@@ -28,8 +28,8 @@
 #include "guest_render_globals.h"
 #include "guest_terrain_facts.h"
 #include "guest_terrain_screen.h"
-#include "hw_bind.h"
-#include "spyro_context.h"
+#include "spyro_session.h"
+#include "test_game.h"
 
 #include <cstdint>
 #include <cstdio>
@@ -170,11 +170,10 @@ void plantLevel(Core &core, const spyro::guest_terrain::Facts &facts) {
 // ──────────────────────────────────────────────────────────────────────────────
 void testMarkOrdering() {
   using namespace spyro::guest_terrain;
-  Core core{};
-  spyro::Context context{};
-  core.gameCtx = &context;
+  auto game = std::make_unique<spyro::test::SessionGame>();
+  Core &core = game->core;
 
-  GuestMemory memory(core);
+  GuestMemory memory(core, {});
   const Facts facts = fixtureFacts();
   const spyro::guest_render_globals::Globals globals = fixtureGlobals();
   TerrainFrame frame(core, facts, globals, ScreenBounds(320, 0), memory, FrameMode::InBetween);
@@ -207,7 +206,7 @@ void testMarkOrdering() {
   // through the previous head's address field, and the report names all three parts.
   frame.orderingTable = kOrderingTable;
   frame.primitive = kArenaBase;
-  const Linked first = frame.linkAndAdvance(7, 0x34);
+  const Linked first = frame.linkAndAdvance(7, PacketSize{0x34});
   expectEq(first.head, 0u, "an empty bin reports no previous head");
   expectEq(first.primitive, kArenaBase, "the linked packet is the one at the cursor");
   expectEq(first.markKey, 7u, "the mark key is the bin's ordinal");
@@ -217,7 +216,7 @@ void testMarkOrdering() {
       memory.r32(frame.markSlot(7) + 4), kArenaBase, "an empty bin records its last packet too");
 
   const std::uint32_t second = kArenaBase + 0x34;
-  const Linked next = frame.linkAndAdvance(7, 0x28);
+  const Linked next = frame.linkAndAdvance(7, PacketSize{0x28});
   expectEq(next.head, kArenaBase, "a bin with a packet reports it as the previous head");
   expectEq(next.markKey, 7u, "the mark key is the bin, not the packet");
   expectEq(
@@ -230,15 +229,9 @@ void testMarkOrdering() {
 // ── 2. The mode guards ───────────────────────────────────────────────────────────────────────────
 void testModeGuards() {
   using namespace spyro::guest_terrain;
-  // The passes drive the GTE, whose register file belongs to the Game, so this fixture is a Game:
-  // gte_init() creates it and gte_bind() points it at this Core, which is what FrameLoopShell::step
-  // does for a running game.
-  gte_init();
-  std::unique_ptr<Game> game = std::make_unique<Game>();
+  auto game = std::make_unique<spyro::test::SessionGame>();
   Core &core = game->core;
-  spyro::Context context{};
-  core.gameCtx = &context;
-  gte_bind(&core);
+  core.gte().bind();
   const Facts facts = fixtureFacts();
   const spyro::guest_render_globals::Globals globals = fixtureGlobals();
   plantLevel(core, facts);
@@ -295,7 +288,7 @@ void testModeGuards() {
   expect(host.refusedWrites() == 0u, "no working write fell outside a mapping");
 
   // The mode itself is the only gate, so it is asked directly on both sides.
-  GuestMemory guest(core);
+  GuestMemory guest(core, {});
   TerrainFrame real(core, facts, globals, ScreenBounds(320, 0), guest, FrameMode::RealField);
   TerrainFrame between(core, facts, globals, ScreenBounds(320, 0), host, FrameMode::InBetween);
   expect(real.realField(), "the real field is the guest's own");

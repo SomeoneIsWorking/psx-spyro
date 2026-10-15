@@ -26,15 +26,17 @@ struct Product {
 };
 
 Product rotateV0(Core &core, std::uint32_t vxy0, std::uint32_t vz0) {
-  gte_write_data(gte::kVxy0, vxy0);
-  gte_write_data(gte::kVz0, vz0);
-  gte_op(&core, gte::kMvmvaRtV0);
-  return Product{gte_read_data(gte::kIr1), gte_read_data(gte::kIr2), gte_read_data(gte::kIr3)};
+  core.gte().writeData(gte::kVxy0, vxy0);
+  core.gte().writeData(gte::kVz0, vz0);
+  core.gte().execute(gte::kMvmvaRtV0);
+  return Product{core.gte().readData(gte::kIr1),
+                 core.gte().readData(gte::kIr2),
+                 core.gte().readData(gte::kIr3)};
 }
 
-void load(const RotationWords &rotation) {
+void load(Core &core, const RotationWords &rotation) {
   for (std::uint32_t i = 0; i < gte::kRotationWords; ++i) {
-    gte_write_ctrl(gte::kRotation + i, rotation[i]);
+    core.gte().writeControl(gte::kRotation + i, rotation[i]);
   }
 }
 
@@ -78,7 +80,7 @@ void rotate(Core &core, Axis axis, AngleWords angle, RotationWords &m) {
     break;
   }
   }
-  load(m);
+  load(core, m);
 }
 
 struct Channel {
@@ -97,12 +99,18 @@ std::uint32_t tableEntry(std::uint32_t sineTable, std::uint32_t angle) {
   return sineTable + angle * 2;
 }
 
+// One sine or cosine entry and how far toward the next entry the angle reaches, in sixteenths.
+struct TableStep {
+  std::uint32_t entry = 0;
+  std::uint32_t fraction = 0;
+};
+
 // `lh` the entry and, when the fraction is non-zero, step toward the next one by fraction/16.
-std::int32_t interpolate(Core &core, std::uint32_t address, std::uint32_t fraction) {
-  std::int32_t value = core.mem_r16s(address);
-  if (fraction != 0) {
-    const std::int32_t next = core.mem_r16s(address + 2);
-    value += (static_cast<std::int32_t>(fraction) * (next - value)) >> 4;
+std::int32_t interpolate(Core &core, const TableStep &step) {
+  std::int32_t value = core.mem_r16s(step.entry);
+  if (step.fraction != 0) {
+    const std::int32_t next = core.mem_r16s(step.entry + 2);
+    value += (static_cast<std::int32_t>(step.fraction) * (next - value)) >> 4;
   }
   return value;
 }
@@ -111,10 +119,10 @@ std::int32_t interpolate(Core &core, std::uint32_t address, std::uint32_t fracti
 
 void composeTabled(Core &core,
                    std::uint32_t sineTable,
-                   std::uint32_t angleWord,
+                   const MobyAngles &angles,
                    RotationWords &rotation) {
   for (const Channel &channel : kChannels) {
-    const std::uint32_t angle = (angleWord >> channel.angleShift) & 0xFFu;
+    const std::uint32_t angle = (angles.angles >> channel.angleShift) & 0xFFu;
     if (angle == 0) {
       continue;
     }
@@ -128,18 +136,18 @@ void composeTabled(Core &core,
 
 void composeInterpolated(Core &core,
                          std::uint32_t sineTable,
-                         std::uint32_t angleWord,
-                         std::uint32_t flags,
+                         const MobyAngles &angles,
                          RotationWords &rotation) {
   for (const Channel &channel : kChannels) {
-    const std::uint32_t angle = (angleWord >> channel.angleShift) & 0xFFu;
-    const std::uint32_t fraction = (flags >> channel.fractionShift) & 0xFu;
+    const std::uint32_t angle = (angles.angles >> channel.angleShift) & 0xFFu;
+    const std::uint32_t fraction = (angles.flags >> channel.fractionShift) & 0xFu;
     if (angle == 0 && fraction == 0) {
       continue;
     }
     const std::uint32_t entry = tableEntry(sineTable, angle);
-    const std::int32_t sine = interpolate(core, entry, fraction);
-    const std::int32_t cosine = interpolate(core, entry + kCosineOffset, fraction);
+    const std::int32_t sine = interpolate(core, {.entry = entry, .fraction = fraction});
+    const std::int32_t cosine =
+        interpolate(core, {.entry = entry + kCosineOffset, .fraction = fraction});
     rotate(core,
            channel.axis,
            AngleWords{static_cast<std::uint32_t>(sine), static_cast<std::uint32_t>(cosine)},

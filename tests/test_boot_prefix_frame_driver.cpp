@@ -28,24 +28,22 @@
 //   * a limit the facts declare is the bound the driver enforces, and a title-supplied limit
 //     replaces the shared default rather than being ignored.
 //
-// `Spyro2Runtime` is on the Game only because a Game needs some `GameRuntime`; the driver reads
-// nothing title-specific from it.
+// The Game's runtime contributes only the shared Spyro session; the driver reads nothing
+// title-specific from it.
 
 #include "boot_prefix_frame_driver.h"
-#include "config_vars.h"
 #include "core.h"
 #include "execution_control.h"
 #include "execution_exit.h"
 #include "execution_services.h"
 #include "field_owner.h"
-#include "fps60.h"
 #include "game.h"
 #include "lightrec_executor.h"
 #include "native_dispatch.h"
 #include "pace_plan.h"
 #include "resumable_guest_call.h"
-#include "spyro2_runtime.h"
-#include "spyro_context.h"
+#include "spyro_session.h"
+#include "test_game.h"
 #include "testutil.h"
 
 #include <chrono>
@@ -79,15 +77,20 @@ constexpr spyro::BootPrefixFacts kFacts{
             .titleName = "Synthetic title",
             .handlerStackTop = 0x8000E000u,
             .handlerStackBytes = 8192u,
-            .fieldsPerLogicFrame = 2,
         },
+    .cut = {.gameState = 0x80090000u, .levelId = 0x80090004u},
 };
 
 // The facts with the two boot bounds replaced, which is how a title states a limit of its own.
-constexpr spyro::BootPrefixFacts withLimits(std::uint64_t fieldLimit, std::uint64_t stepLimit) {
+struct BootLimits {
+  std::uint64_t fieldLimit;
+  std::uint64_t stepLimit;
+};
+
+constexpr spyro::BootPrefixFacts withLimits(const BootLimits &limits) {
   spyro::BootPrefixFacts facts = kFacts;
-  facts.bootStepFieldLimit = fieldLimit;
-  facts.bootStepLimit = stepLimit;
+  facts.bootStepFieldLimit = limits.fieldLimit;
+  facts.bootStepLimit = limits.stepLimit;
   return facts;
 }
 
@@ -160,19 +163,27 @@ std::uint32_t lw(std::uint32_t rt, std::uint32_t base, std::int32_t off) {
 
 // A body that counts its own visit, takes `waits` display waits, and returns.
 //
+struct BodySpec {
+  const char *counterName;
+  std::uint32_t entry;
+  std::uint32_t target;
+  std::uint32_t counterLeaf;
+  std::uint32_t waits;
+};
+
 // The frame is not decoration. A `jal` leaves its OWN address+8 in `$r[31]`, so a body with a bare
 // `jr ra` and no saved frame returns to itself and spins there forever -- which the first version
 // of this body did, and it looked exactly like a driver that never retires its call. The shape here
 // is the retail one (`addiu $sp,$sp,-0x18 ; sw $ra,0x14($sp)` ... `lw $ra,0x14($sp)`), because that
 // is also what proves `GuestCall`'s captured return address is the one the guest ends at.
-std::vector<std::uint32_t> body(std::uint32_t counterLeaf, std::uint32_t waits) {
+std::vector<std::uint32_t> body(const BodySpec &spec) {
   std::vector<std::uint32_t> words{
       addiu(29u, 29u, -0x18), // addiu $sp,$sp,-0x18
       sw(31u, 29u, 0x14),     // sw    $ra,0x14($sp)
-      jump(counterLeaf, kCallOpcodes),
+      jump(spec.counterLeaf, kCallOpcodes),
       kNop, // the `jal` delay slot
   };
-  for (std::uint32_t wait = 0; wait < waits; ++wait) {
+  for (std::uint32_t wait = 0; wait < spec.waits; ++wait) {
     words.push_back(jump(kVSync, kCallOpcodes));
     words.push_back(kNop); // the `jal` delay slot
   }
@@ -183,22 +194,14 @@ std::vector<std::uint32_t> body(std::uint32_t counterLeaf, std::uint32_t waits) 
   return words;
 }
 
-struct BodySpec {
-  std::uint32_t entry;
-  std::uint32_t target;
-  std::uint32_t counterLeaf;
-  const char *counterName;
-  std::uint32_t waits;
-};
-
 constexpr BodySpec kBodiesSpec[] = {
-    {kBootPrefix, kBootBody, kCountBoot, "synthetic-boot-prefix-count-boot", 1},
-    {kFrameUpdate, kUpdateBody, kCountUpdate, "synthetic-boot-prefix-count-update", 0},
-    {kFrameDraw, kDrawBody, kCountDraw, "synthetic-boot-prefix-count-draw", 1},
+    {"synthetic-boot-prefix-count-boot", kBootPrefix, kBootBody, kCountBoot, 1},
+    {"synthetic-boot-prefix-count-update", kFrameUpdate, kUpdateBody, kCountUpdate, 0},
+    {"synthetic-boot-prefix-count-draw", kFrameDraw, kDrawBody, kCountDraw, 1},
     // A boot prefix that never returns: far more waits than the bound the test sets.
-    {kEndlessEntry, kEndlessBody, kCountEndless, "synthetic-boot-prefix-count-endless", 40},
-    {kSpinningEntry, kSpinningBody, 0u, "synthetic-boot-prefix-spin", 0u},
-    {kIrqEntry, kIrqBody, kCountIrq, "synthetic-boot-prefix-count-irq", 0u},
+    {"synthetic-boot-prefix-count-endless", kEndlessEntry, kEndlessBody, kCountEndless, 40},
+    {"synthetic-boot-prefix-spin", kSpinningEntry, kSpinningBody, 0u, 0u},
+    {"synthetic-boot-prefix-count-irq", kIrqEntry, kIrqBody, kCountIrq, 0u},
 };
 
 void countLeaf(Core *core) {
@@ -228,14 +231,9 @@ void vsyncLeaf(Core *core) {
   psx::cpu::requestExecutionExit(*core, psx::cpu::ExecutionExitReason::FrameBoundary);
 }
 
-// The Game, with the two things a title runtime needs on it already in place. This is a FUNCTION
-// rather than fixture body code on purpose: the frame driver's own constructor reaches
-// `spyro::context(core)` to publish its field owner, and members are initialized before the
-// fixture's body runs, so a context published in the body is too late and the driver aborts.
-std::unique_ptr<Game> newGame(spyro::Context &context, spyro2::Spyro2Runtime &runtime) {
-  std::unique_ptr<Game> game = std::make_unique<Game>();
-  game->core.gameCtx = &context;
-  game->runtime = &runtime;
+// Unpaced removes host sleeps while simulated display edges remain.
+std::unique_ptr<Game> newGame(spyro::test::SessionRuntime &runtime, bool unpaced = true) {
+  auto game = std::make_unique<Game>(runtime, psx::config::Config{.unpaced = unpaced});
   game->gpu_dev.s_gpu_on = 0; // exercise the real Core presentation backend without a window
   // The synthetic bodies push a real frame, so they need a real stack. A Core starts with `$sp` at
   // 0, and `addiu $sp,$sp,-0x18` then gives 0xFFFFFFE8 -- which Lightrec correctly rejects as an
@@ -248,17 +246,15 @@ std::unique_ptr<Game> newGame(spyro::Context &context, spyro2::Spyro2Runtime &ru
 
 class BootFixture {
 public:
-  explicit BootFixture(const spyro::BootPrefixFacts &facts = kFacts,
-                       spyro::FrameTailObserver *tail = nullptr)
-      : game(newGame(context, runtime)), driver(*game, facts, nullptr, tail) {}
+  explicit BootFixture(const spyro::BootPrefixFacts &facts = kFacts)
+      : game(newGame(runtime)), driver(*game, facts) {}
 
   bool install() {
     Core &core = game->core;
     // Each entered address is a `j` to its body, so the call is entered through shipping JIT
     // execution and the framework's leaf dispatch rather than called from C++.
     for (const BodySpec &spec : kBodiesSpec) {
-      const std::vector<std::uint32_t> words =
-          spec.counterLeaf == 0u ? spinningBody() : body(spec.counterLeaf, spec.waits);
+      const std::vector<std::uint32_t> words = spec.counterLeaf == 0u ? spinningBody() : body(spec);
       for (std::size_t index = 0; index < words.size(); ++index) {
         core.mem_w32(spec.target + static_cast<std::uint32_t>(index) * 4u, words[index]);
       }
@@ -312,8 +308,7 @@ public:
     core.mem_w32(kBootPrefix + 4u, kNop);
   }
 
-  spyro2::Spyro2Runtime runtime;
-  spyro::Context context;
+  spyro::test::SessionRuntime runtime;
   std::unique_ptr<Game> game;
   spyro::BootPrefixFrameDriver driver;
 };
@@ -341,8 +336,6 @@ void resetCounters() {
 }
 
 void test_boot_presents_one_field_per_guest_wait() {
-  psx::config::cv_nopace.set(psx::config::Layer::Runtime, true);
-  psx::config::cv_repl.set(psx::config::Layer::Runtime, false);
   resetCounters();
   BootFixture fixture;
   CHECK(fixture.install());
@@ -392,8 +385,6 @@ void test_boot_presents_one_field_per_guest_wait() {
 // titles' worlds froze with 0 faults and a plausible picture (issue 0159). The old assertion here,
 // `update <= draw`, held for exactly that defect, so this one asks for the update to keep running.
 void test_main_loop_keeps_running_the_update_after_the_draw_suspends() {
-  psx::config::cv_nopace.set(psx::config::Layer::Runtime, true);
-  psx::config::cv_repl.set(psx::config::Layer::Runtime, false);
   resetCounters();
   BootFixture fixture;
   CHECK(fixture.install());
@@ -416,43 +407,34 @@ void test_main_loop_keeps_running_the_update_after_the_draw_suspends() {
   CHECK_EQ(gVBlankWaits, gVisitDraw);
 }
 
-// Counts what the tail observer is told: each returned draw, then each step's tail.
-class CountingTail final : public spyro::FrameTailObserver {
-public:
-  void onFrameDrawn(Core &) override {
-    ++drawn;
-  }
-  void onFrameTail(Core &) override {
-    ++tails;
-  }
-  std::uint32_t drawn = 0;
-  std::uint32_t tails = 0;
-};
-
-// The tail observer hears of every draw that returned, so a title can sample the scene its walked
-// table shows; a draw suspended at its wait has not walked yet.
-void test_each_returned_draw_is_reported_before_the_tail() {
-  psx::config::cv_nopace.set(psx::config::Layer::Runtime, true);
-  psx::config::cv_repl.set(psx::config::Layer::Runtime, false);
+// The driver's cut samples each draw that returned and seals at the step's tail: the first scene is
+// a cut, the same scene again is not, and a new game state is. A step whose draw is still suspended
+// at its wait walked no table and is no cut.
+void test_the_cut_samples_each_returned_draw_at_the_tail() {
   resetCounters();
-  CountingTail tail;
-  BootFixture fixture(kFacts, &tail);
+  BootFixture fixture;
   CHECK(fixture.install());
   Core &core = fixture.game->core;
   fixture.driver.initialize();
   stepUntilBootComplete(fixture.driver, core);
   CHECK(fixture.driver.bootComplete());
-  resetCounters();
-  tail = CountingTail{};
-  constexpr std::uint32_t kLoopSteps = 24;
-  for (std::uint32_t step = 0; step < kLoopSteps; ++step) {
-    fixture.driver.stepFrame(core, step);
+  std::uint32_t step = 0;
+  const auto stepUntilCut = [&] {
+    for (std::uint32_t tries = 0; tries < 3; ++tries) {
+      fixture.driver.stepFrame(core, step++);
+      if (fixture.driver.cut().isCut()) {
+        return true;
+      }
+    }
+    return false;
+  };
+  CHECK(stepUntilCut());
+  for (std::uint32_t same = 0; same < 4; ++same) {
+    fixture.driver.stepFrame(core, step++);
+    CHECK(!fixture.driver.cut().isCut());
   }
-  CHECK_EQ(tail.tails, kLoopSteps);
-  // Every draw entered in this window returned except, at most, the one still suspended.
-  CHECK(tail.drawn + 1u >= gVisitDraw);
-  CHECK(tail.drawn <= gVisitDraw + 1u);
-  CHECK(tail.drawn >= kLoopSteps - 1u);
+  core.mem_w32(kFacts.cut.gameState, 7);
+  CHECK(stepUntilCut());
 }
 
 void test_guest_call_refuses_a_return_address_inside_guest_ram() {
@@ -498,7 +480,7 @@ void test_boot_prefix_that_never_returns_is_bounded() {
   // waits 40 times and the shared default is far above that, so lowering it means the case does not
   // have to deliver the default's worth of fields to prove the bound exists -- and that the limit a
   // title's facts declare is the one enforced.
-  BootFixture fixture(withLimits(4u, spyro::kDefaultBootStepLimit));
+  BootFixture fixture(withLimits({.fieldLimit = 4u, .stepLimit = spyro::kDefaultBootStepLimit}));
   CHECK(fixture.install());
   fixture.useEndlessBoot();
   Core &core = fixture.game->core;
@@ -535,7 +517,8 @@ void test_boot_prefix_that_polls_without_asking_for_a_field_is_bounded() {
   resetCounters();
   // The FIELD bound is deliberately left at its default: the body delivers none, so a driver that
   // only checked it would never stall.
-  BootFixture fixture(withLimits(spyro::kDefaultBootStepFieldLimit, 3u));
+  BootFixture fixture(
+      withLimits({.fieldLimit = spyro::kDefaultBootStepFieldLimit, .stepLimit = 3u}));
   CHECK(fixture.install());
   fixture.useSpinningBoot();
   Core &core = fixture.game->core;
@@ -603,11 +586,8 @@ private:
 };
 
 void test_reentrant_field_delivery_is_refused() {
-  psx::config::cv_nopace.set(psx::config::Layer::Runtime, true);
-  psx::config::cv_repl.set(psx::config::Layer::Runtime, false);
-  spyro::Context context;
-  spyro2::Spyro2Runtime runtime;
-  std::unique_ptr<Game> game = newGame(context, runtime);
+  spyro::test::SessionRuntime runtime;
+  std::unique_ptr<Game> game = newGame(runtime);
 
   ReentrantObserver observer;
   spyro::FieldOwner owner(*game,
@@ -615,7 +595,6 @@ void test_reentrant_field_delivery_is_refused() {
                               .titleName = "Synthetic title (observer case)",
                               .handlerStackTop = 0x8000E000u,
                               .handlerStackBytes = 8192u,
-                              .fieldsPerLogicFrame = 1,
                           },
                           &observer);
   observer.attach(owner);
@@ -633,7 +612,6 @@ constexpr spyro::FieldOwnerFacts kNoRootFacts{
     .titleName = "Synthetic title (no vblank root)",
     .handlerStackTop = 0x8000E000u,
     .handlerStackBytes = 8192u,
-    .fieldsPerLogicFrame = 2,
 };
 
 // A title with no host-dispatched vblank root takes VBlank through its own interrupt chain. The
@@ -641,8 +619,6 @@ constexpr spyro::FieldOwnerFacts kNoRootFacts{
 // each field hands its edge to the guest the two latch into one and the guest counts half the
 // fields: Spyro 2's limiter then spans four delivered fields per logic frame.
 void test_each_field_hands_its_vblank_to_the_guest_chain() {
-  psx::config::cv_nopace.set(psx::config::Layer::Runtime, true);
-  psx::config::cv_repl.set(psx::config::Layer::Runtime, false);
   resetCounters();
   BootFixture fixture;
   CHECK(fixture.install());
@@ -662,11 +638,8 @@ void test_each_field_hands_its_vblank_to_the_guest_chain() {
 // boot-prefix driver delivers the draw's wait field unpaced and then presents; pacing only the
 // presented one ran the guest at two fields per host field.
 void test_a_paced_field_waits_for_every_field_since_the_last() {
-  psx::config::cv_nopace.set(psx::config::Layer::Runtime, false);
-  psx::config::cv_repl.set(psx::config::Layer::Runtime, false);
-  spyro::Context context;
-  spyro2::Spyro2Runtime runtime;
-  std::unique_ptr<Game> game = newGame(context, runtime);
+  spyro::test::SessionRuntime runtime;
+  std::unique_ptr<Game> game = newGame(runtime, false);
   spyro::FieldOwner owner(*game, kNoRootFacts);
   const auto nowMs = [] {
     return std::chrono::duration<double, std::milli>(
@@ -686,17 +659,13 @@ void test_a_paced_field_waits_for_every_field_since_the_last() {
       game->framePacer.plan({.quota = 1, .parts = 1, .fieldRateMilliHz = rate, .nowMs = 0.0});
   const double deadline = probe.nextMs - fieldMs;
   CHECK(deadline - before >= 2.0 * fieldMs - 0.01);
-  psx::config::cv_nopace.set(psx::config::Layer::Runtime, true);
 }
 
 // A paced field that presents nothing still waits its field out. A boot call delivers up to its
 // whole field bound in one step; pacing only its present handed the host ~120 fields at once.
 void test_a_paced_wait_field_waits_without_presenting() {
-  psx::config::cv_nopace.set(psx::config::Layer::Runtime, false);
-  psx::config::cv_repl.set(psx::config::Layer::Runtime, false);
-  spyro::Context context;
-  spyro2::Spyro2Runtime runtime;
-  std::unique_ptr<Game> game = newGame(context, runtime);
+  spyro::test::SessionRuntime runtime;
+  std::unique_ptr<Game> game = newGame(runtime, false);
   spyro::FieldOwner owner(*game, kNoRootFacts);
   const double before =
       std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now().time_since_epoch())
@@ -711,42 +680,14 @@ void test_a_paced_wait_field_waits_without_presenting() {
   const psx::frame::PacePlan probe =
       game->framePacer.plan({.quota = 1, .parts = 1, .fieldRateMilliHz = rate, .nowMs = 0.0});
   CHECK(probe.nextMs - fieldMs >= before + fieldMs - 0.01);
-  psx::config::cv_nopace.set(psx::config::Layer::Runtime, true);
-}
-
-// A temporal title defers a visible field whose ordering table no producer drew; the field still
-// happened, so it is waited out rather than left unpaced. Spyro 3's boot defers every field, so
-// skipping the wait ran it several times faster than the display.
-void test_a_deferred_paced_field_still_waits() {
-  psx::config::cv_nopace.set(psx::config::Layer::Runtime, false);
-  psx::config::cv_repl.set(psx::config::Layer::Runtime, false);
-  spyro::Context context;
-  spyro2::Spyro2Runtime runtime;
-  std::unique_ptr<Game> game = newGame(context, runtime);
-  game->temporalPresentation = std::make_unique<Fps60>(*game);
-  spyro::FieldOwner owner(*game, kNoRootFacts);
-  const double before =
-      std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now().time_since_epoch())
-          .count();
-
-  CHECK(owner.deliver({.site = "boot-tail", .present = true, .pace = true}));
-  CHECK_EQ(owner.temporalDeferrals(), 1u);
-
-  const unsigned rate = game->framePacer.fieldRateMilliHz(game->core);
-  const double fieldMs = 1000000.0 / static_cast<double>(rate);
-  const psx::frame::PacePlan probe =
-      game->framePacer.plan({.quota = 1, .parts = 1, .fieldRateMilliHz = rate, .nowMs = 0.0});
-  CHECK(probe.nextMs - fieldMs >= before + fieldMs - 0.01);
-  psx::config::cv_nopace.set(psx::config::Layer::Runtime, true);
 }
 
 void test_negative_vsync_query_answers_the_derived_counter() {
   // A Core with its Game, not a bare one: the counter word is served by the framework's peripheral
   // model, which dereferences `core.game`. A bare Core answers the query with a null dereference
   // instead of a value, which reads as a crash in the leaf rather than as the missing owner.
-  spyro::Context context;
-  spyro2::Spyro2Runtime runtime;
-  std::unique_ptr<Game> game = newGame(context, runtime);
+  spyro::test::SessionRuntime runtime;
+  std::unique_ptr<Game> game = newGame(runtime);
   Core &core = game->core;
   // Before any display time, the counter answers 0 rather than a plausible field number: the query
   // is a measurement, and a caller reading a stale nonzero value here has no way to tell it apart.
@@ -779,7 +720,7 @@ void test_negative_vsync_query_answers_the_derived_counter() {
 int main() {
   RUN(boot_presents_one_field_per_guest_wait);
   RUN(main_loop_keeps_running_the_update_after_the_draw_suspends);
-  RUN(each_returned_draw_is_reported_before_the_tail);
+  RUN(the_cut_samples_each_returned_draw_at_the_tail);
   RUN(guest_call_refuses_a_return_address_inside_guest_ram);
   RUN(boot_prefix_that_never_returns_is_bounded);
   RUN(boot_prefix_that_polls_without_asking_for_a_field_is_bounded);
@@ -787,7 +728,6 @@ int main() {
   RUN(negative_vsync_query_answers_the_derived_counter);
   RUN(each_field_hands_its_vblank_to_the_guest_chain);
   RUN(a_paced_field_waits_for_every_field_since_the_last);
-  RUN(a_deferred_paced_field_still_waits);
   RUN(a_paced_wait_field_waits_without_presenting);
   return pt_summary();
 }

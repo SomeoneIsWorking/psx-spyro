@@ -89,32 +89,51 @@ struct PackedIndices {
   std::uint32_t fourth;
 };
 
-// Append `entry` to the split list at `cursor`, first writing `header` if this sector has not yet
-// put anything on that list (`headerBit` in `sectorWord`).
-inline void deferToSplitList(TerrainMemory &memory,
-                             std::uint32_t &cursor,
-                             std::uint32_t &sectorWord,
-                             std::uint32_t headerBit,
-                             std::uint32_t header,
-                             std::uint32_t entry) {
-  if ((sectorWord & headerBit) == 0) {
-    memory.w32(cursor, header);
-    cursor += 4;
-  }
-  sectorWord |= headerBit;
-  memory.w32(cursor, entry);
-  cursor += 4;
+// The texture record a draw word names.
+[[nodiscard]] inline std::uint32_t textureRecord(const TerrainFrame &frame, std::uint32_t draw) {
+  return frame.textures + (draw & kTextureRecordMask) * kTextureRecordSize;
 }
 
-// 80025378 / 80025C14: a textured triangle's three UV words. A texture record spans one 32-texel
-// square as two words, `uv` (one corner's UV with the CLUT above it) and `page` (the opposite
-// corner's UV with the texture page above it); the triangle drops the corner its draw word names.
-// Returns the value retail leaves in v1.
+// One split list: its write cursor and the sector-word bit saying this sector's header is on it.
+struct SplitList {
+  std::uint32_t &cursor;
+  std::uint32_t headerBit = 0;
+};
+
+struct SplitEntry {
+  std::uint32_t header = 0;
+  std::uint32_t entry = 0;
+};
+
+// Append the entry, first writing the header if this sector has not yet put anything on the list.
+inline void deferToSplitList(TerrainMemory &memory,
+                             SplitList list,
+                             std::uint32_t &sectorWord,
+                             SplitEntry entry) {
+  if ((sectorWord & list.headerBit) == 0) {
+    memory.w32(list.cursor, entry.header);
+    list.cursor += 4;
+  }
+  sectorWord |= list.headerBit;
+  memory.w32(list.cursor, entry.entry);
+  list.cursor += 4;
+}
+
+// A texture record's two words: one corner's UV with the CLUT above it, and the opposite corner's
+// UV with the texture page above it.
+struct TextureWords {
+  std::uint32_t uv = 0;
+  std::uint32_t page = 0;
+};
+
+// 80025378 / 80025C14: a textured triangle's three UV words over a record's 32-texel square; the
+// triangle drops the corner its draw word names. Returns the value retail leaves in v1.
 inline std::uint32_t writeTriangleUvs(TerrainMemory &memory,
                                       std::uint32_t primitive,
-                                      std::uint32_t uv,
-                                      std::uint32_t page,
+                                      TextureWords texture,
                                       std::uint32_t corner) {
+  const std::uint32_t uv = texture.uv;
+  const std::uint32_t page = texture.page;
   switch (corner) {
   case 0x0000u:
     memory.w32(primitive + 0x0C, uv);

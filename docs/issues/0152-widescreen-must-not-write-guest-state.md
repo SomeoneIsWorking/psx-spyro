@@ -11,6 +11,9 @@ created: 2026-09-30
 updated: 2026-09-30
 ---
 
+The native renderer and `wide_clip_plan.h` this fix lived in are deleted; Spyro 1's widened culls on
+Record are issue 0186. The rule below still holds for that work.
+
 ## The rule this issue establishes
 
 **A presentation setting may change what the port DRAWS and nothing else.** `aspect=1` is a change to

@@ -5,6 +5,7 @@ status: open
 symptom: driving with no pad input reaches the attract demo's flyby on both cores; the guest runs the same 383 iterations on each, but the product delivers 2.00 fields per iteration (768 fields) and the reference 1.00 (385 fields), so the flyby is presented over twice the wall clock it should be
 state_items: S011
 tags: timing,pacing,frame-loop,attract-demo,presentation
+features: [F-TURN]
 created: 2026-09-26
 updated: 2026-09-26
 ---

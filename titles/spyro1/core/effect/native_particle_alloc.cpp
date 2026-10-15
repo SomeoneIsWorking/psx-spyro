@@ -42,8 +42,12 @@ void allocateParticleSlot(Core *c) {
   c->r[2] = cursor;
   c->r[1] = kPoolCursor;
   if (cursor == limit) {
-    spyro::callGuestJumpedFrom(
-        *c, "allocate_particle_slot", kSonyRandJal, kSonyRand, kind, limit, kind);
+    spyro::callGuestJumpedFrom(*c,
+                               "allocate_particle_slot",
+                               {.jal = kSonyRandJal, .target = kSonyRand},
+                               kind,
+                               limit,
+                               kind);
     const std::uint32_t span = (c->r[2] & 0xFFu) + 1u;
     const std::uint32_t slot = limit - span * kSlotStride;
     c->lo = span * kSlotStride;

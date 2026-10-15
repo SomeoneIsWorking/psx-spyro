@@ -1,15 +1,19 @@
 #include "guest_terrain_drawer.h"
 
 #include "core.h"
+#include "game.h"
 #include "gte_registers.h"
 #include "guest_terrain_frame.h"
 #include "guest_terrain_passes.h"
-#include "guest_widescreen_owner.h"
 #include "lucent/log.h"
 #include "native_execution.h"
-#include "spyro_context.h"
+#include "spyro_session.h"
+#include "terrain_rebuild.h"
 
+#include <algorithm>
+#include <array>
 #include <cstdlib>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -20,16 +24,10 @@ namespace {
 // pass's.
 namespace gte = psx::gte;
 
-// The columns the presentation shows past each side of the authored window at the latched aspect.
-// This is the ONE question every horizontal cull in this render path asks, and it is answered by
-// the title's own widescreen owner rather than by re-deriving the margin from the plan here: two
-// implementations of "how much wider is the picture" is two answers to one question.
-//
-// A Core whose projection leaves are not bound has no owner and is not widening, so it has no
-// margin: retail's authored window is then the correct cull and this path is unchanged.
-int horizontalMargin(Core &core) {
-  const GuestWidescreenOwner *owner = GuestWidescreenOwner::of(core);
-  return owner == nullptr ? 0 : owner->horizontalMargin();
+// The columns the presentation shows past each side of the authored window, 0 at 4:3.
+int horizontalMargin(const Core &core) {
+  const GuestProjectionPlan &plan = core.game->guestDisplay.plan();
+  return plan.widescreen() ? plan.projectionHorizontalMargin : 0;
 }
 
 } // namespace
@@ -39,11 +37,9 @@ Drawer::Drawer(Core &core,
                const guest_render_globals::Globals &globals,
                TerrainMemory &memory,
                FrameMode mode,
-               const InBetweenCamera *inBetweenCamera,
-               std::uint32_t inBetweenArenaBase,
-               std::int32_t inBetweenPacketBudget)
+               const InBetweenWindow &inBetween)
     : core_(core), facts_(facts), globals_(globals), memory_(memory), mode_(mode) {
-  if (mode == FrameMode::RealField && inBetweenCamera != nullptr) {
+  if (mode == FrameMode::RealField && inBetween.camera != nullptr) {
     lucent::error(
         "terrdraw",
         "refusing a real field with an in-between camera: the guest's own field reads the "
@@ -51,7 +47,7 @@ Drawer::Drawer(Core &core,
         "guest can also change");
     std::abort();
   }
-  if (mode == FrameMode::RealField && inBetweenArenaBase != 0) {
+  if (mode == FrameMode::RealField && inBetween.arenaBase != 0) {
     lucent::error(
         "terrdraw",
         "refusing a real field with a packet arena of its own: the guest's field allocates out "
@@ -59,9 +55,9 @@ Drawer::Drawer(Core &core,
         "guest never looks");
     std::abort();
   }
-  inBetweenCamera_ = inBetweenCamera;
-  inBetweenArenaBase_ = inBetweenArenaBase;
-  inBetweenPacketBudget_ = inBetweenPacketBudget;
+  inBetweenCamera_ = inBetween.camera;
+  inBetweenArenaBase_ = inBetween.arenaBase;
+  inBetweenPacketBudget_ = inBetween.packetBudget;
 }
 
 const TerrainFrame &Drawer::run() {
@@ -82,22 +78,11 @@ const TerrainFrame &Drawer::run() {
   frame_.value().inBetweenPacketBudget = inBetweenPacketBudget_;
   TerrainFrame &frame = *frame_;
   frame.scratch = core_.mem_r32(globals_.scratchBaseWord) - facts_.scratchListsBelowEnd;
-  gte_write_data(gte::kVxy1, frame.scratch);
+  core_.gte().writeData(gte::kVxy1, frame.scratch);
   if (real) {
-    // THE ARENA THIS PASS WRITES INTO, AND THE RECORD OF WHAT IT PUT THERE.
-    //
-    // The guest double-buffers (MEASURED 2026-10-03 on SCUS_944.25: this cursor alternates between
-    // 0x801A2984.. and 0x801C04BC..), and a pass is keyed by the arena it allocates into rather
-    // than by a field or a tick: a second pass into the same arena replaces the first one's record,
-    // and a consumer selects by containment, so it is always looking at the pass that produced the
-    // address it is asking about.
-    //
-    // The cursor is the guest's own, read here once. It does not move during the field — the drawer
-    // commits `frame.primitive` back to it only at the exit — so this is where every pass's
-    // allocation starts.
+    // The cursor is the guest's own; the drawer commits `frame.primitive` back to it only at exit.
     const std::uint32_t cursor = core_.mem_r32(globals_.primitiveCursor);
-    frame.arena = &spyro::context(core_).beginTerrainArena(cursor);
-    spyro::context(core_).terrainPacketBudget =
+    spyro::session(core_).terrainPacketBudget =
         static_cast<std::int32_t>(frame.scratch + kPrimitiveArenaBytes - cursor);
   }
   if (real) {
@@ -106,21 +91,24 @@ const TerrainFrame &Drawer::run() {
     {
       spyro::PreservedReturnAddress returnAddress(core_);
       spyro::callGuestJumpedFrom(
-          core_, facts_.overrideName, facts_.visibilityCallSite, facts_.sectorVisibility, 0u);
+          core_,
+          facts_.overrideName,
+          {.jal = facts_.visibilityCallSite, .target = facts_.sectorVisibility},
+          0u);
     }
     core_.mem_w32(facts_.visibleSectorCount, core_.r[2]);
     // The guest's own answer to "which sectors are visible", copied here because it exists NOW and
     // nowhere later: the classification below clears each byte as it consumes it. An in-between
     // field cannot ask the guest — there is no guest to ask, and the guest's visibility walk is
     // guest code — so it is handed this, and draws the union of two fields' answers
-    // (terrain_world_pass.h).
+    // (terrain_state_producer.h).
     {
       const std::uint32_t count = core_.mem_r32(facts_.classify.sectorCount);
       std::vector<std::uint8_t> visible(count);
       for (std::uint32_t i = 0; i < count; ++i) {
         visible[i] = memory_.r8(kScratchpad + i);
       }
-      spyro::context(core_).terrainVisibility = std::move(visible);
+      spyro::session(core_).terrainVisibility = std::move(visible);
     }
   }
   classifySectors(frame);
@@ -145,9 +133,18 @@ const TerrainFrame &Drawer::run() {
   return frame;
 }
 
-void draw(Core &core, const Facts &facts, const guest_render_globals::Globals &globals) {
-  GuestMemory memory(core);
+std::vector<LevelWord>
+draw(Core &core, const Facts &facts, const guest_render_globals::Globals &globals) {
+  const FieldWindows windows = fieldWindows(core, facts, globals);
+  // The real field's packets run from the guest's cursor to the arena's end.
+  const std::uint32_t cursor = core.mem_r32(globals.primitiveCursor);
+  const std::uint32_t arenaEnd = windows.scratch + kPrimitiveArenaBytes;
+  std::array<GuestRange, std::tuple_size_v<decltype(windows.owned)> + 1> working{};
+  std::copy(windows.owned.begin(), windows.owned.end(), working.begin());
+  working.back() = GuestRange{cursor, cursor < arenaEnd ? arenaEnd - cursor : 0u};
+  GuestMemory memory(core, working);
   Drawer(core, facts, globals, memory, FrameMode::RealField).run();
+  return memory.firstReads();
 }
 
 } // namespace spyro::guest_terrain

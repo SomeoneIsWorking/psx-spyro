@@ -15,23 +15,33 @@ void require(bool condition, const char *what) {
 
 // The boot sequence's shape: one observe per delivered field, and a take only in a hold phase.
 // `fieldsBeforeHold` fields pass (fades and the loader), the press lands on field `pressAt` when it
-// is non-negative, and the hold then asks once. Returns what the hold was told.
-bool holdSkips(int fieldsBeforeHold, int pressAt) {
+// is non-negative, and the hold then asks once.
+struct BootRun {
+  int fieldsBeforeHold = 0;
+  int pressAt = -1;
+};
+
+// Returns what the hold was told.
+bool holdSkips(const BootRun &run) {
   spyro1::PressLatch latch;
-  for (int field = 0; field < fieldsBeforeHold; ++field) {
-    latch.observe(field == pressAt);
+  for (int field = 0; field < run.fieldsBeforeHold; ++field) {
+    latch.observe(field == run.pressAt);
   }
   return latch.take();
 }
 
 void testNoPressNoSkip() {
-  require(!holdSkips(16, -1), "a hold reached without any press must not skip");
+  require(!holdSkips({.fieldsBeforeHold = 16, .pressAt = -1}),
+          "a hold reached without any press must not skip");
 }
 
 void testPressInAFadeSkipsAtTheHold() {
-  require(holdSkips(16, 0), "a press on the first fade field is honoured at the hold");
-  require(holdSkips(16, 7), "a press on the last fade field is honoured at the hold");
-  require(holdSkips(16, 15), "a press on the loader's last field is honoured at the hold");
+  require(holdSkips({.fieldsBeforeHold = 16, .pressAt = 0}),
+          "a press on the first fade field is honoured at the hold");
+  require(holdSkips({.fieldsBeforeHold = 16, .pressAt = 7}),
+          "a press on the last fade field is honoured at the hold");
+  require(holdSkips({.fieldsBeforeHold = 16, .pressAt = 15}),
+          "a press on the loader's last field is honoured at the hold");
 }
 
 void testPressOnTheHoldFieldItself() {

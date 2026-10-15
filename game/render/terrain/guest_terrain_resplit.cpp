@@ -92,6 +92,12 @@ std::uint16_t uvMidpoint(std::uint32_t a, std::uint32_t b) {
   return static_cast<std::uint16_t>((v & 0xFF00u) | u);
 }
 
+// A guest table of piece words.
+struct PieceTable {
+  std::uint32_t address = 0;
+  std::uint32_t count = 0;
+};
+
 class ResplitPass {
 public:
   explicit ResplitPass(TerrainFrame &frame)
@@ -106,7 +112,7 @@ private:
                   const std::array<Midpoint, Midpoints> &midpoints,
                   std::uint32_t colourAdjust);
   void classifyPoints(std::uint32_t count);
-  void emitPieces(std::uint32_t primitive, std::uint32_t pieces, std::uint32_t count);
+  void emitPieces(std::uint32_t primitive, PieceTable pieces);
 
   TerrainFrame &frame_;
   Core &core_;
@@ -128,11 +134,12 @@ void ResplitPass::run() {
     if (length == kQuadLength) {
       loadPoints(primitive, kQuadCorners, kQuadMidpoints, kGt4ToGt3);
       classifyPoints(kQuadPoints);
-      emitPieces(primitive, frame_.facts.resplit.quadPieces, kQuadPieceCount);
+      emitPieces(primitive, {.address = frame_.facts.resplit.quadPieces, .count = kQuadPieceCount});
     } else {
       loadPoints(primitive, kTriangleCorners, kTriangleMidpoints, 0);
       classifyPoints(kTrianglePoints);
-      emitPieces(primitive, frame_.facts.resplit.trianglePieces, kTrianglePieceCount);
+      emitPieces(primitive,
+                 {.address = frame_.facts.resplit.trianglePieces, .count = kTrianglePieceCount});
     }
   }
 }
@@ -198,11 +205,11 @@ void ResplitPass::classifyPoints(std::uint32_t count) {
 // piece.
 // A piece is named after the packet it was cut from; a piece of a piece keeps the drawer's scope
 // key.
-void ResplitPass::emitPieces(std::uint32_t primitive, std::uint32_t pieces, std::uint32_t count) {
+void ResplitPass::emitPieces(std::uint32_t primitive, PieceTable pieces) {
   const std::uint32_t next = memory_.r32(primitive);
   std::uint32_t tail = primitive;
-  for (std::uint32_t k = 0; k < count; ++k) {
-    const std::uint32_t piece = core_.mem_r32(pieces + 4 * k);
+  for (std::uint32_t k = 0; k < pieces.count; ++k) {
+    const std::uint32_t piece = memory_.r32(pieces.address + 4 * k);
     const std::array<std::uint32_t, 3> cells = {kScratchpad + (piece >> 24),
                                                 kScratchpad + ((piece >> 16) & 0xFFu),
                                                 kScratchpad + ((piece >> 8) & 0xFFu)};

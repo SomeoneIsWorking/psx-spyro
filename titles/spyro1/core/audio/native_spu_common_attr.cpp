@@ -42,13 +42,19 @@ constexpr std::uint32_t kFirstVolumePreset = 0x4u;
 constexpr std::uint32_t kSecondVolumeSelect = 0x2u;
 constexpr std::uint32_t kSecondVolumePreset = 0x8u;
 
-// The argument's two (preset index, level) volume pairs and the state halfword each publishes.
-constexpr std::uint32_t kFirstVolumeIndex = 0x08u;
-constexpr std::uint32_t kFirstVolumeLevel = 0x04u;
-constexpr std::uint32_t kFirstVolumeState = 0x180u;
-constexpr std::uint32_t kSecondVolumeIndex = 0x0Au;
-constexpr std::uint32_t kSecondVolumeLevel = 0x06u;
-constexpr std::uint32_t kSecondVolumeState = 0x182u;
+// One of the argument's two (preset index, level) volume pairs, the state halfword it publishes and
+// its preset table.
+struct VolumeGroup {
+  std::uint32_t indexOffset;
+  std::uint32_t levelOffset;
+  std::uint32_t stateOffset;
+  std::uint32_t table;
+};
+
+constexpr VolumeGroup kFirstVolume{
+    .indexOffset = 0x08u, .levelOffset = 0x04u, .stateOffset = 0x180u, .table = kFirstVolumeTable};
+constexpr VolumeGroup kSecondVolume{
+    .indexOffset = 0x0Au, .levelOffset = 0x06u, .stateOffset = 0x182u, .table = kSecondVolumeTable};
 
 // One halfword copied straight through, named by the state slot it lands in.
 struct HalfwordField {
@@ -101,17 +107,14 @@ std::uint32_t volumePreset(Core *c, std::uint32_t table, std::uint32_t index) {
 // path the index misses reads it `lhu` (UNSIGNED) and lets `andi 0x7fff` alone cut it, so the two
 // disagree for a level of 128 or more and for every negative level. The store is
 // `(level & 0x7fff) | preset`, and $v0 carries that stored word out with $v1 the state pointer.
-void pushVolume(Core *c,
-                std::uint32_t indexField,
-                std::uint32_t levelField,
-                std::uint32_t stateOffset,
-                std::uint32_t table,
-                bool usePresetTable) {
+void pushVolume(Core *c, std::uint32_t arg, const VolumeGroup &group, bool usePresetTable) {
+  const std::uint32_t indexField = arg + group.indexOffset;
+  const std::uint32_t levelField = arg + group.levelOffset;
   std::uint32_t preset = 0u;
   if (usePresetTable) {
     const std::int32_t index = c->mem_r16s(indexField);
     if (static_cast<std::uint32_t>(index) < kVolumeCaseCount) {
-      preset = volumePreset(c, table, static_cast<std::uint32_t>(index));
+      preset = volumePreset(c, group.table, static_cast<std::uint32_t>(index));
     }
   }
   std::uint32_t level = 0u;
@@ -129,25 +132,26 @@ void pushVolume(Core *c,
   }
   c->r[2] = level | preset;
   c->r[3] = c->mem_r32(kSpuCommonAttrState);
-  c->mem_w16(c->r[3] + stateOffset, static_cast<std::uint16_t>(c->r[2]));
+  c->mem_w16(c->r[3] + group.stateOffset, static_cast<std::uint16_t>(c->r[2]));
 }
 
 // One halfword copied straight through, UNSIGNED, to its state slot. $v0 carries the loaded word
 // out with $v1 the state pointer.
-void pushStateHalfword(Core *c, std::uint32_t argField, std::uint32_t stateOffset) {
+void pushStateHalfword(Core *c, std::uint32_t arg, const HalfwordField &field) {
   c->r[3] = c->mem_r32(kSpuCommonAttrState);
-  c->r[2] = c->mem_r16(argField);
-  c->mem_w16(c->r[3] + stateOffset, static_cast<std::uint16_t>(c->r[2]));
+  c->r[2] = c->mem_r16(arg + field.argOffset);
+  c->mem_w16(c->r[3] + field.stateOffset, static_cast<std::uint16_t>(c->r[2]));
 }
 
 // One flag bit, set or cleared in place in the state flag halfword. This group leaves $v0 holding
 // the STATE POINTER — the register the halfword is addressed through — and the new flag word in
 // $v1, the reverse of every other group.
-void pushStateFlag(Core *c, std::uint32_t argField, std::uint32_t flagBit) {
+void pushStateFlag(Core *c, std::uint32_t arg, const FlagField &field) {
+  const std::uint32_t flagBit = field.flagBit;
   const std::uint32_t state = c->mem_r32(kSpuCommonAttrState);
   const std::uint32_t flags = c->mem_r16(state + kStateFlags);
   c->r[2] = state;
-  if (c->mem_r32(argField) != 0u) {
+  if (c->mem_r32(arg + field.argOffset) != 0u) {
     c->r[3] = flags | flagBit;
   } else {
     c->r[3] = flags & ~flagBit;
@@ -192,23 +196,13 @@ void setSpuCommonAttr(Core *c) {
   const bool whole = mask == 0u;
 
   if (whole || (mask & kFirstVolumeSelect) != 0u) {
-    pushVolume(c,
-               arg + kFirstVolumeIndex,
-               arg + kFirstVolumeLevel,
-               kFirstVolumeState,
-               kFirstVolumeTable,
-               whole || (mask & kFirstVolumePreset) != 0u);
+    pushVolume(c, arg, kFirstVolume, whole || (mask & kFirstVolumePreset) != 0u);
   } else {
     c->r[2] = mask & kFirstVolumePreset;
   }
 
   if (whole || (mask & kSecondVolumeSelect) != 0u) {
-    pushVolume(c,
-               arg + kSecondVolumeIndex,
-               arg + kSecondVolumeLevel,
-               kSecondVolumeState,
-               kSecondVolumeTable,
-               whole || (mask & kSecondVolumePreset) != 0u);
+    pushVolume(c, arg, kSecondVolume, whole || (mask & kSecondVolumePreset) != 0u);
   } else {
     c->r[2] = mask & kSecondVolumeSelect;
   }
@@ -216,7 +210,7 @@ void setSpuCommonAttr(Core *c) {
   for (std::size_t index = 0; index < kHalfwordFieldCount; ++index) {
     const HalfwordField &field = kHalfwordFields[index];
     if (whole || (mask & field.selectBit) != 0u) {
-      pushStateHalfword(c, arg + field.argOffset, field.stateOffset);
+      pushStateHalfword(c, arg, field);
     } else {
       c->r[2] = mask & field.selectBit;
     }
@@ -225,7 +219,7 @@ void setSpuCommonAttr(Core *c) {
   for (std::size_t index = 0; index < kFlagFieldCount; ++index) {
     const FlagField &field = kFlagFields[index];
     if (whole || (mask & field.selectBit) != 0u) {
-      pushStateFlag(c, arg + field.argOffset, field.flagBit);
+      pushStateFlag(c, arg, field);
     } else {
       c->r[2] = mask & field.selectBit;
     }

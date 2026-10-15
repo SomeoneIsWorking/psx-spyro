@@ -215,11 +215,15 @@ void mobyGroundHeight(Core *c) {
 // negative one indexes downwards, and the entry itself is taken from the model's table plus the
 // sound index. Both the channel-present and channel-absent paths re-run these four instructions,
 // the second one after the stop call, so the class is read again rather than carried over.
-std::uint32_t
-mobySoundReference(Core *c, const std::uint32_t moby, const std::uint32_t soundIndex) {
-  const std::uint32_t modelClass = static_cast<std::uint32_t>(c->mem_r16s(moby + kMobyModelClass));
+struct MobySound {
+  std::uint32_t moby;
+  std::uint32_t index;
+};
+
+std::uint32_t mobySoundReference(Core *c, MobySound sound) {
+  const auto modelClass = static_cast<std::uint32_t>(c->mem_r16s(sound.moby + kMobyModelClass));
   const std::uint32_t soundTable = c->mem_r32(kModelSoundTables + (modelClass << 2));
-  return c->mem_r8(soundTable + soundIndex + kSoundReferenceByte);
+  return c->mem_r8(soundTable + sound.index + kSoundReferenceByte);
 }
 
 // ── 0x8003851C — play one of a moby model's sounds positionally, on a caller-named channel.
@@ -235,7 +239,7 @@ void playMobySound(Core *c) {
     psx::cpu::callGuestNow(*c,
                            "play_moby_sound",
                            kPlaySound,
-                           mobySoundReference(c, moby, soundIndex),
+                           mobySoundReference(c, {.moby = moby, .index = soundIndex}),
                            moby,
                            kPositionalSound,
                            channel);
@@ -245,7 +249,7 @@ void playMobySound(Core *c) {
   psx::cpu::callGuestNow(*c,
                          "play_moby_sound",
                          kPlaySound,
-                         mobySoundReference(c, moby, soundIndex),
+                         mobySoundReference(c, {.moby = moby, .index = soundIndex}),
                          moby,
                          kPositionalSound,
                          moby + kSoundChannel);

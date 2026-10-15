@@ -2,7 +2,9 @@
 
 namespace spyro::guest_magnitude {
 
-Normalization normalize(std::uint32_t value, std::uint32_t leadingZeros) {
+Normalization normalize(NormalizeInput input) {
+  const std::uint32_t value = input.value;
+  const std::uint32_t leadingZeros = input.leadingZeros;
   Normalization out{};
   out.evenLeadingZeros = leadingZeros & ~1u;
   out.exponent = (std::uint32_t)((std::int32_t)(31 - (std::int32_t)out.evenLeadingZeros) >> 1);

@@ -120,17 +120,17 @@ void packCollisionShadeWord(Core *c) {
   c->r[2] = normalY; // v0
   c->r[3] = normalZ; // v1
 
-  gte_write_data(9, normalX);  // IR1
-  gte_write_data(11, normalZ); // IR3
-  gte_op(c, 0x4AA00428u);      // SQR(sf=0, lm=1)
+  c->gte().writeData(9, normalX);  // IR1
+  c->gte().writeData(11, normalZ); // IR3
+  c->gte().execute(0x4AA00428u);   // SQR(sf=0, lm=1)
 
   const std::uint32_t caller = c->r[4];
   const std::uint32_t stored = c->mem_r32(caller + kShadeWordOffset);
-  c->r[7] = stored;                                 // a3
-  const std::uint32_t xSquared = gte_read_data(25); // MAC1
-  const std::uint32_t zSquared = gte_read_data(27); // MAC3
-  c->r[5] = xSquared;                               // a1
-  c->r[6] = zSquared;                               // a2
+  c->r[7] = stored;                                     // a3
+  const std::uint32_t xSquared = c->gte().readData(25); // MAC1
+  const std::uint32_t zSquared = c->gte().readData(27); // MAC3
+  c->r[5] = xSquared;                                   // a1
+  c->r[6] = zSquared;                                   // a2
   const std::uint32_t horizontal = xSquared + zSquared;
   c->r[5] = horizontal; // a1 — the `add` runs on both arms
   if (static_cast<std::int32_t>(stored) >= 0) {
@@ -138,10 +138,11 @@ void packCollisionShadeWord(Core *c) {
     return;
   }
 
-  gte_write_data(30, horizontal); // LZCS — the count happens on the write
+  c->gte().writeData(30, horizontal); // LZCS — the count happens on the write
   std::uint32_t magnitude = 0u;
   if (horizontal != 0u) {
-    const auto step = spyro::guest_magnitude::normalize(horizontal, gte_read_data(31));
+    const auto step = spyro::guest_magnitude::normalize(
+        {.value = horizontal, .leadingZeros = c->gte().readData(31)});
     c->r[8] = step.tableByteOffset; // t0
     magnitude = spyro::guest_magnitude::scaled(
                     static_cast<std::int16_t>(c->mem_r16(kMagnitudeTable + step.tableByteOffset)),

@@ -1,10 +1,10 @@
 # Paired actor placement in the FIELD ordering table
 
-The native paired player renderer passed its local face bucket directly to the shared FIELD painter
-key. Those buckets describe order within Spyro's model; the retail tail coalesces them into a much
-smaller global depth range before appending them to the world ordering table. This explains an actor
-queue containing visible geometry yet appearing behind foreground world geometry. Disabling temporal
-reconstruction retained the misplaced actor, so this defect belongs to ordinary scene submission.
+Spyro 1's paired actor renderer `0x80023AC4` coalesces its model's local face buckets into a much
+smaller global depth range before appending them to the world ordering table. A port that keys the
+local bucket straight into the world table draws the actor behind foreground terrain. The native
+renderer that made this mistake was deleted with the native path (2026-10-15); this contract is the
+input for the paired-actor producer (issue 0186).
 
 ## Binary contract
 
@@ -29,28 +29,7 @@ range. The listing is corroborating RE material, never a generated product input
   the next chunk goes to the preceding global slot. The modeled normal path requires chunks of at
   least one eight-byte pair.
 - `0x80025894..0x800258A0` clamps at global slot zero. The branch delay slot first subtracts eight;
-  the zero case adds that eight back. The previous regular actor mapper incorrectly bounced zero
-  to slot one. The shared mapper now preserves the same zero clamp for both actor families.
+  the zero case adds that eight back. Clamping zero to slot one instead is wrong.
 
-The renderer does not write OFX, OFY, or H anywhere in this complete range. Native rendering must use
-its owned projection parameters rather than assume it publishes ambient guest GTE controls.
-
-## Native ownership and temporal policy
-
-`actor_ot_coalescer::map` owns the byte-chunk mapping without reading or mutating guest OT memory.
-Regular actors retain their record append and local FIFO policy in `actor_global_order`; paired
-endpoint and interior replay share one face emitter in `paired_actor`. Isolated front-end actor
-groups retain their isolated ordering contract and receive no shared FIELD key.
-
-`paired_actor_depth` derives both exact endpoint depths and the temporal extension from captured
-base-MAC Z, model control, and instance depth bias. Matching intervals retain the same control and
-bias while their base Z may move. Interior origin remains continuous; only the authored signed
-right-shift boundary in depthNear is quantized. Exact endpoints still use integer face resolution.
-
-`test_actor_global_order` exercises positive mappings, empty buckets, chunk edges, shifted local
-bases, invalid spans/controls, and repeated chunks clamped at zero. `test_temporal_scene` exercises
-shipping endpoint emission and actual `Fps60::presentPass` merging with interleaved world bins,
-distinguishable same-bucket FIFO faces, stationary unequal-depth faces, isolated groups, and moving
-camera depth. Shared replay restores source FIFO within each integer local bucket even when
-continuous interior depth keys differ; the isolated temporal group retains its continuous order. These synthetic
-production tests cover the mapping contract; they do not establish full-console visual parity.
+The renderer does not write OFX, OFY, or H anywhere in this complete range. A producer must use its own
+projection parameters rather than assume the renderer publishes the GTE controls.

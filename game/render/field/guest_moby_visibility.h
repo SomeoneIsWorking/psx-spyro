@@ -27,9 +27,9 @@
 //      matrix, the projected centre and the classification.
 //
 // WHY IT IS OWNED. Step 4's horizontal test is the 4:3 half-angle (guest_moby_frustum.h). At 16:9
-// the projection centre is widened (guest_widescreen_owner.h) and the mobys past the authored
-// window are culled here, so the margins would show the scene without its objects. The routine
-// applies the widescreen plan's slope to every horizontal plane test; at 4:3 it is retail's.
+// the canvas shows margins past the authored window and retail culls the mobys in them, so the
+// routine applies the presentation plan's slope to every horizontal plane test; at 4:3 it is
+// retail's.
 //
 // WHAT IT WRITES, all reproduced: the register save area, each visited record's classification byte
 // (+0x4D), the render list (zero-terminated), the deferred-moby buffer (zero-terminated), the close

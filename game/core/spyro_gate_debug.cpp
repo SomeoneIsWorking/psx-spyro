@@ -2,9 +2,12 @@
 #include "guest_globals.h"
 
 #include "core.h"
+#include <charconv>
 #include <cstdio>
 #include <cstring>
 #include <lucent/log.h>
+#include <optional>
+#include <string_view>
 
 namespace spyro::gate_debug {
 namespace {
@@ -94,15 +97,39 @@ bool readGatePath(Core &core, uint32_t portal, GateInfo &out) {
   return true;
 }
 
-bool parseIndex(const char *line, uint32_t &index, uint32_t &node) {
-  unsigned parsedIndex = 0;
-  unsigned parsedNode = 0;
-  if (std::sscanf(line, "%*s %u %u", &parsedIndex, &parsedNode) != 2) {
-    return false;
+struct GateTarget {
+  uint32_t index = 0;
+  uint32_t node = 0;
+};
+
+std::optional<uint32_t> takeNumber(std::string_view &rest) {
+  const std::size_t start = rest.find_first_not_of(" \t");
+  if (start == std::string_view::npos) {
+    return std::nullopt;
   }
-  index = parsedIndex;
-  node = parsedNode;
-  return true;
+  rest.remove_prefix(start);
+  uint32_t value = 0;
+  const auto [end, error] = std::from_chars(rest.data(), rest.data() + rest.size(), value);
+  if (error != std::errc{}) {
+    return std::nullopt;
+  }
+  rest.remove_prefix(static_cast<std::size_t>(end - rest.data()));
+  return value;
+}
+
+// "gate-teleport <portal-index> <path-node>"
+std::optional<GateTarget> parseTarget(std::string_view line) {
+  const std::size_t space = line.find_first_of(" \t");
+  if (space == std::string_view::npos) {
+    return std::nullopt;
+  }
+  std::string_view rest = line.substr(space);
+  const std::optional<uint32_t> index = takeNumber(rest);
+  const std::optional<uint32_t> node = takeNumber(rest);
+  if (!index || !node) {
+    return std::nullopt;
+  }
+  return GateTarget{.index = *index, .node = *node};
 }
 
 } // namespace
@@ -153,37 +180,41 @@ bool teleportToGate(Core &core, uint32_t index, uint32_t node) {
   return true;
 }
 
-bool replCommand(Core *core, const char *command, const char *line) {
-  if (std::strcmp(command, "gates") != 0 && std::strcmp(command, "gate-teleport") != 0) {
+bool command(Core &core, const psx::game::TitleCommandLine &input, std::FILE *reply) {
+  const auto [name, line] = input;
+  if (std::strcmp(name, "gates") != 0 && std::strcmp(name, "gate-teleport") != 0) {
     return false;
   }
-  if (std::strcmp(command, "gate-teleport") == 0) {
-    uint32_t index = 0;
-    uint32_t node = 0;
-    if (!parseIndex(line, index, node)) {
-      lucent::info("spyro-gate", "usage: gate-teleport <portal-index> <path-node>");
+  if (std::strcmp(name, "gate-teleport") == 0) {
+    const std::optional<GateTarget> target = parseTarget(line != nullptr ? line : "");
+    if (!target) {
+      std::fprintf(reply, "usage: gate-teleport <portal-index> <path-node>\n");
       return true;
     }
-    (void)teleportToGate(*core, index, node);
+    std::fprintf(reply,
+                 "gate-teleport %u %u: %s\n",
+                 target->index,
+                 target->node,
+                 teleportToGate(core, target->index, target->node) ? "ok" : "refused");
     return true;
   }
 
-  const uint32_t count = core->mem_r32(kPortalCount);
-  lucent::info("spyro-gate",
-               "level={} nextLevel={} gamestate={} loadStage={} portals={}",
-               static_cast<int32_t>(core->mem_r32(kLevelId)),
-               static_cast<int32_t>(core->mem_r32(kNextLevelId)),
-               core->mem_r32(kGamestate),
-               core->mem_r32(kLoadStage),
+  const uint32_t count = core.mem_r32(kPortalCount);
+  std::fprintf(reply,
+               "level=%d nextLevel=%d gamestate=%u loadStage=%u portals=%u\n",
+               static_cast<int32_t>(core.mem_r32(kLevelId)),
+               static_cast<int32_t>(core.mem_r32(kNextLevelId)),
+               core.mem_r32(kGamestate),
+               core.mem_r32(kLoadStage),
                count);
   for (uint32_t i = 0; i < count && i < 16u; ++i) {
     GateInfo gate;
-    if (!inspectGate(*core, i, gate)) {
-      lucent::info("spyro-gate", "gate={} INVALID or unloaded", i);
+    if (!inspectGate(core, i, gate)) {
+      std::fprintf(reply, "gate=%u INVALID or unloaded\n", i);
       continue;
     }
-    lucent::info("spyro-gate",
-                 "gate={} targetLevel={} pathMoby={} firstPoint=({}, {}, {}) nodes={}",
+    std::fprintf(reply,
+                 "gate=%u targetLevel=%d pathMoby=%d firstPoint=(%d, %d, %d) nodes=%u\n",
                  i,
                  gate.levelId,
                  gate.pathMoby,
@@ -192,8 +223,8 @@ bool replCommand(Core *core, const char *command, const char *line) {
                  gate.firstPoint.z,
                  gate.nodeCount);
     for (uint32_t node = 0; node < gate.nodeCount; ++node) {
-      lucent::info("spyro-gate",
-                   "  node={} position=({}, {}, {})",
+      std::fprintf(reply,
+                   "  node=%u position=(%d, %d, %d)\n",
                    node,
                    gate.nodes[node].x,
                    gate.nodes[node].y,

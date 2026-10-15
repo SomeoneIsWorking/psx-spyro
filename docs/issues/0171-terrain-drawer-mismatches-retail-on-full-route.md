@@ -9,6 +9,7 @@ symptom: tools/title_route.py --title spyro2 with PSXPORT_OVERRIDE_DIFF=0x80023B
   at call 1 on register 6. The override differential is the gate this port uses to claim a native
   drawer matches the guest body it replaces, and on this route it does not match at all.
 tags: render,terrain,differential,gt,shipping-defect
+features: [F-RENDER, F-FPS60]
 created: 2026-10-02
 updated: 2026-10-02
 ---

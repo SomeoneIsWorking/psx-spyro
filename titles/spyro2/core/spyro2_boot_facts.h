@@ -56,7 +56,14 @@ inline constexpr spyro::BootPrefixFacts kBootPrefixFacts{
             .rootHandlerSlot = 0,
             .handlerStackTop = 0x8000E000u,
             .handlerStackBytes = 8192u,
-            .fieldsPerLogicFrame = 2,
+        },
+    // The draw's switch operand (800156FC), the level FUN_80019230 stores at 800192E8, and the
+    // camera controller FUN_8001FA58's mode and sub-state.
+    .cut =
+        {
+            .gameState = 0x800681C8u,
+            .levelId = 0x80066F90u,
+            .camera = spyro::CameraMachineWords{.mode = 0x80067ED0u, .subState = 0x80067ED4u},
         },
 };
 

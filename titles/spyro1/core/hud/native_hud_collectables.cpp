@@ -222,8 +222,13 @@ void stepGemDisplay(Hud &hud) {
     // 0x80054A7C formed. The id lookup that follows indexes the sub this frame read.
     c->mem_w8(kGemSubState, sub + 1u);
     installSavedRegisters(hud);
-    spyro::callGuestJumpedFrom(
-        *c, "update_hud_collectables", kGemPlayJal, kPlayId, 0u, 5u, sparkId(c, sub), hud.a3);
+    spyro::callGuestJumpedFrom(*c,
+                               "update_hud_collectables",
+                               {.jal = kGemPlayJal, .target = kPlayId},
+                               0u,
+                               5u,
+                               sparkId(c, sub),
+                               hud.a3);
     takeLeftoverArgument(hud);
     return;
   }
@@ -263,8 +268,7 @@ void stepGemDisplay(Hud &hud) {
     installSavedRegisters(hud);
     spyro::callGuestJumpedFrom(*c,
                                "update_hud_collectables",
-                               kGemStepJal,
-                               kStepCounter,
+                               {.jal = kGemStepJal, .target = kStepCounter},
                                0u,
                                4u,
                                c->mem_r32(kTally) + 1u,
@@ -272,8 +276,7 @@ void stepGemDisplay(Hud &hud) {
     takeLeftoverArgument(hud);
     spyro::callGuestJumpedFrom(*c,
                                "update_hud_collectables",
-                               kGemSetJal,
-                               kSetSubState,
+                               {.jal = kGemSetJal, .target = kSetSubState},
                                0u,
                                4u,
                                c->mem_r8(kGemSubState),
@@ -317,8 +320,13 @@ void stepGemDisplay(Hud &hud) {
     // 0x80054D04 and the index the lookup forms at 0x80054D08 are both sub-1.
     c->mem_w8(kGemSubState, sub - 1u);
     installSavedRegisters(hud);
-    spyro::callGuestJumpedFrom(
-        *c, "update_hud_collectables", kGemPlayJal, kPlayId, 0u, 5u, fadeId(c, sub - 1u), hud.a3);
+    spyro::callGuestJumpedFrom(*c,
+                               "update_hud_collectables",
+                               {.jal = kGemPlayJal, .target = kPlayId},
+                               0u,
+                               5u,
+                               fadeId(c, sub - 1u),
+                               hud.a3);
     takeLeftoverArgument(hud);
     return;
   }
@@ -358,8 +366,13 @@ void stepDragonDisplay(Hud &hud) {
     }
     c->mem_w8(kDragonSubState, sub + 1u);
     installSavedRegisters(hud);
-    spyro::callGuestJumpedFrom(
-        *c, "update_hud_collectables", kDragonPlayJal, kPlayId, 5u, 3u, sparkId(c, sub), hud.a3);
+    spyro::callGuestJumpedFrom(*c,
+                               "update_hud_collectables",
+                               {.jal = kDragonPlayJal, .target = kPlayId},
+                               5u,
+                               3u,
+                               sparkId(c, sub),
+                               hud.a3);
     takeLeftoverArgument(hud);
     return;
   }
@@ -383,8 +396,13 @@ void stepDragonDisplay(Hud &hud) {
   }
   c->mem_w8(kDragonSubState, sub - 1u);
   installSavedRegisters(hud);
-  spyro::callGuestJumpedFrom(
-      *c, "update_hud_collectables", kDragonPlayJal, kPlayId, 5u, 3u, fadeId(c, sub - 1u), hud.a3);
+  spyro::callGuestJumpedFrom(*c,
+                             "update_hud_collectables",
+                             {.jal = kDragonPlayJal, .target = kPlayId},
+                             5u,
+                             3u,
+                             fadeId(c, sub - 1u),
+                             hud.a3);
   takeLeftoverArgument(hud);
 }
 
@@ -399,8 +417,7 @@ void stepLifeIndex(Hud &hud) {
   installSavedRegisters(hud);
   spyro::callGuestJumpedFrom(*c,
                              "update_hud_collectables",
-                             kLifeStepJal,
-                             kStepCounter,
+                             {.jal = kLifeStepJal, .target = kStepCounter},
                              8u,
                              2u,
                              c->mem_r32(kLifeIndex) + 1u,
@@ -408,8 +425,7 @@ void stepLifeIndex(Hud &hud) {
   takeLeftoverArgument(hud);
   spyro::callGuestJumpedFrom(*c,
                              "update_hud_collectables",
-                             kLifeSetJal,
-                             kSetSubState,
+                             {.jal = kLifeSetJal, .target = kSetSubState},
                              8u,
                              2u,
                              c->mem_r8(kLifeSubState),
@@ -450,8 +466,13 @@ void stepLifeDisplay(Hud &hud) {
     }
     c->mem_w8(kLifeSubState, sub + 1u);
     installSavedRegisters(hud);
-    spyro::callGuestJumpedFrom(
-        *c, "update_hud_collectables", kLifePlayJal, kPlayId, 8u, 3u, sparkId(c, sub), hud.a3);
+    spyro::callGuestJumpedFrom(*c,
+                               "update_hud_collectables",
+                               {.jal = kLifePlayJal, .target = kPlayId},
+                               8u,
+                               3u,
+                               sparkId(c, sub),
+                               hud.a3);
     takeLeftoverArgument(hud);
     return;
   }
@@ -490,8 +511,13 @@ void stepLifeDisplay(Hud &hud) {
   }
   c->mem_w8(kLifeSubState, sub - 1u);
   installSavedRegisters(hud);
-  spyro::callGuestJumpedFrom(
-      *c, "update_hud_collectables", kLifePlayJal, kPlayId, 8u, 3u, fadeId(c, sub - 1u), hud.a3);
+  spyro::callGuestJumpedFrom(*c,
+                             "update_hud_collectables",
+                             {.jal = kLifePlayJal, .target = kPlayId},
+                             8u,
+                             3u,
+                             fadeId(c, sub - 1u),
+                             hud.a3);
   takeLeftoverArgument(hud);
 }
 
@@ -606,8 +632,7 @@ void stepEggDisplay(Hud &hud) {
     installSavedRegisters(hud);
     spyro::callGuestJumpedFrom(*c,
                                "update_hud_collectables",
-                               kEggFadeJal,
-                               kFadeId,
+                               {.jal = kEggFadeJal, .target = kFadeId},
                                0u,
                                0xCu,
                                0u - sparkId(c, sub),
@@ -635,8 +660,7 @@ void stepEggDisplay(Hud &hud) {
   installSavedRegisters(hud);
   spyro::callGuestJumpedFrom(*c,
                              "update_hud_collectables",
-                             kEggFadeJal,
-                             kFadeId,
+                             {.jal = kEggFadeJal, .target = kFadeId},
                              0u,
                              0xCu,
                              0u - fadeId(c, sub - 1u),
@@ -736,8 +760,7 @@ void stepKeyDisplay(Hud &hud) {
     installSavedRegisters(hud);
     spyro::callGuestJumpedFrom(*c,
                                "update_hud_collectables",
-                               kKeyPlayJal,
-                               kPlayId,
+                               {.jal = kKeyPlayJal, .target = kPlayId},
                                0xBu,
                                1u,
                                0u - sparkId(c, sub),
@@ -766,8 +789,7 @@ void stepKeyDisplay(Hud &hud) {
   installSavedRegisters(hud);
   spyro::callGuestJumpedFrom(*c,
                              "update_hud_collectables",
-                             kKeyPlayJal,
-                             kPlayId,
+                             {.jal = kKeyPlayJal, .target = kPlayId},
                              0xBu,
                              1u,
                              0u - fadeId(c, sub - 1u),

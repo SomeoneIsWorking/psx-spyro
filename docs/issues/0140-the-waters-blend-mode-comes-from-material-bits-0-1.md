@@ -1,7 +1,7 @@
 ---
 id: 0140
 title: The water's blend mode comes from material bits 0-1, and the "50/50" claim holds only when they are clear
-status: open
+status: resolved
 symptom: the pool-water fix (c229e45) reconstructs the guest's constant colour word as
   `0xe1000600u | ((materialWord & 7u) << 5)` and its comment states the result is "a 50/50
   semi-transparent black". That is correct per the GP0 semi-transparency code, but the port does NOT
@@ -9,7 +9,7 @@ symptom: the pool-water fix (c229e45) reconstructs the guest's constant colour w
   via a port-invented `tpage` encoding. The two agree only when those bits are clear.
 tags: render,blend,water,fps60
 created: 2026-09-28
-updated: 2026-09-28
+updated: 2026-10-15
 ---
 
 ## The two mechanisms, which are not the same field
@@ -78,3 +78,7 @@ field, so this is one added histogram over data already parsed.
 **Falsifier:** a water face with `(materialWord & 3) != 0` in the provisioned data refutes "the two
 mechanisms agree"; every water face with `(materialWord & 3) == 0` confirms it and downgrades this to
 a comment-accuracy issue.
+
+## Resolution
+
+Obsolete (2026-10-15): The native world LQ recipe is deleted; on Record the guest draws the water.

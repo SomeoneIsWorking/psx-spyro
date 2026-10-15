@@ -1,13 +1,21 @@
 ---
 id: 120
 title: User reports gems drawing on top of terrain that should occlude them
-status: open
+status: resolved
 related: 0105 (actor-vs-actor depth order, 5.07%). NOT established as the cause of this issue: that instrument walks retail's moby list and cannot see terrain. Both stay open until one measurement connects them.
 symptom: PARTLY FIXED 2026-09-19 — the missing world ordering bin is recovered and verified (415/415 authored bins match retail, r=+1.0000 with range), but the VISIBLE symptom is unchanged because the GPU depth test uses per-vertex pzToOrd(viewZ), which is degenerate across range (0.022290 vs 0.022285 for ranges 15197 vs 8336). "Spyro looks like gems that should be behind terrain rendering on top" (user, 2026-09-19) — REPRODUCED at the framebuffer: at f2400 of artisans-arrival, 116 px show a violet object in the native where the console shows grass (reverse direction only 41 px). Separately, retail's moby walker shows a 5.07% actor-vs-actor depth-order disagreement, which is issue 0105; that instrument cannot see terrain and does not evidence this symptom
 state_items: S019, S020
 tags: render,depth,occlusion,oracle
 created: 2026-09-19
+updated: 2026-10-15
 ---
+
+## Resolution (2026-10-15)
+
+Spyro 1 now presents on the Record path: the device draws the guest's own ordering table, so gems
+and terrain are ordered by retail's OT bins and the picture matches the console at t=1
+(recordcheck `mismatched=0`, S005). The depth-buffer order this issue measured is no longer drawn.
+Where retail's OT order itself pops an object over terrain, that is the oracle-exact result.
 
 ## The report
 

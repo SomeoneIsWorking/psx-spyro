@@ -4,6 +4,7 @@ title: The attract demo's recorded input diverges from the console at g_GameTick
 status: investigating
 symptom: oracle compare on the no-input attract route holds 553 per-iteration comparisons then DIVERGE on player.position at tick 556; the level entry itself MATCHES every decisive range
 tags: oracle,attract-demo,physics,divergence,level-entry
+features: [F-TURN, F-INPUT]
 created: 2026-09-26
 updated: 2026-09-27
 ---
@@ -87,9 +88,7 @@ from the resident overlay.
 `0x800700F4` is `D_8006FCF4 + 0x400`, and `D_8006FCF4` is the head of the region the guest clears in
 its DRAW pass. `func_8002B9CC` (`0x8002B9CC`, read out of the image) is
 `memset(0x8006FCF4, 0, 0x1C00)`: `jal 0x80016930` at `0x8002B9E0` with `$a0 = 0x8006FCF4` built at
-`0x8002B9D0` and `$a2 = 0x1C00` in the delay slot. The list base is `+0x400` inside that region. This
-repo reproduces it at `game/render/field/field_scene_recipe.cpp:62-67`
-(`spyro::field_scene_recipe::applyEnvironment`), byte-wise over the same 0x1C00.
+`0x8002B9D0` and `$a2 = 0x1C00` in the delay slot. The list base is `+0x400` inside that region.
 
 So a list read taken at a frame boundary is not an observation of the update. On this route it is
 zero at every park sampled (four parks, 0 of 64 words each). The console's read at `g_GameTick` 41 is

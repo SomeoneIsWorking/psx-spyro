@@ -83,7 +83,7 @@ constexpr std::uint32_t kG3Tag = 0x06000000u;
 constexpr std::uint32_t kG3Code = 0x30000000u;
 constexpr std::uint32_t kG3Bytes = 0x1C;
 
-enum class Sector { Drawn, BufferFull };
+enum class Sector : std::uint8_t { Drawn, BufferFull };
 
 class FarPass {
 public:
@@ -93,9 +93,9 @@ public:
 
 private:
   Sector drawSector(std::uint32_t listWord);
-  bool projectVertices(std::uint32_t data, std::uint32_t sectorClass, const FarLayout &layout);
+  bool projectVertices(std::uint32_t data, const FarLayout &layout);
   void loadVertex(std::uint32_t word);
-  Sector drawPolygon(std::uint32_t record, std::uint32_t colours, bool clipped);
+  Sector drawPolygon(std::uint32_t record);
   bool link(std::uint32_t bin, std::uint32_t bytes);
 
   TerrainFrame &frame_;
@@ -110,13 +110,17 @@ private:
   std::uint32_t markBin_ = 0;
   std::array<std::uint32_t, 3> camera_{}; // s7, t8, t9
   std::array<std::uint32_t, 3> origin_{}; // s4, s5, s6
+  // The sector being drawn: its list class (0 inside, else clipped; bit 0 an edge) and the colour
+  // table its records index.
+  std::uint32_t sectorClass_ = 0;
+  std::uint32_t colours_ = 0;
 };
 
 // 80028B14.
 void FarPass::run() {
-  lastBin_ = (core_.mem_r32(frame_.facts.far.farDepth) >> 7) - 1;
+  lastBin_ = (memory_.r32(frame_.facts.far.farDepth) >> 7) - 1;
   bufferEnd_ = frame_.primitiveLimit();
-  markBin_ = frame_.markBinFrom(core_.mem_r32(frame_.globals.orderingTableMark));
+  markBin_ = frame_.markBinFrom(memory_.r32(frame_.globals.orderingTableMark));
   for (std::uint32_t i = 0; i < camera_.size(); ++i) {
     camera_[i] = frame_.positionWord(i) >> 4;
   }
@@ -137,31 +141,31 @@ void FarPass::run() {
 
 // 80028B80.
 Sector FarPass::drawSector(std::uint32_t listWord) {
-  const std::uint32_t sectorClass = listWord & 3u;
-  const std::uint32_t sector = listWord ^ sectorClass;
-  const std::uint32_t originWord = core_.mem_r32(sector + far_sector::kOrigin);
+  sectorClass_ = listWord & 3u;
+  const std::uint32_t sector = listWord ^ sectorClass_;
+  const std::uint32_t originWord = memory_.r32(sector + far_sector::kOrigin);
   origin_ = {(originWord >> 16) - camera_[0],
              camera_[1] - (originWord & 0xFFFFu),
-             camera_[2] - core_.mem_r16(sector + far_sector::kOriginY)};
-  const FarLayout layout(core_.mem_r32(sector + far_sector::kLayout));
+             camera_[2] - memory_.r16(sector + far_sector::kOriginY)};
+  const FarLayout layout(memory_.r32(sector + far_sector::kLayout));
   const std::uint32_t data = sector + far_sector::kData;
-  if (!projectVertices(data, sectorClass, layout)) {
+  if (!projectVertices(data, layout)) {
     return Sector::Drawn;
   }
 
   // 80028D8C: the colours, fogged when the level fogs and the sector allows it.
   std::uint32_t colours = data + 4 * layout.vertexCount;
   const std::uint32_t records = colours + layout.colourBytes;
-  const std::uint32_t fog = gte_read_ctrl(gte::kLight3);
+  const std::uint32_t fog = core_.gte().readControl(gte::kLight3);
   if (fog != 0 && !layout.fogExempt) {
     frame_.v0 = records + 4;
     frame_.v1 = fogColours(memory_, core_, frame_.facts, colours, records + 4, fog);
     colours = frame_.facts.foggedColours;
   }
-  const bool clipped = sectorClass != 0;
+  colours_ = colours;
   const std::uint32_t recordsEnd = records + layout.recordBytes;
   for (std::uint32_t record = records; record != recordsEnd; record += kRecordSize) {
-    if (drawPolygon(record, colours, clipped) == Sector::BufferFull) {
+    if (drawPolygon(record) == Sector::BufferFull) {
       return Sector::BufferFull;
     }
   }
@@ -174,27 +178,26 @@ void FarPass::loadVertex(std::uint32_t word) {
   const std::uint32_t z = (word >> 21) + origin_[0];
   const std::uint32_t x = origin_[1] - ((word >> 10) & 0x7FFu);
   const std::uint32_t y = origin_[2] - ((word << 1) & 0x7FFu);
-  gte_write_data(gte::kVz0, z);
-  gte_write_data(gte::kVxy0, x + (y << 16));
+  core_.gte().writeData(gte::kVz0, z);
+  core_.gte().writeData(gte::kVxy0, x + (y << 16));
 }
 
 // 80028BC0: project every vertex into the scratchpad. Like retail, the loop loads one vertex past
 // the array into V0. Returns false when every vertex shares an outcode.
-bool FarPass::projectVertices(std::uint32_t data,
-                              std::uint32_t sectorClass,
-                              const FarLayout &layout) {
+bool FarPass::projectVertices(std::uint32_t data, const FarLayout &layout) {
+  const std::uint32_t sectorClass = sectorClass_;
   const std::uint32_t end = data + 4 * layout.vertexCount + 8;
   std::uint32_t next = data;
-  loadVertex(core_.mem_r32(next));
+  loadVertex(memory_.r32(next));
   next += 8;
   std::uint32_t cell = kScratchpad;
   std::uint32_t shared = 0xFFFFFFFFu;
   do {
-    gte_op(&core_, gte::kRtps);
-    loadVertex(core_.mem_r32(next - 4));
+    core_.gte().execute(gte::kRtps);
+    loadVertex(memory_.r32(next - 4));
     next += 4;
-    const std::uint32_t sxy = gte_read_data(gte::kSxy2);
-    const std::uint32_t sz = gte_read_data(gte::kSz3);
+    const std::uint32_t sxy = core_.gte().readData(gte::kSxy2);
+    const std::uint32_t sz = core_.gte().readData(gte::kSz3);
     frame_.v0 = sxy;
     frame_.v1 = sz;
     std::uint32_t word = sxy;
@@ -224,9 +227,11 @@ bool FarPass::projectVertices(std::uint32_t data,
 }
 
 // 80028E28: one record, a G4 or (third and fourth vertex equal) a G3.
-Sector FarPass::drawPolygon(std::uint32_t record, std::uint32_t colours, bool clipped) {
-  const std::uint32_t vertices = core_.mem_r32(record);
-  const std::uint32_t colourWord = core_.mem_r32(record + 4);
+Sector FarPass::drawPolygon(std::uint32_t record) {
+  const std::uint32_t colours = colours_;
+  const bool clipped = sectorClass_ != 0;
+  const std::uint32_t vertices = memory_.r32(record);
+  const std::uint32_t colourWord = memory_.r32(record + 4);
   const std::array<std::uint32_t, 4> cells = {kScratchpad + ((vertices >> 21) & 0x3F8u),
                                               kScratchpad + ((vertices >> 14) & 0x3F8u),
                                               kScratchpad + ((vertices >> 7) & 0x3F8u),
@@ -251,10 +256,10 @@ Sector FarPass::drawPolygon(std::uint32_t record, std::uint32_t colours, bool cl
     frame_.v0 = screens[1];
     frame_.v1 = screens[2];
   }
-  gte_write_data(gte::kSxy0, screens[0]);
-  gte_write_data(gte::kSxy1, screens[1]);
-  gte_write_data(gte::kSxy2, screens[2]);
-  gte_op(&core_, gte::kNclip);
+  core_.gte().writeData(gte::kSxy0, screens[0]);
+  core_.gte().writeData(gte::kSxy1, screens[1]);
+  core_.gte().writeData(gte::kSxy2, screens[2]);
+  core_.gte().execute(gte::kNclip);
   std::uint32_t depth = 0;
   for (std::uint32_t i = 0; i < corners; ++i) {
     depth += memory_.r32(cells[i] + 4);
@@ -263,7 +268,7 @@ Sector FarPass::drawPolygon(std::uint32_t record, std::uint32_t colours, bool cl
   std::uint32_t bin = 0;
   if (triangle) {
     // 80029048: one-sided triangles facing away are dropped.
-    if (!twoSided && asSigned(gte_read_data(gte::kMac0)) <= 0) {
+    if (!twoSided && asSigned(core_.gte().readData(gte::kMac0)) <= 0) {
       return Sector::Drawn;
     }
     depth += memory_.r32(cells[2] + 4);
@@ -271,11 +276,11 @@ Sector FarPass::drawPolygon(std::uint32_t record, std::uint32_t colours, bool cl
   } else {
     // 80028ECC: a quad facing away gets a second test on its other half, (fourth, second, third).
     if (!twoSided) {
-      const std::uint32_t area = gte_read_data(gte::kMac0);
-      gte_write_data(gte::kSxy0, screens[3]);
+      const std::uint32_t area = core_.gte().readData(gte::kMac0);
+      core_.gte().writeData(gte::kSxy0, screens[3]);
       if (asSigned(area) <= 0) {
-        gte_op(&core_, gte::kNclip);
-        if (asSigned(gte_read_data(gte::kMac0)) >= 0) {
+        core_.gte().execute(gte::kNclip);
+        if (asSigned(core_.gte().readData(gte::kMac0)) >= 0) {
           return Sector::Drawn;
         }
       }
@@ -307,7 +312,7 @@ bool FarPass::link(std::uint32_t bin, std::uint32_t bytes) {
     return false;
   }
   const std::uint32_t prim = frame_.primitive;
-  const Linked linked = frame_.linkAndAdvance(bin, bytes);
+  const Linked linked = frame_.linkAndAdvance(bin, PacketSize{bytes});
   if (linked.head == 0 && asSigned(linked.markKey - markBin_) > 0) {
     markBin_ = linked.markKey;
   }

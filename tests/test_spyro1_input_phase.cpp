@@ -11,6 +11,7 @@
 #include "guest_globals.h"
 #include "input_phase.h"
 #include "spyro1_input_phase.h"
+#include "test_game.h"
 
 #include <cstdint>
 #include <cstdio>
@@ -49,7 +50,7 @@ int main() {
   // ON THE HEAP, and that is load-bearing: Core carries the whole PSX address space, so a `Core` on
   // the stack of a test main() runs the process off the end of the stack instead of reading RAM.
   // This test segfaulted before that was fixed, which is a statement about the test, not the phase.
-  auto core = std::make_unique<Core>();
+  auto core = std::make_unique<spyro::test::StubCore>();
   core->mem_w32(spyro::guest::kGamestate, 13u); // GS_TitleScreen
   core->mem_w32(spyro::guest::kLevelId, 0u);
   check(phase.of(*core) == spyro1::InputPhase::pack(13, 0), "reads gs and level");
@@ -75,7 +76,7 @@ int main() {
   check(spyro1::InputPhase::pack(0xFFFFFFFFu, 0xFFFFFFFFu) ==
             spyro1::InputPhase::pack(0xFFFFu, 0xFFFFu),
         "and is masked to the two halves the game actually uses");
-  const auto virgin = std::make_unique<Core>();
+  const auto virgin = std::make_unique<spyro::test::StubCore>();
   check(phase.of(*virgin) != psx::input::kUnkeyedPhase,
         "unwritten guest RAM still yields a real key");
 

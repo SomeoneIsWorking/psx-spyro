@@ -5,6 +5,7 @@ status: open
 symptom: reports 51.89% differing pixels at save_picker and 18.50% at playing, and both are state offsets rather than rendering defects — the console reaches save_picker after 748 game frames and the product after 687
 state_items: S019, S020
 tags: oracle,picture,alignment
+features: [F-RENDER]
 created: 2026-09-19
 ---
 

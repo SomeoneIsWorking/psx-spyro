@@ -3,8 +3,8 @@
 #include "execution_control.h"
 #include "guest_call.h"
 #include "native_execution.h"
-#include "spyro_context.h"
 #include "spyro_game.h"
+#include "spyro_session.h"
 
 #include <cstdint>
 #include <lucent/log.h>
@@ -21,7 +21,7 @@ constexpr uint32_t kTransferDestination = 0x80076B9Cu;
 void cd_retry_step(Core *core) {
   psx::cpu::callOriginalToReturn(
       *core, 0x800163E4u, psx::cpu::ExecutionBudget::currentTurn(*core), "cd-retry-step");
-  if (spyro::context(*core).archiveTransfer.takeCompletion()) {
+  if (spyro::session(*core).archiveTransfer.takeCompletion()) {
     psx::cpu::dispatchGuestToReturn1(
         *core, 0x80016490u, 2u, psx::cpu::ExecutionBudget::currentTurn(*core), "cd-complete");
     lucent::debug("cdq", "delivered CD completion -> gate now {}", core->mem_r32(kGate));
@@ -53,7 +53,7 @@ void publishTransferState(Core &core, const spyro::ArchiveRead &read, bool pendi
 
 void transfer(Core &core, bool deferred) {
   const auto read = archiveReadFromRegisters(core);
-  const auto decision = spyro::context(core).archiveTransfer.read(core, read, deferred);
+  const auto decision = spyro::session(core).archiveTransfer.read(core, read, deferred);
   lucent::debug("cdq",
                 "{}: base={} dest=0x{:08X} len={} offset=0x{:08X} token=0x{:08X} -> "
                 "coverage=[0,{}) complete={} accepted={}",

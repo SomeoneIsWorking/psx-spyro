@@ -1,14 +1,14 @@
 ---
 id: 0142
 title: The terrain-noise probe had no gameplay gate and published a terrain verdict from a boot logo
-status: open
+status: resolved
 symptom: reported "16:9 legs ground 14.3% vs buildings 19.9%
   -- coherent" for the frame it captured, and the four-leg cross that verdict belongs to was
   recorded as evidence about the pool-water defect. The captured frame was the UNIVERSAL
   INTERACTIVE boot logo.
 tags: instrument,diagnostics,terrain,noise,water,refusal
 created: 2026-09-28
-updated: 2026-09-28
+updated: 2026-10-15
 ---
 
 ## What the instrument actually measured
@@ -81,3 +81,7 @@ different direction held for longer. Six routes were tried and all six refused.
 **Falsifier for this issue:** a `drive.py` route that reaches a frame the pool probe measures
 (`>= 2500` connected blue px, box aspect `>= 0.45`) closes it, and the same frame measured on both
 sides of the fix is what closes the water defect itself.
+
+## Resolution
+
+Obsolete (2026-10-15): The terrain-noise probe no longer exists.

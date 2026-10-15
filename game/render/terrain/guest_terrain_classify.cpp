@@ -84,12 +84,23 @@ public:
   void run();
 
 private:
-  void classify(std::uint32_t sector, std::uint32_t visibilityByte);
-  void animateVectorSlot(std::uint32_t sector,
-                         std::uint32_t slot,
-                         std::uint32_t index,
-                         std::uint32_t flagBit,
-                         std::uint32_t target);
+  // A vector animation slot: which slot, the key it selects, the sector flag it drives and where
+  // its words land.
+  struct VectorSlot {
+    std::uint32_t slot = 0;
+    std::uint32_t index = 0;
+    std::uint32_t flagBit = 0;
+    std::uint32_t target = 0;
+  };
+
+  // A sector the visibility table marks, and that table's byte for it.
+  struct Visible {
+    std::uint32_t sector = 0;
+    std::uint32_t visibilityByte = 0;
+  };
+
+  void classify(const Visible &visible);
+  void animateVectorSlot(std::uint32_t sector, const VectorSlot &vector);
   void animateColourSlot(std::uint32_t sector, std::uint32_t slot, std::uint32_t index);
   void animatePairSlot(std::uint32_t sector, std::uint32_t slot, std::uint32_t index);
   std::uint32_t definition(std::uint32_t sector, std::uint32_t slot, std::uint32_t index);
@@ -107,16 +118,16 @@ private:
 
 void SectorClassifier::run() {
   for (std::uint32_t i = 0; i < gte::kRotationWords; ++i) {
-    gte_write_ctrl(gte::kRotation + i, frame_.classificationRotationWord(i));
+    core_.gte().writeControl(gte::kRotation + i, frame_.classificationRotationWord(i));
   }
-  gte_write_ctrl(gte::kTranslationX, 0);
-  gte_write_ctrl(gte::kTranslationY, 0);
-  gte_write_ctrl(gte::kTranslationZ, 0);
+  core_.gte().writeControl(gte::kTranslationX, 0);
+  core_.gte().writeControl(gte::kTranslationY, 0);
+  core_.gte().writeControl(gte::kTranslationZ, 0);
   cameraX_ = asSigned(frame_.positionWord(0)) >> 4;
   cameraY_ = asSigned(frame_.positionWord(1)) >> 4;
   cameraZ_ = asSigned(frame_.positionWord(2)) >> 4;
-  const std::uint32_t count = core_.mem_r32(frame_.facts.classify.sectorCount);
-  std::uint32_t slot = core_.mem_r32(frame_.facts.classify.sectorTable);
+  const std::uint32_t count = memory_.r32(frame_.facts.classify.sectorCount);
+  std::uint32_t slot = memory_.r32(frame_.facts.classify.sectorTable);
   const std::uint32_t end = kScratchpad + count;
   detailCursor_ = frame_.scratch + kDetailList;
   farCursor_ = frame_.scratch + kFarList;
@@ -125,7 +136,7 @@ void SectorClassifier::run() {
   for (std::uint32_t byte = kScratchpad; byte != end; ++byte) {
     slot += 4;
     if (memory_.r8(byte) != 0) {
-      classify(memory_.r32(slot - 4), byte);
+      classify({.sector = memory_.r32(slot - 4), .visibilityByte = byte});
     }
   }
   memory_.w32(translucentCursor_, 0);
@@ -149,22 +160,23 @@ void SectorClassifier::run() {
 }
 
 // 80023CB0..80023E88.
-void SectorClassifier::classify(std::uint32_t sector, std::uint32_t visibilityByte) {
+void SectorClassifier::classify(const Visible &visible) {
+  const auto [sector, visibilityByte] = visible;
   memory_.w8(visibilityByte, 0);
-  const std::uint32_t centreXY = core_.mem_r32(sector + sector::kCentreXY);
-  const std::uint32_t centreZ = core_.mem_r32(sector + sector::kCentreZ);
-  gte_write_data(gte::kIr3, asWord(asSigned(centreXY >> 16) - cameraX_));
-  gte_write_data(gte::kIr1, asWord(cameraY_ - asSigned(centreXY & 0xFFFFu)));
-  gte_write_data(gte::kIr2, asWord(cameraZ_ - asSigned(centreZ >> 16)));
+  const std::uint32_t centreXY = memory_.r32(sector + sector::kCentreXY);
+  const std::uint32_t centreZ = memory_.r32(sector + sector::kCentreZ);
+  core_.gte().writeData(gte::kIr3, asWord(asSigned(centreXY >> 16) - cameraX_));
+  core_.gte().writeData(gte::kIr1, asWord(cameraY_ - asSigned(centreXY & 0xFFFFu)));
+  core_.gte().writeData(gte::kIr2, asWord(cameraZ_ - asSigned(centreZ >> 16)));
   const std::uint32_t flags = centreZ & kFlagMask;
   const std::uint32_t r = centreZ & kRadiusMask;
-  gte_op(&core_, gte::kMvmvaRtIr);
+  core_.gte().execute(gte::kMvmvaRtIr);
   // The margins are r/cos and r*tan of the 4:3 half-angle horizontally, the 17:32 slope vertically;
   // every product wraps as the image's 32-bit `add`/`sll` do.
   const std::uint32_t horizontalLateral = (r >> 1) + (r >> 2) + (r >> 5);
   const std::uint32_t horizontalDepth = (r >> 1) + (r >> 4) + (r >> 5);
-  const std::uint32_t z = gte_read_data(gte::kMac3);
-  std::uint32_t x = gte_read_data(gte::kMac1);
+  const std::uint32_t z = core_.gte().readData(gte::kMac3);
+  std::uint32_t x = core_.gte().readData(gte::kMac1);
   if (asSigned(z + r) <= 0) {
     return;
   }
@@ -176,14 +188,14 @@ void SectorClassifier::classify(std::uint32_t sector, std::uint32_t visibilityBy
   }
   const std::uint32_t verticalLateral = r - (r >> 3);
   const std::uint32_t verticalDepth = (r >> 1) - (r >> 4);
-  std::uint32_t y = gte_read_data(gte::kMac2);
+  std::uint32_t y = core_.gte().readData(gte::kMac2);
   if (asSigned(y) < 0) {
     y = 0u - y;
   }
   if (asSigned(((y - verticalLateral) << 5) - (z + verticalDepth) * 17) >= 0) {
     return;
   }
-  std::uint32_t marks = core_.mem_r32(sector + sector::kAnimationMarks);
+  std::uint32_t marks = memory_.r32(sector + sector::kAnimationMarks);
   std::uint32_t entry = sector | kEdgeTouching;
   if (asSigned(z - r) > 0 &&
       asSigned(((x + horizontalLateral) << 2) - (z - horizontalDepth) * 3) < 0 &&
@@ -242,17 +254,20 @@ void SectorClassifier::classify(std::uint32_t sector, std::uint32_t visibilityBy
     return (marks >> (8 * slot)) & 0xFFu;
   };
   if (index(0) < 0x80) {
-    animateVectorSlot(sector, 0, index(0), 0x2000u, sector + sector::kData);
+    animateVectorSlot(
+        sector,
+        {.slot = 0, .index = index(0), .flagBit = 0x2000u, .target = sector + sector::kData});
   }
   if (index(1) < 0x80) {
     animateColourSlot(sector, 1, index(1));
   }
   if (index(2) < 0x80) {
-    animateVectorSlot(sector,
-                      2,
-                      index(2),
-                      0x4000u,
-                      sector + sector::kData + core_.mem_r8(sector + sector::kOverlaySkip) * 4);
+    animateVectorSlot(
+        sector,
+        {.slot = 2,
+         .index = index(2),
+         .flagBit = 0x4000u,
+         .target = sector + sector::kData + memory_.r8(sector + sector::kOverlaySkip) * 4});
   }
   if (index(3) < 0x80) {
     animatePairSlot(sector, 3, index(3));
@@ -263,74 +278,72 @@ void SectorClassifier::classify(std::uint32_t sector, std::uint32_t visibilityBy
 std::uint32_t
 SectorClassifier::definition(std::uint32_t sector, std::uint32_t slot, std::uint32_t index) {
   core_.mem_w8(sector + sector::kAnimationMarks + slot, 0xFF);
-  return core_.mem_r32(core_.mem_r32(frame_.facts.classify.animationTables[slot]) + index * 4);
+  return memory_.r32(memory_.r32(frame_.facts.classify.animationTables[slot]) + index * 4);
 }
 
 // Slots 0 and 2 (80023E98, 80024174). The key's top byte also sets or clears the slot's sector
 // flag.
-void SectorClassifier::animateVectorSlot(std::uint32_t sector,
-                                         std::uint32_t slot,
-                                         std::uint32_t index,
-                                         std::uint32_t flagBit,
-                                         std::uint32_t target) {
+void SectorClassifier::animateVectorSlot(std::uint32_t sector, const VectorSlot &vector) {
+  const auto [slot, index, flagBit, target] = vector;
   const std::uint32_t def = definition(sector, slot, index);
   const std::uint32_t key =
-      core_.mem_r32(def + animation::kKeys + core_.mem_r8(def + animation::kKeyIndex) * 8 + 4);
-  std::uint32_t flagsHalf = core_.mem_r16(sector + sector::kFlagsHalf) & ~flagBit & 0xFFFFu;
+      memory_.r32(def + animation::kKeys + memory_.r8(def + animation::kKeyIndex) * 8 + 4);
+  std::uint32_t flagsHalf = memory_.r16(sector + sector::kFlagsHalf) & ~flagBit & 0xFFFFu;
   if ((key >> 24) != 0) {
     flagsHalf |= flagBit;
   }
   core_.mem_w16(sector + sector::kFlagsHalf, static_cast<std::uint16_t>(flagsHalf));
   const std::uint32_t fraction = key & 0xFFu;
-  const std::uint32_t stride = core_.mem_r16(def + animation::kStride);
-  std::uint32_t to = target + core_.mem_r8(def + animation::kTarget) * 4;
-  const std::uint32_t data = def + core_.mem_r32(def + animation::kDataOffset);
+  const std::uint32_t stride = memory_.r16(def + animation::kStride);
+  std::uint32_t to = target + memory_.r8(def + animation::kTarget) * 4;
+  const std::uint32_t data = def + memory_.r32(def + animation::kDataOffset);
   std::uint32_t from = data + ((key >> 8) & 0xFFu) * stride;
   if (fraction == 0) {
     const std::uint32_t end = from + stride;
     do {
-      core_.mem_w32(to, core_.mem_r32(from));
+      core_.mem_w32(to, memory_.r32(from));
       from += 4;
       to += 4;
     } while (from != end);
     return;
   }
-  gte_write_data(gte::kIr0, fraction << 4);
+  core_.gte().writeData(gte::kIr0, fraction << 4);
   std::uint32_t toward = data + ((key >> 16) & 0xFFu) * stride;
   const std::uint32_t end = from + stride + 4;
-  std::uint32_t near = core_.mem_r32(from);
+  std::uint32_t near = memory_.r32(from);
   from += 4;
-  std::uint32_t far = core_.mem_r32(toward);
+  std::uint32_t far = memory_.r32(toward);
   toward += 4;
   PackedVector v = unpack(near);
-  gte_write_data(gte::kIr1, v.x);
-  gte_write_data(gte::kIr2, v.y);
-  gte_write_data(gte::kIr3, v.z);
+  core_.gte().writeData(gte::kIr1, v.x);
+  core_.gte().writeData(gte::kIr2, v.y);
+  core_.gte().writeData(gte::kIr3, v.z);
   do {
     const PackedVector f = unpack(far);
-    gte_write_ctrl(gte::kFarRed, f.x);
-    gte_write_ctrl(gte::kFarGreen, f.y);
-    gte_write_ctrl(gte::kFarBlue, f.z);
-    near = core_.mem_r32(from);
-    far = core_.mem_r32(toward);
-    gte_op(&core_, gte::kIntpl);
+    core_.gte().writeControl(gte::kFarRed, f.x);
+    core_.gte().writeControl(gte::kFarGreen, f.y);
+    core_.gte().writeControl(gte::kFarBlue, f.z);
+    near = memory_.r32(from);
+    far = memory_.r32(toward);
+    core_.gte().execute(gte::kIntpl);
     to += 4;
     from += 4;
     toward += 4;
     v = unpack(near);
-    gte_write_data(gte::kIr1, v.x);
-    gte_write_data(gte::kIr2, v.y);
-    gte_write_data(gte::kIr3, v.z);
-    const std::uint32_t packed = (gte_read_data(gte::kMac1) << 21) +
-                                 (gte_read_data(gte::kMac2) << 10) + gte_read_data(gte::kMac3);
+    core_.gte().writeData(gte::kIr1, v.x);
+    core_.gte().writeData(gte::kIr2, v.y);
+    core_.gte().writeData(gte::kIr3, v.z);
+    const std::uint32_t packed = (core_.gte().readData(gte::kMac1) << 21) +
+                                 (core_.gte().readData(gte::kMac2) << 10) +
+                                 core_.gte().readData(gte::kMac3);
     core_.mem_w32(to - 4, packed);
   } while (end != from);
 }
 
-void loadFarColour(std::uint32_t colour) {
-  gte_write_ctrl(gte::kFarRed, (colour << 4) & 0xFF0u);
-  gte_write_ctrl(gte::kFarGreen, (colour >> 4) & 0xFF0u);
-  gte_write_ctrl(gte::kFarBlue, (colour >> 12) & 0xFF0u);
+void loadFarColour(Core &core, std::uint32_t colour) {
+  core.gte().writeControl(gte::kFarRed, (colour << 4) & 0xFF0u);
+  core.gte().writeControl(gte::kFarGreen, (colour >> 4) & 0xFF0u);
+  core.gte().writeControl(gte::kFarBlue, (colour >> 12) & 0xFF0u);
 }
 
 // Slot 1 (8002402C): colour words, each placed by the 8-bit skip in its own top byte.
@@ -338,37 +351,37 @@ void SectorClassifier::animateColourSlot(std::uint32_t sector,
                                          std::uint32_t slot,
                                          std::uint32_t index) {
   const std::uint32_t def = definition(sector, slot, index);
-  const std::uint32_t key = def + animation::kKeys + core_.mem_r8(def + animation::kKeyIndex) * 8;
-  const std::uint32_t fraction = core_.mem_r8(key + 4);
-  const std::uint32_t stride = core_.mem_r16(def + animation::kStride);
-  const std::uint32_t data = def + core_.mem_r32(def + animation::kDataOffset);
-  std::uint32_t from = data + core_.mem_r8(key + 5) * stride;
+  const std::uint32_t key = def + animation::kKeys + memory_.r8(def + animation::kKeyIndex) * 8;
+  const std::uint32_t fraction = memory_.r8(key + 4);
+  const std::uint32_t stride = memory_.r16(def + animation::kStride);
+  const std::uint32_t data = def + memory_.r32(def + animation::kDataOffset);
+  std::uint32_t from = data + memory_.r8(key + 5) * stride;
   const std::uint32_t end = from + stride;
-  std::uint32_t to = sector + sector::kData + core_.mem_r8(sector + sector::kColourSkip) * 4;
+  std::uint32_t to = sector + sector::kData + memory_.r8(sector + sector::kColourSkip) * 4;
   if (fraction == 0) {
     do {
-      const std::uint32_t word = core_.mem_r32(from);
+      const std::uint32_t word = memory_.r32(from);
       from += 4;
       to += (word >> 22) & 0x3FCu;
       core_.mem_w32(to, word & 0xFFFFFFu);
     } while (from != end);
     return;
   }
-  std::uint32_t toward = data + core_.mem_r8(key + 6) * stride;
-  gte_write_data(gte::kIr0, fraction << 4);
-  std::uint32_t near = core_.mem_r32(from);
-  std::uint32_t far = core_.mem_r32(toward);
+  std::uint32_t toward = data + memory_.r8(key + 6) * stride;
+  core_.gte().writeData(gte::kIr0, fraction << 4);
+  std::uint32_t near = memory_.r32(from);
+  std::uint32_t far = memory_.r32(toward);
   do {
-    gte_write_data(gte::kRgbc, near & 0xFFFFFFu);
-    loadFarColour(far);
+    core_.gte().writeData(gte::kRgbc, near & 0xFFFFFFu);
+    loadFarColour(core_, far);
     const std::uint32_t skip = (near >> 22) & 0x3FCu;
-    gte_op(&core_, gte::kDpcs);
-    near = core_.mem_r32(from + 4);
-    far = core_.mem_r32(toward + 4);
+    core_.gte().execute(gte::kDpcs);
+    near = memory_.r32(from + 4);
+    far = memory_.r32(toward + 4);
     from += 4;
     toward += 4;
     to += skip;
-    core_.mem_w32(to, gte_read_data(gte::kRgb2));
+    core_.mem_w32(to, core_.gte().readData(gte::kRgb2));
   } while (end != from);
 }
 
@@ -377,20 +390,20 @@ void SectorClassifier::animatePairSlot(std::uint32_t sector,
                                        std::uint32_t slot,
                                        std::uint32_t index) {
   const std::uint32_t def = definition(sector, slot, index);
-  const std::uint32_t key = def + animation::kKeys + core_.mem_r8(def + animation::kKeyIndex) * 8;
-  const std::uint32_t fraction = core_.mem_r8(key + 4);
-  const std::uint32_t stride = core_.mem_r16(def + animation::kStride);
-  const std::uint32_t data = def + core_.mem_r32(def + animation::kDataOffset);
-  std::uint32_t from = data + core_.mem_r8(key + 5) * stride;
+  const std::uint32_t key = def + animation::kKeys + memory_.r8(def + animation::kKeyIndex) * 8;
+  const std::uint32_t fraction = memory_.r8(key + 4);
+  const std::uint32_t stride = memory_.r16(def + animation::kStride);
+  const std::uint32_t data = def + memory_.r32(def + animation::kDataOffset);
+  std::uint32_t from = data + memory_.r8(key + 5) * stride;
   const std::uint32_t end = from + stride;
-  const std::uint32_t layout = core_.mem_r32(sector + sector::kLayout);
+  const std::uint32_t layout = memory_.r32(sector + sector::kLayout);
   std::uint32_t first =
       sector + sector::kData + ((layout >> 22) & 0x3FCu) + ((layout << 2) & 0x3FCu);
   std::uint32_t second = first + ((layout >> 6) & 0x3FCu);
   if (fraction == 0) {
     do {
-      const std::uint32_t a = core_.mem_r32(from);
-      const std::uint32_t b = core_.mem_r32(from + 4);
+      const std::uint32_t a = memory_.r32(from);
+      const std::uint32_t b = memory_.r32(from + 4);
       from += 8;
       const std::uint32_t skip = (a >> 22) & 0x3FCu;
       first += skip;
@@ -400,28 +413,28 @@ void SectorClassifier::animatePairSlot(std::uint32_t sector,
     } while (from != end);
     return;
   }
-  std::uint32_t toward = data + core_.mem_r8(key + 6) * stride;
-  gte_write_data(gte::kIr0, fraction << 4);
-  std::uint32_t near = core_.mem_r32(from);
-  std::uint32_t far = core_.mem_r32(toward);
+  std::uint32_t toward = data + memory_.r8(key + 6) * stride;
+  core_.gte().writeData(gte::kIr0, fraction << 4);
+  std::uint32_t near = memory_.r32(from);
+  std::uint32_t far = memory_.r32(toward);
   do {
-    gte_write_data(gte::kRgbc, near & 0xFFFFFFu);
-    loadFarColour(far);
+    core_.gte().writeData(gte::kRgbc, near & 0xFFFFFFu);
+    loadFarColour(core_, far);
     const std::uint32_t skip = (near >> 22) & 0x3FCu;
-    gte_op(&core_, gte::kDpcs);
-    near = core_.mem_r32(from + 4);
-    far = core_.mem_r32(toward + 4);
+    core_.gte().execute(gte::kDpcs);
+    near = memory_.r32(from + 4);
+    far = memory_.r32(toward + 4);
     first += skip;
-    core_.mem_w32(first, gte_read_data(gte::kRgb2));
-    gte_write_data(gte::kRgbc, near);
-    loadFarColour(far);
+    core_.mem_w32(first, core_.gte().readData(gte::kRgb2));
+    core_.gte().writeData(gte::kRgbc, near);
+    loadFarColour(core_, far);
     from += 8;
     toward += 8;
-    gte_op(&core_, gte::kDpcs);
-    near = core_.mem_r32(from);
-    far = core_.mem_r32(toward);
+    core_.gte().execute(gte::kDpcs);
+    near = memory_.r32(from);
+    far = memory_.r32(toward);
     second += skip;
-    core_.mem_w32(second, gte_read_data(gte::kRgb2));
+    core_.mem_w32(second, core_.gte().readData(gte::kRgb2));
   } while (from != end);
 }
 

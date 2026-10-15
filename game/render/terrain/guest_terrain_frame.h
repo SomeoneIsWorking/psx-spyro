@@ -31,7 +31,6 @@
 #include "guest_terrain_facts.h"
 #include "guest_terrain_memory.h"
 #include "guest_terrain_screen.h"
-#include "spyro_context.h"
 
 #include <cstdint>
 #include <vector>
@@ -70,7 +69,7 @@ inline constexpr std::uint32_t kSplitPrimitiveCursor =
 //
 // Each entry is ONE signed 32-bit value, not a packed pair: a GTE rotation-matrix element and a
 // world position component are each a single fixed-point word, and every pass reads them whole
-// (`asSigned(frame_.positionWord(0)) >> 4`, `gte_write_ctrl(kRotation0 + i,
+// (`asSigned(frame_.positionWord(0)) >> 4`, `gte().writeControl(kRotation0 + i,
 // frame_.rotationWord(i))`). The word counts are the GTE's own (psxport gte_registers.h), not
 // numbers written twice.
 struct InBetweenCamera {
@@ -100,6 +99,11 @@ inline constexpr std::uint32_t kPrimitiveArenaBytes = 0x1000;
 // and no guest write.
 enum class FrameMode : std::uint8_t { RealField, InBetween };
 
+// One packet's size in bytes, as the passes allocate it from the primitive cursor.
+struct PacketSize {
+  std::uint32_t bytes = 0;
+};
+
 // What one `linkAndAdvance` did, all three parts of it the passes need. `head` is the bin's
 // previous head (zero when the bin was empty, which is what the far pass's mark test keys on);
 // `primitive` is the packet just linked, which retail leaves in a register for its own v0;
@@ -126,7 +130,7 @@ struct TerrainFrame {
   // `orderingTable` is the frame's own member, the BASE the guest published and the detail pass
   // loaded -- not `globals.orderingTable`, which is the WORD ADDRESS it was loaded from. Retail
   // indexes the table through the published base, so this must too.
-  Linked linkAndAdvance(std::uint32_t bin, std::uint32_t bytes) {
+  Linked linkAndAdvance(std::uint32_t bin, PacketSize size) {
     const std::uint32_t slot = markSlot(bin);
     // A bin the IN-BETWEEN has not linked into yet is empty, whatever the guest's table says.
     //
@@ -167,15 +171,8 @@ struct TerrainFrame {
     if (!realField()) {
       linkAfter(primitive, 0);
     }
-    if (arena != nullptr) {
-      arena->packets.push_back(primitive);
-      // One past this packet's LAST word, which is what makes the consumer's containment test
-      // exact: the record's range then covers every address the pass allocated and nothing after
-      // it.
-      arena->end = std::max(arena->end, primitive + bytes);
-    }
     const Linked linked{head, primitive, bin};
-    primitive += bytes;
+    primitive += size.bytes;
     return linked;
   }
 
@@ -254,13 +251,8 @@ struct TerrainFrame {
   const ScreenBounds bounds;
   TerrainMemory &memory;
   const FrameMode mode;
-  std::uint32_t scratch = 0;   // the scratch block base, VXY1
-  std::uint32_t primitive = 0; // fp: the next free primitive packet
-  // The record of the pass's OWN linked packets, and the arena it allocated them into — null unless
-  // this field is a REAL one, because only the guest's own pass has packets a captured queue can
-  // hold. Set once by Drawer::run at the pass's starting cursor; the record's `end` grows with the
-  // pass, and it is what makes a consumer's "which pass produced this address" answer exact.
-  spyro::Context::TerrainPacketArena *arena = nullptr;
+  std::uint32_t scratch = 0;           // the scratch block base, VXY1
+  std::uint32_t primitive = 0;         // fp: the next free primitive packet
   std::uint32_t orderingTable = 0;     // the ordering table's bin 0
   std::uint32_t textures = 0;          // the level's 48-byte texture records
   std::uint32_t fineSplitCursor = 0;   // next free kFineSplitList word

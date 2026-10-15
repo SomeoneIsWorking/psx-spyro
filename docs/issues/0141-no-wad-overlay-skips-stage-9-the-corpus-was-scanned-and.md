@@ -5,6 +5,7 @@ status: open
 symptom: docs/issues/0138 closed with "the WAD overlays were not scanned" as the single unmeasured place a guest-owned skip for GS_EntranceAnimation could be hiding, and named it the unblocking action for the operator's question. The overlays were unreadable here only because no extractor existed, not because the bytes were unavailable.
 state_items: S011
 tags: re,overlay,skip,input,stage,camera
+features: [F-LOAD]
 created: 2026-09-28
 ---
 

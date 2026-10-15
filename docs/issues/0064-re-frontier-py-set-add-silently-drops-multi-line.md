@@ -1,11 +1,11 @@
 ---
 id: 64
 title: re_frontier.py set/add silently drops multi-line gap/notes continuation lines
-status: open
+status: resolved
 symptom: a re_frontier.py set or add re-writes docs/re-frontier.md losing every multi-line field line (bullets, indented continuations) with no error
 tags: tooling,re-frontier,data-loss
 created: 2026-08-16
-updated: 2026-08-16
+updated: 2026-10-15
 ---
 
 ## Cause
@@ -30,3 +30,7 @@ multi-line gap/notes MUST survive a load→save→load and exits nonzero if they
 
 `re_frontier.py --selftest` failing; or a diff of `docs/re-frontier.md` before/after a
 `set`/`add` that deletes a continuation line.
+
+## Resolution
+
+Obsolete (2026-10-15): Spyro's `tools/re_frontier.py` copy is deleted; re-harness `tools/re_frontier.py` is the one copy, and this defect was not re-checked there.

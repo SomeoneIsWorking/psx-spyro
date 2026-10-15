@@ -1,22 +1,16 @@
 // spyro2_render_facts.h — SCUS_944.25's own render-routine facts, read out of its bytes, plus the
-// two native overrides that bind them.
+// native overrides that bind them.
 //
 // The routines themselves live in game/render/ and are shared with SCUS_944.67: the two images'
-// terrain drawer and moby visibility walk decompile to the same C with only their addresses (and
-// one `gp` spill) different. Everything here is what THIS image says, so a reader can re-derive
-// each address rather than trust a table, and so the shared routines carry no title's addresses at
-// all.
+// terrain drawer, moby visibility walk and flatten decompile to the same C with only their
+// addresses (and one `gp` spill) different. Everything here is what THIS image says, so a reader
+// can re-derive each address rather than trust a table, and so the shared routines carry no title's
+// addresses at all.
 #pragma once
 
-#include "core.h"
-#include "guest_moby_visibility.h"
-#include "guest_render_globals.h"
-#include "guest_terrain_drawer.h"
-#include "guest_terrain_facts.h"
-#include "native_execution.h"
-#include "terrain_state_producer.h"
+#include "engine_render_overrides.h"
 
-#include <memory>
+#include <cstdint>
 
 namespace spyro2 {
 
@@ -153,32 +147,16 @@ inline constexpr spyro::guest_moby::Facts kMobyFacts{
     .sineTable = 0x80061BD8u,
 };
 
-// The two override bodies. They are one line each because an override is a plain
-// `void (*)(Core *)` with nowhere to hang a back-pointer: the title's facts are bound here and the
-// routine they name is the shared one.
-inline void terrainDrawerOverride(Core *core) {
-  spyro::guest_terrain::draw(*core, kTerrainFacts, kRenderGlobals);
-  core->frameStates.save(core->emission.current(),
-                         spyro::guest_terrain::captureField(*core, kRenderGlobals));
-}
+// The flatten, FUN_8001B2A8, called by the draw at 800159A4 and by three other draws (800146AC,
+// 80014A54, 8004D938), each once per table.
+inline constexpr std::uint32_t kFlatten = 0x8001B2A8u;
 
-inline void mobyVisibilityOverride(Core *core) {
-  spyro::guest_moby::walk(*core, kMobyFacts, kRenderGlobals);
-}
-
-// Install both overrides for this Core's resident SCUS_944.25 image. The terrain drawer is a
-// producer: it saves its field's state and its render redraws the terrain at any t.
-inline void registerRenderOverrides(Core &core) {
-  core.stateProducers.install(kTerrainFacts.entry,
-                              std::make_unique<spyro::guest_terrain::TerrainStateProducer>(
-                                  core, kTerrainFacts, kRenderGlobals));
-  psx::cpu::installNativeOverride(core,
-                                  kTerrainFacts.entry,
-                                  kTerrainFacts.overrideName,
-                                  terrainDrawerOverride,
-                                  psx::present::Producer{psx::present::Arg::A0});
-  psx::cpu::installNativeOverride(
-      core, kMobyFacts.entry, kMobyFacts.overrideName, mobyVisibilityOverride);
-}
+inline constexpr spyro::EngineRenderFacts kRenderFacts{
+    .globals = kRenderGlobals,
+    .terrain = kTerrainFacts,
+    .moby = kMobyFacts,
+    .flatten = kFlatten,
+    .flattenName = "spyro2-depth-bins",
+};
 
 } // namespace spyro2

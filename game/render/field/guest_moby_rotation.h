@@ -30,6 +30,12 @@ namespace spyro::guest_moby_rotation {
 // The five GTE rotation words RT11RT12, RT13RT21, RT22RT23, RT31RT32, RT33.
 using RotationWords = std::array<std::uint32_t, 5>;
 
+// A moby's two rotation words: three 8-bit angles, and the 4-bit fractions that refine them.
+struct MobyAngles {
+  std::uint32_t angles = 0;
+  std::uint32_t flags = 0;
+};
+
 // Retail's guest register words for one angle.
 struct AngleWords {
   std::uint32_t sine = 0;
@@ -39,18 +45,19 @@ struct AngleWords {
 // How far past a sine entry its cosine entry is: a quarter turn of 256 halfword entries.
 inline constexpr std::uint32_t kCosineOffset = 0x80u;
 
-// Rotate `rotation` by the angles in `angleWord`, reading the tables directly. Loads the result
-// into CR0..CR4 after each angle, as retail does. `rotation` must hold what CR0..CR4 hold on entry.
+// Rotate `rotation` by `angles.angles`, reading the tables directly; the flags are not read. Loads
+// the result into CR0..CR4 after each angle, as retail does. `rotation` must hold what CR0..CR4
+// hold on entry.
 void composeTabled(Core &core,
                    std::uint32_t sineTable,
-                   std::uint32_t angleWord,
+                   const MobyAngles &angles,
                    RotationWords &rotation);
 
-// The same, with each angle refined by the matching 4-bit fraction of `flags` (bits 16, 8, 0).
+// The same, with each angle refined by the matching 4-bit fraction of `angles.flags` (bits 16, 8,
+// 0).
 void composeInterpolated(Core &core,
                          std::uint32_t sineTable,
-                         std::uint32_t angleWord,
-                         std::uint32_t flags,
+                         const MobyAngles &angles,
                          RotationWords &rotation);
 
 // Bit 28 of the flags mirrors the composed matrix's second column before it is stored. Retail

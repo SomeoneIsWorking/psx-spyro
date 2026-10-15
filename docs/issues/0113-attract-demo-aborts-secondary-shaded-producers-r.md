@@ -1,11 +1,11 @@
 ---
 id: 113
 title: "Secondary actors abort outside Artisans: the per-face colour program is unimplemented"
-status: open
+status: resolved
 symptom: the port aborts with 'secondary/shaded actor producers 0x80020F34/0x80022A2C refused their combined atomic recipe' whenever a secondary actor with control bit 2 is drawn; first seen in the attract demo, then reproduced on demand by entering Stone Hill
 tags: render,field,actor,secondary,lighting,re,crash
 created: 2026-09-14
-updated: 2026-09-19
+updated: 2026-10-15
 ---
 
 ## Symptom
@@ -142,3 +142,7 @@ It was the first hard stop on any route that leaves Artisans, so it blocked repr
 ## Not the same as issue 0103
 
 0103 is the dragon cutscene's shaded producer refusing a single un-implemented variant; that is fixed.
+
+## Resolution
+
+Obsolete (2026-10-15): The native secondary and shaded actor producers are deleted; on Record the guest draws them.

@@ -1,14 +1,14 @@
 ---
 id: 0145
 title: Six of Spyro 1's thirty-five levels author a translucent low-poly face, so the water fix is live — and Artisans is one of the twenty-nine that do not
-status: open
+status: resolved
 symptom: `c229e45` made `world_lq_recipe.cpp` take the guest's CONSTANT colour for faces with
   material bit 2 set, and issue 0143 measured 0 of 1783 low-poly faces carrying that bit over the
   RESIDENT level. Whether the arm can execute anywhere in the game was never asked. It is asked here,
   over the whole corpus.
 tags: render,water,blend,census,reachability
 created: 2026-09-28
-updated: 2026-09-28
+updated: 2026-10-15
 ---
 
 ## 1. The answer, over every level in the disc
@@ -137,3 +137,7 @@ looser-than-`+` slip that hid a 100% residency match as 0.03%; and a backward wa
   and is what a route would write, but reaching level 35 needs either a Magic Crafters portal
   traversal or that write, and `drive.py` records that the Artisans route cannot leave its level
   because the pad is camera-relative. **No product run was made for this issue.**
+
+## Resolution
+
+Obsolete (2026-10-15): The native world LQ recipe is deleted; on Record the guest draws the translucent faces.

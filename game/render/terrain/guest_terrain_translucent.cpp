@@ -47,7 +47,17 @@ private:
   void drawTriangle(const PackedIndices &vertices);
   [[nodiscard]] std::uint32_t screenWord(std::uint32_t index) const;
   [[nodiscard]] std::uint32_t depth(std::uint32_t index) const;
-  void defer(bool fine, std::uint32_t sum, std::uint32_t entry);
+  // Which split list a too-near polygon goes to; `None` is a fine polygon whose depths are all
+  // zero.
+  enum class Split : std::uint8_t { Coarse, Fine, None };
+  static Split split(bool fine, std::uint32_t sum) {
+    if (!fine) {
+      return Split::Coarse;
+    }
+    return sum == 0 ? Split::None : Split::Fine;
+  }
+
+  void defer(Split split, std::uint32_t entry);
   std::uint32_t fadedColour(std::uint32_t depth);
 
   TerrainFrame &frame_;
@@ -87,21 +97,21 @@ void TranslucentPass::drawSector(std::uint32_t listWord) {
   clipped_ = projected.clipped;
 
   // 80025780: one colour for the whole sector, faded toward black.
-  const std::uint32_t layout = core_.mem_r32(sector + near_sector::kLayout);
+  const std::uint32_t layout = memory_.r32(sector + near_sector::kLayout);
   const std::uint32_t colours = projected.vertexEnd - 8;
-  const std::uint32_t colour = core_.mem_r32(colours);
+  const std::uint32_t colour = memory_.r32(colours);
   record_ = colours + 2 * ((layout >> 6) & 0x3FCu);
   const std::uint32_t recordsEnd = ((layout >> 12) & 0xFF0u) + record_;
-  std::uint32_t indices = core_.mem_r32(record_);
-  gte_write_ctrl(gte::kFarRed, 0);
-  gte_write_ctrl(gte::kFarGreen, 0);
-  gte_write_ctrl(gte::kFarBlue, 0);
-  gte_write_data(gte::kRgbc, colour);
+  std::uint32_t indices = memory_.r32(record_);
+  core_.gte().writeControl(gte::kFarRed, 0);
+  core_.gte().writeControl(gte::kFarGreen, 0);
+  core_.gte().writeControl(gte::kFarBlue, 0);
+  core_.gte().writeData(gte::kRgbc, colour);
   while (record_ != recordsEnd) {
     const PackedIndices vertices(indices);
     frame_.v0 = vertices.second;
     frame_.v1 = vertices.third;
-    indices = core_.mem_r32(record_ + polygon::kSize);
+    indices = memory_.r32(record_ + polygon::kSize);
     record_ += polygon::kSize;
     if (vertices.triangle()) {
       drawTriangle(vertices);
@@ -121,23 +131,28 @@ std::uint32_t TranslucentPass::depth(std::uint32_t index) const {
 
 // 80025884: the split lists, under a header that is the sector address / 4 with its top bit
 // cleared.
-void TranslucentPass::defer(bool fine, std::uint32_t sum, std::uint32_t entry) {
+void TranslucentPass::defer(Split split, std::uint32_t entry) {
   const std::uint32_t header = (sectorWord_ << 1) >> 3;
-  if (!fine) {
-    deferToSplitList(
-        memory_, frame_.coarseSplitCursor, sectorWord_, kCoarseHeaderWritten, header, entry);
+  if (split == Split::Coarse) {
+    deferToSplitList(memory_,
+                     {.cursor = frame_.coarseSplitCursor, .headerBit = kCoarseHeaderWritten},
+                     sectorWord_,
+                     {.header = header, .entry = entry});
     return;
   }
-  if (sum == 0) {
+  if (split == Split::None) {
     return;
   }
-  deferToSplitList(memory_, frame_.fineSplitCursor, sectorWord_, kFineHeaderWritten, header, entry);
+  deferToSplitList(memory_,
+                   {.cursor = frame_.fineSplitCursor, .headerBit = kFineHeaderWritten},
+                   sectorWord_,
+                   {.header = header, .entry = entry});
 }
 
 std::uint32_t TranslucentPass::fadedColour(std::uint32_t depth) {
-  gte_write_data(gte::kIr0, fadeByDepth(depth));
-  gte_op(&core_, gte::kDpcs);
-  return gte_read_data(gte::kRgb2);
+  core_.gte().writeData(gte::kIr0, fadeByDepth(depth));
+  core_.gte().execute(gte::kDpcs);
+  return core_.gte().readData(gte::kRgb2);
 }
 
 // 800257F0.
@@ -155,7 +170,7 @@ void TranslucentPass::drawQuad(const PackedIndices &vertices) {
     xy2 = static_cast<std::uint32_t>(asSigned(xy2) >> 5);
     xy3 = static_cast<std::uint32_t>(asSigned(xy3) >> 5);
   }
-  const std::uint32_t draw = core_.mem_r32(record_ - polygon::kSize + polygon::kDraw);
+  const std::uint32_t draw = memory_.r32(record_ - polygon::kSize + polygon::kDraw);
   const std::uint32_t d0 = depth(vertices.first);
   const std::uint32_t d1 = depth(vertices.second);
   const std::uint32_t d2 = depth(vertices.third);
@@ -166,7 +181,7 @@ void TranslucentPass::drawQuad(const PackedIndices &vertices) {
   if (sum < kSplitSum) {
     const bool fine = d0 < kFineVertexDepth || d1 < kFineVertexDepth || d2 < kFineVertexDepth ||
                       d3 < kFineVertexDepth;
-    defer(fine, sum, record_ - polygon::kSize);
+    defer(split(fine, sum), record_ - polygon::kSize);
     return;
   }
   if (sum >= kDropSum) {
@@ -189,9 +204,9 @@ void TranslucentPass::drawQuad(const PackedIndices &vertices) {
   const std::uint32_t c3 = fadedColour(d3);
   memory_.w32(prim + packet::kColour3, c3);
   const std::uint32_t bin = polygonBin(sum, draw);
-  const std::uint32_t record = frame_.textures + (draw & kTextureRecordMask) * kTextureRecordSize;
-  const std::uint32_t uv = core_.mem_r32(record);
-  const std::uint32_t page = core_.mem_r32(record + 4);
+  const std::uint32_t record = textureRecord(frame_, draw);
+  const std::uint32_t uv = memory_.r32(record);
+  const std::uint32_t page = memory_.r32(record + 4);
   memory_.w32(prim, kQuadTag);
   memory_.w32(prim + packet::kUv0, uv);
   memory_.w32(prim + packet::kUv1, page - 0x1F00u);
@@ -199,7 +214,7 @@ void TranslucentPass::drawQuad(const PackedIndices &vertices) {
   memory_.w16(prim + packet::kUv3, static_cast<std::uint16_t>(page));
   frame_.v1 = uv + 0x1F00u;
   frame_.v0 = prim >> 16;
-  frame_.linkAndAdvance(bin, kQuadBytes);
+  frame_.linkAndAdvance(bin, PacketSize{kQuadBytes});
 }
 
 // 80025A4C.
@@ -215,7 +230,7 @@ void TranslucentPass::drawTriangle(const PackedIndices &vertices) {
     xy1 = static_cast<std::uint32_t>(asSigned(xy1) >> 5);
     xy2 = static_cast<std::uint32_t>(asSigned(xy2) >> 5);
   }
-  const std::uint32_t draw = core_.mem_r32(record_ - polygon::kSize + polygon::kDraw);
+  const std::uint32_t draw = memory_.r32(record_ - polygon::kSize + polygon::kDraw);
   const std::uint32_t d0 = depth(vertices.first);
   const std::uint32_t d1 = depth(vertices.second);
   const std::uint32_t d2 = depth(vertices.third);
@@ -227,7 +242,7 @@ void TranslucentPass::drawTriangle(const PackedIndices &vertices) {
     // never loads one), so a triangle whose index is under 0x140 / 4 always splits fine.
     const bool fine = d0 < kFineVertexDepth || d1 < kFineVertexDepth || d2 < kFineVertexDepth ||
                       vertices.fourth < kFineVertexDepth;
-    defer(fine, sum, (record_ - polygon::kSize) | kSplitTriangle);
+    defer(split(fine, sum), (record_ - polygon::kSize) | kSplitTriangle);
     return;
   }
   if (sum >= kDropSum) {
@@ -246,13 +261,13 @@ void TranslucentPass::drawTriangle(const PackedIndices &vertices) {
   const std::uint32_t c2 = fadedColour(d2);
   memory_.w32(prim + packet::kColour2, c2);
   const std::uint32_t bin = polygonBin(sum, draw);
-  const std::uint32_t record = frame_.textures + (draw & kTextureRecordMask) * kTextureRecordSize;
-  const std::uint32_t uv = core_.mem_r32(record);
-  const std::uint32_t page = core_.mem_r32(record + 4);
+  const std::uint32_t record = textureRecord(frame_, draw);
+  const std::uint32_t uv = memory_.r32(record);
+  const std::uint32_t page = memory_.r32(record + 4);
   memory_.w32(prim, kTriangleTag);
-  frame_.v1 = writeTriangleUvs(memory_, prim, uv, page, draw & kTriangleCornerMask);
+  frame_.v1 = writeTriangleUvs(memory_, prim, {.uv = uv, .page = page}, draw & kTriangleCornerMask);
   frame_.v0 = prim >> 16;
-  frame_.linkAndAdvance(bin, kTriangleBytes);
+  frame_.linkAndAdvance(bin, PacketSize{kTriangleBytes});
 }
 
 } // namespace

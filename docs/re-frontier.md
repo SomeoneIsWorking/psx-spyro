@@ -1,6 +1,6 @@
 # RE Frontier — ordered evidence chain for Spyro's dynamic runtime
 
-Tracked by `tools/re_frontier.py`. This is the fine-grained companion to
+Tracked by re-harness `tools/re_frontier.py`. This is the fine-grained companion to
 `docs/codemap.md`: it records the binary or asset evidence required before each dynamic-runtime
 boundary can be implemented and verified.
 
@@ -13,7 +13,7 @@ real data.
 Statuses: ✅ re-verified · 🟡 re-partial · 🔬 in-progress · ⬜ todo · ➖ skip-by-design · ⏸ blocked
 (computed). A failure must refuse loudly rather than selecting an alternate execution method.
 
-<!-- Machine-edited by tools/re_frontier.py add/set. Format: `## <area>` sections;
+<!-- Machine-edited by re-harness tools/re_frontier.py add/set. Format: `## <area>` sections;
      each entry is `### <id> — <title>` followed by `- <field>: <value>` lines. -->
 
 ## runtime
@@ -46,7 +46,7 @@ Statuses: ✅ re-verified · 🟡 re-partial · 🔬 in-progress · ⬜ todo · 
 - status: re-verified
 - deps: dynarec.dispatch
 - evidence: Native/Lightrec title and save-picker observations, displayed image inspection, execution counters, and per-product-step fence counts are recorded in docs/project-state.md S009.
-- where: titles/spyro1/core/spyro1_frame_driver.*; game/render/frame/frame_renderer.cpp; game/core/runtime_run.*
+- where: titles/spyro1/core/frame/spyro1_frame_driver.*; titles/spyro1/core/frame/spyro1_frame_draw.*
 - gap: None for the two wiring discriminators; gameplay and motion qualification belong to dynarec.gameplay.
 - notes: These are first runtime discriminators, not representative gameplay.
 
@@ -90,6 +90,16 @@ Statuses: ✅ re-verified · 🟡 re-partial · 🔬 in-progress · ⬜ todo · 
 - where: game/core/guest_globals.h (Spyro 1)
 - gap: Spyro 3's flag is not located. A live RAM sweep across `0x80068000-0x80070000` between its card and its demo found 14 changed words and none removed the "Entering Demo Mode" caption.
 
+### spyro1.record — Present Spyro 1 from its frame record
+- status: re-partial
+- deps: dynarec.stage13
+- evidence: GamestateDraw `0x8001ED5C` (Ghidra and open-spyro `GamestateDraw.c` agree; one caller, main `0x80012204` at `0x8001227C`) flips the frame env, dispatches on `g_nGamestate` `0x800757D8`, and for state 0 ends in its own tail: DrawSync `0x8005F764`, `VSync(0)` when `0x80075784` is set, then `VSync(0)` until `VSync(-1) - [0x80075950] >= 2`, `[0x80075950] = VSync(-1)`, PutDispEnv `0x80060030(env+0x5C)`, PutDrawEnv `0x8005FDD8(env)`, DrawOTag `0x8005FD64(LinkOTPrimitives 0x80016784(0x800))`. Every other state's handler carries its own copy of that tail (each calls VSync 4-8 times). Spyro 1's SetGeomOffset/SetGeomScreen leaves are `0x80062618`/`0x80062638`; CR24/CR25 are also restated inline at `0x80022D2C`/`0x80022D30` and `0x8002395C`/`0x80023964` (RasterizeSpritePrimQueue, per HUD moby) and `0x800623BC`/`0x800623C0` (InitGeom).
+- evidence: AddPrimToOT `0x800168DC` appends a packet to the (head, first) pair at `[0x8007581C]`; `0x800168A0(p, bin)` to bin `bin` of the 8-byte pairs at `[0x80075820]`. LinkOTPrimitives `0x80016784($a0 bins)` (14 callers, every state's draw tail) links the bins from `$a0-1` down to 0, each from its first packet to its head, then the `[0x8007581C]` pair, then the end tag `0x8006BBE0`, and returns the chain start; it is the Spyro 2/3 flatten body without the mark clamp.
+- evidence: DrawFullscreenTint `0x800190D4($a0 blend, $a1-$a3 rgb)`, 7 call sites: SetDrawMode `0x80060670(p, 1, 0, $a0<<5, 0)` at the cursor `[0x800757B0]`, AddPrimToOT, then a POLY_F4 at p+0xC, command `0x2A`, corners (0,8) (512,8) (0,232) (512,232), AddPrimToOT, cursor += 0x24. DrawCinematicLetterbox `0x80018F30()`, 5 call sites: steps `[0x800756C0]` by `[0x800756CC]` toward 22 while `[0x8007570C]` is set, else toward 0, clamped, then two black POLY_F4 (command `0x28`, 0x18 bytes each) over y 0..h and 240-h..240 at x 0..512, each through AddPrimToOT.
+- evidence: RenderWorldChunks `0x800258F0` (4994 instructions, called by SetupFrameOT `0x8002B9CC` with an LOD in `$a0`) matches Spyro 2's drawer `0x80023BB4` in opcode shape for 3905 instructions (74 blocks of 12 or more cover 3255). It differs in its own sector loop over the LOD tables `0x800785A8`/`0x800785AC`/`0x800785B0`, clearing the visibility table `0x800771C8` at entry instead of calling `0x8002D0D8`, radius mask `0x1FFF` and flags `0xE000` (Spyro 2: `0x0FFF`/`0xF000`), one 288-instruction block of its own, and Spyro 2-only blocks of 243, 98, 70, 61 and 50 instructions. Its camera builder `0x80033C50` composes (Ry(`0x80076E1E`)·Rz(`0x80076E20`))·Rx(`0x80076E1C`) through MulMatrix `0x800624E8` (Spyro 2: Rx·(Ry·Rz)), stores the view at `0x80076DE4` and the projection at `0x80076DD0`, and scales row 1 by 0x140/512 truncating toward zero (Spyro 2 floors).
+- where: titles/spyro1/core/frame/spyro1_frame_draw.*; titles/spyro1/core/frame/spyro1_ordering_table.*; titles/spyro1/core/hud/screen_overlays.*; titles/spyro1/core/runtime/spyro1_runtime.*
+- gap: producers for terrain, actors (paired actor `0x80023AC4`, `0x8001F798`, `0x80020F34`, RasterizeSpritePrimQueue `0x80022A2C`), particles, drop shadow `0x80059A48` and sky; culls and HUD anchoring (issue 0186).
+
 ### spyro2.identity — Preserve Spyro 2's independent executable facts
 - status: re-partial
 - deps: boot.provision
@@ -109,23 +119,30 @@ Statuses: ✅ re-verified · 🟡 re-partial · 🔬 in-progress · ⬜ todo · 
 ### spyro3.widescreen — Widen Spyro 3's own guest projection
 - status: re-partial
 - deps: spyro3.identity
-- evidence: every site was measured in Spyro 3's own image, not copied from Spyro 2: `SetGeomOffset` leaf `0x8005D35C`, whose sole CR26 publication is `0x8005955C` (that one writes the projection distance H and is deliberately NOT intercepted), plus four inline CR24/CR25 restatements at `0x80033EF8`, `0x80033EFC`, `0x80034B30`, `0x80034B38` that the per-field re-assertion carries. Authored window 512x240, OFX 256, OFY 120, H `0x155`. The shared owner latches from the guest's own published display mode and reports `aspect=16:9 presentation 684x240 (margin 86px), projection 512x240 (margin 86px, centre X 342)`, and a presented in-level capture shows the widened scene with the player unchanged in size.
-- where: titles/spyro3/core/spyro3_widescreen_facts.h; game/core/guest_widescreen_owner.*
+- evidence: every site was measured in Spyro 3's own image, not copied from Spyro 2: `SetGeomOffset` leaf `0x8005D35C`, whose sole CR26 publication is `0x8005955C` (that one writes the projection distance H and is deliberately NOT intercepted), plus four inline CR24/CR25 restatements at `0x80033EF8`, `0x80033EFC`, `0x80034B30`, `0x80034B38`; on Record the centre stays retail's and the canvas holds the margins, so none is rewritten. Authored window 512x240, OFX 256, OFY 120, H `0x155`. The shared owner latches from the guest's own published display mode and reports `aspect=16:9 presentation 684x240 (margin 86px), projection 512x240 (margin 86px, centre X 342)`, and a presented in-level capture shows the widened scene with the player unchanged in size.
+- where: titles/spyro3/core/spyro3_runtime.*; game/core/spyro_runtime.*
 - gap: the single `SetGeomOffset` call the route makes is INCOMPARABLE under the override differential ("original path performed platform-service @0x8005D35C"), so the leaf is not yet shown equal to retail; it is also called only once in the whole route.
 
 ### spyro3.moby-visibility — Own Spyro 3's moby visibility walk natively
 - status: re-partial
 - deps: spyro3.identity
 - evidence: `0x80030478` (811 insns, matching Spyro 2's `0x80043858` in size) walks the same 0x58-byte records through the same sphere-frustum logic, including the `4*x - 3*z` term. Override differential at 4:3 over the in-level route: 26/26 sampled calls match retail, 0 mismatches.
-- where: game/render/guest_moby_*; titles/spyro3/render/spyro3_render_facts.h
+- where: game/render/field/guest_moby_*; titles/spyro3/render/spyro3_render_facts.h
 - gap: none on this route.
 
 ### spyro3.terrain-drawer — Own Spyro 3's terrain drawer natively
 - status: re-partial
 - deps: spyro3.identity
 - evidence: `0x80022378` (5487 insns, matching Spyro 2's `0x80023BB4`), with the sector-visibility leaf `0x8002D0D8` called from `0x800223C8`, the visible-sector count at `0x8006D078`, outcodes `0x000D0000`/`0x00E40000`/`0xFE00`/`0x02000000`, and the caller analogue at `0x8001EC24`. Override differential at 4:3 over the in-level route: 26/26 sampled calls match retail, 0 mismatches.
-- where: game/render/guest_terrain_*; titles/spyro3/render/spyro3_render_facts.h
+- where: game/render/terrain/guest_terrain_*; titles/spyro3/render/spyro3_render_facts.h
 - gap: the margin objects the widening reveals are not shown to be ANIMATED from object memory; only their rendering is covered.
+
+### spyro3.record — Present Spyro 3 from its frame record with keyed terrain
+- status: re-verified
+- deps: spyro3.terrain-drawer, guest.camera-controller
+- evidence: the drawer's caller `0x8001EC24` passes `$a1 = 0` (the object key) and `$a0` = the scratch end, which alternates with the double-buffered pool. The draw `0x8001E638` switches on game state `0x8006E344` (`lw` at `0x8001E6E0`); level id `0x8006C5BC` is stored by `FUN_800584BC` at `0x80058718`. Camera controller `FUN_800144B4` runs the same mode machine as Spyro 2's `FUN_8001FA58` over mode `0x8006E044` and sub-state `0x8006E048`. The flatten is `0x8004E664`; states 4 and 0xD chain a second pass whose flattens return to `0x8001EA40` and `0x8001EB4C` and must not reassign bins. Between a field's draw and its present the guest rewrites level words the drawer reads (sector data near `0x800867D0`, `0x800896BC`, `0x80091088`, landed by the per-frame update's CD path under `0x8004FA24`), so the saved field carries every word the drawer read.
+- where: titles/spyro3/render/spyro3_render_facts.h, titles/spyro3/core/spyro3_runtime.*; game/core/frame_cut.*; game/render/terrain/{terrain_state_producer,terrain_rebuild,guest_depth_bins,guest_terrain_memory}.*
+- gap: what streams the rewritten sector words (CD read target and its owner in `FUN_8004FA24`) is not traced further than the watchpoint.
 
 ### spyro3.hud-anchor — Anchor Spyro 3's in-level HUD at the widened edges
 - status: re-partial
@@ -137,8 +154,8 @@ Statuses: ✅ re-verified · 🟡 re-partial · 🔬 in-progress · ⬜ todo · 
 ### spyro2.moby-visibility — Own Spyro 2's moby visibility walk natively
 - status: re-verified
 - deps: spyro2.identity
-- evidence: FUN_80043858 (811 insns) is native: the framework override differential (PSXPORT_OVERRIDE_DIFF, every call) matched retail on 4074 of 4074 calls at 4:3 over Glimmer, the attract demos and the page-turn loader (interpolated and mirrored rotations), RAM, GTE and v0/v1 included; 684/684 again after its globals moved to spyro2_render_facts.h, and 25/25 again after the walk, its frustum, GTE, rotation and globals were lifted to the shared game/render/guest_moby_* with only per-image facts left in the title. It walks the 0x58-byte moby records at *0x80066F14 and is called only from the object half of the frame draw FUN_8004C534, ahead of the moby drawers FUN_80044504, FUN_80046FD8 and the close-moby drawer FUN_800499D4; the terrain is FUN_80023BB4, called from FUN_8004C4FC
-- where: game/render/guest_moby_*; titles/spyro{2,3}/render/spyro{2,3}_render_facts.h
+- evidence: FUN_80043858 (811 insns) is native: the framework override differential (PSXPORT_OVERRIDE_DIFF, every call) matched retail on 4074 of 4074 calls at 4:3 over Glimmer, the attract demos and the page-turn loader (interpolated and mirrored rotations), RAM, GTE and v0/v1 included; 684/684 again after its globals moved to spyro2_render_facts.h, and 25/25 again after the walk, its frustum, GTE, rotation and globals were lifted to the shared game/render/field/guest_moby_* with only per-image facts left in the title. It walks the 0x58-byte moby records at *0x80066F14 and is called only from the object half of the frame draw FUN_8004C534, ahead of the moby drawers FUN_80044504, FUN_80046FD8 and the close-moby drawer FUN_800499D4; the terrain is FUN_80023BB4, called from FUN_8004C4FC
+- where: game/render/field/guest_moby_*; titles/spyro{2,3}/render/spyro{2,3}_render_facts.h
 - gap: none
 
 ### spyro2.hud-anchor — Anchor Spyro 2's in-level HUD at the widened edges
@@ -151,59 +168,37 @@ Statuses: ✅ re-verified · 🟡 re-partial · 🔬 in-progress · ⬜ todo · 
 ### spyro2.terrain-drawer — Own Spyro 2's terrain drawer natively
 - status: re-verified
 - deps: spyro2.identity
-- evidence: FUN_80023BB4 (5487 insns, every pass: classify 80023C0C, detail 80024534, translucent 80025434, coarse split 80025CC8, fine split 80026C74, GPU-size re-split 80028504, far 80028B14) is native with no guest hand-off; override differential at 4:3, every call: 0 mismatches over the Glimmer route (683/684, 1 incomparable interrupt), the long Glimmer route (1060/1062, 2 incomparable) and 60000 attract-demo fields (12886/12886), and 25/25 again after the drawer was lifted to the shared game/render/guest_terrain_* with only per-image facts left in the title. Its horizontal outcodes test [-margin, 512+margin) at 16:9, so the ground fills both margins in presented captures
-- where: game/render/guest_terrain_*
+- evidence: FUN_80023BB4 (5487 insns, every pass: classify 80023C0C, detail 80024534, translucent 80025434, coarse split 80025CC8, fine split 80026C74, GPU-size re-split 80028504, far 80028B14) is native with no guest hand-off; override differential at 4:3, every call: 0 mismatches over the Glimmer route (683/684, 1 incomparable interrupt), the long Glimmer route (1060/1062, 2 incomparable) and 60000 attract-demo fields (12886/12886), and 25/25 again after the drawer was lifted to the shared game/render/terrain/guest_terrain_* with only per-image facts left in the title. Its horizontal outcodes test [-margin, 512+margin) at 16:9, so the ground fills both margins in presented captures
+- where: game/render/terrain/guest_terrain_*
 - gap: the re-split pass (GT3/GT4 too large for the GPU) is not shown to have run on the routes measured. FUN_80046FD8's OFX/OFY = 256/120 restore at LAB_80047EA8 changes nothing visible at 16:9 (patched live to 342 and to 0 in Glimmer: frames identical to the unpatched timeline)
 
 ### spyro2.record — Present Spyro 2 from its frame record with keyed terrain
-- status: re-verified (2026-10-08)
+- status: re-verified
 - deps: spyro2.terrain-drawer
 - evidence: the draw FUN_800156FC builds the frame, waits in its limiter (FUN_80058EDC until two fields since the last flip, one extra wait when 0x80067044 is set), then flips and walks: PutDispEnv 0x80055CA0, PutDrawEnv 0x80055BE0, DrawOTag 0x80055B70, and returns. The driver presents at the draw's wait, so in gameplay steps alternate: one ends suspended in the limiter with 2 fields and seals a record with no walk (entries=0), the next resumes the draw, walks, runs into the update until its host turn ends, and seals the walk with 1 field. Packet pools: two parity pools below the OT header, lowest base word 0x80069998 and top word 0x8006B2A4 (FUN_80011DD4, FUN_8004D158); measured 0x801A2444 / 0x801BE444 / 0x801DA444, OT at 0x801DA44C. Scene identity for cuts: game state 0x800681C8 (update switch 0x8001B164; 0 playing, 1 conversation, 3/5/6 loading, 11 title) and level id 0x80066F90 (0x80053D50). Gameplay camera FUN_8001D8A4 copies a scripted camera from 0x80068064/0x80068070 while byte 0x80067FC9 is set. The OT's 512 bins are 8-byte pairs, the head (last linked) then the first linked packet; FUN_8001B2A8 (callers 0x800146AC, 0x80014A54, 0x800159A4, 0x8004D938) scans from min(table+0x580*8, mark+8) down, starts each bin at its first word and links bins deepest first into the chain DrawOTag walks
-- where: titles/spyro2/core/spyro2_frame_cut.*, spyro2_runtime.cpp; game/render/terrain/terrain_{rebuild,state_producer}.*; titles/spyro2/render/spyro2_depth_bins.*
+- where: game/core/frame_cut.*, titles/spyro2/core/spyro2_runtime.cpp; game/render/terrain/{terrain_rebuild,terrain_state_producer,guest_depth_bins}.*
 - gap: the terrain is redrawn from its drawer at every t, so visibility changes leave no slivers (issue 0173, closed); on the title screen and the intro cutscene the composed terrain differs from the device (issue 0179); a camera re-placed inside one state is declared a cut at the three placement steps of the camera controller (see guest.camera-controller); mobys, HUD, sky and particles are guest code with no producer
 
 ### guest.camera-controller — Where the Spyro 2 camera is placed rather than moved
-- status: re-verified (2026-10-10)
+- status: re-verified
 - deps: spyro2.record
 - evidence: FUN_8001FA58 (0x8001FA58..0x80021557, called first by FUN_8001D8A4) is the camera controller; its mode machine is `0x80067ED0` (mode) and `0x80067ED4` (sub-state), the mode is set by FUN_800216D8 `SetCameraMode` (14 call sites, from FUN_80021DC0 by player state through the table `0x80061468` and the request word `0x80067FEC`). The scripted camera keys are 12-byte (x, y, z, rx, ry, rz) records of the table at `0x80068028` copied to `0x80068064`/`0x80068070` and handed to the render camera while byte `0x80067FC9` is set. SetCameraMode for modes 0, 1, 2, 6, 7, 8 and 0x12 re-derives the follow angles from the camera's position, so those switches do not move it. The camera is placed only at mode 9 sub-state 0 -> 1 (saved camera `0x80067FF4`/`0x80068008`), mode 0xB sub-state 0 -> 1 (respawn words `0x8006A21C`/`0x8006A228`) and mode 10 sub-state 0 -> 1 and 0x80 -> 0x81 (scripted camera begins, ends), each after the guest's own fade of `DAT_80066F68` to full; mode 10 with bit 2 of `0x80068038` blends into the script from sub-state 3 and is not a placement
-- where: titles/spyro2/core/spyro2_frame_cut.*
+- where: game/core/frame_cut.*
 - gap: what sets the request word 9/0xB in play (the respawn trigger itself) is not traced; no placement occurs on the Glimmer route by itself, and the placement was exercised by setting the request word through the REPL
 
-### guest.temporal-fence — Present the 60fps in-between from the frame that carried geometry
-- status: re-verified
-- deps: guest.temporal-scopes
-- evidence: `Fps60::present` only runs when the presentation fence is committed THROUGH the temporal product. `FieldOwner::deliverField` was committing it as a plain `presentation.commit`, so `fps60=1` printed its banner and changed no picture at all; and a field that captured no primitives (Spyro runs its 30 Hz scene on alternate fields) presented through the temporal product retired the paired endpoint, so the next real field had nothing to interpolate toward. The fence now goes through the temporal product on a field that captured primitives and through the plain fence on one that captured none. With that, consecutive presented captures alternate real/in-between/repeat instead of real/repeat, the census on `fps60guest` reports 35.9 % (Spyro 2) and 38.8 % (Spyro 3) of polygons paired with real interpolated vertices emitted per in-between, and guest RAM plus scratchpad stay byte-identical with fps60 on and off
-- where: game/core/field_owner.cpp
-- gap: a 4:3 real frame still differs by 60-74 of 122,880 pixels between fps60 on and off, all of them 1-2 px animated sparkle sprites whose phase follows the host clock; every static pixel is identical
-
 ### guest.camera-builder — Build the in-between's camera the way the guest builds its own
-- status: re-verified, and in the product
+- status: re-verified
 - deps: spyro2.terrain-drawer, spyro3.terrain-drawer
 - evidence: the five words the drawer loads into the GTE's rotation registers (SCUS_944.25 `0x80067E84`, SCUS_944.67 `0x8006DFF8`) are WRITTEN BY THE GUEST, and the thing it writes them from is three angles. `otattr` last-writer provenance on `0x80067E84..0x80067EA8` names one function for both matrices — the per-field body, SCUS_944.25 `0x800156FC`, SCUS_944.67 `0x8001E638` — and each opens with two calls before anything else: `FUN_8001C2F8(&0x80067EC8, &0x80067E98, &0x80067E84)` and `FUN_8001BDB0(&0x80067EB8, &0x80067EAC)`. The first argument is the camera STATE: three signed 16-bit ANGLES and nothing else
 - what the builder does, recovered from the two bodies (which are the same routine at different addresses): it reads its two 256-entry 16-bit tables (`0x80061BD8` sine, `0x80061C58` cosine on SCUS_944.25; `0x800658A0` / `0x80065920` on SCUS_944.67) by `(angle & 0xFFF) >> 4` with the low nibble as the interpolation fraction, lays out `Ry`, `Rz` and `Rx` into the GTE's nine rotation elements at scratchpad halfwords 0, 10 and 20, multiplies them with three `MVMVA sf` column products (`FUN_80059D6C`; SCUS_944.67 builder `FUN_8004F6C4`, multiply `FUN_8005F35C`), first `Ry * Rz` and then `Rx * (Ry * Rz)` — the multiply loads its first argument as the GTE rotation, so `Rx` is the left factor — writes the product to `0x80067E98`, multiplies row 1 (`R21`, `R22`, `R23` — halfwords 6, 8, 10) by `0x140 >> 9`, and writes that to `0x80067E84`
 - the two matrices are why the row scale matters: the classification pass's sphere tests use the UNSCALED one and the drawer uses the scaled one, and MEASURED they differ in exactly three elements (678 -> 423, 3869 -> 2418, 1160 -> 725 on SCUS_944.25, which is `(x * 0x140) >> 9`)
 - the builder is bit-exact when re-run natively over the guest's own tables, in the guest's order (until 2026-10-08 the native one multiplied `(Ry * Rz) * Rx`, which agrees only while the roll is near zero, as it was in the cameras below; Spyro 2's intro cutscene exposed it, issue 0179): 24 consecutive cameras on SCUS_944.25 and 20 on SCUS_944.67, each read in ONE control-channel reply with its own angles (read separately the two are one field apart and never agree — the guest updates the angles after it builds), and every element the GTE reads comes back equal. The one word that differs is the HIGH HALF of CR4, which holds a saturated depth register in the guest and which the GTE discards
 - what it is in the product: `game/render/terrain/guest_camera_builder.{h,cpp}`. An in-between interpolates the three angles, each the short way round its 4096-step turn, and re-runs the guest's own maths over host memory. The interpolation of packed control words — per element or whole — is gone, and with it the question of which was right: the words are products of those angles, truncated back into 16 bits, so they are not values that move linearly with the camera
-- what it cost, measured: with a camera that is genuinely between two of the guest's, the traversal defers the union of both endpoints' splits, and SCUS_944.67's first in-between wrote a split entry `0x30C4` above the scratch block, past its own top. The in-between's scratch window now runs to `frameTop` — the end of every range it does NOT own — instead of to the block the guest sized for one camera (terrain_world_pass.cpp)
+- what it cost, measured: with a camera that is genuinely between two of the guest's, the traversal defers the union of both endpoints' splits, and SCUS_944.67's first in-between wrote a split entry `0x30C4` above the scratch block, past its own top. The in-between's scratch window now runs to `frameTop` — the end of every range it does NOT own — instead of to the block the guest sized for one camera (terrain_rebuild.cpp)
 
-### guest.moby-provenance — Give Spyro 2/3 moby primitives a pairable identity
-- status: blocked on a decision, evidence gathered
-- deps: guest.temporal-scopes, spyro3.moby-visibility
-- evidence: the moby walk `0x80030478` is native and knows each record, but it does not compute the moby's screen vertices: it writes a 0x44-byte render-list entry (record at +0x40, mesh at +0x04, rotation at +0x28) and hands the list base to the guest in GTE data registers (VXY1 = scratch base - 0x3000, VZ1 = the parked parameter at `0x8006C5DC`). Spyro 3's three moby mesh drawers are `0x80031124`, `0x80033C5C` and `0x8002DDA8` (they are the three calls `FUN_8001EC5C` makes straight after the walk, one per list the walk builds; `0x8003CDA0` behind the state guard is the 2D/overlay pass, not a moby drawer). Each is ONE guest call covering the whole list, and the per-moby loop is inside it (`FUN_80031124` alone is 2153 lines of Ghidra C). So the per-moby submission boundary the walk owns does not exist: the walk's entry is written before the drawer runs, and the drawer picks up the base from a GTE register rather than an argument. This is why moby primitives never pair and are presented at their real positions
-- gap: two ways forward, both real work. (a) Take the three mesh drawers native (a port of roughly 3300 lines of decompiled C, each needing its own override differential at 4:3) and open a scope of (record, mesh) around each moby's own loop, letting the existing RTPS/RTPT sampler fill in the vertices. (b) Keep the drawers guest and add a title-side attribution pass: the captured queue arrives in ordering-table order, so a pass that walks the render-list entries and attributes each queued polygon to its entry can record `ProjectedVertex`s with scope (record, mesh), epoch 0 and the vertex ordinal as the identity, using the queue item's own guest XY as the screen point. (b) needs a second projection source alongside `ProjectionProvenance`, which the framework's `GuestGeometrySceneSource` does not currently accept. Not started; the choice is the user's
-
-### guest.sparkle-phase — Real frames must not differ with fps60 on
-- status: open defect, cause narrowed but not identified
-- deps: guest.temporal-fence
-- evidence: at 4:3 the same route point's real present differs between `fps60=1` and `fps60=0` in 74-83 of 122,880 pixels, in 23-25 separate 1-9 pixel blobs confined to the sparkle/glint sprites; every terrain, moby and HUD pixel is identical. Both runs report `fields=5677 product_steps=3393`, and guest RAM plus scratchpad dumped at the shot point (`scratch/s3wide/s28/shot43.py`, which takes the shot and the dump together) are byte-identical, so it is neither guest state nor a different number of guest frames. Two `fps60=0` runs are byte-identical to each other, so it is fps60 and not route jitter
-- what was ruled out: the port-side sparkle producer. `submitSparkles` lives in `glow_sparkle.cpp` and is reached only through `spyro_field_model_chain_submit`, which is called from `frame_renderer_frame.cpp` (Spyro 1's native render frame), `dragon_scene_producer.cpp` and `menu_world_pass.cpp`; no Spyro 2/3 path calls it, and the runtime's own `glow` debug channel emits nothing for either title. The glints in a Spyro 3 frame are therefore guest packets, not port output, and there is no host-side sparkle input to remove
-- the GPU-state-bleed hypothesis is NOT supported by the code as written: `GpuVkState::frame_end` resets every per-pass accumulator (`s_tri_n`, `s_line_n`, `s_tex_n`, the painter state, the semi-transparent runs and all 2D bands) before returning, so the in-between slot does not hand a batch, a blend mode or a texture to the real slot. The framebuffer is shared between the two slots, which is the part not yet ruled in or out
-- gap: unexplained. `final.ppm` comparisons and the two 4:3 preseq sets are under `scratch/s3wide/s28/`
-
-### guest.frame-identity — Spyro 2/3 terrain vertices must keep one identity across frames
-- status: root cause found, fix needs a framework seam that is not green-lit
-- deps: guest.temporal-scopes
-- evidence: measured directly, by dumping every identity component of the first resolved polygon of all710 presented frames of the Sunrise Spring route (`resolve()` in psxport, temporary, reverted). Of those, 324 could not be paired with the previous frame and 386 could. In the unpaired group the scope, the epoch and the V0 x/y are all IDENTICAL to the paired group; only V0 z differs, and it climbs 4179, 4180, 4181, 4182, 4183, 4184 — one per frame — while the paired group's z is constant at 2708. So a terrain vertex pairs exactly when the camera's z has not moved since the previous frame
-- why: the identity is (scope, epoch, V0..V2). `guest_terrain_mesh.cpp`'s `unpack()` builds V0 as `z = ((word >> 19) & 0x1FFC) + origin.z` and `x|y = (origin.x - ((word >> 8) & 0x1FFC)) | ((origin.y - height) << 16)`, where `origin` is the sector origin RELATIVE TO THE CAMERA. So all three identity components are camera-relative by construction, and the only frame-stable handle the producer holds is the static 32-bit vertex word it unpacked from. Retail's own drawer does the same, and the 4:3 override differential (26/26 terrain-drawer calls) forbids changing it
-- what is already fixed: `FieldOwner::deliver` takes a field to the temporal product only when the guest's own native scene producers ran on it (`SpyroContext::sceneProducerTicks`). Spyro's near-empty fields used to reach the presenter, which put a held copy on screen AND adopted their projection set as the pairing endpoint. Presented frames 1177 -> 713; frames with a live previous endpoint 60 % -> 99.9 % (707 of 713)
-- the fix, and why it is not done: the scope key is already the title's, so the missing piece is the identity's INPUT component, which `ProjectionProvenance::record()` reads from the GTE operands. The smallest title-neutral seam is for a `Scope` to name a title-supplied identity for the vertices recorded inside it, which this producer would fill from the static vertex word it already holds. That is a new capability in psxport's temporal path, not a bug fix, and it is the operator's call. No heuristic was applied: quantising the input or matching on a tolerance would pair the wrong vertices whenever two of them sit within that tolerance
+### spyro3.moby-drawers — Spyro 3's moby mesh drawers
+- status: re-partial
+- deps: spyro3.moby-visibility
+- evidence: the moby walk `0x80030478` does not project its mobys: it writes a 0x44-byte render-list entry (record at +0x40, mesh at +0x04, rotation at +0x28) and hands the list base to the guest in GTE data registers (VXY1 = scratch base - 0x3000, VZ1 = the parked parameter at `0x8006C5DC`). The three moby mesh drawers are `0x80031124`, `0x80033C5C` and `0x8002DDA8`, the three calls `FUN_8001EC5C` makes straight after the walk, one per list the walk builds; `0x8003CDA0` behind the state guard is the 2D/overlay pass. Each is one guest call over its whole list, with the per-moby loop inside it (`FUN_80031124` alone is 2153 lines of Ghidra C).
+- where: titles/spyro3/render/spyro3_render_facts.h
+- gap: no producer (psxport F-FPS60): each drawer needs a native port that saves its list and redraws it at t, proven by an override differential at 4:3 (issue 0176 for Spyro 2's).

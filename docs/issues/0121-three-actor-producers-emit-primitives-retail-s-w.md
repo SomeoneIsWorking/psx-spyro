@@ -1,11 +1,11 @@
 ---
 id: 121
 title: Three actor producers emit primitives retail's walker never matches
-status: open
+status: resolved
 symptom: on the last of 220 oracle frames of artisans-arrival, 0x80059F8C emits 12 primitives and retail matches 0 of them, sparkle 0x800584C4 emits 10 and retail matches 0, shadow 0x80059A48 emits 16 and retail matches 12
 tags: render,actor,oracle,producer
 created: 2026-09-19
-updated: 2026-09-19
+updated: 2026-10-15
 ---
 
 ## Symptom
@@ -69,3 +69,7 @@ The `0x80022A2C` recoloured pair is in this class: both are one count of one cha
 Not the same as 0120 (an actor sorting against terrain) or 0105 (actor-vs-actor depth order). Those
 two are about ORDER between primitives that both exist. This is about primitives that exist on one
 side and not the other.
+
+## Resolution
+
+Obsolete (2026-10-15): The native actor producers are deleted; on Record the guest draws these families.

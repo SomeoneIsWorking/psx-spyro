@@ -1,11 +1,8 @@
 #include "spyro1_runtime.h"
 
-#include "cd_control.h"
-#include "cfg.h"
-#include "fps60.h"
-#include "frame_pacer.h"
+#include "core.h"
+#include "crt0_boot.h"
 #include "game.h"
-#include "in_between_strategy.h"
 #include "native_audio_key_state.h"
 #include "native_camera.h"
 #include "native_collision_shade.h"
@@ -40,19 +37,20 @@
 #include "native_spu_transfer_mode.h"
 #include "native_spu_voice_attributes.h"
 #include "native_spu_voice_pitch.h"
-#include "presentation_owner.h"
+#include "platform_hle.h"
+#include "screen_overlays.h"
 #include "spyro1_frame_driver.h"
 #include "spyro1_logo_facts.h"
-#include "spyro_context.h"
+#include "spyro1_ordering_table.h"
 #include "spyro_game.h"
 #include "spyro_gate_debug.h"
-#include "temporal_scene.h"
 
 #include <lucent/log.h>
 
 namespace spyro1 {
+namespace {
 
-const GuestProgramImage Spyro1Runtime::programImage_{
+constexpr psx::game::Crt0Image kCrt0{
     .bss = {0x80075640u, 0x8007AA38u},
     .stackTopWordAddress = 0x800755A8u,
     .stackReserveWordAddress = 0x800755A4u,
@@ -61,28 +59,62 @@ const GuestProgramImage Spyro1Runtime::programImage_{
     .heapBaseStoreAddress = 0x800730C0u,
     .globalPointer = 0x80075264u,
     .libcInitEntry = 0x8005DB14u,
-    .gameMainEntry = 0x80012204u,
     .crt0Entry = 0x8005B8E0u,
-    .residentText = {0x00010000u, 0x00075800u},
-    .backtraceText = {},
-    .stackBias = {true, -8},
+    .stackBias = {.declared = true, .bytes = -8},
 };
 
-Spyro1Runtime::Spyro1Runtime() : SpyroRuntime(programImage_, spyro::SpyroTitle::Spyro1) {}
+// VSync's negative-argument path reads D_800749E0 (asm/psyq.s:2646-2649), the vblank counter this
+// title's field clock advances.
+constexpr std::uint32_t kVSync = 0x8005DBC4u;
+constexpr std::uint32_t kVSyncQueryCounter = 0x800749E0u;
 
-const spyro::TitleLogoFacts &Spyro1Runtime::logoFacts() const {
-  return kLogoFacts;
-}
+constexpr psx::hle::StockLibgpu::Entries kLibgpu{.drawSync = 0x8005F764u,
+                                                 .timeoutArm = 0x80062090u,
+                                                 .timeoutCheck = 0x800620C4u,
+                                                 .timeoutDeadlineWord = 0x80074B7Cu,
+                                                 .timeoutFlagWord = 0x80074B80u};
 
-void *Spyro1Runtime::createContext(Core &) {
-  return new spyro::Context();
-}
+// SetGeomOffset (ctc2 $a0,$24 at 0x80062620) and SetGeomScreen (ctc2 $a0,$26 at 0x80062638).
+constexpr psx::hle::StockLibgte::Entries kLibgte{.setGeomOffset = 0x80062618u,
+                                                 .setGeomScreen = 0x80062638u};
 
-void Spyro1Runtime::destroyContext(void *context) {
-  delete static_cast<spyro::Context *>(context);
+// From external/spyro-1's labels in asm/psyq.s. CdControlF takes (com, param) only: its a2 is the
+// caller's leftover register, so it binds the entry that writes no result buffer.
+constexpr psx::cd::StockLibcd::Entries kLibcd{.command = 0x80064CECu,
+                                              .control = 0x80063C48u,
+                                              .controlBlocking = 0x80063EACu,
+                                              .controlFire = 0x80063D80u,
+                                              .sync = 0x800647A0u};
+
+// Written by libcd's command send: Setloc 0x80064DDC, Setmode 0x80064E08, command byte 0x80064EA4.
+constexpr psx::cd::StockCommandWorkArea kCdWorkArea{.lastPositionAddress = 0x80074E50u,
+                                                    .lastModeAddress = 0x80074E54u,
+                                                    .lastCommandAddress = 0x80074E55u};
+
+constexpr std::uint32_t kCdDataSync = 0x800655A0u;
+constexpr std::uint32_t kCdInitHandshake = 0x800653B4u;
+
+constexpr psx::input::StockPadBuffers::Layout kPadBuffers{.slot0Buffer = 0x800786A0u,
+                                                          .slot1Buffer = 0x800786C2u};
+
+} // namespace
+
+Spyro1Runtime::Spyro1Runtime()
+    : SpyroRuntime(spyro::SpyroTitle::Spyro1), vsync_(kVSync, kVSyncQueryCounter), libgpu_(kLibgpu),
+      libgte_(kLibgte), libcd_(kLibcd, kCdWorkArea, 0), pad_(kPadBuffers) {}
+
+void Spyro1Runtime::startProgram(Core &core) {
+  psx::game::Crt0Boot{kCrt0}.run(core);
+  frameDriver(core).initialize(core);
 }
 
 void Spyro1Runtime::registerOverrides(Game &game) {
+  vsync_.bind(game);
+  libgpu_.bind(game);
+  libgte_.bind(game);
+  libcd_.bind(game);
+  game.platform_hle.bindStock(kCdDataSync, PlatformHle::completeImmediately);
+  game.platform_hle.bindStock(kCdInitHandshake, PlatformHle::completeImmediately);
   spyro::registerCdQueue(game.core);
   spyro::registerNativeRand(game.core);
   spyro::registerNativeLeaves(game.core);
@@ -124,116 +156,56 @@ void Spyro1Runtime::registerOverrides(Game &game) {
   native::registerSpuKeyStatusOverrides(game.core);
   native::registerSpuTransferModeOverrides(game.core);
   native::registerSpuCommonAttrOverrides(game.core);
+  OrderingTable::registerOverrides(game.core);
+  ScreenOverlays::registerOverrides(game.core);
   lucent::info("boot", "installed Spyro 1's verified image-scoped native overrides");
 }
 
-void Spyro1Runtime::bootInit(Core &core) {
-  frameDriver(core).initialize(core);
-}
-
-std::unique_ptr<FrameDriver> Spyro1Runtime::createFrameDriver(Game &game) {
+std::unique_ptr<psx::game::FrameDriver> Spyro1Runtime::createFrameDriver(Game &game) {
   return std::make_unique<Spyro1FrameDriver>(
-      game, cfg_dbg("stage-observe") != 0, cfg_dbg("handoff-store") != 0);
+      game, lucent::channel_on("stage-observe"), lucent::channel_on("handoff-store"));
 }
 
-bool Spyro1Runtime::guestVramIsPicture(const Game &game) const {
-  return spyro::presentationOwner(game.core).guestVramIsPicture();
+void Spyro1Runtime::deliverPad(Core &core, const psx::input::PadDelivery &delivery) {
+  pad_.deliver(core, delivery);
+}
+
+bool Spyro1Runtime::interpolates() const {
+  return true;
+}
+
+RenderCapabilities Spyro1Runtime::renderCapabilities() const {
+  return RenderCapabilities{
+      .defaultPath = RenderPath::Record,
+      .nativeRenderPath = false,
+  };
+}
+
+bool Spyro1Runtime::guestVramIsPicture(const Game &) const {
+  return true;
 }
 
 bool Spyro1Runtime::guestPictureIsNativeWidth(const Game &game) const {
-  return spyro::presentationOwner(game.core).guestPictureIsNativeWidth();
+  return game.frameDriver == nullptr || !frameDriver(game.core).bootComplete();
 }
 
-void Spyro1Runtime::pacePresentation(Core &core, int fields, int parts) {
-  // FieldScheduler has already delivered this simulated time, including the guest IRQ callbacks.
-  core.game->framePacer.waitPresentedFields(core, fields, parts);
+bool Spyro1Runtime::sealedFrameIsCut(Core &core) const {
+  // A session's first record, sealed before its driver exists, is a cut.
+  return core.game->frameDriver == nullptr || frameDriver(core).cut().isCut();
 }
 
-std::unique_ptr<psx::frame::TemporalFramePresentation>
-Spyro1Runtime::createTemporalFramePresentation(Game &game) {
-  return std::make_unique<Fps60>(game, spyro::temporal_scene::source(game));
+const spyro::TitleLogoFacts &Spyro1Runtime::logoFacts() const {
+  return kLogoFacts;
 }
 
-namespace {
-
-constexpr std::uint32_t kGpuTimeoutDeadlineVar = 0x80074B7Cu;
-constexpr std::uint32_t kGpuTimeoutFlagVar = 0x80074B80u;
-constexpr std::uint32_t kGpuTimeoutArm = 0x80062090u;
-constexpr std::uint32_t kGpuTimeoutCheck = 0x800620C4u;
-// The three libcd control entries, read from external/spyro-1's own labels in asm/psyq.s. They are
-// NOT interchangeable: CdControl and CdControlB take (com, param, result), but CdControlF takes
-// only (com, param), so at its call sites a2 is the caller's leftover register and must never be
-// written through. This binding named 0x80063D80 CdControlB and gave it the result-writing owner,
-// which wrote 8 bytes at whatever a2 held — 0x09B30000 on the level load after a portal entry.
-constexpr std::uint32_t kCdControl = 0x80063C48u;
-constexpr std::uint32_t kCdControlF = 0x80063D80u;
-constexpr std::uint32_t kCdControlB = 0x80063EACu;
-constexpr std::uint32_t kCdSync = 0x800647A0u;
-constexpr std::uint32_t kCdCw = 0x80064CECu;
-constexpr std::uint32_t kCdDataSync = 0x800655A0u;
-constexpr std::uint32_t kCdInitHandshake = 0x800653B4u;
-
-void gpuTimeoutArm(Core *core) {
-  core->mem_w32(kGpuTimeoutDeadlineVar, 0x7fffffffu);
-  core->mem_w32(kGpuTimeoutFlagVar, 0);
+bool Spyro1Runtime::titleCommand(Core &core,
+                                 const psx::game::TitleCommandLine &input,
+                                 std::FILE *reply) {
+  return spyro::gate_debug::command(core, input, reply);
 }
 
-void syncComplete(Core *core) {
-  core->r[2] = 0;
-}
-
-} // namespace
-
-const PlatformHlePlan *Spyro1Runtime::platformHlePlan() const {
-  static const PlatformHlePlan plan = [] {
-    PlatformHlePlan p{};
-    p.vsyncAddress = 0x8005DBC4u;
-    // The word Spyro 1's VSync returns for a NEGATIVE argument, from the image: 0x8005DBC4 is
-    // `bgez $a0, .L8005DC14`, and the not-taken path is `lui $v0, %hi(D_800749E0)` /
-    // `lw $v0, %lo(D_800749E0)($v0)` (asm/psyq.s:2646-2649). So a query reads 0x800749E0, which is
-    // the vblank counter this title's own field clock advances — the same word
-    // `spyro::render::frameEnd`'s display tail reads for its >= 2-field throttle
-    // (game/render/frame/frame_env.cpp). Spyro 2 and 3 declare the same field for the same reason.
-    //
-    // It was missing, and the framework refuses an undeclared query: every guest render arm ends in
-    // `pre = VSync(-1)`, so the GUEST renderer could not run a single frame without killing the
-    // process. That is what made a stage with no native producer unfixable rather than merely
-    // unported — see `spyro::render::drawSceneWithGuestFallback`.
-    p.vsyncQueryCounterAddress = 0x800749E0u;
-    p.setGeomOffset = 0x80062618u;
-    p.setGeomScreen = 0x80062638u;
-    p.drawSyncAddress = 0x8005F764u;
-    p.bindings[0] = {kGpuTimeoutArm, gpuTimeoutArm};
-    p.bindings[1] = {kGpuTimeoutCheck, syncComplete};
-    p.bindings[2] = {kCdDataSync, syncComplete};
-    p.bindings[3] = {kCdInitHandshake, syncComplete};
-    p.bindings[4] = {kCdControl, cd_control_sync};
-    p.bindings[5] = {kCdControlF, cd_control_fire_sync};
-    p.bindings[6] = {kCdControlB, cd_control_sync};
-    p.bindings[7] = {kCdSync, cd_sync_stock_sync};
-    p.bindings[8] = {kCdCw, cd_command_stock_sync};
-    p.bindingCount = 9;
-    // libcd command-send writers: 0x80064DDC Setloc, 0x80064E08 Setmode, 0x80064EA4 command byte.
-    p.stockCdWorkArea = {0x80074E50u, 0x80074E54u, 0x80074E55u};
-    p.windowLo[0] = 0x8005B000u;
-    p.windowHi[0] = 0x80066000u;
-    return p;
-  }();
-  return &plan;
-}
-
-const GuestPadBufferLayout *Spyro1Runtime::guestPadBufferLayout() const {
-  static constexpr GuestPadBufferLayout layout{
-      .slot0Buffer = 0x800786A0u,
-      .slot1Buffer = 0x800786C2u,
-      .slotPointerTable = 0u,
-      .slotPointerStride = 4u,
-  };
-  return &layout;
-}
-
-bool Spyro1Runtime::replCommand(Core &core, const char *command, const char *line) {
-  return spyro::gate_debug::replCommand(&core, command, line);
+std::uint64_t Spyro1Runtime::inputPhase(Core &core) const {
+  return inputPhase_.of(core);
 }
 
 } // namespace spyro1

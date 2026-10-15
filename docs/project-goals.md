@@ -54,30 +54,27 @@ Constraints and non-goals:
 
 Related state: S008, S009, S010.
 
-## G003 — Native widescreen and temporal presentation
+## G003 — Widescreen and 60 fps presentation
 
-Render each title's owned scenes from pre-GTE game state with a wider projection and true temporal
-presentation.
+Present each title wider than 4:3 and at 60 fps without changing what the game simulates.
 
-Why it matters: post-GTE packets have lost world depth and pre-quantisation motion, so they cannot
-produce correct expanded view or stable per-object interpolation.
+Why it matters: these are the two enhancements every PSX port in the workspace ships, and both must
+leave the console's own frames intact.
 
 Success conditions:
 
-- Complete scene producers use title state, source assets, and explicit painter/depth ownership.
-- Widescreen expands the projection/viewport/scissor and any proven culling owner without stretching
-  the final image.
-- Compatible objects interpolate stable previous/current authored state without replaying guest
-  rendering or interpolating guest packets.
-- Unowned scene arms refuse explicitly rather than fabricating a plausible picture.
+- Real frames are the guest's own: `recordcheck` at t=1 and 1x 4:3 reports `mismatched=0`.
+- Widescreen widens the canvas and every title-owned horizontal cull, and anchors edge HUD elements,
+  without stretching the image (psxport F-WIDE, `docs/features.md`).
+- Every in-between is composed from each producer's render of its saved state at t over the shown
+  record, and a cut is declared where the scene jumps (psxport F-FPS60).
 
 Constraints and non-goals:
 
-- Guest scratch, GTE output, OT packets, and rendered VRAM are diagnostic evidence, never native-
-  producer source state.
-- Frame duplication or retiming guest output is not temporal interpolation.
+- A producer render never writes guest memory, and widening never changes guest state.
+- Frame duplication or retiming guest output is not interpolation.
 
-Related state: S002, S003, S005, S007, S011.
+Related state: S005, S019, S020, S026-S032.
 
 ## G004 — Portable, evidence-backed delivery
 

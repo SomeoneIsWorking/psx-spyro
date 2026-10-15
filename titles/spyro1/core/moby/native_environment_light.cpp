@@ -3,6 +3,7 @@
 #include "native_execution.h"
 
 #include <cstdint>
+#include <optional>
 
 namespace spyro1::native {
 namespace {
@@ -69,19 +70,31 @@ Word splitWord(std::uint32_t packed) {
 // other component is differenced against it and shifted into the wide field, and the third is
 // differenced, masked to the field width THAT SITE uses and shifted into the narrow field. The z
 // slot of each of the GTE arm's three branches masks to eight bits and every other site masks to
-// nine, so the widths are arguments rather than an assumption: getting one wrong writes a
+// nine, so the layout is an argument rather than an assumption: getting one wrong writes a
 // correct-looking colour with two field widths swapped, which no other check in the port would
 // notice.
-std::uint32_t biased(std::int32_t reference,
-                     std::int32_t first,
-                     std::int32_t second,
-                     std::uint32_t mask,
-                     unsigned firstShift,
-                     unsigned secondShift) {
+struct Components {
+  std::int32_t reference;
+  std::int32_t first;
+  std::int32_t second;
+};
+
+struct FieldLayout {
+  std::uint32_t mask;
+  unsigned firstShift;
+  unsigned secondShift;
+};
+
+constexpr FieldLayout kNearField{0x1FFu, 23, 14};
+constexpr FieldLayout kGteZField{0xFFu, 24, 16};
+constexpr FieldLayout kSoftwareZField{0x1FFu, 24, 16};
+
+std::uint32_t biased(const Components &components, const FieldLayout &layout) {
+  const auto [reference, first, second] = components;
   const std::uint32_t base = static_cast<std::uint32_t>(reference) & 0x3FFFu;
-  const std::uint32_t wide = static_cast<std::uint32_t>(first - reference) << firstShift;
-  const std::uint32_t narrow = (static_cast<std::uint32_t>(second - reference) & mask)
-                               << secondShift;
+  const std::uint32_t wide = static_cast<std::uint32_t>(first - reference) << layout.firstShift;
+  const std::uint32_t narrow = (static_cast<std::uint32_t>(second - reference) & layout.mask)
+                               << layout.secondShift;
   return base | wide | narrow;
 }
 
@@ -103,29 +116,42 @@ std::uint32_t signedShift(std::uint32_t value, unsigned amount) {
 // the flag, so a node skipped by bit 1 still leaves v0 holding its untouched tick rather than
 // whatever the previous node left there — which is the whole of v0 when the last list ends on such
 // a node.
-bool nodeIsDue(Core *c,
-               std::uint32_t node,
-               std::uint32_t charge,
-               std::uint32_t &flags,
-               std::uint32_t &delta,
-               Tail &tail) {
-  flags = c->mem_r8(node + 1u);
+struct ListNode {
+  std::uint32_t node;
+  std::uint32_t charge;
+};
+
+// A due node's flag byte and the delta its chain walk starts from.
+struct DueNode {
+  std::uint32_t flags;
+  std::uint32_t delta;
+};
+
+std::optional<DueNode> nodeIsDue(Core *c, const ListNode &at, Tail &tail) {
+  const auto [node, charge] = at;
+  const std::uint32_t flags = c->mem_r8(node + 1u);
   const std::uint32_t tick = c->mem_r8(node + 3u);
   tail.v0 = tick;
   tail.v1 = flags & 0x2u;
   if (tail.v1 != 0u) {
-    return false;
+    return std::nullopt;
   }
   const std::int32_t left = static_cast<std::int32_t>(tick) - static_cast<std::int32_t>(charge);
   tail.v0 = static_cast<std::uint32_t>(left);
   const std::int32_t leftover = 0 - left;
   if (left > 0) {
     c->mem_w8(node + 3u, static_cast<std::uint8_t>(left));
-    return false;
+    return std::nullopt;
   }
-  delta = static_cast<std::uint32_t>(leftover);
-  return true;
+  return DueNode{flags, static_cast<std::uint32_t>(leftover)};
 }
+
+// A chain walk's node, the index it resumes from, and the node's due state.
+struct ChainStart {
+  std::uint32_t node;
+  std::uint32_t index;
+  DueNode due;
+};
 
 // The 4-byte-record chain, walked by the first two lists. Each record is four bytes — step/flags,
 // next index, spare, signed delta — and the walk writes val&3 to node+1 on every step, stops on bit
@@ -153,12 +179,11 @@ struct ByteChain {
   std::int32_t sum;
 };
 
-ByteChain walkByteChain(Core *c,
-                        std::uint32_t node,
-                        std::uint32_t index,
-                        std::uint32_t flags,
-                        std::uint32_t delta,
-                        Tail &tail) {
+ByteChain walkByteChain(Core *c, const ChainStart &start, Tail &tail) {
+  const std::uint32_t node = start.node;
+  const std::uint32_t index = start.index;
+  const std::uint32_t flags = start.due.flags;
+  std::uint32_t delta = start.due.delta;
   const std::uint32_t base = node + 0x8u;
   std::uint32_t next = c->mem_r8(base + (index << 2) + (flags & 0x1u) + 1u);
   std::uint32_t entry = base + (next << 2);
@@ -202,12 +227,11 @@ struct RecordChain {
   std::uint32_t exitValue;
 };
 
-RecordChain walkRecordChain(Core *c,
-                            std::uint32_t node,
-                            std::uint32_t index,
-                            std::uint32_t flags,
-                            std::uint32_t delta,
-                            Tail &tail) {
+RecordChain walkRecordChain(Core *c, const ChainStart &start, Tail &tail) {
+  const std::uint32_t node = start.node;
+  const std::uint32_t index = start.index;
+  const std::uint32_t flags = start.due.flags;
+  std::uint32_t delta = start.due.delta;
   const std::uint32_t base = node + 0xCu;
   std::uint32_t next = c->mem_r8(base + (index << 3) + (flags & 0x1u) + 2u);
   std::uint32_t entry = base + (next << 3);
@@ -236,13 +260,13 @@ RecordChain walkRecordChain(Core *c,
 // are the separate words at 0x800785C0 and 0x800785C4, and the body reads BOTH of them before it
 // stores anything: a record that happens to cover them is copied from the bases it had already
 // read, not from the bytes it has just written.
-void copyNodeRecords(Core *c, std::uint32_t node, std::uint32_t charge, Tail &tail) {
-  std::uint32_t flags = 0u;
-  std::uint32_t delta = 0u;
-  if (!nodeIsDue(c, node, charge, flags, delta, tail)) {
+void copyNodeRecords(Core *c, const ListNode &at, Tail &tail) {
+  const std::uint32_t node = at.node;
+  const std::optional<DueNode> due = nodeIsDue(c, at, tail);
+  if (!due) {
     return;
   }
-  const ByteChain chain = walkByteChain(c, node, c->mem_r8(node + 2u), flags, delta, tail);
+  const ByteChain chain = walkByteChain(c, {node, c->mem_r8(node + 2u), *due}, tail);
   c->mem_w8(node + 3u, static_cast<std::uint8_t>(chain.exitValue));
   c->mem_w8(node + 2u, static_cast<std::uint8_t>(chain.next));
   const std::uint32_t from = c->mem_r8(chain.stop + 3u);
@@ -288,13 +312,13 @@ constexpr std::uint32_t kAngleHalves[] = {0x09u, 0x0Du, 0x11u, 0x15u};
 // The second list: the walk's summed signed deltas are added to the node's own halfword, masked to
 // seven bits, stored back, and broadcast as a byte into both records — four fields of the narrow
 // record and forty-two of the wide one.
-void writeNodeAngle(Core *c, std::uint32_t node, std::uint32_t charge, Tail &tail) {
-  std::uint32_t flags = 0u;
-  std::uint32_t delta = 0u;
-  if (!nodeIsDue(c, node, charge, flags, delta, tail)) {
+void writeNodeAngle(Core *c, const ListNode &at, Tail &tail) {
+  const std::uint32_t node = at.node;
+  const std::optional<DueNode> due = nodeIsDue(c, at, tail);
+  if (!due) {
     return;
   }
-  const ByteChain chain = walkByteChain(c, node, c->mem_r8(node + 2u), flags, delta, tail);
+  const ByteChain chain = walkByteChain(c, {node, c->mem_r8(node + 2u), *due}, tail);
   c->mem_w8(node + 3u, static_cast<std::uint8_t>(chain.exitValue));
   c->mem_w8(node + 2u, static_cast<std::uint8_t>(chain.next));
   const std::uint32_t index = c->mem_r16(node + 4u);
@@ -330,24 +354,25 @@ void writeNodeAngle(Core *c, std::uint32_t node, std::uint32_t charge, Tail &tai
 // The four middle lists: the same walk, then a moby out of the pointer table is stamped with this
 // list's own index. Each of the four writes a different byte of the moby and nothing else, so the
 // four bodies differ in one constant and are otherwise identical.
-void tagNodeMoby(Core *c,
-                 std::uint32_t node,
-                 std::uint32_t charge,
-                 std::uint32_t counter,
-                 std::uint32_t field,
-                 Tail &tail) {
-  std::uint32_t flags = 0u;
-  std::uint32_t delta = 0u;
-  if (!nodeIsDue(c, node, charge, flags, delta, tail)) {
+// The list index a tagging list stamps and the moby byte it stamps it into.
+struct MobyTag {
+  std::uint32_t counter;
+  std::uint32_t field;
+};
+
+void tagNodeMoby(Core *c, const ListNode &at, const MobyTag &tag, Tail &tail) {
+  const std::uint32_t node = at.node;
+  const std::optional<DueNode> due = nodeIsDue(c, at, tail);
+  if (!due) {
     return;
   }
-  const RecordChain chain = walkRecordChain(c, node, c->mem_r8(node + 2u), flags, delta, tail);
+  const RecordChain chain = walkRecordChain(c, {node, c->mem_r8(node + 2u), *due}, tail);
   c->mem_w8(node + 3u, static_cast<std::uint8_t>(chain.exitValue));
   c->mem_w8(node + 2u, static_cast<std::uint8_t>(chain.next));
   const std::uint32_t index = c->mem_r16(node + 4u);
   tail.v0 = c->mem_r32(kMobyTable) + (index << 2);
   const std::uint32_t moby = c->mem_r32(tail.v0);
-  c->mem_w8(moby + field, static_cast<std::uint8_t>(counter));
+  c->mem_w8(moby + tag.field, static_cast<std::uint8_t>(tag.counter));
 }
 
 struct Triple {
@@ -359,25 +384,29 @@ struct Triple {
 // One 4-byte component of the GTE arm: GPF accumulates the near vertex scaled by (0x1000 - weight)
 // and GPL adds the far vertex scaled by the weight that is left, both through the hardware, so the
 // saturation and flag behaviour is the hardware's rather than this port's arithmetic.
-Triple blendComponent(Core *c,
-                      std::uint32_t near,
-                      std::uint32_t far,
-                      std::uint32_t offset,
-                      std::uint32_t keep,
-                      std::uint32_t add) {
+// The near and far vertex blocks and the GPF and GPL weights they are blended with.
+struct BlendSource {
+  std::uint32_t near;
+  std::uint32_t far;
+  std::uint32_t keep;
+  std::uint32_t add;
+};
+
+Triple blendComponent(Core *c, const BlendSource &source, std::uint32_t offset) {
+  const auto [near, far, keep, add] = source;
   const Word a = splitWord(c->mem_r32(near + offset));
-  gte_write_data(kIr0, keep);
-  gte_write_data(kIr1, static_cast<std::uint32_t>(a.low));
-  gte_write_data(kIr2, static_cast<std::uint32_t>(a.middle));
-  gte_write_data(kIr3, static_cast<std::uint32_t>(a.top));
-  gte_op(c, kGpf);
+  c->gte().writeData(kIr0, keep);
+  c->gte().writeData(kIr1, static_cast<std::uint32_t>(a.low));
+  c->gte().writeData(kIr2, static_cast<std::uint32_t>(a.middle));
+  c->gte().writeData(kIr3, static_cast<std::uint32_t>(a.top));
+  c->gte().execute(kGpf);
   const Word b = splitWord(c->mem_r32(far + offset));
-  gte_write_data(kIr0, add);
-  gte_write_data(kIr1, static_cast<std::uint32_t>(b.low));
-  gte_write_data(kIr2, static_cast<std::uint32_t>(b.middle));
-  gte_write_data(kIr3, static_cast<std::uint32_t>(b.top));
-  gte_op(c, kGpl);
-  return Triple{gte_read_data(kMac1), gte_read_data(kMac2), gte_read_data(kMac3)};
+  c->gte().writeData(kIr0, add);
+  c->gte().writeData(kIr1, static_cast<std::uint32_t>(b.low));
+  c->gte().writeData(kIr2, static_cast<std::uint32_t>(b.middle));
+  c->gte().writeData(kIr3, static_cast<std::uint32_t>(b.top));
+  c->gte().execute(kGpl);
+  return Triple{c->gte().readData(kMac1), c->gte().readData(kMac2), c->gte().readData(kMac3)};
 }
 
 // The GTE arm's depth cue. Only the z slot's reference changes with the arm: the two near slots are
@@ -385,21 +414,16 @@ Triple blendComponent(Core *c,
 // differenced against the far vertex's x, y or z depending on which of the three arms the sign
 // tests select. The near/far naming is the scratch's: scratch+0 is the first blend, scratch+0xC the
 // second, and the third blend is the far vertex itself.
-void writeBlendedVertex(Core *c,
-                        std::uint32_t near,
-                        std::uint32_t far,
-                        std::uint32_t dest,
-                        std::uint32_t keep,
-                        std::uint32_t add) {
-  const Triple first = blendComponent(c, near, far, 0u, keep, add);
+void writeBlendedVertex(Core *c, const BlendSource &source, std::uint32_t dest) {
+  const Triple first = blendComponent(c, source, 0u);
   c->mem_w32(kGteScratch + 0x00u, signedShift(first.x, 12));
   c->mem_w32(kGteScratch + 0x04u, signedShift(first.y, 12));
   c->mem_w32(kGteScratch + 0x08u, signedShift(first.z, 12));
-  const Triple second = blendComponent(c, near, far, 4u, keep, add);
+  const Triple second = blendComponent(c, source, 4u);
   c->mem_w32(kGteScratch + 0x0Cu, signedShift(second.x, 12));
   c->mem_w32(kGteScratch + 0x10u, signedShift(second.y, 12));
   c->mem_w32(kGteScratch + 0x14u, signedShift(second.z, 12));
-  const Triple third = blendComponent(c, near, far, 8u, keep, add);
+  const Triple third = blendComponent(c, source, 8u);
   const std::int32_t farX = static_cast<std::int32_t>(third.x >> 12);
   const std::int32_t farY = static_cast<std::int32_t>(third.y >> 12);
   const std::int32_t farZ = static_cast<std::int32_t>(third.z >> 12);
@@ -416,17 +440,17 @@ void writeBlendedVertex(Core *c,
   // expression with a different reference" is what a rationalised version of this looks like, and
   // it is wrong in six of the nine stores.
   if (farY - farX >= 0 && farZ - farX >= 0) {
-    c->mem_w32(dest + 8u, biased(farX, farZ, farY, 0xFFu, 24, 16));
-    c->mem_w32(dest + 4u, biased(secondX, secondZ, secondY, 0x1FFu, 23, 14));
-    c->mem_w32(dest + 0u, biased(firstX, firstZ, firstY, 0x1FFu, 23, 14));
+    c->mem_w32(dest + 8u, biased({farX, farZ, farY}, kGteZField));
+    c->mem_w32(dest + 4u, biased({secondX, secondZ, secondY}, kNearField));
+    c->mem_w32(dest + 0u, biased({firstX, firstZ, firstY}, kNearField));
   } else if (farZ - farY >= 0) {
-    c->mem_w32(dest + 8u, biased(farY, farX, farZ, 0xFFu, 24, 16));
-    c->mem_w32(dest + 4u, biased(secondY, secondX, secondZ, 0x1FFu, 23, 14));
-    c->mem_w32(dest + 0u, biased(firstY, firstX, firstZ, 0x1FFu, 23, 14));
+    c->mem_w32(dest + 8u, biased({farY, farX, farZ}, kGteZField));
+    c->mem_w32(dest + 4u, biased({secondY, secondX, secondZ}, kNearField));
+    c->mem_w32(dest + 0u, biased({firstY, firstX, firstZ}, kNearField));
   } else {
-    c->mem_w32(dest + 8u, biased(farZ, farY, farX, 0xFFu, 24, 16));
-    c->mem_w32(dest + 4u, biased(secondZ, secondY, secondX, 0x1FFu, 23, 14));
-    c->mem_w32(dest + 0u, biased(firstZ, firstY, firstX, 0x1FFu, 23, 14));
+    c->mem_w32(dest + 8u, biased({farZ, farY, farX}, kGteZField));
+    c->mem_w32(dest + 4u, biased({secondZ, secondY, secondX}, kNearField));
+    c->mem_w32(dest + 0u, biased({firstZ, firstY, firstX}, kNearField));
   }
 }
 
@@ -436,7 +460,14 @@ void writeBlendedVertex(Core *c,
 // which component rotates the same way the GTE arm's branches do — the middle in the first branch,
 // the top in the second. There are only these two branches here: the arm reads no GTE scratch, so
 // nothing about it can be checked against the GTE path's third.
-void writeSoftwareVertex(Core *c, std::uint32_t source, std::uint32_t dest, Tail &tail) {
+// One vertex's source words and where the arm writes them.
+struct VertexMove {
+  std::uint32_t source;
+  std::uint32_t dest;
+};
+
+void writeSoftwareVertex(Core *c, const VertexMove &move, Tail &tail) {
+  const auto [source, dest] = move;
   const std::uint32_t xWord = c->mem_r32(source + 0u);
   const std::uint32_t yWord = c->mem_r32(source + 4u);
   const std::uint32_t zWord = c->mem_r32(source + 8u);
@@ -461,14 +492,14 @@ void writeSoftwareVertex(Core *c, std::uint32_t source, std::uint32_t dest, Tail
   // after the loop — a run of zero vertices is a legal outcome and still leaves it behind.
   tail.v1 = static_cast<std::uint32_t>(zTop - zMiddle);
   if (zTop - zMiddle >= 0) {
-    c->mem_w32(dest + 0u, biased(x.middle, x.low, x.top, 0x1FFu, 23, 14));
-    c->mem_w32(dest + 4u, biased(y.middle, y.low, y.top, 0x1FFu, 23, 14));
-    c->mem_w32(dest + 8u, biased(z.middle, z.low, z.top, 0x1FFu, 24, 16));
+    c->mem_w32(dest + 0u, biased({x.middle, x.low, x.top}, kNearField));
+    c->mem_w32(dest + 4u, biased({y.middle, y.low, y.top}, kNearField));
+    c->mem_w32(dest + 8u, biased({z.middle, z.low, z.top}, kSoftwareZField));
     return;
   }
-  c->mem_w32(dest + 0u, biased(x.top, x.middle, x.low, 0x1FFu, 23, 14));
-  c->mem_w32(dest + 4u, biased(y.top, y.middle, y.low, 0x1FFu, 23, 14));
-  c->mem_w32(dest + 8u, biased(z.top, z.middle, z.low, 0x1FFu, 24, 16));
+  c->mem_w32(dest + 0u, biased({x.top, x.middle, x.low}, kNearField));
+  c->mem_w32(dest + 4u, biased({y.top, y.middle, y.low}, kNearField));
+  c->mem_w32(dest + 8u, biased({z.top, z.middle, z.low}, kSoftwareZField));
 }
 
 // The last list, and the only one that writes vertex colours. The node's own word at +4 is a pair
@@ -478,13 +509,13 @@ void writeSoftwareVertex(Core *c, std::uint32_t source, std::uint32_t dest, Tail
 // node's own word are the strides of the source and destination blocks. The two arms walk different
 // distances and leave v1 differently — the software arm keeps the four-times term, the GTE arm ends
 // on its own far cursor — and the body returns v0 and v1 from whichever arm ran last.
-void blendNodeLight(Core *c, std::uint32_t node, std::uint32_t charge, Tail &tail) {
-  std::uint32_t flags = 0u;
-  std::uint32_t delta = 0u;
-  if (!nodeIsDue(c, node, charge, flags, delta, tail)) {
+void blendNodeLight(Core *c, const ListNode &at, Tail &tail) {
+  const std::uint32_t node = at.node;
+  const std::optional<DueNode> due = nodeIsDue(c, at, tail);
+  if (!due) {
     return;
   }
-  const RecordChain chain = walkRecordChain(c, node, c->mem_r8(node + 2u), flags, delta, tail);
+  const RecordChain chain = walkRecordChain(c, {node, c->mem_r8(node + 2u), *due}, tail);
   c->mem_w8(node + 3u, static_cast<std::uint8_t>(chain.exitValue));
   c->mem_w8(node + 2u, static_cast<std::uint8_t>(chain.next));
   const std::uint32_t colour = c->mem_r32(chain.stop + 4u);
@@ -508,7 +539,7 @@ void blendNodeLight(Core *c, std::uint32_t node, std::uint32_t charge, Tail &tai
     const std::uint32_t end = source + firstStride;
     std::uint32_t dest = records + (second << 3) + (second << 2);
     for (std::uint32_t at = source; at != end; at += kVertexStride) {
-      writeSoftwareVertex(c, at, dest, tail);
+      writeSoftwareVertex(c, {at, dest}, tail);
       dest += kVertexStride;
     }
     tail.v0 = end;
@@ -525,7 +556,7 @@ void blendNodeLight(Core *c, std::uint32_t node, std::uint32_t charge, Tail &tai
   const std::uint32_t keep = 0x1000u - (weight << 4);
   const std::uint32_t add = weight << 4;
   for (std::uint32_t at = near; at != end; at += kVertexStride) {
-    writeBlendedVertex(c, at, far, dest, keep, add);
+    writeBlendedVertex(c, {.near = at, .far = far, .keep = keep, .add = add}, dest);
     far += kVertexStride;
     dest += kVertexStride;
   }
@@ -562,25 +593,25 @@ void propagateEnvironmentLight(Core *c) {
   const std::uint32_t charge = c->r[4];
   Tail tail{c->r[2], c->r[3], c->hi, c->lo};
   forEachNode(c, 0x00u, [&](std::uint32_t node, std::uint32_t) {
-    copyNodeRecords(c, node, charge, tail);
+    copyNodeRecords(c, {node, charge}, tail);
   });
   forEachNode(c, 0x08u, [&](std::uint32_t node, std::uint32_t) {
-    writeNodeAngle(c, node, charge, tail);
+    writeNodeAngle(c, {node, charge}, tail);
   });
   forEachNode(c, 0x10u, [&](std::uint32_t node, std::uint32_t index) {
-    tagNodeMoby(c, node, charge, index, 0x18u, tail);
+    tagNodeMoby(c, {node, charge}, {index, 0x18u}, tail);
   });
   forEachNode(c, 0x18u, [&](std::uint32_t node, std::uint32_t index) {
-    tagNodeMoby(c, node, charge, index, 0x19u, tail);
+    tagNodeMoby(c, {node, charge}, {index, 0x19u}, tail);
   });
   forEachNode(c, 0x20u, [&](std::uint32_t node, std::uint32_t index) {
-    tagNodeMoby(c, node, charge, index, 0x1Au, tail);
+    tagNodeMoby(c, {node, charge}, {index, 0x1Au}, tail);
   });
   forEachNode(c, 0x28u, [&](std::uint32_t node, std::uint32_t index) {
-    tagNodeMoby(c, node, charge, index, 0x1Bu, tail);
+    tagNodeMoby(c, {node, charge}, {index, 0x1Bu}, tail);
   });
   forEachNode(c, 0x40u, [&](std::uint32_t node, std::uint32_t) {
-    blendNodeLight(c, node, charge, tail);
+    blendNodeLight(c, {node, charge}, tail);
   });
   c->r[2] = tail.v0;
   c->r[3] = tail.v1;

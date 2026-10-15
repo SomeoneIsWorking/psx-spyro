@@ -1,11 +1,9 @@
-// Each title's measured boot-prefix facts, and the runtime plan that has to agree with them.
+// Each title's measured boot-prefix facts, and the stock library leaves its runtime binds.
 //
 // The shared driver is tested over synthetic facts in `test_boot_prefix_frame_driver.cpp`. What
 // that cannot see is a wrong guest address in a title's own facts, which shows up only in a run
-// with a disc attached: a driver that entered the wrong boot prefix, or a plan that names a leaf
-// its own windows do not admit (the framework refuses it at registration with "no direct-runtime
-// hardware-service window admits 0x...", which in a real run reads as a boot that stops for an
-// unrelated reason).
+// with a disc attached: a driver that entered the wrong boot prefix, or a leaf bound at the wrong
+// address.
 //
 // The literal addresses below are deliberately a SECOND copy of what `spyro2_boot_facts.h` and
 // `spyro3_boot_facts.h` declare, each quoted from that title's executable: a test that read them
@@ -13,17 +11,15 @@
 // whose runtime composed the other title's facts fails here too.
 
 #include "boot_prefix_frame_driver.h"
-#include "core.h"
-#include "game.h"
+#include "booted_title.h"
 #include "platform_hle.h"
-#include "spyro2_runtime.h"
-#include "spyro3_runtime.h"
-#include "spyro_context.h"
+#include "stock_vsync.h"
 #include "testutil.h"
 
+#include <lucent/log.h>
+
 #include <cstdint>
-#include <cstdio>
-#include <memory>
+#include <exception>
 #include <string_view>
 
 namespace {
@@ -66,29 +62,9 @@ constexpr ExpectedTitle kSpyro3{"Spyro 3",
                                 0u,
                                 1024u};
 
-// Half-open, and a zero high disables the slot, exactly as the framework reads the plan.
-bool windowAdmits(const PlatformHlePlan &plan, std::uint32_t address) {
-  for (int slot = 0; slot < kPlatformHleWindowCapacity; ++slot) {
-    if (plan.windowHi[slot] != 0u && address >= plan.windowLo[slot] &&
-        address < plan.windowHi[slot]) {
-      return true;
-    }
-  }
-  return false;
-}
-
-std::unique_ptr<Game> newGame(spyro::Context &context, GameRuntime &runtime) {
-  std::unique_ptr<Game> game = std::make_unique<Game>();
-  game->core.gameCtx = &context;
-  game->runtime = &runtime;
-  return game;
-}
-
-void checkDriverFacts(GameRuntime &runtime, const ExpectedTitle &expected) {
-  spyro::Context context;
-  std::unique_ptr<Game> game = newGame(context, runtime);
-  std::unique_ptr<FrameDriver> created = runtime.createFrameDriver(*game);
-  const auto *driver = dynamic_cast<const spyro::BootPrefixFrameDriver *>(created.get());
+void checkDriverFacts(spyro::test::BootedTitle &booted, const ExpectedTitle &expected) {
+  const auto *driver =
+      dynamic_cast<const spyro::BootPrefixFrameDriver *>(booted.game().frameDriver.get());
   CHECK(driver != nullptr);
   if (driver == nullptr) {
     return;
@@ -109,101 +85,62 @@ void checkDriverFacts(GameRuntime &runtime, const ExpectedTitle &expected) {
   CHECK(!driver->bootStalled());
 }
 
-// Every address the runtime's measured plan declares lies inside one of the plan's own windows, and
-// the plan declares the VSync this title's boot waits on.
-void checkPlan(const GameRuntime &runtime, const ExpectedTitle &expected) {
-  const PlatformHlePlan *plan = runtime.platformHlePlan();
-  CHECK(plan != nullptr);
-  if (plan == nullptr) {
+// The leaves registerOverrides bound: the VSync this title's boot waits on, CdControlB where the
+// title binds it, and CdInit left to the guest.
+void checkBindings(spyro::test::BootedTitle &booted, const ExpectedTitle &expected) {
+  const PlatformHle &table = booted.game().platform_hle;
+  CHECK(table.vsync() != nullptr);
+  if (table.vsync() == nullptr) {
     return;
   }
-  CHECK_EQ(plan->vsyncAddress, expected.vsync);
-  CHECK_EQ(plan->vsyncQueryCounterAddress, expected.vsyncQueryCounter);
-
-  struct Declared {
-    const char *name;
-    std::uint32_t address;
-  };
-  // A zero address means "not located", and the framework installs nothing for it. Listing only the
-  // ones a title claims is the point: the check is over the CLAIM, not over the array.
-  const Declared declared[] = {
-      {"setGeomOffset", plan->setGeomOffset},
-      {"setGeomScreen", plan->setGeomScreen},
-      {"cdRead", plan->cdReadAddress},
-      {"cdReadSync", plan->cdReadSyncAddress},
-      {"cdCommand", plan->cdCommandAddress},
-      {"cdSync", plan->cdSyncAddress},
-      {"cdSearchFile", plan->cdSearchFileAddress},
-      {"drawSync", plan->drawSyncAddress},
-      {"vsync", plan->vsyncAddress},
-  };
-  for (const Declared &leaf : declared) {
-    if (leaf.address == 0u) {
-      continue;
-    }
-    const bool admitted = windowAdmits(*plan, leaf.address);
-    if (!admitted) {
-      std::fprintf(
-          stderr,
-          "REFUSED: %s measured leaf %s 0x%08X lies outside every window the plan declares\n",
-          expected.name,
-          leaf.name,
-          leaf.address);
-    }
-    CHECK(admitted);
-  }
-  CHECK(plan->bindingCount >= 0);
-  CHECK(plan->bindingCount <= PlatformHlePlan::kMaxBindings);
-  bool boundCdControlB = false;
-  for (int index = 0; index < plan->bindingCount; ++index) {
-    CHECK(plan->bindings[index].addr != expected.cdInit);
-    boundCdControlB = boundCdControlB || plan->bindings[index].addr == expected.boundCdControlB;
-  }
-  CHECK_EQ(boundCdControlB, expected.boundCdControlB != 0u);
-  for (int index = 0; index < plan->bindingCount; ++index) {
-    const bool admitted = windowAdmits(*plan, plan->bindings[index].addr);
-    if (!admitted) {
-      std::fprintf(stderr,
-                   "REFUSED: %s measured binding %d at 0x%08X lies outside every window\n",
-                   expected.name,
-                   index,
-                   plan->bindings[index].addr);
-    }
-    CHECK(admitted);
-    CHECK(plan->bindings[index].fn != nullptr);
+  CHECK_EQ(table.vsync()->entry(), expected.vsync);
+  CHECK_EQ(table.vsync()->queryCounter(), expected.vsyncQueryCounter);
+  CHECK(table.lookup(expected.cdInit) == nullptr);
+  if (expected.boundCdControlB != 0u) {
+    CHECK(table.lookup(expected.boundCdControlB) != nullptr);
   }
 }
 
-void test_spyro2_facts_and_plan_match_its_executable() {
-  spyro2::Spyro2Runtime runtime;
-  checkDriverFacts(runtime, kSpyro2);
-  checkPlan(runtime, kSpyro2);
+// Spyro 2 reports its parity pool from the two guest words holding its live bounds; Spyro 3 has
+// none.
+void test_only_spyro2_reports_a_packet_pool() {
+  spyro::test::BootedTitle spyro2(spyro::SpyroTitle::Spyro2);
+  Core &core = spyro2.core();
+  core.mem_w32(0x80069998u, 0x80080000u);
+  core.mem_w32(0x8006B2A4u, 0x80090000u);
+  const auto pool = spyro2.runtime().packetPool(core);
+  CHECK(pool.has_value());
+  if (pool.has_value()) {
+    CHECK_EQ(pool->count, 1u);
+    CHECK(pool->contains(0x80080000u));
+    CHECK(!pool->contains(0x80090000u));
+  }
+  spyro::test::BootedTitle spyro3(spyro::SpyroTitle::Spyro3);
+  CHECK(!spyro3.runtime().packetPool(spyro3.core()).has_value());
 }
 
-void test_spyro3_facts_and_plan_match_its_executable() {
-  spyro3::Spyro3Runtime runtime;
-  checkDriverFacts(runtime, kSpyro3);
-  checkPlan(runtime, kSpyro3);
+void test_spyro2_facts_and_bindings_match_its_executable() {
+  spyro::test::BootedTitle booted(spyro::SpyroTitle::Spyro2);
+  checkDriverFacts(booted, kSpyro2);
+  checkBindings(booted, kSpyro2);
 }
 
-// The negative half: a window that is not there admits nothing, and a window that is present but
-// does not reach the leaf is reported as such. Without this, a check that passed for the wrong
-// reason -- an all-zero plan with no leaves at all -- would look green.
-void test_a_window_that_does_not_reach_a_leaf_admits_nothing() {
-  PlatformHlePlan plan{};
-  plan.windowLo[0] = 0x80000000u;
-  plan.windowHi[0] = kSpyro3.vsync; // half-open: the leaf itself is NOT inside
-  CHECK(!windowAdmits(plan, kSpyro3.vsync));
-  CHECK(!windowAdmits(plan, 0u)); // a zero high disables the slot entirely
-  plan.windowHi[0] = kSpyro3.vsync + 4u;
-  CHECK(windowAdmits(plan, kSpyro3.vsync));
+void test_spyro3_facts_and_bindings_match_its_executable() {
+  spyro::test::BootedTitle booted(spyro::SpyroTitle::Spyro3);
+  checkDriverFacts(booted, kSpyro3);
+  checkBindings(booted, kSpyro3);
 }
 
 } // namespace
 
 int main() {
-  RUN(spyro2_facts_and_plan_match_its_executable);
-  RUN(spyro3_facts_and_plan_match_its_executable);
-  RUN(a_window_that_does_not_reach_a_leaf_admits_nothing);
-  return pt_summary();
+  try {
+    RUN(spyro2_facts_and_bindings_match_its_executable);
+    RUN(spyro3_facts_and_bindings_match_its_executable);
+    RUN(only_spyro2_reports_a_packet_pool);
+    return pt_summary();
+  } catch (const std::exception &error) {
+    lucent::error("test_boot_prefix_facts", "FAIL: {}", error.what());
+    return 1;
+  }
 }

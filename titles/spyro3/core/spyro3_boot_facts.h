@@ -69,11 +69,14 @@ inline constexpr spyro::BootPrefixFacts kBootPrefixFacts{
             .rootHandlerSlot = 0,
             .handlerStackTop = 0x8000E000u,
             .handlerStackBytes = 8192u,
-            // The shared field cadence this lineage's titles declare. It is NOT a Spyro 3
-            // measurement: no per-frame field count has been read out of SCUS_944.67 yet, and the
-            // driver never arms the host field clock, so nothing in the boot depends on the
-            // number. It is stated here rather than left to look measured.
-            .fieldsPerLogicFrame = 2,
+        },
+    // The draw's switch operand (lw at 8001E6E0), the level FUN_800584BC stores at 80058718, and
+    // the camera controller FUN_800144B4's mode and sub-state.
+    .cut =
+        {
+            .gameState = 0x8006E344u,
+            .levelId = 0x8006C5BCu,
+            .camera = spyro::CameraMachineWords{.mode = 0x8006E044u, .subState = 0x8006E048u},
         },
     .bootStepLimit = 1024,
 };

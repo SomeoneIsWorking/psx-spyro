@@ -29,7 +29,7 @@ struct TerrainFrame;
 
 // The two near passes unpack the vertex height differently and run the close loop with different
 // bookkeeping; everything else about a sector's projection is shared.
-enum class NearPass {
+enum class NearPass : std::uint8_t {
   Detail,      // 800245D0: height (w << 3) & 0x1FFC; close vertices report projection overflow
   Translucent, // 80025440: height w & 0x3FF; no overflow bit, and deep vertices are not summed
 };

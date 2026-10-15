@@ -10,7 +10,10 @@
 #include "guest_terrain_mesh.h"
 #include "guest_terrain_polygon.h"
 
+#include <algorithm>
 #include <cstddef>
+#include <cstdint>
+#include <span>
 
 namespace spyro::guest_terrain {
 namespace {
@@ -32,10 +35,22 @@ constexpr std::uint32_t kBrightest = 0xFFF;
 constexpr std::uint32_t kNearRecord = 8; // the record's second word pair: full-bright texture
 
 // 80024C94: `fade` is 0x1F00 - depth.
-enum class Shade {
+enum class Shade : std::uint8_t {
   Near,
   Far,
   Faded,
+};
+
+// One vertex's index into the sector's colour tables and its depth.
+struct VertexShade {
+  std::uint32_t colourIndex = 0;
+  std::uint32_t depth = 0;
+};
+
+// What the last vertex decides for the primitive: the texture record step and the CLUT darkening.
+struct PrimitiveFinish {
+  std::uint32_t recordStep = 0;
+  std::uint32_t darken = 0;
 };
 
 struct ShadedVertex {
@@ -57,15 +72,10 @@ private:
   void drawTriangle(const PackedIndices &vertices);
   [[nodiscard]] std::uint32_t screenWord(std::uint32_t index) const;
   [[nodiscard]] std::uint32_t depth(std::uint32_t index) const;
-  void
-  defer(const std::uint32_t *depths, std::size_t count, std::uint32_t sum, std::uint32_t entry);
-  ShadedVertex shadeVertex(std::uint32_t colourIndex, std::uint32_t depth);
+  void defer(std::span<const std::uint32_t> depths, std::uint32_t entry);
+  ShadedVertex shadeVertex(const VertexShade &input);
   void shadeMiddle(const ShadedVertex &vertex);
-  void finishPrimitive(std::uint32_t colourIndex,
-                       std::uint32_t depth,
-                       std::uint32_t colourSlot,
-                       std::uint32_t &record,
-                       std::uint32_t &darken);
+  PrimitiveFinish finishPrimitive(const VertexShade &last, std::uint32_t colourSlot);
 
   TerrainFrame &frame_;
   Core &core_;
@@ -83,21 +93,21 @@ private:
 
 void DetailPass::run() {
   for (std::uint32_t i = 0; i < gte::kRotationWords; ++i) {
-    gte_write_ctrl(gte::kRotation + i, frame_.rotationWord(i));
+    core_.gte().writeControl(gte::kRotation + i, frame_.rotationWord(i));
   }
-  gte_write_ctrl(gte::kLight3, core_.mem_r32(frame_.facts.detail.fogLevel));
+  core_.gte().writeControl(gte::kLight3, memory_.r32(frame_.facts.detail.fogLevel));
   frame_.primitive = frame_.primitiveBase();
-  frame_.orderingTable = core_.mem_r32(frame_.globals.orderingTable);
+  frame_.orderingTable = memory_.r32(frame_.globals.orderingTable);
   list_ = frame_.scratch + kDetailList;
   frame_.fineSplitCursor = frame_.scratch + kFineSplitList;
   frame_.coarseSplitCursor = frame_.scratch + kCoarseSplitList;
-  frame_.textures = core_.mem_r32(frame_.facts.detail.textureTable);
+  frame_.textures = memory_.r32(frame_.facts.detail.textureTable);
   const std::uint32_t x = frame_.positionWord(0) >> 2;
   frame_.v0 = frame_.positionWord(1) >> 2;
   frame_.v1 = frame_.positionWord(2) >> 2;
-  gte_write_ctrl(gte::kLight0, x);
-  gte_write_ctrl(gte::kLight1, frame_.v0);
-  gte_write_ctrl(gte::kLight2, frame_.v1);
+  core_.gte().writeControl(gte::kLight0, x);
+  core_.gte().writeControl(gte::kLight1, frame_.v0);
+  core_.gte().writeControl(gte::kLight2, frame_.v1);
   for (;;) {
     const std::uint32_t word = memory_.r32(list_);
     list_ += 4;
@@ -113,7 +123,7 @@ void DetailPass::drawSector(std::uint32_t listWord) {
   const std::uint32_t sectorClass = listWord & kSectorClassMask;
   sectorWord_ = listWord ^ sectorClass;
   const std::uint32_t sector = sectorWord_;
-  flagCursor_ = frame_.scratch + (core_.mem_r32(sector + near_sector::kOriginY) & 0xFFFFu);
+  flagCursor_ = frame_.scratch + (memory_.r32(sector + near_sector::kOriginY) & 0xFFFFu);
   const ProjectedSector projected = projectSector(frame_, sector, sectorClass, NearPass::Detail);
   if (!projected.drawn) {
     return;
@@ -123,14 +133,14 @@ void DetailPass::drawSector(std::uint32_t listWord) {
   }
 
   // 80024948: the colour arrays, fogged first when the level fogs and the sector allows it.
-  const std::uint32_t layout = core_.mem_r32(sector + near_sector::kLayout);
+  const std::uint32_t layout = memory_.r32(sector + near_sector::kLayout);
   const std::uint32_t colours = projected.vertexEnd - 8;
   const std::uint32_t colourBytes = (layout >> 6) & 0x3FCu;
   const std::uint32_t records = colours + 2 * colourBytes;
-  fog_ = gte_read_ctrl(gte::kLight3);
+  fog_ = core_.gte().readControl(gte::kLight3);
   nearColours_ = colours;
   if (fog_ != 0) {
-    const std::uint32_t fogFlag = core_.mem_r32(sector + near_sector::kFog);
+    const std::uint32_t fogFlag = memory_.r32(sector + near_sector::kFog);
     const std::uint32_t end = colours + 4 + 2 * colourBytes;
     frame_.v1 = fogFlag;
     frame_.v0 = end;
@@ -144,12 +154,12 @@ void DetailPass::drawSector(std::uint32_t listWord) {
 
   record_ = records;
   const std::uint32_t recordsEnd = ((layout >> 12) & 0xFF0u) + records;
-  std::uint32_t indices = core_.mem_r32(record_);
+  std::uint32_t indices = memory_.r32(record_);
   while (record_ != recordsEnd) {
     const PackedIndices vertices(indices);
     frame_.v0 = vertices.second;
     frame_.v1 = vertices.third;
-    indices = core_.mem_r32(record_ + polygon::kSize);
+    indices = memory_.r32(record_ + polygon::kSize);
     record_ += polygon::kSize;
     if (vertices.triangle()) {
       drawTriangle(vertices);
@@ -168,36 +178,33 @@ std::uint32_t DetailPass::depth(std::uint32_t index) const {
 }
 
 // 80024B90 / 80025080: a polygon too near for one primitive. `entry` is the split-list entry.
-void DetailPass::defer(const std::uint32_t *depths,
-                       std::size_t count,
-                       std::uint32_t sum,
-                       std::uint32_t entry) {
-  bool fine = false;
-  for (std::size_t i = 0; i < count; ++i) {
-    if (depths[i] < kFineVertexDepth) {
-      fine = true;
-      break;
-    }
-  }
+void DetailPass::defer(std::span<const std::uint32_t> depths, std::uint32_t entry) {
+  const bool fine = std::any_of(depths.begin(), depths.end(), [](std::uint32_t depth) {
+    return depth < kFineVertexDepth;
+  });
   if (!fine) {
     deferToSplitList(memory_,
-                     frame_.coarseSplitCursor,
+                     {.cursor = frame_.coarseSplitCursor, .headerBit = kCoarseHeaderWritten},
                      sectorWord_,
-                     kCoarseHeaderWritten,
-                     sectorWord_ >> 2,
-                     entry);
+                     {.header = sectorWord_ >> 2, .entry = entry});
     memory_.w8(flagCursor_ - 1, 2);
     return;
   }
-  if (sum == 0) {
+  // Retail tests the depth sum; it is zero exactly when every depth is.
+  if (std::all_of(depths.begin(), depths.end(), [](std::uint32_t depth) {
+        return depth == 0;
+      })) {
     return;
   }
-  deferToSplitList(
-      memory_, frame_.fineSplitCursor, sectorWord_, kFineHeaderWritten, sectorWord_ >> 2, entry);
+  deferToSplitList(memory_,
+                   {.cursor = frame_.fineSplitCursor, .headerBit = kFineHeaderWritten},
+                   sectorWord_,
+                   {.header = sectorWord_ >> 2, .entry = entry});
 }
 
 // 80024C84: the near colour is loaded into the GTE's FC registers as the fade's far colour.
-ShadedVertex DetailPass::shadeVertex(std::uint32_t colourIndex, std::uint32_t depth) {
+ShadedVertex DetailPass::shadeVertex(const VertexShade &input) {
+  const auto [colourIndex, depth] = input;
   const std::uint32_t nearColour = memory_.r32(nearColours_ + colourIndex);
   const std::uint32_t fade = kFadeDepth - depth;
   if (asSigned(fade - kFullBright) >= 0) {
@@ -207,13 +214,13 @@ ShadedVertex DetailPass::shadeVertex(std::uint32_t colourIndex, std::uint32_t de
   if (asSigned(fade) <= 0) {
     return ShadedVertex{farColour, fade, Shade::Far};
   }
-  gte_write_ctrl(gte::kFarRed, (nearColour << 4) & 0xFF0u);
-  gte_write_ctrl(gte::kFarGreen, (nearColour >> 4) & 0xFF0u);
-  gte_write_ctrl(gte::kFarBlue, nearColour >> 12);
-  gte_write_data(gte::kRgbc, farColour);
-  gte_write_data(gte::kIr0, fade);
-  gte_op(&core_, gte::kDpcs);
-  return ShadedVertex{gte_read_data(gte::kRgb2), fade, Shade::Faded};
+  core_.gte().writeControl(gte::kFarRed, (nearColour << 4) & 0xFF0u);
+  core_.gte().writeControl(gte::kFarGreen, (nearColour >> 4) & 0xFF0u);
+  core_.gte().writeControl(gte::kFarBlue, nearColour >> 12);
+  core_.gte().writeData(gte::kRgbc, farColour);
+  core_.gte().writeData(gte::kIr0, fade);
+  core_.gte().execute(gte::kDpcs);
+  return ShadedVertex{core_.gte().readData(gte::kRgb2), fade, Shade::Faded};
 }
 
 // A vertex after the first and before the last: track the brightest fade.
@@ -228,26 +235,23 @@ void DetailPass::shadeMiddle(const ShadedVertex &vertex) {
 // 80024DB8 / 80025234: a primitive with a full-bright vertex uses the record's second
 // (full-bright) pair; every other one darkens its CLUT row by how far its brightest vertex is
 // from full.
-void DetailPass::finishPrimitive(std::uint32_t colourIndex,
-                                 std::uint32_t depth,
-                                 std::uint32_t colourSlot,
-                                 std::uint32_t &record,
-                                 std::uint32_t &darken) {
-  const ShadedVertex vertex = shadeVertex(colourIndex, depth);
+PrimitiveFinish DetailPass::finishPrimitive(const VertexShade &last, std::uint32_t colourSlot) {
+  const ShadedVertex vertex = shadeVertex(last);
   memory_.w8(flagCursor_ - 1, 1);
+  PrimitiveFinish finish;
   if (vertex.shade == Shade::Near) {
-    record += kNearRecord;
-    darken = 0;
+    finish.recordStep = kNearRecord;
   } else {
     if (vertex.shade == Shade::Faded && asSigned(vertex.fade - brightest_) >= 0) {
       brightest_ = vertex.fade;
     }
-    darken = 0xFu - (brightest_ >> 8);
-    if (vertex.shade == Shade::Faded && darken == 0) {
-      record += kNearRecord;
+    finish.darken = 0xFu - (brightest_ >> 8);
+    if (vertex.shade == Shade::Faded && finish.darken == 0) {
+      finish.recordStep = kNearRecord;
     }
   }
   memory_.w32(frame_.primitive + colourSlot, vertex.colour);
+  return finish;
 }
 
 // 80024A28.
@@ -271,23 +275,23 @@ void DetailPass::drawQuad(const PackedIndices &vertices) {
     xy2 = static_cast<std::uint32_t>(asSigned(xy2) >> 5);
     xy3 = static_cast<std::uint32_t>(asSigned(xy3) >> 5);
   }
-  const std::uint32_t draw = core_.mem_r32(record_ - polygon::kSize + polygon::kDraw);
-  gte_write_data(gte::kSxy0, xy0);
-  gte_write_data(gte::kSxy1, xy1);
-  gte_write_data(gte::kSxy2, xy3);
-  gte_op(&core_, gte::kNclip);
+  const std::uint32_t draw = memory_.r32(record_ - polygon::kSize + polygon::kDraw);
+  core_.gte().writeData(gte::kSxy0, xy0);
+  core_.gte().writeData(gte::kSxy1, xy1);
+  core_.gte().writeData(gte::kSxy2, xy3);
+  core_.gte().execute(gte::kNclip);
   const bool flipped = (draw & kFlippedWinding) != 0;
   if (overflow == 0) {
-    std::uint32_t winding = gte_read_data(gte::kMac0);
+    std::uint32_t winding = core_.gte().readData(gte::kMac0);
     if (flipped) {
       winding = 0u - winding;
     }
     if (asSigned(winding) < 0) {
       // 80024B08: the other diagonal's triangle decides.
-      gte_write_data(gte::kSxy0, xy2);
-      gte_op(&core_, gte::kNclip);
+      core_.gte().writeData(gte::kSxy0, xy2);
+      core_.gte().execute(gte::kNclip);
       if ((draw & kTwoSided) == 0) {
-        const std::int32_t second = asSigned(gte_read_data(gte::kMac0));
+        const std::int32_t second = asSigned(core_.gte().readData(gte::kMac0));
         if (flipped ? second < 0 : second > 0) {
           frame_.v0 = depth(vertices.second);
           frame_.v1 = depth(vertices.third);
@@ -302,7 +306,7 @@ void DetailPass::drawQuad(const PackedIndices &vertices) {
   frame_.v1 = depths[2];
   const std::uint32_t sum = depths[0] + depths[1] + depths[2] + depths[3];
   if (sum < kSplitSum) {
-    defer(depths, 4, sum, record_ - polygon::kSize + (overflow >> 4));
+    defer(depths, record_ - polygon::kSize + (overflow >> 4));
     return;
   }
   if (sum >= kPlainSum) {
@@ -317,7 +321,7 @@ void DetailPass::drawQuad(const PackedIndices &vertices) {
 
   // 80024C48: one GT4.
   const std::uint32_t prim = frame_.primitive;
-  const PackedIndices colours(core_.mem_r32(record_ - polygon::kSize + polygon::kColours));
+  const PackedIndices colours(memory_.r32(record_ - polygon::kSize + polygon::kColours));
   const std::uint32_t bin = polygonBin(sum, draw);
   memory_.w32(prim + packet::kXy0, xy0);
   memory_.w32(prim + packet::kXy1, xy1);
@@ -325,23 +329,22 @@ void DetailPass::drawQuad(const PackedIndices &vertices) {
   memory_.w32(prim + packet::kXy3, xy2);
   std::uint32_t record = (draw & kTextureRecordMask) * kTextureRecordSize;
 
-  const ShadedVertex first = shadeVertex(colours.first, depths[0]);
+  const ShadedVertex first = shadeVertex({colours.first, depths[0]});
   memory_.w32(prim + packet::kColour0, first.colour | kOpaqueQuadCode);
   brightest_ = first.shade == Shade::Near  ? kBrightest
                : first.shade == Shade::Far ? 0u
                                            : first.fade;
-  const ShadedVertex second = shadeVertex(colours.second, depths[1]);
+  const ShadedVertex second = shadeVertex({colours.second, depths[1]});
   memory_.w32(prim + packet::kColour1, second.colour);
   shadeMiddle(second);
-  const ShadedVertex third = shadeVertex(colours.third, depths[2]);
+  const ShadedVertex third = shadeVertex({colours.third, depths[2]});
   memory_.w32(prim + packet::kColour3, third.colour);
   shadeMiddle(third);
-  std::uint32_t darken = 0;
-  finishPrimitive(colours.fourth, depths[3], packet::kColour2, record, darken);
+  const PrimitiveFinish finish = finishPrimitive({colours.fourth, depths[3]}, packet::kColour2);
 
-  record += frame_.textures;
-  const std::uint32_t uv = core_.mem_r32(record) + (darken << 22);
-  const std::uint32_t page = core_.mem_r32(record + 4);
+  record += finish.recordStep + frame_.textures;
+  const std::uint32_t uv = memory_.r32(record) + (finish.darken << 22);
+  const std::uint32_t page = memory_.r32(record + 4);
   memory_.w32(prim, kQuadTag);
   memory_.w32(prim + packet::kUv0, uv);
   if (asSigned(page) < 0) {
@@ -352,7 +355,7 @@ void DetailPass::drawQuad(const PackedIndices &vertices) {
   memory_.w16(prim + packet::kUv3, static_cast<std::uint16_t>(page));
   frame_.v1 = uv + 0x1F00u;
   frame_.v0 = prim >> 16;
-  frame_.linkAndAdvance(bin, kQuadBytes);
+  frame_.linkAndAdvance(bin, PacketSize{kQuadBytes});
 }
 
 // 80024F8C.
@@ -374,13 +377,13 @@ void DetailPass::drawTriangle(const PackedIndices &vertices) {
     xy1 = static_cast<std::uint32_t>(asSigned(xy1) >> 5);
     xy2 = static_cast<std::uint32_t>(asSigned(xy2) >> 5);
   }
-  const std::uint32_t draw = core_.mem_r32(record_ - polygon::kSize + polygon::kDraw);
-  gte_write_data(gte::kSxy0, xy0);
-  gte_write_data(gte::kSxy1, xy1);
-  gte_write_data(gte::kSxy2, xy2);
-  gte_op(&core_, gte::kNclip);
+  const std::uint32_t draw = memory_.r32(record_ - polygon::kSize + polygon::kDraw);
+  core_.gte().writeData(gte::kSxy0, xy0);
+  core_.gte().writeData(gte::kSxy1, xy1);
+  core_.gte().writeData(gte::kSxy2, xy2);
+  core_.gte().execute(gte::kNclip);
   if (((draw & kTwoSided) | overflow) == 0) {
-    std::uint32_t winding = gte_read_data(gte::kMac0);
+    std::uint32_t winding = core_.gte().readData(gte::kMac0);
     if ((draw & kFlippedWinding) != 0) {
       winding = 0u - winding;
     }
@@ -396,7 +399,7 @@ void DetailPass::drawTriangle(const PackedIndices &vertices) {
   frame_.v1 = depths[2];
   const std::uint32_t sum = depths[0] + depths[1] + 2 * depths[2];
   if (sum < kSplitSum) {
-    defer(depths, 3, sum, (record_ - polygon::kSize + (overflow >> 4)) | kSplitTriangle);
+    defer(depths, (record_ - polygon::kSize + (overflow >> 4)) | kSplitTriangle);
     return;
   }
   if (sum >= kPlainSum) {
@@ -410,34 +413,33 @@ void DetailPass::drawTriangle(const PackedIndices &vertices) {
 
   // 80025130: one GT3.
   const std::uint32_t prim = frame_.primitive;
-  const PackedIndices colours(core_.mem_r32(record_ - polygon::kSize + polygon::kColours));
+  const PackedIndices colours(memory_.r32(record_ - polygon::kSize + polygon::kColours));
   const std::uint32_t bin = polygonBin(sum, draw);
   memory_.w32(prim + packet::kXy0, xy0);
   memory_.w32(prim + packet::kXy1, xy1);
   memory_.w32(prim + packet::kXy2, xy2);
   std::uint32_t record = (draw & kTextureRecordMask) * kTextureRecordSize;
 
-  const ShadedVertex first = shadeVertex(colours.first, depths[0]);
+  const ShadedVertex first = shadeVertex({colours.first, depths[0]});
   memory_.w32(prim + packet::kColour0, first.colour | kOpaqueTriangleCode);
   brightest_ = first.shade == Shade::Near  ? kBrightest
                : first.shade == Shade::Far ? 0u
                                            : first.fade;
-  const ShadedVertex second = shadeVertex(colours.second, depths[1]);
+  const ShadedVertex second = shadeVertex({colours.second, depths[1]});
   memory_.w32(prim + packet::kColour1, second.colour);
   shadeMiddle(second);
-  std::uint32_t darken = 0;
-  finishPrimitive(colours.third, depths[2], packet::kColour2, record, darken);
+  const PrimitiveFinish finish = finishPrimitive({colours.third, depths[2]}, packet::kColour2);
 
-  record += frame_.textures;
-  const std::uint32_t uv = core_.mem_r32(record) + (darken << 22);
-  const std::uint32_t page = core_.mem_r32(record + 4);
+  record += finish.recordStep + frame_.textures;
+  const std::uint32_t uv = memory_.r32(record) + (finish.darken << 22);
+  const std::uint32_t page = memory_.r32(record + 4);
   memory_.w32(prim, kTriangleTag);
   if (asSigned(page) < 0) {
     memory_.w8(prim + packet::kCode, static_cast<std::uint8_t>(kSemiTriangleCode >> 24));
   }
-  frame_.v1 = writeTriangleUvs(memory_, prim, uv, page, draw & kTriangleCornerMask);
+  frame_.v1 = writeTriangleUvs(memory_, prim, {.uv = uv, .page = page}, draw & kTriangleCornerMask);
   frame_.v0 = prim >> 16;
-  frame_.linkAndAdvance(bin, kTriangleBytes);
+  frame_.linkAndAdvance(bin, PacketSize{kTriangleBytes});
 }
 
 } // namespace

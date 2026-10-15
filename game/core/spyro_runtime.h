@@ -1,43 +1,40 @@
 #pragma once
 
 #include "game_runtime.h"
+#include "guest_widescreen_projection.h"
 #include "title_logo_facts.h"
 
-#include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <optional>
-#include <string_view>
 
 namespace spyro {
 
 enum class SpyroTitle : std::uint8_t { Spyro1, Spyro2, Spyro3 };
 
-// Runtime root; each serial owns its immutable executable image and behavior in a derived title
-// runtime.
-class SpyroRuntime : public GameRuntime {
+// The behaviour Spyro 1/2/3 share; each serial's runtime derives from it.
+class SpyroRuntime : public psx::game::GameRuntime {
 public:
-  const GuestProgramImage *guestProgramImage() const final;
   SpyroTitle title() const;
 
-  // Where the title's own logo lands in VRAM and how the title encodes it are facts about that
-  // disc's title, not about this runtime: a derived title answers with its own measured numbers and
-  // the base answers with none.
+  // Where the title's own logo lands in VRAM and how it is encoded; the base has none.
   virtual const TitleLogoFacts &logoFacts() const;
 
+  std::unique_ptr<psx::game::TitleSessionState> createSession(Game &game) final;
+  const psx::present::StateProducer *stateProducer(Core &core, std::uint32_t producer) const final;
+  // The field owner already delivered the simulated fields, so presentation only waits.
+  void pacePresentation(Core &core, int guestFields, int parts) final;
   std::optional<psx::host::LogoImage> panelLogo(Core &core) const final;
+  // The player's aspect; the canvas holds the margins and each title widens its own culls.
+  const GuestWidescreenProjection *guestWidescreenProjection() const final;
   void reportRun(Core &core) const final;
 
-  // A title that has one overrides both of these. Reporting widescreen only and building no
-  // presentation keeps the product at the guest's real frame rate, which is the truth about a frame
-  // that has no in-between rather than a claim of 60 fps over an empty one.
-  RenderCapabilities renderCapabilities() const override;
-
 protected:
-  SpyroRuntime(const GuestProgramImage &programImage, SpyroTitle title);
+  explicit SpyroRuntime(SpyroTitle title);
 
 private:
-  const GuestProgramImage &programImage_;
   SpyroTitle title_;
+  GuestWidescreenProjection aspectPolicy_;
 };
 
 } // namespace spyro

@@ -1,7 +1,7 @@
 ---
 id: 0143
 title: The "pool water" in the defect frame is a 50%-blended screen rectangle, and the guest's water arm is unreachable in Artisans
-status: open
+status: resolved
 symptom: `docs/issues/0138` and the fix at `c229e45` rest on two claims: the pool is a grid of
   low-poly world faces carrying material bit 2, and the defect frame's blue sheet is those faces'
   per-face colour. Both were measured against the resident level and neither holds. A translucent
@@ -9,7 +9,7 @@ symptom: `docs/issues/0138` and the fix at `c229e45` rest on two claims: the poo
   0 of 1783 low-poly faces in Artisans' Home carry material bit 2.
 tags: render,water,blend,probe
 created: 2026-09-28
-updated: 2026-09-28
+updated: 2026-10-15
 ---
 
 > **The attribution this issue left open is now closed, and its answer is not either named candidate.**
@@ -154,3 +154,7 @@ exists to test, and the high-poly path reads a different field entirely
 3. The census of §2 re-run over `WAD.WAD`'s other level entries, to say whether ANY Spyro 1 level
    carries a face with material bit 2. That is the question `c229e45` actually needs answered, and
  's reader already walks the resident form of it.
+
+## Resolution
+
+Obsolete (2026-10-15): The native world renderer is deleted; on Record the guest draws the pool.

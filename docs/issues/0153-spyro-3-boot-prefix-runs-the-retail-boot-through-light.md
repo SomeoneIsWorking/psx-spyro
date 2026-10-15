@@ -4,6 +4,7 @@ title: Spyro 3 now runs its own measured boot prefix through Lightrec, and the C
 status: open
 symptom: Spyro 3 had identity facts and an explicit unimplemented boundary — SCUS_944.67 was never executed; it now enters its own retail boot prefix 0x8002AB38 and runs it through Lightrec
 tags: spyro3,boot,loader,re,ownership,cd,lightrec
+features: [F-BOOT, F-CD]
 created: 2026-09-30
 updated: 2026-10-01
 ---
@@ -74,7 +75,7 @@ code — and the image is built from the identity-verified
 | resident text | `[0x80010000, 0x8006C800)` | header `0x18`/`0x1C` |
 | libetc VSync | `0x8005956C` | 36 `jal` sites reach it; its body polls a counter POINTER and returns a difference (below) |
 
-`tests/test_spyro3_runtime.cpp` asserts all of these, including the four (stack top, stack reserve,
+`tests/test_start_program.cpp` asserts the crt0 group, including the four (stack top, stack reserve,
 heap size store, heap base store) the earlier revision of that test did not check — a wrong value
 there breaks silently.
 
@@ -97,7 +98,7 @@ never seeds `0x80074DEC` and never dispatches it.
 
 ## 2. The measured library leaves, and how each was located
 
-`Spyro2Runtime` and `Spyro3Runtime` declare the same *shape* of `PlatformHlePlan` because both
+`Spyro2Runtime` and `Spyro3Runtime` bind the same stock library classes because both
 images link the same SCEI libraries. That is a reason to look in the same place, not a reason to
 copy a number: every address below was found in `SCUS_944.67`'s bytes, and the two places where
 that process changed a conclusion are called out.

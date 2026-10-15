@@ -37,10 +37,8 @@ constexpr std::uint32_t kCdKeyFieldModeZero = 0x18Cu;
 // masked from — the masked word when a bit was set there, and the (zero) mask test when none was —
 // and v1 as the inverted top byte, but only where the body builds it: mode 0's arm leaves the
 // superseded record's own address there instead, and mode 1's arm leaves the caller's own v1.
-void clearSupersededKeyBits(Core *c,
-                            std::uint32_t position,
-                            std::uint32_t bitOffset,
-                            std::uint32_t highHalf) {
+void clearSupersededKeyBits(Core *c, std::uint32_t position, std::uint32_t bitOffset) {
+  const std::uint32_t highHalf = bitOffset >> kHighHalfShift;
   const std::uint32_t low = c->mem_r16(position);
   if ((low & bitOffset) != 0u) {
     c->mem_w16(position, static_cast<std::uint16_t>(low & ~bitOffset));
@@ -78,12 +76,12 @@ void applyKeyBit(Core *c, std::uint32_t bitOffset, bool modeZero) {
       // v1 is the superseded record's own address here (`lui`+`addiu`, the base both `lhu`s below
       // read through), and it survives to the exit unless the high half is cleared.
       c->r[3] = superseded;
-      clearSupersededKeyBits(c, superseded, bitOffset, highHalf);
+      clearSupersededKeyBits(c, superseded, bitOffset);
       return;
     }
     c->mem_w32(kSioKeyBits, c->mem_r32(kSioKeyBits) | bitOffset);
     // v1 is never built on this arm: it exits as the caller's own unless the high half is cleared.
-    clearSupersededKeyBits(c, superseded, bitOffset, highHalf);
+    clearSupersededKeyBits(c, superseded, bitOffset);
     return;
   }
   const std::uint32_t control = c->mem_r32(kCdKeyControl);
