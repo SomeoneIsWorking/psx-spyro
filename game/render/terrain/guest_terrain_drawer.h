@@ -8,8 +8,17 @@
 #include "guest_terrain_memory.h"
 
 #include <optional>
+#include <vector>
 
 namespace spyro::guest_terrain {
+
+// What an in-between field draws with instead of the guest's own: its camera, its packet arena
+// (0 = the guest's cursor) and that arena's byte budget.
+struct InBetweenWindow {
+  const InBetweenCamera *camera = nullptr;
+  std::uint32_t arenaBase = 0;
+  std::int32_t packetBudget = 0;
+};
 
 // An override is a plain `void (*)(Core *)`, so a title cannot capture its facts in it: each title
 // binds them in a one-line thunk of its own.
@@ -20,9 +29,7 @@ public:
          const guest_render_globals::Globals &globals,
          TerrainMemory &memory,
          FrameMode mode,
-         const InBetweenCamera *inBetweenCamera = nullptr,
-         std::uint32_t inBetweenArenaBase = 0,
-         std::int32_t inBetweenPacketBudget = 0);
+         const InBetweenWindow &inBetween = {});
 
   // Returns the frame the passes ran on so a caller that walks the ordering table afterwards walks
   // THIS field's table; a second `run()` would produce a second, empty record of the bins it
@@ -54,7 +61,9 @@ private:
 };
 
 // The override entry: it owns a `GuestMemory` for its own length and runs in
-// `FrameMode::RealField`, so every guard inside the passes is open.
-void draw(Core &core, const Facts &facts, const guest_render_globals::Globals &globals);
+// `FrameMode::RealField`, so every guard inside the passes is open. Returns every guest word the
+// field read, as first read.
+std::vector<LevelWord>
+draw(Core &core, const Facts &facts, const guest_render_globals::Globals &globals);
 
 } // namespace spyro::guest_terrain

@@ -1,4 +1,4 @@
-name: Asset-free source-policy verification
+name: CI
 
 on:
   push:
@@ -13,10 +13,13 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  source-policy:
-    name: Source policy (Linux x86_64)
+  verify:
+    name: Build, C++ quality and tests (Linux x86_64)
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 45
+    env:
+      CC: clang
+      CXX: clang++
     steps:
       - name: Check out Spyro
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -30,8 +33,13 @@ jobs:
           version: 0.10.12
           enable-cache: false
 
-      - name: Resolve psxport and its shared policy tools
+      - name: Resolve psxport
         run: uv run --frozen python tools/psxport_fetch.py --auto
 
-      - name: Run asset-free canonical source-policy verifier
-        run: uv run --frozen python tools/verify.py --source-policy
+      - name: Provision the canonical Linux dependencies
+        uses: ./external/psxport/.github/actions/setup-linux
+        with:
+          framework-directory: external/psxport
+
+      - name: Verify
+        run: uv run --frozen python tools/verify.py --jobs 4

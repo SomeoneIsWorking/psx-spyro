@@ -292,7 +292,6 @@ void assignActiveSoundSlot(Core *c) {
   // The body opens a 0x90-byte frame, so every 0xNN($sp) it names is the FRAME pointer, not the sp
   // the caller left. c->r[29] itself is compared by the differential and must not move.
   const std::uint32_t frame = c->r[29] - 0x90u;
-  std::uint32_t v1 = c->r[3];
   std::uint32_t span = c->r[30];
   // $s6, 0x80056C84's max distance, is only computed on the limited-probe path, so every other mode
   // hands that callee the CALLER's own $s6 — which the body's epilogue restores from the stack and
@@ -307,8 +306,7 @@ void assignActiveSoundSlot(Core *c) {
     if (mode == kLimitedProbeMode) {
       spyro::callGuestJumpedFrom(*c,
                                  "assign_active_sound_slot",
-                                 kProbeLimitedModeJal,
-                                 kProbeActiveSound,
+                                 {.jal = kProbeLimitedModeJal, .target = kProbeActiveSound},
                                  moby,
                                  soundId,
                                  mode,
@@ -316,14 +314,13 @@ void assignActiveSoundSlot(Core *c) {
     } else {
       spyro::callGuestJumpedFrom(*c,
                                  "assign_active_sound_slot",
-                                 kProbeModeJal,
-                                 kProbeActiveSound,
+                                 {.jal = kProbeModeJal, .target = kProbeActiveSound},
                                  moby,
                                  soundId,
                                  mode,
                                  slotOut);
     }
-    v1 = kProbeBusy;
+    const std::uint32_t v1 = kProbeBusy;
     // BOTH rejections leave $v1 at the 2 the compare was built from: it is the instruction after
     // each `jal`, and the exit at 0x800561C8 never writes it again. The callee has overwritten the
     // register by now, so it is put back rather than left to whatever 0x80056DC4 returned with.
@@ -336,15 +333,20 @@ void assignActiveSoundSlot(Core *c) {
       const std::uint32_t scratch = frame + 0x58u;
       spyro::callGuestJumpedFrom(*c,
                                  "assign_active_sound_slot",
-                                 kSubtractPositionJal,
-                                 kSubtractPosition,
+                                 {.jal = kSubtractPositionJal, .target = kSubtractPosition},
                                  scratch,
                                  moby + 0x0Cu,
                                  kListenerX);
-      spyro::callGuestJumpedFrom(
-          *c, "assign_active_sound_slot", kSetVectorLimitJal, kSetVectorLimit, scratch, 4u);
-      spyro::callGuestJumpedFrom(
-          *c, "assign_active_sound_slot", kComputeSpanJal, kComputeSpan, scratch, 1u);
+      spyro::callGuestJumpedFrom(*c,
+                                 "assign_active_sound_slot",
+                                 {.jal = kSetVectorLimitJal, .target = kSetVectorLimit},
+                                 scratch,
+                                 4u);
+      spyro::callGuestJumpedFrom(*c,
+                                 "assign_active_sound_slot",
+                                 {.jal = kComputeSpanJal, .target = kComputeSpan},
+                                 scratch,
+                                 1u);
       // `sll $fp, $v0, 4`: a shift, so it leaves HI/LO alone.
       span = c->r[2] << 4;
       const std::uint32_t size = c->mem_r8(moby + kMobySizeByte);
@@ -432,8 +434,7 @@ void assignActiveSoundSlot(Core *c) {
       c->mem_w16(frame + 0x2Cu, static_cast<std::uint16_t>(reduced));
       spyro::callGuestJumpedFrom(*c,
                                  "assign_active_sound_slot",
-                                 kWrapKindZeroJal,
-                                 kWrapIntoRange,
+                                 {.jal = kWrapKindZeroJal, .target = kWrapIntoRange},
                                  record,
                                  range,
                                  level,
@@ -441,8 +442,7 @@ void assignActiveSoundSlot(Core *c) {
     } else if (recordKind == 1u) {
       spyro::callGuestJumpedFrom(*c,
                                  "assign_active_sound_slot",
-                                 kWrapKindOneJal,
-                                 kWrapIntoRange,
+                                 {.jal = kWrapKindOneJal, .target = kWrapIntoRange},
                                  record,
                                  range,
                                  level,
@@ -450,8 +450,7 @@ void assignActiveSoundSlot(Core *c) {
     } else if (recordKind == 2u) {
       spyro::callGuestJumpedFrom(*c,
                                  "assign_active_sound_slot",
-                                 kWrapKindTwoJal,
-                                 kWrapIntoRange,
+                                 {.jal = kWrapKindTwoJal, .target = kWrapIntoRange},
                                  record,
                                  range,
                                  level,
@@ -518,15 +517,10 @@ void assignActiveSoundSlot(Core *c) {
     // two angle calls, so both are reproduced rather than left holding the level and range from
     // above.
     if (gated) {
-      // $a2 is zeroed at 0x80056088 and $a3 holds the listener's x word across the two angle calls,
-      // so both are reproduced rather than left holding the level and range from above.
       const std::uint32_t listenerX = c->mem_r32(kListenerX);
-      tailArg2 = 0u;
-      tailArg3 = listenerX;
       spyro::callGuestJumpedFrom(*c,
                                  "assign_active_sound_slot",
-                                 kAngleToListenerJal,
-                                 kAngleToListener,
+                                 {.jal = kAngleToListenerJal, .target = kAngleToListener},
                                  listenerX - c->mem_r32(moby + 0x0Cu),
                                  c->mem_r32(kListenerZ) - c->mem_r32(moby + 0x10u),
                                  0u,
@@ -539,8 +533,7 @@ void assignActiveSoundSlot(Core *c) {
       const std::int32_t yaw = static_cast<std::int32_t>(c->mem_r16(kListenerYaw) << 16);
       spyro::callGuestJumpedFrom(*c,
                                  "assign_active_sound_slot",
-                                 kAddListenerYawJal,
-                                 kAddListenerYaw,
+                                 {.jal = kAddListenerYawJal, .target = kAddListenerYaw},
                                  yaw >> 20,
                                  listenerAngle & 0xFFu,
                                  c->r[6],
@@ -550,14 +543,14 @@ void assignActiveSoundSlot(Core *c) {
       // 0x80056C84 reads it as its fifth argument, so it is written here and not left to the frame.
       c->mem_w32(frame + 0x10u, slotBase + kSlotVolumeLeft);
       const spyro::GuestFrameScope stereoFrame(*c, frame);
-      spyro::callGuestJumpedFrom(*c,
-                                 "assign_active_sound_slot",
-                                 kPositionalStereoVolumeJal,
-                                 kPositionalStereoVolume,
-                                 frame + 0x20u,
-                                 span,
-                                 panAngle & 0xFFu,
-                                 spanLimit);
+      spyro::callGuestJumpedFrom(
+          *c,
+          "assign_active_sound_slot",
+          {.jal = kPositionalStereoVolumeJal, .target = kPositionalStereoVolume},
+          frame + 0x20u,
+          span,
+          panAngle & 0xFFu,
+          spanLimit);
       // $a1 is not reloaded after those three calls, so the tail's arguments are whatever they left
       // rather than the range and level assembled above them.
       tailArg1 = c->r[5];
@@ -579,8 +572,7 @@ void assignActiveSoundSlot(Core *c) {
   const spyro::GuestFrameScope tailFrame(*c, frame);
   spyro::callGuestJumpedFrom(*c,
                              "assign_active_sound_slot",
-                             kMarkSlotsChangedJal,
-                             kMarkSlotsChanged,
+                             {.jal = kMarkSlotsChangedJal, .target = kMarkSlotsChanged},
                              frame + 0x18u,
                              tailArg1,
                              tailArg2,

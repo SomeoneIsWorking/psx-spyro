@@ -1,6 +1,6 @@
 # 0106 — Walking up to a portal aborts: the near-portal family emits no faces
 
-Status: open — the facing test now blocks the portal route; mesh visibility fixed; the mask still clips against the mesh aperture
+Status: resolved — obsolete (2026-10-15): the native cyclorama is deleted and on Record the guest draws portals
 Affects: `docs/project-state.md` — homeworld portal presentation; blocks reaching a level on foot,
 and with it live observation of the stage-10 return-home cancellation (`0104` is unrelated).
 

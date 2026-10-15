@@ -1,8 +1,6 @@
-#include "config_vars.h"
 #include "emulated_time.h"
 #include "execution_services.h"
 #include "field_owner.h"
-#include "fps60.h"
 #include "frame_pacer.h"
 #include "game.h"
 #include "guest_call.h"
@@ -11,11 +9,10 @@
 #include "native_dispatch.h"
 #include "spyro1_field_scheduler.h"
 #include "spyro1_runtime.h"
-#include "spyro_context.h"
+#include "spyro_session.h"
 #include "testutil.h"
 
 #include <memory>
-#include <vector>
 
 namespace {
 
@@ -97,12 +94,7 @@ void resume(Core *core) {
 class FieldFixture {
 public:
   FieldFixture() : fields(*game) {
-    game->core.gameCtx = &context;
-    game->runtime = &runtime;
-    // The shared field owner publishes itself explicitly, and this fixture publishes the context in
-    // its body -- AFTER the scheduler member was constructed. The owner therefore cannot reach the
-    // context from its constructor without making every fixture's member order a hidden
-    // precondition, so it publishes here instead.
+    // The fixture's scheduler, not the runtime's frame driver, owns this session's fields.
     fields.publish();
     // Exercise the actual Core presentation backend without creating a graphics device/window.
     game->gpu_dev.s_gpu_on = 0;
@@ -175,8 +167,9 @@ public:
   }
 
   spyro1::Spyro1Runtime runtime;
-  spyro::Context context;
-  std::unique_ptr<Game> game = std::make_unique<Game>();
+  // Unpaced: host sleeps are removed while simulated display edges remain.
+  std::unique_ptr<Game> game =
+      std::make_unique<Game>(runtime, psx::config::Config{.unpaced = true});
   spyro1::FieldScheduler fields;
   R3000 saved{};
 };
@@ -259,51 +252,25 @@ void test_root_without_hook_survives_pending_work_inside_guest_dispatch() {
   CHECK_EQ(fixture.game->core.pending_work & Core::PW_IRQ, 0u);
 }
 
-class EmptyTemporalScene final : public InBetweenStrategy {
-public:
-  bool eligible(const Core &) const override {
-    return true;
-  }
-  bool owns(const RqItem &) const override {
-    return false;
-  }
-  void reconstruct(Core &, float t) override {
-    reconstructed.push_back(t);
-  }
-  void rotate(Core &) override {}
-
-  std::vector<float> reconstructed;
-};
-
-void test_temporal_split_presents_do_not_advance_delivered_time() {
+// GamestateDraw's own VSync waits are unpresented fields; the frame it drew is presented once after
+// them, without a field of its own.
+void test_presented_frame_crosses_the_fence_without_a_field() {
   FieldFixture fixture;
   CHECK(fixture.install());
-  auto source = std::make_unique<EmptyTemporalScene>();
-  auto *observedSource = source.get();
-  auto temporal = std::make_unique<Fps60>(*fixture.game, std::move(source));
-  auto *presentation = temporal.get();
-  fixture.game->temporalPresentation = std::move(temporal);
-  fixture.game->mods.fps60 = true;
-  for (uint32_t frame = 0; frame < 2; ++frame) {
-    fixture.fields.beginLogicFrame();
-    CHECK(fixture.fields.deliver({"test-temporal-first", false, false}));
-    CHECK(fixture.fields.deliver({"test-temporal-second", false, false}));
-    CHECK(fixture.fields.finishLogicFrame());
-    const auto deliveredTime = fixture.game->timing.emulatedCpuTicks();
-    // First commit seeds temporal history; the second executes Fps60's actual two-slot path,
-    // including both calls through CoreFramePresentationBackend::pace to the runtime owner.
-    presentation->frame_commit(&fixture.game->core, 2);
-    psx::cpu::servicePendingWork(fixture.game->core);
-    fixture.checkRegisters();
-    fixture.checkCallbacks((frame + 1u) * 2u);
-    CHECK_EQ(fixture.fields.counter(), (frame + 1u) * 2u);
-    CHECK_EQ(spyro::fieldOwner(fixture.game->core).fields(), (frame + 1u) * 2u);
-    CHECK_EQ(fixture.game->timing.emulatedCpuTicks(), deliveredTime);
-    CHECK_EQ(fixture.game->presentation.fence(), frame + 1u);
-    CHECK_EQ(fixture.game->core.mem_r32(kIStat) & 1u, 0u);
-    CHECK_EQ(fixture.game->core.pending_work & Core::PW_IRQ, 0u);
-  }
-  CHECK(observedSource->reconstructed == std::vector<float>({1.0f, 0.5f, 1.0f}));
+  fixture.fields.beginLogicFrame();
+  CHECK(fixture.fields.deliver({"test-draw-wait", false, false}));
+  CHECK(fixture.fields.deliver({"test-draw-wait", false, false}));
+  const auto deliveredTime = fixture.game->timing.emulatedCpuTicks();
+  fixture.fields.presentFrame();
+  psx::cpu::servicePendingWork(fixture.game->core);
+  fixture.checkRegisters();
+  fixture.checkCallbacks(2u);
+  CHECK_EQ(fixture.fields.counter(), 2);
+  CHECK_EQ(spyro::fieldOwner(fixture.game->core).fields(), 2u);
+  CHECK_EQ(spyro::fieldOwner(fixture.game->core).presents(), 1u);
+  CHECK_EQ(fixture.fields.fieldsThisLogicFrame(), 2u);
+  CHECK_EQ(fixture.game->presentation.fence(), 1u);
+  CHECK_EQ(fixture.game->timing.emulatedCpuTicks(), deliveredTime);
 }
 
 void test_default_runtime_presentation_still_delivers_hardware_fields() {
@@ -311,10 +278,10 @@ void test_default_runtime_presentation_still_delivers_hardware_fields() {
   CHECK(fixture.install());
   // An ordinary runtime's existing combined contract remains available. Qualify the base method
   // explicitly rather than borrowing another title or changing Spyro 1's runtime ownership.
-  fixture.runtime.GameRuntime::pacePresentation(fixture.game->core, 1, 2);
+  fixture.runtime.psx::game::GameRuntime::pacePresentation(fixture.game->core, 1, 2);
   psx::cpu::servicePendingWork(fixture.game->core);
   CHECK_EQ(fixture.fields.counter(), 0);
-  fixture.runtime.GameRuntime::pacePresentation(fixture.game->core, 1, 2);
+  fixture.runtime.psx::game::GameRuntime::pacePresentation(fixture.game->core, 1, 2);
   psx::cpu::servicePendingWork(fixture.game->core);
   fixture.checkRegisters();
   fixture.checkCallbacks(1u);
@@ -445,14 +412,11 @@ void test_skip_map_carries_the_cards_own_gate() {
 } // namespace
 
 int main() {
-  // The production NOPACE contract removes host sleeps while retaining simulated display edges.
-  psx::config::cv_nopace.set(psx::config::Layer::Runtime, true);
-  psx::config::cv_repl.set(psx::config::Layer::Runtime, false);
   RUN(unpresented_field_advances_time_and_full_root_once);
   RUN(pending_edge_uses_hook_continuation_once);
   RUN(root_without_hook_survives_pending_work_inside_guest_dispatch);
   RUN(presentation_after_delivered_field_does_not_deliver_another_root);
-  RUN(temporal_split_presents_do_not_advance_delivered_time);
+  RUN(presented_frame_crosses_the_fence_without_a_field);
   RUN(default_runtime_presentation_still_delivers_hardware_fields);
   RUN(masked_hook_edge_dispatches_once_when_unmasked);
   RUN(critical_section_defers_hook_root_until_irq_service_resumes);

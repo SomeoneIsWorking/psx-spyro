@@ -3,8 +3,9 @@
 // the title screen's own gate says the logo is up; nothing here is authored art.
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
-#include <vector>
+#include <span>
 
 namespace spyro {
 
@@ -33,7 +34,7 @@ struct TitleLogoFacts {
   // PanelLogo refuses invalid facts rather than snapshotting a rectangle that is not the wordmark.
   bool valid = false;
   TitleLogoGate gate{};
-  std::vector<TitleLogoPart> parts{};
+  std::span<const TitleLogoPart> parts{};
 };
 
 // The texpage and clut words decoded, as the guest's own renderer applies them when it hands a

@@ -5,7 +5,8 @@ instructions execute through psxport's runtime Lightrec integration. `CLAUDE.md`
 file. Read `../AGENTS.md`, `external/psxport/AGENTS.md`, and
 `docs/migration.md` before changing execution architecture.
 
-Goals are in `docs/project-goals.md`, status in `docs/project-state.md`, placement in `docs/codemap.md`.
+Goals are in `docs/project-goals.md`, status in `docs/project-state.md`, placement in `docs/codemap.md`,
+feature chains in `docs/features.md`.
 
 ## Product execution contract
 
@@ -38,10 +39,10 @@ Goals are in `docs/project-goals.md`, status in `docs/project-state.md`, placeme
 - The recorded dynamic discriminator must preserve stage 13 mode 0/1 title presentation and mode 2's
   three-slot save picker (the 900-field run; `PSXPORT_NATIVE_FRAMES=474` fence steps).
 - Spyro 2 is `SCUS_944.25`, entry `0x8005478C`, game main `0x80011ADC`, display bootstrap
-  `0x80011BBC`, and libetc VSync `0x80058EDC`. Its current measured boundary stops after three black
-  display fields at `0x80011B1C`.
+  `0x80011BBC`, and libetc VSync `0x80058EDC`.
 - Spyro 3 is `SCUS_944.67`, entry `0x80059444`, game main `0x8001200C`, and libetc VSync
-  `0x8005956C`. Disc provenance and product execution remain unverified.
+  `0x8005956C`.
+- Both run their retail boot prefix through Lightrec and reach gameplay (`docs/project-state.md`).
 
 ## Title selector
 

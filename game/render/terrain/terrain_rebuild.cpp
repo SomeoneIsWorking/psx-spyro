@@ -2,7 +2,6 @@
 
 #include "gte_registers.h"
 #include "lucent/log.h"
-#include "ordering_table.h"
 
 #include <algorithm>
 #include <cmath>
@@ -14,7 +13,6 @@ namespace {
 namespace gte = psx::gte;
 
 // The end of the 2 MB main-RAM window a guest packet address can name.
-constexpr std::uint32_t kMainRamEnd = psx::gpu::kKseg0Base + 0x200000u;
 
 // The detail pass sign-clears its flag cursor (guest_terrain_detail.cpp), which leaves it in the
 // 64 KB window below the scratch block.
@@ -37,9 +35,15 @@ std::int32_t signedHalf(std::uint32_t word) {
                          : static_cast<std::int32_t>(half);
 }
 
-std::uint32_t lerpWord(std::uint32_t from, std::uint32_t to, double f) {
-  const auto a = static_cast<std::int64_t>(static_cast<std::int32_t>(from));
-  const auto b = static_cast<std::int64_t>(static_cast<std::int32_t>(to));
+// One camera word at the two guest frames.
+struct WordPair {
+  std::uint32_t from = 0;
+  std::uint32_t to = 0;
+};
+
+std::uint32_t lerpWord(const WordPair &words, double f) {
+  const auto a = static_cast<std::int64_t>(static_cast<std::int32_t>(words.from));
+  const auto b = static_cast<std::int64_t>(static_cast<std::int32_t>(words.to));
   const auto v = a + static_cast<std::int64_t>(std::llround(static_cast<double>(b - a) * f));
   return static_cast<std::uint32_t>(static_cast<std::uint64_t>(v));
 }
@@ -70,14 +74,16 @@ InBetweenCamera cameraBetween(Core &core,
                                 {to.angles[0], to.angles[1], to.angles[2]},
                                 at);
   const guest_camera::Matrices matrices =
-      guest_camera::Builder(core, globals.cameraSineTable, globals.cameraCosineTable).build(angles);
+      guest_camera::Builder(core,
+                            {.sine = globals.cameraSineTable, .cosine = globals.cameraCosineTable})
+          .build(angles);
   InBetweenCamera camera{};
   for (std::uint32_t i = 0; i < gte::kRotationWords; ++i) {
     camera.rotation[i] = matrices.projection[i];
     camera.viewRotation[i] = matrices.view[i];
   }
   for (std::uint32_t i = 0; i < 3; ++i) {
-    camera.position[i] = lerpWord(from.position[i], to.position[i], at);
+    camera.position[i] = lerpWord({from.position[i], to.position[i]}, at);
   }
   return camera;
 }
@@ -91,20 +97,34 @@ std::vector<std::uint8_t> unionVisibility(std::span<const std::uint8_t> from,
   return out;
 }
 
+FieldWindows
+fieldWindows(Core &core, const Facts &facts, const guest_render_globals::Globals &globals) {
+  // The windows are disjoint: the guest's own cursor can already be past the field's packets.
+  const std::uint32_t scratch = core.mem_r32(globals.scratchBaseWord) - facts.scratchListsBelowEnd;
+  const std::uint32_t tableBase = core.mem_r32(globals.orderingTable);
+  // The scratch block runs to `frameTop` because a split list can grow past retail's block when
+  // the camera sits between two fields.
+  const std::uint32_t frameTop = std::max({scratch + facts.scratchListsBelowEnd,
+                                           tableBase + kOrderingWindowBytes,
+                                           facts.foggedColours + kFoggedColourBytes});
+  return FieldWindows{.scratch = scratch,
+                      .tableBase = tableBase,
+                      .frameTop = frameTop,
+                      .owned = {GuestRange{kScratchpad, kScratchpadBytes},
+                                GuestRange{scratch, frameTop - scratch},
+                                GuestRange{scratch & ~kKseg0SignBit, kFlagWindowBytes},
+                                GuestRange{tableBase, kOrderingWindowBytes},
+                                GuestRange{facts.foggedColours, kFoggedColourBytes}}};
+}
+
 Rebuild::Rebuild(Core &core,
                  const Facts &facts,
                  const guest_render_globals::Globals &globals,
                  const InBetweenCamera &camera,
-                 std::span<const std::uint8_t> visibleSectors,
-                 std::int32_t packetBudget)
+                 const FieldInputs &field)
     : core_(core), memory_(core), camera_(camera) {
-  // The windows are disjoint: the guest's own cursor can already be past the field's packets.
-  const std::uint32_t scratch = core.mem_r32(globals.scratchBaseWord) - facts.scratchListsBelowEnd;
-  const std::uint32_t tableBase = core.mem_r32(globals.orderingTable);
-  const std::uint32_t frameTop = std::max({scratch + facts.scratchListsBelowEnd,
-                                           tableBase + kOrderingWindowBytes,
-                                           facts.foggedColours + kFoggedColourBytes});
-  const PacketArena arena = packetArenaWindow(frameTop, kMainRamEnd);
+  const FieldWindows windows = fieldWindows(core, facts, globals);
+  const PacketArena arena = packetArenaWindow(windows.frameTop);
   if (arena.bytes < kMinArenaBytes) {
     lucent::error("terrrebuild",
                   "refusing a terrain in-between: the packet arena above this field's own state "
@@ -116,37 +136,43 @@ Rebuild::Rebuild(Core &core,
   }
 
   // Every range starts empty: seeding from the guest would hand the traversal the last real
-  // field's lists and bins. The scratch block runs to `frameTop` because a split list can grow
-  // past retail's block when the camera sits between two fields.
-  memory_.mapEmpty(kScratchpad, kScratchpadBytes);
-  memory_.mapEmpty(scratch, frameTop - scratch);
-  memory_.mapEmpty(scratch & ~kKseg0SignBit, kFlagWindowBytes);
-  memory_.mapEmpty(tableBase, kOrderingWindowBytes);
-  memory_.mapEmpty(facts.foggedColours, kFoggedColourBytes);
+  // field's lists and bins.
+  for (const GuestRange &range : windows.owned) {
+    memory_.mapEmpty(range.base, range.bytes);
+  }
   memory_.mapEmpty(arena.base, arena.bytes);
+  memory_.overlay(field.readWords);
 
   // The traversal issues the guest's own GTE instructions; the guest reads them back afterwards.
-  GTE_SaveRawState(&gteBefore_);
+  const GteRegs &gte = core.gte().registers();
+  std::copy(std::begin(gte.REG), std::end(gte.REG), gteRegistersBefore_.begin());
+  gteFlagsBefore_ = gte.FLAGS;
 
-  for (std::size_t i = 0; i < visibleSectors.size(); ++i) {
-    if (visibleSectors[i] != 0) {
-      memory_.w8(kScratchpad + static_cast<std::uint32_t>(i), visibleSectors[i]);
+  for (std::size_t i = 0; i < field.visibleSectors.size(); ++i) {
+    if (field.visibleSectors[i] != 0) {
+      memory_.w8(kScratchpad + static_cast<std::uint32_t>(i), field.visibleSectors[i]);
       ++visible_;
     }
   }
-  drawer_.emplace(
-      core, facts, globals, memory_, FrameMode::InBetween, &camera_, arena.base, packetBudget);
+  drawer_.emplace(core,
+                  facts,
+                  globals,
+                  memory_,
+                  FrameMode::InBetween,
+                  InBetweenWindow{.camera = &camera_,
+                                  .arenaBase = arena.base,
+                                  .packetBudget = field.packetBudget});
   const TerrainFrame &ran = drawer_->run();
-  bound_ = terrain_packet_sink::Bound{
-      .tableBase = tableBase,
-      .arenaBase = arena.base,
-      .arenaBytes = arena.bytes,
-      .linkedBins = &ran.linkedBins(),
-  };
+  tableBase_ = windows.tableBase;
+  arenaBase_ = arena.base;
+  arenaBytes_ = arena.bytes;
+  linkedBins_ = &ran.linkedBins();
 }
 
 Rebuild::~Rebuild() {
-  GTE_RestoreRawState(&gteBefore_);
+  GteRegs &gte = core_.gte().registers();
+  std::copy(gteRegistersBefore_.begin(), gteRegistersBefore_.end(), std::begin(gte.REG));
+  gte.FLAGS = gteFlagsBefore_;
 }
 
 } // namespace spyro::guest_terrain

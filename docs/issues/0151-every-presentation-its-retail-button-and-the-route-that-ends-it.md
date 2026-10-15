@@ -5,6 +5,7 @@ status: open
 symptom: the skip work named four screens (docs/findings/start-skip-map.md) and the operator asked for all of them. The rest had never been inventoried, one of them turned out to have a retail skip nobody had recorded (the game-over spiral, held Start), a second had a terminal nobody had recovered, and the three arms the port does have had never been observed live — every one of them sits behind a portal or a pause menu, which no driver could reach
 state_items: S011
 tags: transition,skip,input,frontend,re
+features: [F-LOAD]
 created: 2026-09-30
 ---
 

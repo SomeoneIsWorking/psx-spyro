@@ -1,12 +1,11 @@
 #include "core.h"
 #include "game.h"
-#include "game_runtime.h"
 #include "guest_globals.h"
 #include "handoff_store_observer.h"
 #include "image_identity.h"
 #include "lightrec_executor.h"
 #include "spyro1_field_scheduler.h"
-#include "spyro_context.h"
+#include "test_game.h"
 #include "testutil.h"
 
 #include <array>
@@ -15,22 +14,6 @@
 #include <string_view>
 
 namespace {
-
-class SyntheticRuntime final : public GameRuntime {
-public:
-  void *createContext(Core &) override {
-    return nullptr;
-  }
-  void destroyContext(void *) override {}
-  void registerOverrides(Game &) override {}
-  void bootInit(Core &) override {}
-  RenderCapabilities renderCapabilities() const override {
-    return RenderCapabilities::direct();
-  }
-  bool guestVramIsPicture(const Game &) const override {
-    return false;
-  }
-};
 
 constexpr std::uint32_t kReset = 0x80013690u;
 constexpr std::uint32_t kLoader = 0x80013B44u;
@@ -110,9 +93,7 @@ void runHandoff(Core &core) {
   runStore(core, kTick);
 }
 
-void enableSyntheticFields(Game &game, SyntheticRuntime &runtime, spyro::Context &context) {
-  game.core.gameCtx = &context;
-  game.runtime = &runtime;
+void enableSyntheticFields(Game &game) {
   game.gpu_dev.s_gpu_on = 0;
 }
 
@@ -125,9 +106,7 @@ void resetWords(Core &core) {
 }
 
 void test_shipping_observer_captures_four_stores_and_unreachable_control() {
-  SyntheticRuntime runtime;
-  psxport_install_game(runtime);
-  auto game = std::make_unique<Game>();
+  auto game = std::make_unique<spyro::test::SessionGame>();
   Core &core = game->core;
   spyro1::FieldScheduler fields(*game);
   writeCode(core);
@@ -194,9 +173,7 @@ void test_shipping_observer_captures_four_stores_and_unreachable_control() {
 }
 
 void test_late_reset_survives_more_than_64_routine_ticks() {
-  SyntheticRuntime runtime;
-  psxport_install_game(runtime);
-  auto game = std::make_unique<Game>();
+  auto game = std::make_unique<spyro::test::SessionGame>();
   Core &core = game->core;
   spyro1::FieldScheduler fields(*game);
   writeCode(core);
@@ -250,11 +227,8 @@ void test_late_reset_survives_more_than_64_routine_ticks() {
 }
 
 void test_padv_sync_bracket_keeps_callback_origin_after_boring_prefix() {
-  SyntheticRuntime runtime;
-  psxport_install_game(runtime);
-  auto game = std::make_unique<Game>();
-  spyro::Context context;
-  enableSyntheticFields(*game, runtime, context);
+  auto game = std::make_unique<spyro::test::SessionGame>();
+  enableSyntheticFields(*game);
   Core &core = game->core;
   spyro1::FieldScheduler fields(*game);
   writeCode(core);
@@ -293,7 +267,7 @@ void test_padv_sync_bracket_keeps_callback_origin_after_boring_prefix() {
   CHECK_EQ(observer.classCounts(spyro1::HandoffStoreClass::Routine).recorded, 8u);
   CHECK_EQ(observer.classCounts(spyro1::HandoffStoreClass::Routine).omitted, 73u);
   CHECK_EQ(observer.omitted(), 73u);
-  CHECK_EQ(samples[0].deliverySite[0], '\0');
+  CHECK(samples[0].deliverySite[0] == '\0');
   CHECK_EQ(samples[10].guestPc, 0x80013B4Cu);
   CHECK_EQ(samples[10].after.stage, 0u);
   for (std::size_t index = 0; index < 3u; ++index) {
@@ -337,11 +311,8 @@ void test_padv_sync_bracket_keeps_callback_origin_after_boring_prefix() {
 }
 
 void test_unreached_stage_reports_no_padv_sync_bracket() {
-  SyntheticRuntime runtime;
-  psxport_install_game(runtime);
-  auto game = std::make_unique<Game>();
-  spyro::Context context;
-  enableSyntheticFields(*game, runtime, context);
+  auto game = std::make_unique<spyro::test::SessionGame>();
+  enableSyntheticFields(*game);
   Core &core = game->core;
   spyro1::FieldScheduler fields(*game);
   writeCode(core);

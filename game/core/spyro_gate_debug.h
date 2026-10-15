@@ -1,6 +1,9 @@
 #pragma once
 
+#include "game_runtime.h"
+
 #include <cstdint>
+#include <cstdio>
 
 class Core;
 
@@ -24,6 +27,7 @@ struct GateInfo {
 
 bool inspectGate(Core &core, uint32_t index, GateInfo &out);
 bool teleportToGate(Core &core, uint32_t index, uint32_t node);
-bool replCommand(Core *core, const char *command, const char *line);
+// `gates` and `gate-teleport <portal> <node>`; replies go to `reply`.
+bool command(Core &core, const psx::game::TitleCommandLine &input, std::FILE *reply);
 
 } // namespace spyro::gate_debug

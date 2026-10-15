@@ -1,8 +1,7 @@
 #include "ui_anchor.h"
 
-#include "guest_widescreen_owner.h"
-#include "wide_clip_plan.h"
-#include "wide_screen_space.h"
+#include "core.h"
+#include "game.h"
 
 #include <lucent/log.h>
 
@@ -15,56 +14,13 @@ const char *channel() {
 
 } // namespace
 
-// The frame this policy relates, from the one place that knows the two widths.
-Frame frame(Core *core) {
-  return Frame{.authored = wide::kNativeClipWidth, .drawn = wide_screen_space::drawClipRight(core)};
-}
-
-Frame widescreenFrame(Core &core, std::uint32_t authoredWidth) {
-  const GuestWidescreenOwner *widescreen = GuestWidescreenOwner::of(core);
-  if (widescreen == nullptr) {
+Frame widescreenFrame(const Core &core, std::uint32_t authoredWidth) {
+  const GuestProjectionPlan &plan = core.game->guestDisplay.plan();
+  if (!plan.widescreen()) {
     return Frame{.authored = static_cast<std::int32_t>(authoredWidth),
                  .drawn = static_cast<std::int32_t>(authoredWidth)};
   }
-  return widescreen->uiFrame();
-}
-
-Placed placeAndReport(const Element &element,
-                      Anchor anchor,
-                      std::int32_t authoredX,
-                      std::int32_t authoredWidth,
-                      const Frame &frame) {
-  const Placed placed = place(anchor, authoredX, authoredWidth, frame);
-  if (placed.refusal != Refusal::None) {
-    // A refused element is a fact about the PORT's inputs, not about the picture, so it is reported
-    // with the reason and the values it refused.
-    lucent::warn(channel(),
-                 "REFUSED element={} index={} anchor={} authored=({}, {}) reason={} "
-                 "frame={}->{}",
-                 element.name,
-                 element.index,
-                 name(anchor),
-                 authoredX,
-                 authoredWidth,
-                 refusalName(placed.refusal),
-                 frame.authored,
-                 frame.drawn);
-    return placed;
-  }
-  lucent::debug(channel(),
-                "element={} index={} anchor={} authored=({}, {}) drawn=({}, {}) frame={}->{} "
-                "offset={}",
-                element.name,
-                element.index,
-                name(anchor),
-                authoredX,
-                authoredWidth,
-                placed.box.x,
-                placed.box.width,
-                frame.authored,
-                frame.drawn,
-                placed.offset);
-  return placed;
+  return Frame{.authored = plan.nativeExtent.width, .drawn = plan.presentationExtent.width};
 }
 
 std::int32_t correctionAndReport(const Element &element, Anchor anchor, const Frame &frame) {
@@ -75,7 +31,7 @@ std::int32_t correctionAndReport(const Element &element, Anchor anchor, const Fr
                  element.name,
                  element.index,
                  name(anchor),
-                 refusalName(refusalFor(anchor, frame)),
+                 refusalName(checkFrame(frame)),
                  frame.authored,
                  frame.drawn);
     return 0;

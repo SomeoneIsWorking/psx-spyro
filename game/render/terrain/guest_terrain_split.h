@@ -18,6 +18,7 @@
 // would open a crack, so each such edge is closed with GT3 triangles from a table of cell triples.
 #pragma once
 
+#include <array>
 #include <cstdint>
 #include <span>
 
@@ -108,36 +109,40 @@ void projectGrid(TerrainFrame &frame, std::uint32_t count, bool markBehind);
 
 // Emit the crack triangle described by the 12-byte table entry at `entry` (80026338), unless its
 // three cells share an outcode. `uv` / `page` are the polygon's texture words.
-void emitCrackTriangle(TerrainFrame &frame,
-                       std::uint32_t entry,
-                       std::uint32_t colourAdjust,
-                       std::uint32_t uv,
-                       std::uint32_t page,
-                       std::uint32_t draw);
+struct CrackPolygon {
+  std::uint32_t colourAdjust = 0;
+  std::uint32_t uv = 0;
+  std::uint32_t page = 0;
+  std::uint32_t draw = 0;
+};
+void emitCrackTriangle(TerrainFrame &frame, std::uint32_t entry, const CrackPolygon &polygon);
+
+// A polygon's crack edges, one neighbour byte per edge from the low byte up, and the table of
+// 12-byte crack entries they index.
+struct CrackEdges {
+  std::uint32_t edges = 0;
+  std::uint32_t table = 0;
+};
 
 // 80026230: pull a projected grid point toward the midpoint of two others, GPF-weighting its own
 // SXY by `ownWeight` and the pair's sum by `pairWeight` (each / 0x1000, then / 0x100), so the
 // subdivided surface of a near polygon does not bulge where perspective moves its inner points.
-void pullTowardPair(TerrainFrame &frame,
-                    std::uint32_t point,
-                    std::uint32_t first,
-                    std::uint32_t second,
-                    std::uint32_t ownWeight,
-                    std::uint32_t pairWeight);
+struct GridPull {
+  std::uint32_t point = 0;
+  std::uint32_t first = 0;
+  std::uint32_t second = 0;
+  std::uint32_t ownWeight = 0;
+  std::uint32_t pairWeight = 0;
+};
+void pullTowardPair(TerrainFrame &frame, const GridPull &pull);
 
 // The backface test a subdivision pass gives a piece of an overflowed polygon (800264B0), whose
 // whole the near pass could not test: two-sided pieces pass; otherwise the (first, second, third)
 // winding decides, and a back-facing one is given a second chance on (fourth, second, third).
-[[nodiscard]] bool facesCamera(TerrainFrame &frame,
-                               std::uint32_t first,
-                               std::uint32_t second,
-                               std::uint32_t third,
-                               std::uint32_t fourth,
-                               std::uint32_t draw);
+[[nodiscard]] bool
+facesCamera(TerrainFrame &frame, const std::array<std::uint32_t, 4> &screens, std::uint32_t draw);
 [[nodiscard]] bool triangleFacesCamera(TerrainFrame &frame,
-                                       std::uint32_t first,
-                                       std::uint32_t second,
-                                       std::uint32_t third,
+                                       const std::array<std::uint32_t, 3> &screens,
                                        std::uint32_t draw);
 
 // Whether a GT3 (3 screen words) or GT4 (4) is too large for the GPU, which draws nothing 512 or

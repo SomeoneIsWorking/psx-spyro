@@ -4,6 +4,7 @@ title: Spyro 2's guest-drawn objects have no producer
 status: open
 symptom: mobys, HUD, sky and particles are unkeyed; the census cannot rank their submitters
 tags: spyro2,record,census
+features: [F-FPS60]
 created: 2026-10-08
 updated: 2026-10-08
 ---

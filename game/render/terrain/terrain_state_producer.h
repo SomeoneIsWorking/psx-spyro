@@ -2,7 +2,8 @@
 // render that draws the terrain at any t between two saved fields.
 //
 // The field's packets are the guest's own. The state is only what the drawer needs to be re-run
-// elsewhere: the camera and the sectors the guest's visibility call named. The render runs the
+// elsewhere: the camera, the sectors the guest's visibility call named and every guest word the
+// drawer read, which a later field rewrites before this one is presented. The render runs the
 // drawer over host memory (terrain_rebuild.h) and hands each packet it linked to the sink in the
 // bin it was linked into.
 #pragma once
@@ -19,9 +20,7 @@
 
 namespace spyro::guest_terrain {
 
-// The OT table the bins belong to, as named for `core.otTables`.
-inline constexpr std::uint16_t kTerrainTable = 0;
-
+// A saved field is this header followed by the guest words the field read.
 struct FieldState {
   CameraState camera;
   std::int32_t packetBudget = 0;
@@ -30,19 +29,19 @@ struct FieldState {
 };
 static_assert(std::is_trivially_copyable_v<FieldState>);
 
-// The field the real drawer just drew: the camera it read, the sectors it was told were visible
-// and the packet budget its far pass had. Aborts when the level declares more sectors than the
-// state holds.
-[[nodiscard]] FieldState captureField(Core &core, const guest_render_globals::Globals &globals);
+// The header of a saved field. Aborts when `state` is not one.
+[[nodiscard]] FieldState fieldHeader(std::span<const std::byte> state);
+
+// The real drawer's field, saved for the scope it draws in. Aborts when the level declares more
+// sectors than the state holds.
+void drawField(Core &core, const Facts &facts, const guest_render_globals::Globals &globals);
 
 class TerrainStateProducer final : public psx::present::StateProducer {
 public:
   TerrainStateProducer(Core &core, const Facts &facts, const guest_render_globals::Globals &globals)
       : core_(core), facts_(facts), globals_(globals) {}
 
-  void render(std::span<const std::byte> from,
-              std::span<const std::byte> to,
-              float t,
+  void render(const psx::present::StateInterval &states,
               psx::present::PrimitiveSink &sink) const override;
 
 private:

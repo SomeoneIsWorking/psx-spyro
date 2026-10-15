@@ -20,9 +20,8 @@ Migration changes the execution owner, not recovered binary facts or native subs
   keys therefore require image generation plus guest address.
 - `game/core/world_body.inc` is an emitted guest-body derivative. Its call sites and behavior
   boundaries are evidence for runtime resumption; the file is not a future product component.
-- Spyro 2 and Spyro 3 retain their independently measured identities, crt0 facts, VSync addresses,
-  and honest execution gaps. Title-specific implementation does not resume until Spyro 1 passes its
-  declared gate.
+- Spyro 2 and Spyro 3 keep their independently measured identities, crt0 facts and VSync addresses;
+  both run their retail boot prefix and reach gameplay through Lightrec (S024, S025).
 
 ## Target architecture
 
@@ -64,14 +63,13 @@ may retain symbols or other non-executable metadata; it may not emit guest funct
    emulator or separate test oracle; exercise native and scoped-original calls plus WAD replacement;
    verify correctness and frame-time budgets on every released host; and prove by link/configuration
    inspection that interpreter-only execution is unselectable and fallback admission remains bounded.
-6. **Later titles.** Continue Spyro 2 from `0x80011B1C`, then Spyro 3 from its measured boot boundary,
-   only after Spyro 1's compatibility and performance gates pass. Reuse framework mechanics, never
-   title addresses or unverified behavior.
+6. **Later titles.** Spyro 2 and Spyro 3 run on the shared `BootPrefixFrameDriver` and reach
+   gameplay; they reuse framework mechanics, never another title's addresses or unverified behavior.
 
 ## Completion boundary
 
-The destructive half of the migration is complete; the product now links the frozen Lightrec
-executor. The restored native frame/scene composition now completes both stage-13 routes through real Spyro
-code; `docs/project-state.md` (S008–S009) owns the measured scope. Completion still requires
+The destructive half of the migration is complete; the product links the Lightrec executor, and all
+three titles present the guest's own frames on the Record path. Both stage-13 routes complete through
+real Spyro code; `docs/project-state.md` (S008–S009) owns the measured scope. Completion still requires
 representative gameplay, complete widescreen/interpolated rendering, cache/override conformance,
 and host performance evidence.

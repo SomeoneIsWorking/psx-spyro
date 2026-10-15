@@ -1,7 +1,7 @@
 ---
 id: 112
 title: A windowed run aborts on the title screen because the sink waits for a window nobody is showing
-status: investigating
+status: resolved
 symptom: windowed run exits SIGABRT (134) ~17 s in, still on the title screen, with [watchdog] STUCK: no frame presented within the timeout
 tags: render,present,sink,watchdog,windowed,crash,abort
 created: 2026-09-14
@@ -64,3 +64,7 @@ The windowed path needs a display an agent may open; the branch is exercised hea
 already takes it) and by the unit test, but the actual "occluded window keeps running" behaviour has
 not been observed end to end. The operator re-running `./run.sh` is the cheapest confirmation, and a
 terminal tail settles it immediately if the abort survives.
+
+## Resolution
+
+Obsolete (2026-10-15): the present chain in the backtrace (`SpyroRenderer`, `Fps60`) is deleted; all three titles present on Record.

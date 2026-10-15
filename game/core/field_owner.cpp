@@ -1,18 +1,15 @@
 #include "field_owner.h"
 
 #include "core.h"
-#include "fps60.h"
 #include "frame_pacer.h"
 #include "game.h"
 #include "guest_call.h"
 #include "hle.h"
 #include "host_turn.h"
-#include "repl.h"
 #include "snapshot.h"
-#include "spyro_context.h"
+#include "spyro_session.h"
 #include "vblank_irq.h"
 
-#include <array>
 #include <chrono>
 #include <cstdlib>
 #include <lucent/log.h>
@@ -27,12 +24,10 @@ constexpr std::uint32_t kStackPoison = 0xCDCDCDCDu;
 } // namespace
 
 FieldOwner::FieldOwner(Game &game, FieldOwnerFacts facts, FieldObserver *observer)
-    : game_(game), facts_(facts), observer_(observer) {
-  cadence_.setMinimumFieldsPerProductStep(facts_.fieldsPerLogicFrame);
-}
+    : game_(game), facts_(facts), observer_(observer) {}
 
 void FieldOwner::publish() {
-  spyro::context(game_.core).fieldOwner = this;
+  spyro::session(game_.core).fieldOwner = this;
 }
 
 std::int32_t FieldOwner::counter() const {
@@ -135,27 +130,22 @@ bool FieldOwner::dispatchCallbacks() {
   return root != 0;
 }
 
-void FieldOwner::reportField(const FieldRequest &request, int queueSize, bool queueWasUnconsumed) {
+void FieldOwner::reportField(const FieldRequest &request) {
   const double elapsedMs =
       std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - epoch_).count();
   lucent::debug("pace",
-                "t={:.1f}ms vbl={} pace={} present={} rq_unconsumed={} refused={} | site={} "
-                "quota={} counter={} rq_n={} unconsumed={}",
+                "t={:.1f}ms vbl={} pace={} present={} refused={} | site={} counter={}",
                 elapsedMs,
                 fields_,
                 paces_,
                 presents_,
-                queueWasUnconsumed ? 1 : 0,
                 refused_,
                 request.site,
-                game_.core.cfg ? game_.core.cfg->paceQuota : 0u,
-                counter(),
-                queueSize,
-                queueWasUnconsumed ? 1 : 0);
+                counter());
 }
 
-int FieldOwner::takePacedFields(const FieldRequest &request) {
-  if (!request.pace) {
+int FieldOwner::takePacedFields(bool pace) {
+  if (!pace) {
     return 0;
   }
   const auto fields = static_cast<int>(fieldsSincePace_);
@@ -175,12 +165,6 @@ bool FieldOwner::deliver(FieldRequest request) {
   }
   inField_ = true;
   activeDeliverySite_ = request.site;
-
-  const int queueSize = game_.rq.n;
-  const bool queueWasUnconsumed = queueSize > 0 && !game_.rq.consumed;
-  if (request.present) {
-    game_.rq.flush(&core);
-  }
 
   game_.pad.serviceFrame();
   const bool startDown = (game_.pad.buttons & kPadStart) == 0;
@@ -203,45 +187,31 @@ bool FieldOwner::deliver(FieldRequest request) {
   snapshot_tick(&core);
 
   if (request.present) {
-    auto *temporal = dynamic_cast<Fps60 *>(game_.temporalPresentation.get());
-    const std::uint32_t sceneTick = spyro::context(core).sceneProducerTicks;
-    const bool isSceneField = sceneTick != sceneTick_;
-    sceneTick_ = sceneTick;
-
-    if (temporal != nullptr && (!isSceneField || game_.presentation.capturedCount() == 0)) {
-      game_.presentation.commitUnpresented(&core);
-      ++temporalDeferrals_;
-      if (request.pace) {
-        game_.framePacer.waitPresentedFields(core, takePacedFields(request), 1);
-      }
-    } else if (temporal != nullptr) {
-      temporal->frame_commit(&core, takePacedFields(request));
-      ++presents_;
-    } else {
-      game_.presentation.commit(&core, takePacedFields(request));
-      ++presents_;
-    }
+    game_.presentation.commit(&core, takePacedFields(request.pace));
+    ++presents_;
   } else if (request.pace) {
-    game_.framePacer.waitPresentedFields(core, takePacedFields(request), 1);
+    game_.framePacer.waitPresentedFields(core, takePacedFields(request.pace), 1);
   }
   game_.spu_audio.frame();
   if (request.pace) {
     ++paces_;
   }
-  const std::array<std::uint32_t, 2> eventClasses =
-      core.cfg != nullptr ? std::array{core.cfg->irqEventClasses[0], core.cfg->irqEventClasses[1]}
-                          : std::array{0xF0000009u, 0xF2000003u};
-  for (std::uint32_t eventClass : eventClasses) {
-    if (eventClass != 0) {
-      game_.hle.deliverEvent(eventClass, 0xFFFFFFFFu);
-    }
+  // The BIOS VBlank and root-counter-3 event classes a field raises.
+  for (const std::uint32_t eventClass : {0xF0000009u, 0xF2000003u}) {
+    game_.hle.deliverEvent(eventClass, 0xFFFFFFFFu);
   }
 
   ++fields_;
-  reportField(request, queueSize, queueWasUnconsumed);
+  reportField(request);
   activeDeliverySite_ = nullptr;
   inField_ = false;
   return true;
+}
+
+void FieldOwner::presentFrame() {
+  game_.presentation.commit(&game_.core, takePacedFields(true));
+  ++presents_;
+  ++paces_;
 }
 
 bool FieldOwner::presentationSkipPressed() const {
@@ -253,30 +223,21 @@ void FieldOwner::hostTurnThunk(Core *core) {
 }
 
 FieldOwner &fieldOwner(Core &core) {
-  FieldOwner *owner = spyro::context(core).fieldOwner;
+  FieldOwner *owner = spyro::session(core).fieldOwner;
   if (owner == nullptr) {
     lucent::error("fields", "no title field owner is published for this Core");
     std::abort();
   }
   return *owner;
-}
-
-const FieldOwner *fieldOwnerIfPublished(const Core &core) {
-  return spyro::context(core).fieldOwner;
 }
 
 const FieldOwner &fieldOwner(const Core &core) {
-  const FieldOwner *owner = spyro::context(core).fieldOwner;
+  const FieldOwner *owner = spyro::session(core).fieldOwner;
   if (owner == nullptr) {
     lucent::error("fields", "no title field owner is published for this Core");
     std::abort();
   }
   return *owner;
-}
-
-bool deliverNativeField(Core &core, const char *site, bool fps60CommitPending) {
-  return fieldOwner(core).deliver(
-      {.site = site, .present = !fps60CommitPending, .pace = !fps60CommitPending});
 }
 
 } // namespace spyro

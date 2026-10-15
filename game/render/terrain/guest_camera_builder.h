@@ -39,31 +39,45 @@ struct Matrices {
   std::array<std::uint32_t, psx::gte::kRotationWords> view{};
 };
 
-// FUN_8001c2f8. `sinTable` and `cosTable` are the image's own (SCUS_944.25: 0x80061BD8 sine,
-// 0x80061C58 cosine), read one entry at a time and never written.
+// The image's own tables (SCUS_944.25: 0x80061BD8 sine, 0x80061C58 cosine).
+struct TrigTables {
+  std::uint32_t sine = 0;
+  std::uint32_t cosine = 0;
+};
+
+// FUN_8001b61C / FUN_8001b664 over one table, read one entry at a time and never written: the
+// guest's own arithmetic and truncating shift, since a fraction rounded differently is a different
+// angle and a different matrix.
+class AngleTable {
+public:
+  AngleTable(Core &core, std::uint32_t base) : core_(core), base_(base) {}
+
+  [[nodiscard]] std::int32_t at(std::uint32_t angle) const;
+
+private:
+  [[nodiscard]] std::int32_t entry(std::uint32_t index) const;
+
+  Core &core_;
+  std::uint32_t base_;
+};
+
+// FUN_8001c2f8.
 class Builder {
 public:
-  Builder(Core &core, std::uint32_t sinTable, std::uint32_t cosTable)
-      : core_(core), sinTable_(sinTable), cosTable_(cosTable) {}
+  Builder(Core &core, TrigTables tables) : sin_(core, tables.sine), cos_(core, tables.cosine) {}
 
-  // FUN_8001b61C / FUN_8001b664: the guest's own arithmetic, in the guest's order and with the same
-  // truncating shift; a fraction rounded differently is a different angle and a different matrix.
   [[nodiscard]] std::int32_t sin(std::uint32_t angle) const {
-    return lookup(angle, sinTable_);
+    return sin_.at(angle);
   }
   [[nodiscard]] std::int32_t cos(std::uint32_t angle) const {
-    return lookup(angle, cosTable_);
+    return cos_.at(angle);
   }
 
   [[nodiscard]] Matrices build(const Angles &angles) const;
 
 private:
-  [[nodiscard]] std::int32_t entry(std::uint32_t table, std::uint32_t index) const;
-  [[nodiscard]] std::int32_t lookup(std::uint32_t angle, std::uint32_t table) const;
-
-  Core &core_;
-  std::uint32_t sinTable_;
-  std::uint32_t cosTable_;
+  AngleTable sin_;
+  AngleTable cos_;
 };
 
 // At f == 0 and f == 1 the result is the operand's angles bit for bit, so an in-between at either

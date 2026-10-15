@@ -5,6 +5,7 @@ status: open
 symptom: at the save_picker checkpoint the console reference shows "CREATING SAVE FILE..." and the product shows the three-slot picker; the product reaches the checkpoint 61 game frames sooner, and 51.89% of pixels differ. Proven 2026-09-19 NOT to be a card-format difference: giving the reference the product's own formatted card is byte-identical
 state_items: S019
 tags: memcard,oracle,picture,parity
+features: [F-SAVE]
 created: 2026-09-19
 ---
 

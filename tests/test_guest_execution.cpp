@@ -5,6 +5,7 @@
 #include "image_identity.h"
 #include "lightrec_executor.h"
 #include "native_dispatch.h"
+#include "test_game.h"
 
 #include <array>
 #include <cstdint>
@@ -50,7 +51,7 @@ void load(Core &core) {
 }
 
 void checkNestedReturn(std::uint64_t budget, bool expectYields) {
-  auto game = std::make_unique<Game>();
+  auto game = std::make_unique<spyro::test::StubGame>();
   Core *core = &game->core;
   load(*core);
   spyro::GuestExecution execution(*core, kEntry);
@@ -88,12 +89,15 @@ void yieldFrame(Core *core) {
 }
 
 void checkStoppedBoundary(bool nativeFrame) {
-  auto game = std::make_unique<Game>();
+  auto game = std::make_unique<spyro::test::StubGame>();
   Core *core = &game->core;
   load(*core);
   if (nativeFrame) {
     const auto identity = core->currentImageIdentity(kEntry);
-    require(identity.has_value(), "fixture image must resolve");
+    if (!identity) {
+      require(false, "fixture image must resolve");
+      return;
+    }
     require(core->nativeDispatcher().install({{*identity, kEntry}, "frame", yieldFrame}),
             "install frame owner");
   }

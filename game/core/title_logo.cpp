@@ -2,13 +2,13 @@
 
 #include "core.h"
 #include "game.h"
-#include "gpu_native_internal.h"
 
 #include <lucent/log.h>
 
 #include <algorithm>
 #include <cstdint>
 #include <optional>
+#include <span>
 #include <vector>
 
 namespace spyro {
@@ -29,8 +29,8 @@ constexpr std::uint8_t expand5(std::uint32_t five) {
 }
 
 // One 8-byte sprite record: tpage, clut, w, h, u, v. The guest's emitter loads the two halfwords
-// from the start and the four bytes from the third word (game/render/scene/title_menu.cpp,
-// SpriteRec::read); Spyro 1's first two records agree — 0x8006FACC holds 0x7FE00098.
+// from the start and the four bytes from the third word; Spyro 1's first two records agree —
+// 0x8006FACC holds 0x7FE00098.
 struct SpriteRecord {
   std::uint16_t tpage = 0;
   std::uint16_t clut = 0;
@@ -49,31 +49,37 @@ SpriteRecord readSpriteRecord(Core &core, std::uint32_t address) {
                       core.mem_r8(address + 7)};
 }
 
-// One texel of VRAM. `vram(x, y)` already wraps both axes the way the hardware does.
-std::uint16_t vramTexel(GpuState &gpu, int x, int y) {
-  return *gpu.vram(x, y);
+// One texel of the device's VRAM, both axes wrapped as the hardware wraps them.
+using Vram = std::span<const std::uint16_t>;
+struct VramPoint {
+  int x = 0;
+  int y = 0;
+};
+
+std::uint16_t vramTexel(Vram vram, VramPoint at) {
+  const auto column = static_cast<std::size_t>(at.x & (kVramWidth - 1));
+  const auto row = static_cast<std::size_t>(at.y & (kVramHeight - 1));
+  return vram[(row * kVramWidth) + column];
 }
 
 // 8-bit VRAM packs two texels per word, even column in the low byte, so an 8-bit region read as
 // 15-bit looks like noise whose neighbours agree.
-std::uint8_t vramByteTexel(GpuState &gpu, int x, int y) {
-  const std::uint16_t word = vramTexel(gpu, x & ~1, y);
-  return (x & 1) != 0 ? static_cast<std::uint8_t>(word >> 8)
-                      : static_cast<std::uint8_t>(word & 0xFFu);
+std::uint8_t vramByteTexel(Vram vram, VramPoint at) {
+  const std::uint16_t word = vramTexel(vram, {.x = at.x & ~1, .y = at.y});
+  return (at.x & 1) != 0 ? static_cast<std::uint8_t>(word >> 8)
+                         : static_cast<std::uint8_t>(word & 0xFFu);
 }
 
 // `entries` texels along ONE VRAM row from the CLUT word: 16 for a 4-bit page, 256 for an 8-bit
 // one. Not a 16x16 block — that fetches colours the palette is not in.
-void readPalette(GpuState &gpu,
-                 std::uint16_t clut,
-                 int entries,
-                 std::vector<std::uint16_t> &palette) {
-  const int baseX = paletteX(clut);
-  const int y = paletteY(clut);
-  palette.resize(static_cast<std::size_t>(entries));
+std::vector<std::uint16_t> readPalette(Vram vram, const SpriteRecord &sprite, int entries) {
+  const int baseX = paletteX(sprite.clut);
+  const int y = paletteY(sprite.clut);
+  std::vector<std::uint16_t> palette(static_cast<std::size_t>(entries));
   for (int index = 0; index < entries; ++index) {
-    palette[static_cast<std::size_t>(index)] = vramTexel(gpu, baseX + index, y);
+    palette[static_cast<std::size_t>(index)] = vramTexel(vram, {.x = baseX + index, .y = y});
   }
+  return palette;
 }
 
 } // namespace
@@ -106,7 +112,7 @@ std::optional<psx::host::LogoImage> extractPanelLogo(Core &core, const TitleLogo
     return std::nullopt;
   }
 
-  GpuState &gpu = core.game->gpu;
+  const Vram vram = core.gpuDevice.vram();
   // Each part's (u, v) is its recorded position on the page the game uploaded, so the wordmark is
   // placed where the game placed it and is never re-lettered as equal pieces.
   std::vector<SpriteRecord> parts;
@@ -157,9 +163,9 @@ std::optional<psx::host::LogoImage> extractPanelLogo(Core &core, const TitleLogo
     const int depth = texturePageDepth(sprite.tpage);
     std::vector<std::uint16_t> palette;
     if (depth == 0) {
-      readPalette(gpu, sprite.clut, 16, palette);
+      palette = readPalette(vram, sprite, 16);
     } else if (depth == 1) {
-      readPalette(gpu, sprite.clut, 256, palette);
+      palette = readPalette(vram, sprite, 256);
     } else if (depth != 2) {
       lucent::error("picker",
                     "the logo's texture page {:04X} names depth {} — no such format — "
@@ -182,12 +188,12 @@ std::optional<psx::host::LogoImage> extractPanelLogo(Core &core, const TitleLogo
         std::uint32_t colour = 0;
         if (depth == 0) {
           // 4-bit: eight texels per 16-bit word, low nibble first.
-          const std::uint16_t word = vramTexel(gpu, texelX & ~7, texelY);
+          const std::uint16_t word = vramTexel(vram, {.x = texelX & ~7, .y = texelY});
           colour = palette[(word >> ((texelX & 7) * 4)) & 0xF];
         } else if (depth == 1) {
-          colour = palette[vramByteTexel(gpu, texelX, texelY)];
+          colour = palette[vramByteTexel(vram, {.x = texelX, .y = texelY})];
         } else {
-          colour = vramTexel(gpu, texelX, texelY);
+          colour = vramTexel(vram, {.x = texelX, .y = texelY});
         }
         // The PSX's rule: a 0x0000 texel is not drawn. Each wordmark sits on an untouched page, so
         // index 0 is the surround and must let the panel through.

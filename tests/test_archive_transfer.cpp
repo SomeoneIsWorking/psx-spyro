@@ -6,8 +6,9 @@
 #include "image_identity.h"
 #include "lightrec_executor.h"
 #include "native_dispatch.h"
-#include "spyro_context.h"
 #include "spyro_game.h"
+#include "spyro_session.h"
+#include "test_game.h"
 
 #include <algorithm>
 #include <array>
@@ -42,13 +43,9 @@ void executeImage(Core &core, std::uint32_t expected) {
 }
 
 void checkTransfers() {
-  auto first = std::make_unique<Game>();
-  auto second = std::make_unique<Game>();
-  spyro::Context firstContext;
-  spyro::Context secondContext;
-  first->core.gameCtx = &firstContext;
-  second->core.gameCtx = &secondContext;
-  auto &owner = spyro::context(first->core).archiveTransfer;
+  auto first = std::make_unique<spyro::test::SessionGame>();
+  auto second = std::make_unique<spyro::test::SessionGame>();
+  auto &owner = spyro::session(first->core).archiveTransfer;
   std::uint32_t value = 7u;
   std::vector<std::uint32_t> sectors;
   const spyro::ArchiveTransfer::SectorReader reader = [&](std::uint32_t lba, auto bytes) {
@@ -71,7 +68,7 @@ void checkTransfers() {
   const auto oldIdentity = first->core.currentImageIdentity(kDestination);
   require(oldIdentity.has_value(), "complete request must activate a resident image");
   executeImage(first->core, value);
-  require(!spyro::context(second->core).archiveTransfer.takeCompletion(),
+  require(!spyro::session(second->core).archiveTransfer.takeCompletion(),
           "another Core consumed the pending completion");
   require(owner.takeCompletion() && !owner.takeCompletion(),
           "completion must be delivered exactly once to its owning Core");
@@ -115,12 +112,9 @@ void checkTransfers() {
 }
 
 void checkLoaderFault(std::uint32_t entry) {
-  auto game = std::make_unique<Game>();
-  spyro::Context context;
-  game->core.gameCtx = &context;
+  auto game = std::make_unique<spyro::test::SessionGame>();
   auto &core = game->core;
-  // Refuse at the production disc-owner boundary without consulting the operator's real media.
-  core.game = nullptr;
+  // The test's PSXPORT_DISC names a missing image, so the production disc owner refuses.
   core.imageCatalog().activate("synthetic loader registration", {0x10000u, 0x70000u}, 1u);
   spyro::registerCdQueue(core);
   core.r[4] = kRead.baseLba;
@@ -137,7 +131,8 @@ void checkLoaderFault(std::uint32_t entry) {
           "native dispatch swallowed the missing-disc fault and returned to a void caller");
   require(core.mem_r32(0x80076BB8u) == 23u,
           "failed native loader falsely published a completed guest gate");
-  require(!context.archiveTransfer.takeCompletion(), "failed native loader armed completion");
+  require(!spyro::session(core).archiveTransfer.takeCompletion(),
+          "failed native loader armed completion");
 }
 
 } // namespace

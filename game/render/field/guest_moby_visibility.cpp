@@ -1,12 +1,11 @@
 #include "guest_moby_visibility.h"
 
 #include "core.h"
+#include "game.h"
 #include "guest_moby_frustum.h"
 #include "guest_moby_gte.h"
 #include "guest_moby_rotation.h"
 #include "guest_render_globals.h"
-#include "guest_widescreen_owner.h"
-#include "spyro_context.h"
 
 #include <array>
 
@@ -94,16 +93,12 @@ constexpr std::uint32_t asWord(std::int32_t value) {
 
 // The register numbers retail saves, in save-area order.
 
-// The horizontal slope the walk culls with: retail's unless the widescreen plan widens.
-//
-// A Core whose projection leaves are not bound has no owner, and "not bound" and "not latched" mean
-// the same thing here — this title is not widening — so both answer retail's slope.
-HorizontalSlope slopeFor(Core &core) {
-  const GuestWidescreenOwner *widescreen = GuestWidescreenOwner::of(core);
-  if (widescreen == nullptr || !widescreen->latched() || !widescreen->plan().widescreen()) {
+// The horizontal slope the walk culls with: retail's unless the presentation widens.
+HorizontalSlope slopeFor(const Core &core) {
+  const GuestProjectionPlan &plan = core.game->guestDisplay.plan();
+  if (!plan.widescreen()) {
     return guest_moby_frustum::kRetailSlope;
   }
-  const GuestProjectionPlan &plan = widescreen->plan();
   return guest_moby_frustum::widenedSlope(plan.nativeProjectionExtent.width,
                                           plan.projectionExtent.width);
 }
@@ -133,20 +128,40 @@ private:
     }
   };
 
+  // One deferred-buffer slot: the record and the words retail stores after it.
+  struct Deferred {
+    std::uint32_t rec = 0;
+    std::uint32_t x = 0;
+    std::uint32_t y = 0;
+    std::uint32_t tail = 0;
+    std::uint32_t slot = 0;
+  };
+
+  // The moby's centre relative to the camera, in the walk's quarter units.
+  struct CameraOffset {
+    std::int32_t dx = 0;
+    std::int32_t dy = 0;
+    std::int32_t dz = 0;
+  };
+
+  // A record whose mesh is resident, with that mesh.
+  struct Candidate {
+    std::uint32_t rec = 0;
+    std::uint32_t mesh = 0;
+    MeshSlots slots;
+  };
+
   Step visit(std::uint32_t rec);
   MeshSlots meshSlots(std::uint32_t rec);
-  void defer(
-      std::uint32_t rec, std::uint32_t x, std::uint32_t y, std::uint32_t tail, std::uint32_t slot);
+  void defer(const Deferred &deferred);
   Step drawCandidate(std::uint32_t rec,
-                     std::int32_t dx,
-                     std::int32_t dy,
-                     std::int32_t dz,
+                     const CameraOffset &offset,
                      std::int32_t drawDistance,
                      const MeshSlots &slots);
-  void listClose(std::uint32_t rec, std::int32_t depth, std::uint32_t mesh, const MeshSlots &slots);
+  void listClose(const Candidate &candidate, std::int32_t depth);
   RotationWords orient(std::uint32_t rec);
   [[nodiscard]] bool subSphereRejects(std::uint32_t mesh);
-  Step finishEntry(std::uint32_t rec, std::uint32_t mesh, const MeshSlots &slots);
+  Step finishEntry(const Candidate &candidate);
 
   Core &core_;
   const Facts &facts_;
@@ -165,19 +180,16 @@ private:
 };
 
 void MobyWalk::run() {
-  // This field draws the scene. The temporal product reads the tick to tell a scene frame from one
-  // of the guest's near-empty fields, which must not become the pairing endpoint.
-  ++spyro::context(core_).sceneProducerTicks;
   guest_render_globals::spillBorrowedRegisters(core_, globals_);
   const std::uint32_t base = core_.mem_r32(globals_.scratchBaseWord);
   const std::uint32_t firstRecord = core_.mem_r32(facts_.firstRecordWord);
-  gte_write_data(gte::kVxy1, base - kDrawerScratchBelow);
-  gte_write_data(gte::kVz1, core_.mem_r32(facts_.drawerParameter));
+  core_.gte().writeData(gte::kVxy1, base - kDrawerScratchBelow);
+  core_.gte().writeData(gte::kVz1, core_.mem_r32(facts_.drawerParameter));
   entry_ = base - kRenderListBelow;
   listEnd_ = base - kRenderListEndBelow;
   closeCursor_ = base - kCloseListBelow;
-  gte_write_ctrl(gte::kDeferredCursor, base - kDeferredBelow);
-  gte_write_ctrl(gte::kDeferredEnd, base - kDeferredEndBelow);
+  core_.gte().writeControl(gte::kDeferredCursor, base - kDeferredBelow);
+  core_.gte().writeControl(gte::kDeferredEnd, base - kDeferredEndBelow);
   cameraX_ = asSigned(core_.mem_r32(globals_.cameraPosition));
   cameraY_ = asSigned(core_.mem_r32(globals_.cameraPosition + 4));
   cameraZ_ = asSigned(core_.mem_r32(globals_.cameraPosition + 8));
@@ -191,7 +203,7 @@ void MobyWalk::run() {
   }
 
   core_.mem_w32(facts_.closeCursorHome, closeCursor_);
-  const std::uint32_t deferred = gte_read_ctrl(gte::kDeferredCursor);
+  const std::uint32_t deferred = core_.gte().readControl(gte::kDeferredCursor);
   core_.mem_w32(entry_, 0);
   core_.mem_w32(deferred, 0);
   core_.r[2] = facts_.exitV0;
@@ -216,11 +228,11 @@ MobyWalk::Step MobyWalk::visit(std::uint32_t rec) {
     const std::uint32_t z = core_.mem_r32(rec + record::kZ);
     v1_ = z;
     const MeshSlots mesh = meshSlots(rec);
-    defer(rec,
-          core_.mem_r32(rec + record::kX),
-          core_.mem_r32(rec + record::kY),
-          kDeferredUnbounded,
-          mesh.slot());
+    defer({.rec = rec,
+           .x = core_.mem_r32(rec + record::kX),
+           .y = core_.mem_r32(rec + record::kY),
+           .tail = kDeferredUnbounded,
+           .slot = mesh.slot()});
     return Step::Next;
   }
 
@@ -251,10 +263,14 @@ MobyWalk::Step MobyWalk::visit(std::uint32_t rec) {
   if (asSigned(mesh.slots) > 0) {
     // The mesh is not resident: its slot word is not a pointer. Hand the moby on with its
     // camera-relative centre and reach instead of drawing it.
-    defer(rec, asWord(dx), asWord(dy), asWord(drawDistance), mesh.slot());
+    defer({.rec = rec,
+           .x = asWord(dx),
+           .y = asWord(dy),
+           .tail = asWord(drawDistance),
+           .slot = mesh.slot()});
     return Step::Next;
   }
-  return drawCandidate(rec, dx, dy, dz, drawDistance, mesh);
+  return drawCandidate(rec, {.dx = dx, .dy = dy, .dz = dz}, drawDistance, mesh);
 }
 
 MobyWalk::MeshSlots MobyWalk::meshSlots(std::uint32_t rec) {
@@ -267,40 +283,39 @@ MobyWalk::MeshSlots MobyWalk::meshSlots(std::uint32_t rec) {
 
 // SCUS_944.25 8004415C..80044194. The record pointer is stored even when the buffer is full; the
 // rest of the slot is written and the cursor advanced only when it is not.
-void MobyWalk::defer(
-    std::uint32_t rec, std::uint32_t x, std::uint32_t y, std::uint32_t tail, std::uint32_t slot) {
-  const std::uint32_t cursor = gte_read_ctrl(gte::kDeferredCursor);
-  const std::uint32_t end = gte_read_ctrl(gte::kDeferredEnd);
-  core_.mem_w32(cursor, rec);
+void MobyWalk::defer(const Deferred &deferred) {
+  const std::uint32_t cursor = core_.gte().readControl(gte::kDeferredCursor);
+  const std::uint32_t end = core_.gte().readControl(gte::kDeferredEnd);
+  core_.mem_w32(cursor, deferred.rec);
   if (cursor == end) {
     return;
   }
-  core_.mem_w32(cursor + 4, (x << 16) + (y & 0xFFFFu));
-  v1_ = (v1_ << 16) + tail;
+  core_.mem_w32(cursor + 4, (deferred.x << 16) + (deferred.y & 0xFFFFu));
+  v1_ = (v1_ << 16) + deferred.tail;
   core_.mem_w32(cursor + 8, v1_);
-  core_.mem_w32(cursor + 12, slot);
-  gte_write_ctrl(gte::kDeferredCursor, cursor + 16);
+  core_.mem_w32(cursor + 12, deferred.slot);
+  core_.gte().writeControl(gte::kDeferredCursor, cursor + 16);
 }
 
 // SCUS_944.25 800439F4..80043B04: rotate the centre into view space and cull its bounding sphere.
 MobyWalk::Step MobyWalk::drawCandidate(std::uint32_t rec,
-                                       std::int32_t dx,
-                                       std::int32_t dy,
-                                       std::int32_t dz,
+                                       const CameraOffset &offset,
                                        std::int32_t drawDistance,
                                        const MeshSlots &slots) {
-  const std::uint32_t mesh = core_.mem_r32(slots.slot() + kSlotMesh);
+  const Candidate candidate{
+      .rec = rec, .mesh = core_.mem_r32(slots.slot() + kSlotMesh), .slots = slots};
+  const std::uint32_t mesh = candidate.mesh;
   for (std::uint32_t i = 0; i < gte::kRotationWords; ++i) {
-    gte_write_ctrl(gte::kRotation + i, camera_[i]);
+    core_.gte().writeControl(gte::kRotation + i, camera_[i]);
   }
   const std::uint32_t radius = static_cast<std::uint32_t>(core_.mem_r8(mesh + kMeshRadius)) << 4;
-  gte_write_data(gte::kIr3, asWord(dx));
-  gte_write_data(gte::kIr1, asWord(dy));
-  gte_write_data(gte::kIr2, asWord(dz));
-  gte_op(&core_, gte::kMvmvaRtIr);
-  const ViewPoint view{asSigned(gte_read_data(gte::kMac1)),
-                       asSigned(gte_read_data(gte::kMac2)),
-                       asSigned(gte_read_data(gte::kMac3))};
+  core_.gte().writeData(gte::kIr3, asWord(offset.dx));
+  core_.gte().writeData(gte::kIr1, asWord(offset.dy));
+  core_.gte().writeData(gte::kIr2, asWord(offset.dz));
+  core_.gte().execute(gte::kMvmvaRtIr);
+  const ViewPoint view{asSigned(core_.gte().readData(gte::kMac1)),
+                       asSigned(core_.gte().readData(gte::kMac2)),
+                       asSigned(core_.gte().readData(gte::kMac3))};
   v1_ = asWord(view.z);
   if (view.z - drawDistance >= 0 || guest_moby_frustum::behindEye(view, radius)) {
     return Step::Next;
@@ -309,13 +324,13 @@ MobyWalk::Step MobyWalk::drawCandidate(std::uint32_t rec,
   if (guest_moby_frustum::outsideHorizontal(view, margins, slope_)) {
     return Step::Next;
   }
-  listClose(rec, view.z, mesh, slots);
+  listClose(candidate, view.z);
   if (guest_moby_frustum::outsideVertical(view, margins)) {
     return Step::Next;
   }
-  gte_write_ctrl(gte::kTranslationX, asWord(view.x));
-  gte_write_ctrl(gte::kTranslationY, asWord(view.y));
-  gte_write_ctrl(gte::kTranslationZ, asWord(view.z));
+  core_.gte().writeControl(gte::kTranslationX, asWord(view.x));
+  core_.gte().writeControl(gte::kTranslationY, asWord(view.y));
+  core_.gte().writeControl(gte::kTranslationZ, asWord(view.z));
   const std::uint32_t mobyClass =
       guest_moby_frustum::insideFrustum(view, margins, slope_) ? 2u : 1u;
   core_.mem_w8(rec + record::kClass, static_cast<std::uint8_t>(mobyClass));
@@ -329,20 +344,19 @@ MobyWalk::Step MobyWalk::drawCandidate(std::uint32_t rec,
   if (mobyClass == 1 && subSphereRejects(mesh)) {
     return Step::Next;
   }
-  return finishEntry(rec, mesh, slots);
+  return finishEntry(candidate);
 }
 
 // SCUS_944.25 80043A94..80043AD8: a moby flagged close and nearer than kCloseDepth is also listed
 // with one byte of its mesh, whatever the vertical test then decides.
-void MobyWalk::listClose(std::uint32_t rec,
-                         std::int32_t depth,
-                         std::uint32_t mesh,
-                         const MeshSlots &slots) {
-  if (asSigned(core_.mem_r32(rec + record::kCloseFlag)) >= 0 || depth - kCloseDepth >= 0) {
+void MobyWalk::listClose(const Candidate &candidate, std::int32_t depth) {
+  if (asSigned(core_.mem_r32(candidate.rec + record::kCloseFlag)) >= 0 ||
+      depth - kCloseDepth >= 0) {
     return;
   }
-  const std::uint32_t byte = core_.mem_r8(((slots.packed >> 13) & 0x7F8u) + mesh + kMeshCloseByte);
-  core_.mem_w32(closeCursor_, rec);
+  const std::uint32_t byte =
+      core_.mem_r8(((candidate.slots.packed >> 13) & 0x7F8u) + candidate.mesh + kMeshCloseByte);
+  core_.mem_w32(closeCursor_, candidate.rec);
   core_.mem_w32(closeCursor_ + 4, byte);
   closeCursor_ += 8;
 }
@@ -356,7 +370,7 @@ RotationWords MobyWalk::orient(std::uint32_t rec) {
   v1_ = facts_.sineTable;
   core_.mem_w32(entry_ + entry::kFlags, flags);
   if ((flags & kInterpolatedAngles) == 0) {
-    guest_moby_rotation::composeTabled(core_, facts_.sineTable, angles, rotation);
+    guest_moby_rotation::composeTabled(core_, facts_.sineTable, {.angles = angles}, rotation);
     return rotation;
   }
   if ((flags & kMirrored) == 0) {
@@ -364,9 +378,10 @@ RotationWords MobyWalk::orient(std::uint32_t rec) {
   }
   // Retail's multiplies need HI/LO, so it parks the close-list cursor and the list end in two
   // light-matrix registers for the duration and leaves them there.
-  gte_write_ctrl(gte::kParkedCursor, closeCursor_);
-  gte_write_ctrl(gte::kParkedListEnd, listEnd_);
-  guest_moby_rotation::composeInterpolated(core_, facts_.sineTable, angles, flags, rotation);
+  core_.gte().writeControl(gte::kParkedCursor, closeCursor_);
+  core_.gte().writeControl(gte::kParkedListEnd, listEnd_);
+  guest_moby_rotation::composeInterpolated(
+      core_, facts_.sineTable, {.angles = angles, .flags = flags}, rotation);
   if ((flags & kMirrored) == 0) {
     v1_ = rotation[0] & 0xFFFFu;
     return rotation;
@@ -386,14 +401,14 @@ bool MobyWalk::subSphereRejects(std::uint32_t mesh) {
   const auto signedByte = [sphere](std::uint32_t shift) {
     return static_cast<std::int32_t>(static_cast<std::int8_t>((sphere >> shift) & 0xFFu)) * 8;
   };
-  gte_write_data(gte::kIr3, asWord(signedByte(24)));
-  gte_write_data(gte::kIr1, asWord(-signedByte(16)));
-  gte_write_data(gte::kIr2, asWord(-signedByte(8)));
+  core_.gte().writeData(gte::kIr3, asWord(signedByte(24)));
+  core_.gte().writeData(gte::kIr1, asWord(-signedByte(16)));
+  core_.gte().writeData(gte::kIr2, asWord(-signedByte(8)));
   const std::uint32_t radius = (sphere & 0xFFu) << 3;
-  gte_op(&core_, gte::kMvmvaRtIrTr);
-  const ViewPoint view{asSigned(gte_read_data(gte::kMac1)),
-                       asSigned(gte_read_data(gte::kMac2)),
-                       asSigned(gte_read_data(gte::kMac3))};
+  core_.gte().execute(gte::kMvmvaRtIrTr);
+  const ViewPoint view{asSigned(core_.gte().readData(gte::kMac1)),
+                       asSigned(core_.gte().readData(gte::kMac2)),
+                       asSigned(core_.gte().readData(gte::kMac3))};
   if (guest_moby_frustum::behindEye(view, radius)) {
     return true;
   }
@@ -409,11 +424,11 @@ bool MobyWalk::subSphereRejects(std::uint32_t mesh) {
 }
 
 // SCUS_944.25 80043EEC..800440C8: mesh, overlay, shading, detail and the projected centre.
-MobyWalk::Step
-MobyWalk::finishEntry(std::uint32_t rec, std::uint32_t mesh, const MeshSlots &slots) {
-  const std::int32_t cx = asSigned(gte_read_ctrl(gte::kTranslationX));
-  const std::int32_t cy = asSigned(gte_read_ctrl(gte::kTranslationY));
-  const std::int32_t cz = asSigned(gte_read_ctrl(gte::kTranslationZ));
+MobyWalk::Step MobyWalk::finishEntry(const Candidate &candidate) {
+  const auto [rec, mesh, slots] = candidate;
+  const std::int32_t cx = asSigned(core_.gte().readControl(gte::kTranslationX));
+  const std::int32_t cy = asSigned(core_.gte().readControl(gte::kTranslationY));
+  const std::int32_t cz = asSigned(core_.gte().readControl(gte::kTranslationZ));
   const std::uint32_t biasWord = core_.mem_r16(rec + record::kDepthBias);
   const std::uint32_t overlay =
       core_.mem_r8(facts_.overlayTable + core_.mem_r8(rec + record::kKind));
@@ -469,14 +484,14 @@ MobyWalk::finishEntry(std::uint32_t rec, std::uint32_t mesh, const MeshSlots &sl
   std::int32_t y = y4 >> amount;
   std::int32_t z = z4 >> amount;
   if (scale != 0) {
-    gte_write_data(gte::kIr0, scale);
-    gte_write_data(gte::kIr1, asWord(x));
-    gte_write_data(gte::kIr2, asWord(y));
-    gte_write_data(gte::kIr3, asWord(z));
-    gte_op(&core_, gte::kGpf);
-    z = asSigned(gte_read_data(gte::kMac3)) >> 5;
-    y = asSigned(gte_read_data(gte::kMac2)) >> 5;
-    x = asSigned(gte_read_data(gte::kMac1)) >> 5;
+    core_.gte().writeData(gte::kIr0, scale);
+    core_.gte().writeData(gte::kIr1, asWord(x));
+    core_.gte().writeData(gte::kIr2, asWord(y));
+    core_.gte().writeData(gte::kIr3, asWord(z));
+    core_.gte().execute(gte::kGpf);
+    z = asSigned(core_.gte().readData(gte::kMac3)) >> 5;
+    y = asSigned(core_.gte().readData(gte::kMac2)) >> 5;
+    x = asSigned(core_.gte().readData(gte::kMac1)) >> 5;
   }
   v1_ = asWord(z);
   if (z - kFarDepth > 0) {

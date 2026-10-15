@@ -1,5 +1,8 @@
 #pragma once
 
+#include "spyro1_runtime.h"
+#include "spyro2_runtime.h"
+#include "spyro3_runtime.h"
 #include "spyro_runtime.h"
 #include "title_catalog.h"
 
@@ -9,8 +12,6 @@
 
 namespace spyro {
 
-SpyroRuntime &runtimeFor(SpyroTitle title);
-
 // Spyro 1/2/3 as the multi-title host's catalog: entry i of the generated identities is title i.
 class SpyroCatalog final : public psx::host::TitleCatalog {
 public:
@@ -19,6 +20,12 @@ public:
   std::span<const psx::host::TitleIdentity> titles() const override;
   SpyroRuntime &runtime(std::size_t index) const override;
   SpyroTitle title(std::size_t index) const;
+
+private:
+  // The host asks for a mutable runtime from a const catalog; each runtime is its title's one.
+  mutable spyro1::Spyro1Runtime spyro1_;
+  mutable spyro2::Spyro2Runtime spyro2_;
+  mutable spyro3::Spyro3Runtime spyro3_;
 };
 
 // The product's catalog, run by the framework main (psxport_add_product).

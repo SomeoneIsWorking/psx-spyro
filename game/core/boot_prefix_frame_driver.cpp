@@ -2,7 +2,7 @@
 
 #include "core.h"
 #include "game.h"
-#include "spyro_context.h"
+#include "spyro_session.h"
 
 #include "execution_exit.h"
 
@@ -25,11 +25,8 @@ constexpr int kMaxLoopCallsPerStep = 4;
 
 } // namespace
 
-BootPrefixFrameDriver::BootPrefixFrameDriver(Game &game,
-                                             const BootPrefixFacts &facts,
-                                             spyro::FieldObserver *observer,
-                                             spyro::FrameTailObserver *tail)
-    : core_(game.core), facts_(facts), fields_(game, facts.field, observer), tail_(tail) {}
+BootPrefixFrameDriver::BootPrefixFrameDriver(Game &game, const BootPrefixFacts &facts)
+    : core_(game.core), facts_(facts), fields_(game, facts.field), cut_(facts.cut) {}
 
 void BootPrefixFrameDriver::initialize() {
   if (initialized_) {
@@ -208,8 +205,8 @@ void BootPrefixFrameDriver::stepMainLoop(Core &core) {
         CallProgress::Returned) {
       return;
     }
-    if (loopCall_ == LoopCall::Draw && tail_ != nullptr) {
-      tail_->onFrameDrawn(core);
+    if (loopCall_ == LoopCall::Draw) {
+      cut_.onFrameDrawn(core);
     }
     loopCall_ = loopCall_ == LoopCall::Update ? LoopCall::Draw : LoopCall::Update;
   }
@@ -228,11 +225,8 @@ void BootPrefixFrameDriver::stepFrame(Core &core, std::uint32_t frame) {
     stepMainLoop(core);
   }
 
-  // The title's frame-tail work: the guest's last command of the step has executed, the step's
-  // queue is not yet rasterised.
-  if (tail_ != nullptr) {
-    tail_->onFrameTail(core);
-  }
+  // The guest's last command of the step has executed; the record is sealed next.
+  cut_.onFrameTail(core);
 
   // Exactly one presentation fence per step; its last field is the visible one.
   deliverField(phase_ == Phase::Boot ? "boot-tail" : "frame-tail", true, true);

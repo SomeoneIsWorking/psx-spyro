@@ -1,6 +1,7 @@
 #pragma once
 
 #include "field_owner.h"
+#include "frame_cut.h"
 #include "game_runtime.h"
 #include "resumable_guest_call.h"
 
@@ -24,6 +25,7 @@ struct BootPrefixFacts {
   std::uint32_t frameUpdate = 0;
   std::uint32_t frameDraw = 0;
   FieldOwnerFacts field;
+  FrameCutFacts cut;
   std::uint64_t bootStepFieldLimit = kDefaultBootStepFieldLimit;
   std::uint64_t bootStepLimit = kDefaultBootStepLimit;
 };
@@ -32,14 +34,9 @@ struct BootPrefixFacts {
 // guest VSync comes back as a frame-boundary exit this driver satisfies with one delivered field,
 // so one step presents exactly one field. The host-turn clock stays unarmed because the guest's
 // own VSync is the only field source the boot uses.
-class BootPrefixFrameDriver final : public FrameDriver {
+class BootPrefixFrameDriver final : public psx::game::FrameDriver {
 public:
-  // The title's per-field observer, or null; the facts struct carries measured bytes, not objects
-  // with a lifetime. `tail` observes the step's other end, the point before the field is presented.
-  BootPrefixFrameDriver(Game &game,
-                        const BootPrefixFacts &facts,
-                        spyro::FieldObserver *observer = nullptr,
-                        spyro::FrameTailObserver *tail = nullptr);
+  BootPrefixFrameDriver(Game &game, const BootPrefixFacts &facts);
 
   void initialize();
   void stepFrame(Core &core, std::uint32_t frame) override;
@@ -67,6 +64,10 @@ public:
 
   [[nodiscard]] const BootPrefixFacts &facts() const {
     return facts_;
+  }
+
+  [[nodiscard]] const FrameCut &cut() const {
+    return cut_;
   }
 
 private:
@@ -97,7 +98,7 @@ private:
   Core &core_;
   BootPrefixFacts facts_;
   FieldOwner fields_;
-  spyro::FrameTailObserver *tail_ = nullptr;
+  FrameCut cut_;
   psx::cpu::ResumableGuestCall call_;
   Phase phase_ = Phase::Boot;
   // Which retail call `call_` is, once the main loop runs: a call suspended at a display wait is

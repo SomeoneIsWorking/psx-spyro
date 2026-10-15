@@ -61,6 +61,7 @@ set(SPYRO_RUNTIME_SOURCES
   game/core/cd_queue.cpp
   game/core/boot_prefix_frame_driver.cpp
   game/core/field_owner.cpp
+  game/core/frame_cut.cpp
   game/core/guest_execution.cpp
   game/core/native_angle.cpp
   game/core/guest_magnitude.cpp
@@ -69,160 +70,21 @@ set(SPYRO_RUNTIME_SOURCES
   game/core/native_rand.cpp
   game/core/native_util.cpp
   game/core/native_vec.cpp
-  game/core/spyro_context.cpp
+  game/core/spyro_session.cpp
   game/core/spyro_gate_debug.cpp
   game/core/spyro_runtime.cpp
   game/core/title_runtime_registry.cpp
   game/core/title_logo.cpp
-  game/render/actor/actor_billboard_face.cpp
-  game/render/actor/actor_draw_recipe.cpp
-  game/render/actor/actor_emit.cpp
-  game/render/temporal/actor_pairing.cpp
-  game/render/actor/actor_stage.cpp
-  game/render/actor/actor_submission.cpp
-  game/render/actor/actor_face_submitter.cpp
-  game/render/actor/actor_global_order.cpp
-  game/render/actor/actor_ot_coalescer.cpp
-  game/render/actor/actor_model_codec.cpp
-  game/render/actor/actor_prefix_builder.cpp
-  game/render/actor/actor_recipe_capture.cpp
-  game/render/actor/actor_scene_builder.cpp
-  game/render/temporal/actor_temporal.cpp
-  game/render/actor/actor_transform_math.cpp
-  game/render/scene/cutscene_scene_recipe.cpp
-  game/render/field/face_light_environment.cpp
-  game/render/field/face_light_program.cpp
-  game/render/world/cyclorama_mask_recipe.cpp
-  game/render/world/cyclorama_mask_submitter.cpp
-  game/render/world/cyclorama_portal_mesh_recipe.cpp
-  game/render/frame/guest_trig.cpp
-  game/render/field/shaded_moby_light.cpp
-  game/render/hud/hud_text_builder.cpp
-  game/render/scene/demo_text_scene.cpp
-  game/render/scene/level_transition_scene.cpp
-  game/render/scene/pause_menu_recipe.cpp
-  game/render/scene/pause_menu_scene.cpp
-  game/render/world/menu_world_pass.cpp
-  game/render/hud/menu_lighting.cpp
-  game/render/hud/menu_panel_submit.cpp
-  game/render/scene/fairy_menu_recipe.cpp
-  game/render/scene/fairy_menu_scene.cpp
-  game/render/scene/level_transition_tally_recipe.cpp
-  game/render/world/cyclorama_portal_submitter.cpp
-  game/render/world/cyclorama_scene_recipe.cpp
-  game/render/field/field_collectables_recipe.cpp
-  game/render/field/field_environment_recipe.cpp
-  game/render/field/field_environment_scene.cpp
-  game/render/field/field_moby_lists.cpp
-  game/render/field/field_particle_quad_submitter.cpp
-  game/render/field/field_particle_oriented_submitter.cpp
-  game/render/field/field_particle_type2_submitter.cpp
-  game/render/field/field_particle_type3_submitter.cpp
-  game/render/field/field_particles_recipe.cpp
-  game/render/hud/wide_screen_space.cpp
-  game/render/actor/paired_actor_color_fade.cpp
-  game/render/frame/gte_color_ops.cpp
-  game/render/frame/gpu_packet_decode.cpp
-  game/render/field/field_scene_recipe.cpp
-  game/render/field/field_shaded_queue_emit.cpp
-  game/render/field/field_shaded_queue_recipe.cpp
-  game/render/field/field_shaded_queue_scene.cpp
-  game/render/field/field_shaded_queue_submitter.cpp
-  game/render/temporal/field_shaded_queue_temporal.cpp
-  game/render/field/field_shadow_recipe.cpp
-  game/render/field/field_shadow_submitter.cpp
-  game/render/field/moby_shadow_recipe.cpp
-  game/render/field/glow_recipe.cpp
-  game/render/field/glow_submitter.cpp
-  game/render/scene/dragon_burst_recipe.cpp
-  game/render/scene/dragon_scene_recipe.cpp
-  game/render/scene/dragon_burst_producer.cpp
-  game/render/scene/dragon_scene_producer.cpp
-  game/render/field/field_model_chain.cpp
-  game/render/frame/projection_stream.cpp
-  game/render/field/sparkle_recipe.cpp
-  game/render/field/sparkle_submitter.cpp
-  game/render/field/glow_sparkle.cpp
-  game/render/field/spyro_flame_matrix.cpp
-    game/render/field/spyro_flame_recipe.cpp
-  game/render/field/spyro_flame_submitter.cpp
-  game/render/field/spyro_flame.cpp
-  game/render/field/moby_shadow_submitter.cpp
-  game/render/field/field_tracers_recipe.cpp
-  game/render/frame/frame_env.cpp
-  game/render/actor/actor_producer.cpp
-  game/render/field/field_actor_composition.cpp
-  game/render/field/field_collectables.cpp
-  game/render/field/field_cyclorama.cpp
-  game/render/field/field_environment.cpp
-  game/render/field/field_particles.cpp
-  game/render/field/field_player_actor.cpp
-  game/render/field/field_shadow.cpp
-  game/render/field/moby_shadow.cpp
-  game/render/field/field_tracers.cpp
-  game/render/actor/paired_actor.cpp
-  game/render/actor/paired_actor_producer.cpp
-  game/render/actor/paired_actor_projection.cpp
-  game/render/actor/paired_actor_selftest.cpp
-  game/render/actor/paired_actor_temporal.cpp
-  game/render/hud/screen_border.cpp
-  game/render/hud/screen_fade.cpp
-  game/render/field/sprite_queue.cpp
-  game/render/scene/title_menu.cpp
-  game/render/world/world_producer.cpp
-  game/render/terrain/native_terrain.cpp
-  game/render/frame/painter_submission_preflight.cpp
-  game/render/actor/paired_actor_decode.cpp
-  game/render/actor/paired_actor_pose.cpp
-  game/render/actor/paired_actor_depth.cpp
-  game/render/actor/paired_actor_temporal_evidence.cpp
-  game/render/temporal/temporal_scene.cpp
-  game/render/terrain/terrain_emit.cpp
   game/render/terrain/guest_camera_builder.cpp
-  game/render/terrain/terrain_packet_sink.cpp
+  game/render/terrain/guest_depth_bins.cpp
   game/render/terrain/terrain_rebuild.cpp
   game/render/terrain/terrain_state_producer.cpp
-  game/render/temporal/terrain_world_pass.cpp
-  game/render/terrain/terrain_recipe.cpp
-  game/render/terrain/terrain_scene.cpp
-  game/render/terrain/terrain_submitter.cpp
-  game/render/temporal/terrain_temporal.cpp
   game/render/hud/ui_anchor.cpp
-  game/render/frame/presentation_owner.cpp
-  game/render/frame/guest_scene.cpp
-  game/render/frame/frame_renderer.cpp
-  game/render/frame/scene_draw_env.cpp
-  game/render/frame/scene.cpp
-  game/render/frame/scene_painter_order.cpp
-  game/render/hud/screen_border_recipe.cpp
-  game/render/hud/screen_fade_recipe.cpp
-  game/render/actor/secondary_actor_emit.cpp
-  game/render/actor/secondary_actor_recipe.cpp
-  game/render/actor/secondary_actor_scene.cpp
-  game/render/temporal/secondary_actor_temporal.cpp
-  game/render/scene/stage13_scene_recipe.cpp
-  game/render/scene/stage13_text_run.cpp
-  game/render/scene/title_menu_recipe.cpp
-  game/render/scene/title_menu_state.cpp
-  game/render/world/world_animation.cpp
-  game/render/world/world_chunk_codec.cpp
-  game/render/world/world_hq_recipe.cpp
-  game/render/world/world_hq_refinement.cpp
-  game/render/world/world_lq_recipe.cpp
-  game/render/world/world_material_codec.cpp
-    game/render/world/world_projection_math.cpp
-  game/render/world/world_recipe.cpp
-  game/render/world/world_scene_builder.cpp
-  game/render/field/sector_visibility.cpp
-  game/render/world/world_scene_prepare.cpp
-  game/render/world/world_source_animation.cpp
-  game/render/world/world_scene_submitter.cpp
-  game/render/world/world_source.cpp
-  game/render/world/world_source_pair.cpp
-  game/render/temporal/world_temporal.cpp
   titles/spyro1/core/frame/spyro1_boot_sequence.cpp
   titles/spyro1/core/runtime/spyro1_field_scheduler.cpp
+  titles/spyro1/core/frame/spyro1_frame_draw.cpp
   titles/spyro1/core/frame/spyro1_frame_driver.cpp
+  titles/spyro1/core/frame/spyro1_ordering_table.cpp
   titles/spyro1/core/input/spyro1_input_phase.cpp
   titles/spyro1/core/execution/handoff_store_observer.cpp
   titles/spyro1/core/frame/stage_update_observer.cpp
@@ -249,6 +111,7 @@ set(SPYRO_RUNTIME_SOURCES
   titles/spyro1/core/effect/native_particle_alloc.cpp
   titles/spyro1/core/hud/native_pause_menu.cpp
   titles/spyro1/core/hud/native_pixel_fade.cpp
+  titles/spyro1/core/hud/screen_overlays.cpp
   titles/spyro1/core/player/native_player_animation.cpp
   titles/spyro1/core/player/native_player_physics.cpp
   titles/spyro1/core/execution/native_random_range.cpp
@@ -262,7 +125,6 @@ set(SPYRO_RUNTIME_SOURCES
   titles/spyro1/core/audio/native_spu_key_status.cpp
   titles/spyro1/core/audio/native_spu_transfer_mode.cpp
   titles/spyro1/core/audio/native_spu_common_attr.cpp
-  game/core/guest_widescreen_owner.cpp
   game/render/field/guest_moby_rotation.cpp
   game/render/field/guest_moby_visibility.cpp
   game/render/terrain/guest_terrain_classify.cpp
@@ -277,9 +139,7 @@ set(SPYRO_RUNTIME_SOURCES
   game/render/terrain/guest_terrain_resplit.cpp
   game/render/terrain/guest_terrain_split.cpp
   game/render/terrain/guest_terrain_translucent.cpp
-  titles/spyro2/core/spyro2_frame_cut.cpp
   titles/spyro2/core/spyro2_runtime.cpp
-  titles/spyro2/render/spyro2_depth_bins.cpp
   titles/spyro2/render/spyro2_hud_anchor.cpp
   titles/spyro3/core/spyro3_runtime.cpp
   titles/spyro3/render/spyro3_hud_anchor.cpp)
@@ -288,14 +148,10 @@ add_library(spyro_runtime STATIC ${SPYRO_RUNTIME_SOURCES})
 add_dependencies(spyro_runtime spyro_title_catalog)
 target_include_directories(spyro_runtime PUBLIC
   game/core
-  game/render/actor
+  game/render
   game/render/field
-  game/render/frame
   game/render/hud
-  game/render/scene
-  game/render/temporal
   game/render/terrain
-  game/render/world
   titles/spyro1/core
   titles/spyro1/core/audio
   titles/spyro1/core/camera
@@ -329,27 +185,29 @@ if(BUILD_TESTING)
   # This discriminator consumes an explicitly supplied authenticated EXE locally. No game assets
   # enter hosted CTest/CI, and no extracted instructions are committed as synthetic fixtures.
   add_executable(test_spyro_digital_input tests/test_spyro_digital_input.cpp)
-  target_link_libraries(test_spyro_digital_input PRIVATE spyro_runtime)
+  target_link_libraries(test_spyro_digital_input PRIVATE spyro_runtime psxport_test_support)
   add_executable(test_archive_transfer tests/test_archive_transfer.cpp)
-  target_link_libraries(test_archive_transfer PRIVATE spyro_runtime)
+  target_link_libraries(test_archive_transfer PRIVATE spyro_runtime psxport_test_support)
   add_test(NAME archive_transfer COMMAND test_archive_transfer)
-  foreach(test_name IN ITEMS actor_billboard_face actor_prefix_builder actor_mesh_scratch actor_model_codec archive_transfer_contract cutscene_scene_recipe cyclorama_mask_recipe cyclorama_scene_recipe field_collectables_recipe field_2d_overlay_recipe pause_menu_recipe fairy_menu_recipe field_environment_recipe field_environment_scene field_scene_recipe field_tracers_recipe memcard_event_stack paired_actor_decode screen_border_recipe screen_fade_recipe secondary_actor_scene spu_hardware_init spu_pio_upload spyro_gate_debug stage13_scene_recipe text_sprites title_menu_recipe wide_clip_plan world_chunk_codec world_material_codec world_recipe actor_draw_recipe native_render_producers face_light_program shaded_moby_light secondary_actor_recipe secondary_actor_temporal temporal_scene world_animation world_source_pair world_temporal actor_temporal world_scene_prepare world_hq_refinement field_shadow_recipe moby_shadow_recipe actor_shadow_staging spyro_flame_recipe spyro_flame_matrix glow_recipe sparkle_recipe dragon_scene_recipe dragon_burst_recipe actor_scale_translation field_particles_recipe field_particle_endpoint wide_screen_space field_particle_oriented paired_actor_color_fade actor_global_order field_scheduler transition_skip press_latch scene_draw_env cyclorama_portal_mesh_recipe hud_text_builder demo_text_scene level_transition_tally_recipe field_shaded_queue_recipe field_shaded_queue_scene field_shaded_queue_temporal terrain_recipe terrain_temporal guest_moby_frustum spyro2_hud_anchor spyro3_hud_anchor guest_terrain_screen guest_camera_builder guest_terrain_memory terrain_packet_sink terrain_packet_arenas terrain_packet_window gpu_packet_decode ui_anchor hud_layout)
+  # A missing image, so the loader-fault case reaches the production disc owner with no media.
+  set_tests_properties(archive_transfer PROPERTIES ENVIRONMENT "PSXPORT_DISC=${CMAKE_BINARY_DIR}/no-disc.chd")
+  foreach(test_name IN ITEMS actor_mesh_scratch archive_transfer_contract memcard_event_stack spu_hardware_init spu_pio_upload spyro_gate_debug text_sprites field_scheduler transition_skip press_latch guest_moby_frustum spyro2_hud_anchor spyro3_hud_anchor guest_terrain_screen guest_camera_builder guest_terrain_memory terrain_packet_window ui_anchor spyro1_screen_overlays title_logo)
 
     add_executable(test_${test_name} tests/test_${test_name}.cpp)
     target_include_directories(test_${test_name} PRIVATE ${PSXPORT_DIR}/tests)
-    target_link_libraries(test_${test_name} PRIVATE spyro_runtime)
+    target_link_libraries(test_${test_name} PRIVATE spyro_runtime psxport_test_support)
     add_test(NAME ${test_name} COMMAND test_${test_name})
   endforeach()
   add_executable(test_stage_update_observer tests/test_stage_update_observer.cpp)
   target_include_directories(test_stage_update_observer PRIVATE ${PSXPORT_DIR}/tests)
-  target_link_libraries(test_stage_update_observer PRIVATE spyro_runtime)
+  target_link_libraries(test_stage_update_observer PRIVATE spyro_runtime psxport_test_support)
   add_test(NAME stage_update_observer COMMAND test_stage_update_observer)
   add_executable(test_handoff_store_observer tests/test_handoff_store_observer.cpp)
   target_include_directories(test_handoff_store_observer PRIVATE ${PSXPORT_DIR}/tests)
-  target_link_libraries(test_handoff_store_observer PRIVATE spyro_runtime)
+  target_link_libraries(test_handoff_store_observer PRIVATE spyro_runtime psxport_test_support)
   add_test(NAME handoff_store_observer COMMAND test_handoff_store_observer)
   add_executable(test_guest_execution tests/test_guest_execution.cpp)
-  target_link_libraries(test_guest_execution PRIVATE spyro_runtime)
+  target_link_libraries(test_guest_execution PRIVATE spyro_runtime psxport_test_support)
   add_test(NAME guest_execution COMMAND test_guest_execution)
   # The shared boot-prefix frame driver, over synthetic facts: the finite guest call, one delivered
   # field per guest display wait, one presented field per step, and the refusals that keep a wedged
@@ -358,7 +216,7 @@ if(BUILD_TESTING)
     tests/test_boot_prefix_frame_driver.cpp)
   target_include_directories(test_boot_prefix_frame_driver PRIVATE
     ${PSXPORT_DIR}/tests game/core titles/spyro2/core)
-  target_link_libraries(test_boot_prefix_frame_driver PRIVATE spyro_runtime)
+  target_link_libraries(test_boot_prefix_frame_driver PRIVATE spyro_runtime psxport_test_support)
   add_test(NAME boot_prefix_frame_driver COMMAND test_boot_prefix_frame_driver)
   # Each title's measured boot-prefix facts and the runtime plan that has to agree with them, so a
   # wrong guest address fails here rather than only in a run with a disc attached.
@@ -366,14 +224,23 @@ if(BUILD_TESTING)
     tests/test_boot_prefix_facts.cpp)
   target_include_directories(test_boot_prefix_facts PRIVATE
     ${PSXPORT_DIR}/tests game/core titles/spyro2/core titles/spyro3/core)
-  target_link_libraries(test_boot_prefix_facts PRIVATE spyro_runtime)
+  target_link_libraries(test_boot_prefix_facts PRIVATE spyro_runtime psxport_test_support)
   add_test(NAME boot_prefix_facts COMMAND test_boot_prefix_facts)
   # Spyro 2's Record path: render path selection, cut declaration and terrain producer keys.
   add_executable(test_spyro2_record tests/test_spyro2_record.cpp)
   target_include_directories(test_spyro2_record PRIVATE
-    ${PSXPORT_DIR}/tests game/core titles/spyro2/core titles/spyro3/core)
-  target_link_libraries(test_spyro2_record PRIVATE spyro_runtime)
+    ${PSXPORT_DIR}/tests game/core titles/spyro2/core)
+  target_link_libraries(test_spyro2_record PRIVATE spyro_runtime psxport_test_support)
   add_test(NAME spyro2_record COMMAND test_spyro2_record)
+  add_executable(test_spyro1_record tests/test_spyro1_record.cpp)
+  target_include_directories(test_spyro1_record PRIVATE ${PSXPORT_DIR}/tests)
+  target_link_libraries(test_spyro1_record PRIVATE spyro_runtime psxport_test_support)
+  add_test(NAME spyro1_record COMMAND test_spyro1_record)
+  add_executable(test_spyro3_record tests/test_spyro3_record.cpp)
+  target_include_directories(test_spyro3_record PRIVATE
+    ${PSXPORT_DIR}/tests game/core titles/spyro3/core)
+  target_link_libraries(test_spyro3_record PRIVATE spyro_runtime psxport_test_support)
+  add_test(NAME spyro3_record COMMAND test_spyro3_record)
   # Spyro 2 and 3 stream code modules through the framework's stock CdRead and call into them: the
   # landing is published as a resident image (psxport guest_code_module.*), driven end to end
   # through the shipping read, both title runtimes, the image catalog, and Lightrec.
@@ -381,25 +248,21 @@ if(BUILD_TESTING)
     tests/test_stock_read_publication.cpp)
   target_include_directories(test_stock_read_publication PRIVATE
     ${PSXPORT_DIR}/tests game/core titles/spyro2/core titles/spyro3/core)
-  target_link_libraries(test_stock_read_publication PRIVATE spyro_runtime)
+  target_link_libraries(test_stock_read_publication PRIVATE spyro_runtime psxport_test_support)
   add_test(NAME stock_read_publication COMMAND test_stock_read_publication)
   add_executable(test_spyro_catalog tests/test_spyro_catalog.cpp)
   target_include_directories(test_spyro_catalog PRIVATE game/core)
-  target_link_libraries(test_spyro_catalog PRIVATE spyro_runtime)
+  target_link_libraries(test_spyro_catalog PRIVATE spyro_runtime psxport_test_support)
   add_test(NAME spyro_catalog COMMAND test_spyro_catalog)
-  add_executable(test_spyro3_runtime
-    tests/test_spyro3_runtime.cpp)
-  target_include_directories(test_spyro3_runtime PRIVATE game/core)
-  target_link_libraries(test_spyro3_runtime PRIVATE spyro_runtime)
-  add_test(NAME spyro3_runtime COMMAND test_spyro3_runtime)
-  # The shared horizontal widening arithmetic and the per-title sites each image binds: the widened
-  # centre, the widened clipping rectangle, the fact that neither ever narrows, and both titles'
-  # measured leaves against their own bytes.
-  add_executable(test_guest_widescreen
-    tests/test_guest_widescreen.cpp)
-  target_include_directories(test_guest_widescreen PRIVATE
-    game/core titles/spyro2/core titles/spyro3/core)
-  target_link_libraries(test_guest_widescreen PRIVATE spyro_runtime)
+  # Each title's startProgram over a crt0 assembled from its measured boot group.
+  add_executable(test_start_program tests/test_start_program.cpp)
+  target_include_directories(test_start_program PRIVATE ${PSXPORT_DIR}/tests)
+  target_link_libraries(test_start_program PRIVATE spyro_runtime psxport_test_support)
+  add_test(NAME start_program COMMAND test_start_program)
+  # The widened culls and HUD read the session's latched plan; each title's libgte leaves.
+  add_executable(test_guest_widescreen tests/test_guest_widescreen.cpp)
+  target_include_directories(test_guest_widescreen PRIVATE ${PSXPORT_DIR}/tests)
+  target_link_libraries(test_guest_widescreen PRIVATE spyro_runtime psxport_test_support)
   add_test(NAME guest_widescreen COMMAND test_guest_widescreen)
   # The phase a Spyro 1 pad recording is keyed on. Gated for the two properties a recording's
   # meaning rests on: the same guest words give the same key (so presses are interchangeable within
@@ -408,16 +271,12 @@ if(BUILD_TESTING)
   add_executable(test_spyro1_input_phase
     tests/test_spyro1_input_phase.cpp)
   target_include_directories(test_spyro1_input_phase PRIVATE game/core)
-  target_link_libraries(test_spyro1_input_phase PRIVATE spyro_runtime)
+  target_link_libraries(test_spyro1_input_phase PRIVATE spyro_runtime psxport_test_support)
   add_test(NAME spyro1_input_phase COMMAND test_spyro1_input_phase)
   add_test(NAME launcher_policy
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/test_launcher.py)
   add_test(NAME provision_titles
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/test_provision_titles.py)
-  add_test(NAME source_policy
-    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/source_policy.py)
-  add_test(NAME source_policy_selftest
-    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/source_policy.py --selftest)
   add_test(NAME cpp_ownership
     COMMAND ${Python3_EXECUTABLE} ${PSXPORT_DIR}/tools/check_cpp_style.py --ownership-only
             --root ${CMAKE_SOURCE_DIR} --compile-commands ${CMAKE_BINARY_DIR})

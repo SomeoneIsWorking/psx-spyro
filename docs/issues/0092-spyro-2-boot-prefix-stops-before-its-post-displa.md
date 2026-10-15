@@ -4,6 +4,7 @@ title: Spyro 2's boot now runs the retail boot prefix through Lightrec, and the 
 status: open
 symptom: the finite three-field display bootstrap is gone; the retail boot prefix 0x80011E9C executes through Lightrec and wedges in the guest's chained per-sector CD reader with no completion delivered
 tags: spyro2,boot,loader,re,ownership,cd,lightrec
+features: [F-BOOT, F-CD]
 created: 2026-08-28
 updated: 2026-10-01
 ---

@@ -1,11 +1,11 @@
 ---
 id: 104
 title: Field Spyro model renders detached: horns/head arc above the body and the wings smear sideways
-status: open
+status: resolved
 symptom: in Artisans gameplay the player model is drawn as a purple torso with its horns/head arc floating ABOVE it and a yellow wing/Sparx smear thrown out to the right; the same model on the stage-13 title screen renders correctly
 tags: render,field,actor,player,depth,oracle
 created: 2026-09-08
-updated: 2026-09-28
+updated: 2026-10-15
 ---
 
 ## Symptom
@@ -95,3 +95,7 @@ it is not equal until the CD-read field cost is fixed.
 
 **Not measured here:** no per-part vertex or primitive comparison was run. Nothing in this entry
 should be read as evidence that the field model is now correct, or that it is wrong.
+
+## Resolution
+
+Obsolete (2026-10-15): The native field renderer is deleted; on Record the guest draws Spyro's model.

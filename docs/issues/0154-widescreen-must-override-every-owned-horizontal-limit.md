@@ -1,7 +1,8 @@
 # 0154 — Widescreen must override every owned horizontal limit
 
-**Status:** implemented and measured. One error in issue 0152 is corrected here; see
-"Correction to 0152" below, which is the most important thing in this file.
+**Status:** implemented in the native renderer and `wide_clip_plan.h`, both now deleted. Spyro 1's
+widened culls on Record are issue 0186, and the audit below is its list of limits. One error in
+issue 0152 is corrected here; see "Correction to 0152" below.
 
 ## The rule
 

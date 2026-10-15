@@ -4,6 +4,7 @@ title: Spyro 2 widescreen changes where the walk ends
 status: open
 symptom: the same walk ends at x 69231 at 4:3 and 69112 at 16:9
 tags: spyro2,widescreen,determinism
+features: [F-WIDE]
 created: 2026-10-08
 updated: 2026-10-10
 ---

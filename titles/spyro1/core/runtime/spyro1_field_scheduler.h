@@ -2,7 +2,6 @@
 
 #include "field_owner.h"
 #include "guest_globals.h"
-#include "spyro1_frame_policy.h"
 
 #include <cstdint>
 #include <string_view>
@@ -14,7 +13,6 @@ namespace spyro1 {
 
 // Spyro 1's own field vocabulary is the shared one; the alias keeps every existing call site
 // and test reading as Spyro 1's contract rather than a framework one.
-using FieldRequest = spyro::FieldRequest;
 
 struct SkipMapSample;
 
@@ -54,8 +52,7 @@ SkipMapSample readSkipMapSample(Core &core);
 
 // Spyro 1's field owner: the shared delivery sequence plus the two things that are this title's
 // alone -- the boot-sequence window in which a Start edge is observed, and the per-field skip
-// map over the title screen. Guest libetc VSync at 0x8005DBC4 is a mandatory fatal trap: the
-// native frame tail replaced every call to it, so it is never reached from guest code.
+// map over the title screen.
 class FieldScheduler final : public spyro::FieldObserver {
 public:
   explicit FieldScheduler(Game &game);
@@ -67,13 +64,13 @@ public:
   void publish();
 
   bool deliver(const spyro::FieldRequest &request);
+  // The drawn frame's one presentation, paced over the fields delivered since the last.
+  void presentFrame() {
+    fields_.presentFrame();
+  }
 
   void beginLogicFrame() {
     fields_.beginLogicFrame();
-  }
-
-  bool finishLogicFrame() const {
-    return fields_.finishLogicFrame();
   }
 
   std::uint32_t fieldsThisLogicFrame() const {
@@ -115,7 +112,6 @@ private:
 FieldScheduler &fieldScheduler(Core &core);
 const FieldScheduler &fieldScheduler(const Core &core);
 
-bool deliverNativeField(Core &core, const char *site, bool fps60CommitPending);
 void beginBootSequence(Core &core);
 void endBootSequence(Core &core);
 void observeVblankCallback(Core &core, std::uint32_t function);

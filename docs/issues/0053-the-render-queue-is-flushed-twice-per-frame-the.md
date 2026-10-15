@@ -1,11 +1,11 @@
 ---
 id: 53
 title: The render queue is flushed twice per frame: the per-vblank flush in vsync.cpp re-emits an already-consumed queue
-status: open
+status: resolved
 symptom: PSXPORT_DEBUG=rqflush reports reemit=1 on ~70% of flushes; every prim the guest drew is submitted to the VK geometry batch more than once per displayed frame
 tags: render,render-queue,vsync,double-submit,measured
 created: 2026-08-06
-updated: 2026-08-06
+updated: 2026-10-15
 ---
 
 ## What was measured
@@ -45,3 +45,7 @@ Found while standing up the native render seam (which deliberately does NOT add 
 Removing the vsync flush changes the shipping picture path, so it wants its own before/after with a
 picture check, and that step's gate was "psx_render behaves exactly as today". BLIND SPOT of the
 measurement above: boot + attract + the field demo only; no FMV, no menu-heavy screen.
+
+## Resolution
+
+Obsolete (2026-10-15): Spyro no longer submits through the render queue; all three titles present on Record.

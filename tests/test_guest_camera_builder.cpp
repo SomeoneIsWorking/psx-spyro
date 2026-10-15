@@ -22,6 +22,7 @@
 //   and
 //      never leaves the turn.
 #include "guest_camera_builder.h"
+#include "test_game.h"
 
 #include "testutil.h"
 
@@ -50,7 +51,7 @@ public:
   }
 
   [[nodiscard]] cam::Builder builder() const {
-    return cam::Builder(core_, kSine, kCosine);
+    return cam::Builder(core_, {.sine = kSine, .cosine = kCosine});
   }
 
   // The exact 12-bit-fraction circle the guest's tables hold, so a builder reading these reads the
@@ -74,33 +75,24 @@ private:
   static constexpr std::uint32_t kCosine = 0x80061C58u;
 };
 
-std::int32_t element(const cam::Matrices &m, bool projection, std::uint32_t word, unsigned half) {
-  const std::uint32_t value = projection ? m.projection[word] : m.view[word];
-  return half == 0 ? static_cast<std::int16_t>(static_cast<std::uint16_t>(value & 0xFFFFu))
-                   : static_cast<std::int16_t>(static_cast<std::uint16_t>(value >> 16));
-}
-
-// The nine elements in the order the GTE's five control words hold them.
+// The nine elements in the order the GTE's five control words hold them, low half first.
 std::array<std::int32_t, 9> elements(const cam::Matrices &m, bool projection) {
-  return {element(m, projection, 0, 0),
-          element(m, projection, 0, 1),
-          element(m, projection, 1, 0),
-          element(m, projection, 1, 1),
-          element(m, projection, 2, 0),
-          element(m, projection, 2, 1),
-          element(m, projection, 3, 0),
-          element(m, projection, 3, 1),
-          element(m, projection, 4, 0)};
+  const auto &words = projection ? m.projection : m.view;
+  std::array<std::int32_t, 9> out{};
+  for (std::size_t index = 0; index < out.size(); ++index) {
+    const std::uint32_t word = words[index / 2];
+    const auto half = static_cast<std::uint16_t>((index % 2) == 0 ? word & 0xFFFFu : word >> 16);
+    out[index] = static_cast<std::int16_t>(half);
+  }
+  return out;
 }
-
-} // namespace
 
 // (1) ZERO ANGLES ARE THE IDENTITY, AND EVERY OTHER CAMERA IS A UNIT ROTATION.
 //
-// The builder's output feeds `gte_write_ctrl(kRotation0 + i, ...)`, so a camera whose rows are not
-// 4096 long is a projection error the in-between would present as a stretched world.
+// The builder's output feeds `core_.gte().writeControl(kRotation0 + i, ...)`, so a camera whose
+// rows are not 4096 long is a projection error the in-between would present as a stretched world.
 void test_zero_is_identity() {
-  Core core{};
+  spyro::test::StubCore core;
   Tables tables(core);
   const cam::Matrices m = tables.builder().build(cam::Angles{0, 0, 0});
   const std::array<std::int32_t, 9> e = elements(m, false);
@@ -111,13 +103,13 @@ void test_zero_is_identity() {
 }
 
 void test_rows_are_unit_length() {
-  Core core{};
+  spyro::test::StubCore core;
   Tables tables(core);
   const cam::Angles angles[] = {{1, 2, 3}, {218, 1703, 512}, {0, 1024, 2048}, {4095, 37, 4094}};
   for (const cam::Angles &angles_value : angles) {
     const cam::Matrices m = tables.builder().build(angles_value);
     const std::array<std::int32_t, 9> e = elements(m, false);
-    for (std::uint32_t row = 0; row < 3; ++row) {
+    for (std::size_t row = 0; row < 3; ++row) {
       const double sum =
           static_cast<double>(e[row * 3] * e[row * 3] + e[row * 3 + 1] * e[row * 3 + 1] +
                               e[row * 3 + 2] * e[row * 3 + 2]);
@@ -134,7 +126,7 @@ void test_rows_are_unit_length() {
 // 3869 -> 2418, 1160 -> 725 — which is (x * 0x140) >> 9 and which is what makes the classification
 // pass's sphere tests and the drawer's projection agree about the same camera.
 void test_vertical_scale_is_row_one_only() {
-  Core core{};
+  spyro::test::StubCore core;
   Tables tables(core);
   const cam::Matrices m = tables.builder().build(cam::Angles{0, 218, 1703});
   const std::array<std::int32_t, 9> view = elements(m, false);
@@ -152,7 +144,7 @@ void test_vertical_scale_is_row_one_only() {
 // 0x8001C2F8's second FUN_80059D6C call multiplies Rx (scratch +0x28) by the Ry*Rz product: Rx is
 // the left factor. Quarter turns keep every element exact.
 void test_rx_is_the_left_factor() {
-  Core core{};
+  spyro::test::StubCore core;
   Tables tables(core);
   const cam::Matrices m = tables.builder().build(cam::Angles{1024, 1024, 0});
   const std::array<std::int32_t, 9> expected = {0, 0, -4096, -4096, 0, 0, 0, 4096, 0};
@@ -167,7 +159,7 @@ void test_rx_is_the_left_factor() {
 // The packer narrows each element to int16 the way the GTE's own registers do. An element that lost
 // its sign here would be a camera silently mirrored, and the frames would still render.
 void test_repeatable_and_in_range() {
-  Core core{};
+  spyro::test::StubCore core;
   Tables tables(core);
   const cam::Builder builder = tables.builder();
   for (std::int32_t angle = 0; angle < 4096; angle += 37) {
@@ -209,6 +201,8 @@ void test_shortest_way_round() {
   CHECK_EQ(cam::interpolate(cam::Angles{0, 0, 0}, cam::Angles{1024, 0, 0}, 1.0).aroundX, 1024);
   CHECK_EQ(cam::interpolate(cam::Angles{1024, 0, 0}, cam::Angles{0, 0, 0}, 1.0).aroundX, 0);
 }
+
+} // namespace
 
 int main() {
   RUN(zero_is_identity);

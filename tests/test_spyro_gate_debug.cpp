@@ -1,10 +1,13 @@
 #include "core.h"
 #include "guest_globals.h"
 #include "spyro_gate_debug.h"
+#include "test_game.h"
 
+#include <cstdio>
 #include <cstdlib>
 #include <iostream>
 #include <memory>
+#include <string>
 
 namespace {
 
@@ -40,7 +43,7 @@ void seedGate(Core &core) {
 }
 
 void testInspectionAndTeleport() {
-  auto core = std::make_unique<Core>();
+  auto core = std::make_unique<spyro::test::StubCore>();
   seedGate(*core);
   core->mem_w32(spyro::guest::kSpyro, 1u);
   core->mem_w32(0x80078a5cu, 2u);
@@ -59,10 +62,40 @@ void testInspectionAndTeleport() {
 }
 
 void testTeleportRefusesOutsideGameplay() {
-  auto core = std::make_unique<Core>();
+  auto core = std::make_unique<spyro::test::StubCore>();
   seedGate(*core);
   core->mem_w32(spyro::guest::kGamestate, 1u);
   require(!spyro::gate_debug::teleportToGate(*core, 0u, 0u), "non-gameplay refusal");
+}
+
+// The reply stream's whole text after `command` ran with `line`.
+std::string runCommand(Core &core, const char *name, const char *line, bool &handled) {
+  std::FILE *reply = std::tmpfile();
+  require(reply != nullptr, "reply stream");
+  handled = spyro::gate_debug::command(core, {.command = name, .line = line}, reply);
+  require(std::fseek(reply, 0, SEEK_SET) == 0, "reply stream rewinds");
+  std::string text;
+  for (int c = std::fgetc(reply); c != EOF; c = std::fgetc(reply)) {
+    text.push_back(static_cast<char>(c));
+  }
+  std::fclose(reply);
+  return text;
+}
+
+void testCommandsReplyOnTheStream() {
+  auto core = std::make_unique<spyro::test::StubCore>();
+  seedGate(*core);
+  bool handled = false;
+  const std::string gates = runCommand(*core, "gates", "gates", handled);
+  require(handled, "gates is the title's command");
+  require(gates.find("portals=1") != std::string::npos, "gates reports the portal count");
+  require(gates.find("gate=0 targetLevel=14 pathMoby=40") != std::string::npos,
+          "gates lists the portal");
+  const std::string usage = runCommand(*core, "gate-teleport", "gate-teleport", handled);
+  require(handled && usage.starts_with("usage: gate-teleport"),
+          "a teleport without arguments replies its usage");
+  const std::string other = runCommand(*core, "warp", "warp 3", handled);
+  require(!handled && other.empty(), "another command is not the title's and writes nothing");
 }
 
 } // namespace
@@ -70,6 +103,7 @@ void testTeleportRefusesOutsideGameplay() {
 int main() {
   testInspectionAndTeleport();
   testTeleportRefusesOutsideGameplay();
-  std::cout << "spyro_gate_debug: PASS (portal/path decode + guarded teleport)\n";
+  testCommandsReplyOnTheStream();
+  std::cout << "spyro_gate_debug: PASS (portal/path decode, guarded teleport, command replies)\n";
   return 0;
 }

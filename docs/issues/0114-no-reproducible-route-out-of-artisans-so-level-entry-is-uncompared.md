@@ -5,6 +5,7 @@ status: open
 symptom: the oracle matches the console byte for byte at every frame inside Artisans, but any route that walks out of it diverges, so the one boundary that discards and reloads guest code at a reused address has never been compared
 state_items: S011
 tags: oracle,camera,gameplay,timing,invalidation
+features: [F-TURN]
 created: 2026-09-19
 updated: 2026-09-28
 ---

@@ -116,78 +116,17 @@ struct ShapeOutcome {
   std::uint32_t normalZ = 0u;
 };
 
-// DIAGNOSTIC, REMOVED BEFORE LANDING: the GTE control state this override INHERITS at entry.
-//
-// The guest's `rtps` at 0x8004E550 runs on whatever rotation the caller chain left in the control
-// registers: `find_op.py 0x8004E3C8 0x8004EB70 lwc2 swc2` matched 0, and `mtc2`/`mfc2` matched only
-// the three separation writes and the three RTPS reads, so nothing here loads a matrix. The control
-// reader is Core's own `gte_read_ctrl` (runtime/psx/core/core.h:242), so the native can ask the
-// same question the guest is answering rather than assuming identity.
-//
-// The census reports its DENOMINATOR on every run, because "no entry was non-identity" and "nothing
-// was counted" are otherwise the same line of evidence, and it caps the printed examples while
-// still counting every one of them.
-constexpr std::uint32_t kEntryMatrixMaxExamples = 8u;
-
-struct EntryMatrixCensus {
-  std::uint32_t calls = 0u;
-  std::uint32_t nonIdentityRotation = 0u;
-  std::uint32_t zeroTranslation = 0u;
-  std::uint32_t printed = 0u;
-  ~EntryMatrixCensus() {
-    lucent::info("moby-entry-matrix",
-                 "calls={} non_identity_rotation={} zero_translation={} printed_examples={} of "
-                 "at most {}",
-                 calls,
-                 nonIdentityRotation,
-                 zeroTranslation,
-                 printed,
-                 kEntryMatrixMaxExamples);
-  }
-};
-
-EntryMatrixCensus gEntryMatrixCensus{};
-
-void recordEntryMatrix() {
-  const std::uint32_t rot11 = gte_read_ctrl(kGteRot11Rot12);
-  const std::uint32_t rot13 = gte_read_ctrl(kGteRot13Rot21);
-  const std::uint32_t rot22 = gte_read_ctrl(kGteRot22Rot23);
-  const std::uint32_t rot31 = gte_read_ctrl(kGteRot31Rot32);
-  const std::uint32_t rot33 = gte_read_ctrl(kGteRot33);
-  const std::uint32_t trX = gte_read_ctrl(kGteTransX);
-  const std::uint32_t trY = gte_read_ctrl(kGteTransY);
-  const std::uint32_t trZ = gte_read_ctrl(kGteTransZ);
-  ++gEntryMatrixCensus.calls;
-  // Identity is 0x00010000 in the two packed rotation words and 0 in the three single ones.
-  const bool identity =
-      rot11 == 0x00010000u && rot13 == 0u && rot22 == 0u && rot31 == 0u && rot33 == 0x10000u;
-  if (!identity) {
-    ++gEntryMatrixCensus.nonIdentityRotation;
-  }
-  if ((trX | trY | trZ) == 0u) {
-    ++gEntryMatrixCensus.zeroTranslation;
-  }
-  if (!identity && gEntryMatrixCensus.printed < kEntryMatrixMaxExamples) {
-    ++gEntryMatrixCensus.printed;
-    lucent::info("moby-entry-matrix",
-                 "entry call {} rotation R11R12={} R13R21={} R22R23={} R31R32={} R33={} "
-                 "TR=({}, {}, {})",
-                 gEntryMatrixCensus.calls,
-                 rot11,
-                 rot13,
-                 rot22,
-                 rot31,
-                 rot33,
-                 trX,
-                 trY,
-                 trZ);
-  }
-}
-
-enum class Step {
+enum class Step : std::uint8_t {
   kNextShape,
   kNextRecord,
   kDone,
+};
+
+// The record being walked, the cursor just past the current shape word, and that word.
+struct ShapeCursor {
+  std::uint32_t record;
+  std::uint32_t shape;
+  std::uint32_t word;
 };
 
 bool isNegative(std::uint32_t value) {
@@ -207,12 +146,10 @@ std::uint32_t multiplyLow(Core *c, std::uint32_t a, std::uint32_t b) {
 
 // The point shape at 0x8004E5D8: the shape word's high half is a y extent, added to the caller's
 // radius and squared, and the whole separation has to be inside it. 8-byte shape records.
-ShapeOutcome testPointShape(Core *c,
-                            const Walker &w,
-                            std::uint32_t shape,
-                            std::uint32_t word,
-                            const Separation &sep,
-                            const Offset &off) {
+ShapeOutcome testPointShape(
+    Core *c, const Walker &w, const ShapeCursor &at, const Separation &sep, const Offset &off) {
+  const std::uint32_t shape = at.shape;
+  const std::uint32_t word = at.word;
   const std::uint32_t extent = (word >> 16) + w.radius;
   const std::uint32_t step = multiplyLow(c, extent, extent);
   ShapeOutcome outcome{};
@@ -228,12 +165,10 @@ ShapeOutcome testPointShape(Core *c,
 
 // The slab shape at 0x8004E668: the same y extent, plus a second shape word whose high half is a z
 // extent measured against the record's own separation. 12-byte shape records.
-ShapeOutcome testSlabShape(Core *c,
-                           const Walker &w,
-                           std::uint32_t shape,
-                           std::uint32_t word,
-                           const Separation &sep,
-                           const Offset &off) {
+ShapeOutcome testSlabShape(
+    Core *c, const Walker &w, const ShapeCursor &at, const Separation &sep, const Offset &off) {
+  const std::uint32_t shape = at.shape;
+  const std::uint32_t word = at.word;
   const std::uint32_t packed = c->mem_r32(shape);
   const std::uint32_t extent = (word >> 16) + w.radius;
   const std::uint32_t step = multiplyLow(c, extent, extent);
@@ -253,12 +188,10 @@ ShapeOutcome testSlabShape(Core *c,
 
 // The box shape at 0x8004E718: the y slab first, then the record's own later words, chosen by the
 // sign of the shifted y extent, decide which x and z extents apply. 20-byte shape records.
-ShapeOutcome testBoxShape(Core *c,
-                          const Walker &w,
-                          std::uint32_t shape,
-                          std::uint32_t word,
-                          const Separation &sep,
-                          const Offset &off) {
+ShapeOutcome testBoxShape(
+    Core *c, const Walker &w, const ShapeCursor &at, const Separation &sep, const Offset &off) {
+  std::uint32_t shape = at.shape;
+  const std::uint32_t word = at.word;
   const std::uint32_t packed = c->mem_r32(shape);
   shape += 0x10u; // the `blez` delay slot, which runs on the miss arm as well
   const std::uint32_t extent = (word >> 16) + w.radius;
@@ -299,20 +232,16 @@ ShapeOutcome testBoxShape(Core *c,
 // The moby shape at 0x8004E830: the record's own transform goes into the GTE, one of the model's
 // vertices is projected with RTPS, and the separation in that projected frame is squared against
 // the y extent. 12-byte shape records.
-ShapeOutcome testMobyShape(Core *c,
-                           const Walker &w,
-                           std::uint32_t record,
-                           std::uint32_t shape,
-                           std::uint32_t word,
-                           const Offset &off) {
-  gte_write_ctrl(kGteRot11Rot12, c->mem_r32(record + 0x20u));
-  gte_write_ctrl(kGteRot13Rot21, c->mem_r32(record + 0x24u));
-  gte_write_ctrl(kGteRot22Rot23, c->mem_r32(record + 0x28u));
-  gte_write_ctrl(kGteRot31Rot32, c->mem_r32(record + 0x2Cu));
-  gte_write_ctrl(kGteRot33, c->mem_r32(record + 0x30u));
-  gte_write_ctrl(kGteTransX, 0u);
-  gte_write_ctrl(kGteTransY, 0u);
-  gte_write_ctrl(kGteTransZ, 0u);
+ShapeOutcome testMobyShape(Core *c, const Walker &w, const ShapeCursor &at, const Offset &off) {
+  const auto [record, shape, word] = at;
+  c->gte().writeControl(kGteRot11Rot12, c->mem_r32(record + 0x20u));
+  c->gte().writeControl(kGteRot13Rot21, c->mem_r32(record + 0x24u));
+  c->gte().writeControl(kGteRot22Rot23, c->mem_r32(record + 0x28u));
+  c->gte().writeControl(kGteRot31Rot32, c->mem_r32(record + 0x2Cu));
+  c->gte().writeControl(kGteRot33, c->mem_r32(record + 0x30u));
+  c->gte().writeControl(kGteTransX, 0u);
+  c->gte().writeControl(kGteTransY, 0u);
+  c->gte().writeControl(kGteTransZ, 0u);
   const std::uint32_t model = c->mem_r32(kModelSoundTables + (c->mem_r16(record + 0x36u) * 4u));
   const std::uint32_t shapes = model + (c->mem_r8(record + 0x3Cu) * 4u);
   const std::uint32_t node = c->mem_r32(shapes + 0x38u);
@@ -329,23 +258,23 @@ ShapeOutcome testMobyShape(Core *c,
                           << shift;
   const std::uint32_t x = static_cast<std::uint32_t>(static_cast<std::int32_t>(packed << 20) >> 19)
                           << shift;
-  gte_write_data(kGteVz0, y);
-  gte_write_data(kGteVxy0, (x << 16) + z);
-  gte_op(c, kGteRtps);
+  c->gte().writeData(kGteVz0, y);
+  c->gte().writeData(kGteVxy0, (x << 16) + z);
+  c->gte().execute(kGteRtps);
   // RTPS leaves IR1..IR3 alone, so these three reads are still the separation the record started
   // with: the guest's mtc2 pair wrote the record's own position here, and this arithmetic is what
   // its three `mfc2`s recover.
-  const std::uint32_t normalX = gte_read_data(kGteIr3) + off.x;
-  const std::uint32_t normalY = off.y - gte_read_data(kGteIr1);
-  const std::uint32_t normalZ = off.z - gte_read_data(kGteIr2);
-  gte_write_data(kGteIr1, normalX);
-  gte_write_data(kGteIr2, normalY);
-  gte_write_data(kGteIr3, normalZ);
-  gte_op(c, kGteSqr);
+  const std::uint32_t normalX = c->gte().readData(kGteIr3) + off.x;
+  const std::uint32_t normalY = off.y - c->gte().readData(kGteIr1);
+  const std::uint32_t normalZ = off.z - c->gte().readData(kGteIr2);
+  c->gte().writeData(kGteIr1, normalX);
+  c->gte().writeData(kGteIr2, normalY);
+  c->gte().writeData(kGteIr3, normalZ);
+  c->gte().execute(kGteSqr);
   const std::uint32_t extent = (word >> 16) + w.radius;
   const std::uint32_t step = multiplyLow(c, extent, extent);
   const std::uint32_t squared =
-      gte_read_data(kGteMac1) + gte_read_data(kGteMac2) + gte_read_data(kGteMac3);
+      c->gte().readData(kGteMac1) + c->gte().readData(kGteMac2) + c->gte().readData(kGteMac3);
   ShapeOutcome outcome{};
   outcome.shape = shape + 8u; // the `bgez` delay slot
   outcome.step = step;
@@ -368,10 +297,10 @@ void resolveOutOfShape(Walker &w, std::uint32_t record, const ShapeOutcome &outc
   std::uint32_t normalZ = outcome.normalZ;
   for (;;) {
     w.resolved = record; // s1, rewritten on every pass
-    gte_write_data(kGteLzcs, step);
+    c->gte().writeData(kGteLzcs, step);
     // The `bgtz`'s delay slot runs either way, so the exponent is the same on both arms and the two
     // arms after it are the only writers of the fallback denominator and of $a1.
-    const std::int32_t exponent = static_cast<std::int32_t>(gte_read_data(kGteLzcr)) - 2;
+    const std::int32_t exponent = static_cast<std::int32_t>(c->gte().readData(kGteLzcr)) - 2;
     if (static_cast<std::int32_t>(target) <= 0) {
       target = 1u;
       normalZ = 0xFFFFFFFFu;
@@ -389,7 +318,7 @@ void resolveOutOfShape(Walker &w, std::uint32_t record, const ShapeOutcome &outc
     }
     cpu_div(c, scaled, denominator);
     const std::uint32_t quotient = c->lo;
-    gte_write_data(kGteLzcs, quotient);
+    c->gte().writeData(kGteLzcs, quotient);
     std::uint32_t reach = quotient;
     if (quotient != 0u) {
       // `addi $t0, $zero, -2 ; and $t0, $a2, $t0` keeps LZCR's sign bit, and `addi $a3, $zero, 0x1F
@@ -397,7 +326,8 @@ void resolveOutOfShape(Walker &w, std::uint32_t record, const ShapeOutcome &outc
       // is what a negative quotient's LZCS produces -- gives -1, and the table entry is then
       // shifted left by all but its low bit. A logical halving here would hand back a shift count
       // near 2^31 and write the far vertex somewhere the guest never puts it.
-      const std::int32_t leading = static_cast<std::int32_t>(gte_read_data(kGteLzcr) & 0xFFFFFFFEu);
+      const std::int32_t leading =
+          static_cast<std::int32_t>(c->gte().readData(kGteLzcr) & 0xFFFFFFFEu);
       const std::int32_t halfShift = (0x1F - leading) >> 1;
       const std::int32_t below = leading - 0x18;
       const std::uint32_t tableOffset =
@@ -409,23 +339,23 @@ void resolveOutOfShape(Walker &w, std::uint32_t record, const ShapeOutcome &outc
       reach = (entry << (static_cast<std::uint32_t>(halfShift) & 31u)) >> 12;
     }
     target = reach + 1u;
-    gte_write_data(kGteIr1, w.v1);
-    gte_write_data(kGteIr2, normalY);
-    gte_write_data(kGteIr3, normalZ);
-    gte_write_data(kGteIr0, target);
-    gte_op(c, kGteGpf);
-    const std::uint32_t mac1 = gte_read_data(kGteMac1);
-    const std::uint32_t mac2 = gte_read_data(kGteMac2);
-    const std::uint32_t mac3 = gte_read_data(kGteMac3);
+    c->gte().writeData(kGteIr1, w.v1);
+    c->gte().writeData(kGteIr2, normalY);
+    c->gte().writeData(kGteIr3, normalZ);
+    c->gte().writeData(kGteIr0, target);
+    c->gte().execute(kGteGpf);
+    const std::uint32_t mac1 = c->gte().readData(kGteMac1);
+    const std::uint32_t mac2 = c->gte().readData(kGteMac2);
+    const std::uint32_t mac3 = c->gte().readData(kGteMac3);
     const std::uint32_t dirX = static_cast<std::uint32_t>(static_cast<std::int32_t>(mac1) >> 8);
     const std::uint32_t dirY = static_cast<std::uint32_t>(static_cast<std::int32_t>(mac2) >> 8);
     const std::uint32_t dirZ = static_cast<std::uint32_t>(static_cast<std::int32_t>(mac3) >> 8);
-    gte_write_data(kGteIr1, dirX);
-    gte_write_data(kGteIr2, dirY);
-    gte_write_data(kGteIr3, dirZ);
-    gte_op(c, kGteSqr);
+    c->gte().writeData(kGteIr1, dirX);
+    c->gte().writeData(kGteIr2, dirY);
+    c->gte().writeData(kGteIr3, dirZ);
+    c->gte().execute(kGteSqr);
     const std::uint32_t separation =
-        gte_read_data(kGteMac1) + gte_read_data(kGteMac2) + gte_read_data(kGteMac3);
+        c->gte().readData(kGteMac1) + c->gte().readData(kGteMac2) + c->gte().readData(kGteMac3);
     w.x = w.x + w.v1;
     w.y = w.y + normalY;
     w.z = w.z + normalZ;
@@ -449,11 +379,8 @@ void resolveOutOfShape(Walker &w, std::uint32_t record, const ShapeOutcome &outc
 // flag word into the record unless the shape word's bit 2 forbids it, OR the shape word into the
 // damage word when the caller passed one, then take the next shape (bit 1 of the shape word, or bit
 // 1 of the argument mask), resolve the first hit only (bit 0 of the argument mask), or finish.
-Step shapeTail(Walker &w,
-               std::uint32_t record,
-               std::uint32_t shape,
-               std::uint32_t word,
-               const ShapeOutcome &outcome) {
+Step shapeTail(Walker &w, const ShapeCursor &at, const ShapeOutcome &outcome) {
+  const auto [record, shape, word] = at;
   Core *const c = w.c;
   if ((word & 4u) == 0u) {
     c->mem_w32(record + 0x18u, c->mem_r32(record + 0x18u) | w.damageIn);
@@ -485,15 +412,15 @@ Step walkRecord(Walker &w, std::uint32_t record) {
   w.v1 = off.x;
   off.y = c->mem_r32(record + 0x10u) - w.y;
   off.z = c->mem_r32(record + 0x14u) - w.z;
-  gte_write_data(kGteIr1, off.x);
-  gte_write_data(kGteIr2, off.y);
-  gte_write_data(kGteIr3, off.z);
+  c->gte().writeData(kGteIr1, off.x);
+  c->gte().writeData(kGteIr2, off.y);
+  c->gte().writeData(kGteIr3, off.z);
   std::uint32_t shape = c->mem_r32(record + 0x8u);
-  gte_op(c, kGteSqr);
+  c->gte().execute(kGteSqr);
   Separation sep{};
-  sep.mac1 = gte_read_data(kGteMac1);
-  sep.mac2 = gte_read_data(kGteMac2);
-  sep.squared = sep.mac1 + sep.mac2 + gte_read_data(kGteMac3);
+  sep.mac1 = c->gte().readData(kGteMac1);
+  sep.mac2 = c->gte().readData(kGteMac2);
+  sep.squared = sep.mac1 + sep.mac2 + c->gte().readData(kGteMac3);
   if (shape == 0u) {
     return Step::kNextRecord; // `beqz`: the record carries no shape data at all
   }
@@ -510,23 +437,24 @@ Step walkRecord(Walker &w, std::uint32_t record) {
     }
     word = c->mem_r32(shape);
     shape += 4u; // the dispatch's delay slot
+    const ShapeCursor at{record, shape, word};
     ShapeOutcome outcome{};
     switch (word & 0xFF00u) {
     case kShapePointJump:
     case kShapePoint:
-      outcome = testPointShape(c, w, shape, word, sep, off);
+      outcome = testPointShape(c, w, at, sep, off);
       break;
     case kShapeSlabJump:
     case kShapeSlab:
-      outcome = testSlabShape(c, w, shape, word, sep, off);
+      outcome = testSlabShape(c, w, at, sep, off);
       break;
     case kShapeBoxJump:
     case kShapeBox:
-      outcome = testBoxShape(c, w, shape, word, sep, off);
+      outcome = testBoxShape(c, w, at, sep, off);
       break;
     case kShapeMobyJump:
     case kShapeMoby:
-      outcome = testMobyShape(c, w, record, shape, word, off);
+      outcome = testMobyShape(c, w, at, off);
       break;
     default:
       return Step::kNextRecord; // an unmapped type byte ends the shape list
@@ -536,7 +464,7 @@ Step walkRecord(Walker &w, std::uint32_t record) {
       continue;
     }
     w.firstHit = record;
-    const Step tail = shapeTail(w, record, shape, word, outcome);
+    const Step tail = shapeTail(w, {record, shape, word}, outcome);
     if (tail == Step::kNextShape) {
       continue;
     }
@@ -627,7 +555,6 @@ void mobyCollisionWalk(Core *c) {
   for (std::uint32_t word = 0u; word < 12u; word++) {
     c->mem_w32(kRegisterSpillArea + (word * 4u), spilled[word]);
   }
-  recordEntryMatrix();
   Walker w{};
   w.c = c;
   w.pos = c->r[4];

@@ -73,13 +73,13 @@ constexpr std::uint32_t kHighHalf = 0xFFFF0000u;
 constexpr std::uint32_t kLowHalf = 0xFFFFu;
 
 // The body's `mtc2 ..., C2_VZ0` writes land in DR1, and this is the ONE register where the
-// executor's MTC2 and gte_write_data disagree on what is left behind: the backend stores the
+// executor's MTC2 and Gte::writeData disagree on what is left behind: the backend stores the
 // source register's full 32 bits, while GTE_WriteDR narrows DR1 to a sign-extended halfword. The
 // GTE reads DR1 as a halfword either way, so the matrix is identical and only the register the
 // differential compares differs: a 0x0000F000 from the guest against a 0xFFFFF000 from the port.
 // Writing the bank directly is what reproduces it.
 void writeVectorZ0(Core *c, std::uint32_t value) {
-  c->game->gte.REG[kGteVectorZ0] = value;
+  c->gte().registers().REG[kGteVectorZ0] = value;
 }
 
 // 0x800526A8 — re-derive one moby's world transform. The model table its class selects names the
@@ -134,94 +134,94 @@ void rebuildMobyTransform(Core *c) {
   std::uint32_t cr2 = kUnitDiagonal;
   std::uint32_t cr3 = 0u;
   std::uint32_t cr4 = kUnitDiagonal;
-  gte_write_ctrl(0u, cr0);
-  gte_write_ctrl(1u, cr1);
-  gte_write_ctrl(2u, cr2);
-  gte_write_ctrl(3u, cr3);
-  gte_write_ctrl(4u, cr4);
-  gte_write_ctrl(5u, 0u);
-  gte_write_ctrl(6u, 0u);
-  gte_write_ctrl(7u, 0u);
+  c->gte().writeControl(0u, cr0);
+  c->gte().writeControl(1u, cr1);
+  c->gte().writeControl(2u, cr2);
+  c->gte().writeControl(3u, cr3);
+  c->gte().writeControl(4u, cr4);
+  c->gte().writeControl(5u, 0u);
+  c->gte().writeControl(6u, 0u);
+  c->gte().writeControl(7u, 0u);
 
   const std::uint32_t firstIndex = (angles >> kFirstAngleShift) & kFirstAngleMask;
   if (firstIndex != 0u) {
     const std::uint32_t x = c->mem_r16(kCosTable + firstIndex);
     const std::uint32_t y = c->mem_r16(kSinTable + firstIndex);
-    gte_write_data(kGteVectorXY0, x);
+    c->gte().writeData(kGteVectorXY0, x);
     writeVectorZ0(c, y);
-    gte_op(c, kMultiplyVector);
+    c->gte().execute(kMultiplyVector);
     // The two halves go back the OTHER way round: the Y half negated, the X half as it is.
     const std::uint32_t mirrored = (0u - y) & kLowHalf;
-    const std::uint32_t firstX = gte_read_data(kGteIrX);
-    const std::uint32_t firstY = gte_read_data(kGteIrY);
-    const std::uint32_t firstZ = gte_read_data(kGteIrZ);
-    gte_write_data(kGteVectorXY0, mirrored);
+    const std::uint32_t firstX = c->gte().readData(kGteIrX);
+    const std::uint32_t firstY = c->gte().readData(kGteIrY);
+    const std::uint32_t firstZ = c->gte().readData(kGteIrZ);
+    c->gte().writeData(kGteVectorXY0, mirrored);
     writeVectorZ0(c, x);
-    gte_op(c, kMultiplyVector);
+    c->gte().execute(kMultiplyVector);
     cr0 = (cr0 & kHighHalf) + (firstX & kLowHalf);
     cr3 = (cr3 & kHighHalf) + (firstZ & kLowHalf);
     const std::uint32_t firstYHigh = firstY << 16u;
-    const std::uint32_t secondX = gte_read_data(kGteIrX);
-    const std::uint32_t secondY = gte_read_data(kGteIrY);
-    const std::uint32_t secondZ = gte_read_data(kGteIrZ);
+    const std::uint32_t secondX = c->gte().readData(kGteIrX);
+    const std::uint32_t secondY = c->gte().readData(kGteIrY);
+    const std::uint32_t secondZ = c->gte().readData(kGteIrZ);
     cr1 = (secondX & kLowHalf) + firstYHigh;
     cr2 = (cr2 & kLowHalf) + (secondY << 16u);
     cr4 = secondZ & kLowHalf;
-    gte_write_ctrl(0u, cr0);
-    gte_write_ctrl(1u, cr1);
-    gte_write_ctrl(2u, cr2);
-    gte_write_ctrl(3u, cr3);
-    gte_write_ctrl(4u, cr4);
+    c->gte().writeControl(0u, cr0);
+    c->gte().writeControl(1u, cr1);
+    c->gte().writeControl(2u, cr2);
+    c->gte().writeControl(3u, cr3);
+    c->gte().writeControl(4u, cr4);
   }
 
   const std::uint32_t secondIndex = ((angles & kSecondAngleMask) >> 8u) << 1u;
   if (secondIndex != 0u) {
     const std::uint32_t x = c->mem_r16(kCosTable + secondIndex);
     const std::uint32_t y = c->mem_r16(kSinTable + secondIndex);
-    gte_write_data(kGteVectorXY0, x << 16u);
+    c->gte().writeData(kGteVectorXY0, x << 16u);
     writeVectorZ0(c, y);
-    gte_op(c, kMultiplyVector);
+    c->gte().execute(kMultiplyVector);
     const std::uint32_t mirrored = 0u - (y << 16u);
-    const std::uint32_t firstX = gte_read_data(kGteIrX);
-    const std::uint32_t firstY = gte_read_data(kGteIrY);
-    const std::uint32_t firstZ = gte_read_data(kGteIrZ);
-    gte_write_data(kGteVectorXY0, mirrored);
+    const std::uint32_t firstX = c->gte().readData(kGteIrX);
+    const std::uint32_t firstY = c->gte().readData(kGteIrY);
+    const std::uint32_t firstZ = c->gte().readData(kGteIrZ);
+    c->gte().writeData(kGteVectorXY0, mirrored);
     writeVectorZ0(c, x);
-    gte_op(c, kMultiplyVector);
+    c->gte().execute(kMultiplyVector);
     cr0 = (cr0 & kLowHalf) + (firstX << 16u);
     cr3 = (cr3 & kLowHalf) + (firstZ << 16u);
     const std::uint32_t firstYLow = firstY & kLowHalf;
-    const std::uint32_t secondX = gte_read_data(kGteIrX);
-    const std::uint32_t secondY = gte_read_data(kGteIrY);
-    const std::uint32_t secondZ = gte_read_data(kGteIrZ);
+    const std::uint32_t secondX = c->gte().readData(kGteIrX);
+    const std::uint32_t secondY = c->gte().readData(kGteIrY);
+    const std::uint32_t secondZ = c->gte().readData(kGteIrZ);
     cr1 = (cr1 & kHighHalf) + (secondX & kLowHalf);
     cr2 = (secondY << 16u) + firstYLow;
     cr4 = secondZ & kLowHalf;
-    gte_write_ctrl(0u, cr0);
-    gte_write_ctrl(1u, cr1);
-    gte_write_ctrl(2u, cr2);
-    gte_write_ctrl(3u, cr3);
-    gte_write_ctrl(4u, cr4);
+    c->gte().writeControl(0u, cr0);
+    c->gte().writeControl(1u, cr1);
+    c->gte().writeControl(2u, cr2);
+    c->gte().writeControl(3u, cr3);
+    c->gte().writeControl(4u, cr4);
   }
 
   const std::uint32_t thirdIndex = (angles & kThirdAngleMask) << 1u;
   if (thirdIndex != 0u) {
     const std::uint32_t x = c->mem_r16(kCosTable + thirdIndex);
     const std::uint32_t y = c->mem_r16(kSinTable + thirdIndex);
-    gte_write_data(kGteVectorXY0, (y << 16u) + x);
+    c->gte().writeData(kGteVectorXY0, (y << 16u) + x);
     writeVectorZ0(c, 0u);
-    gte_op(c, kMultiplyVector);
+    c->gte().execute(kMultiplyVector);
     const std::uint32_t packed = ((0u - y) & kLowHalf) + (x << 16u);
-    const std::uint32_t firstX = gte_read_data(kGteIrX);
-    const std::uint32_t firstY = gte_read_data(kGteIrY);
-    const std::uint32_t firstZ = gte_read_data(kGteIrZ);
-    gte_write_data(kGteVectorXY0, packed);
+    const std::uint32_t firstX = c->gte().readData(kGteIrX);
+    const std::uint32_t firstY = c->gte().readData(kGteIrY);
+    const std::uint32_t firstZ = c->gte().readData(kGteIrZ);
+    c->gte().writeData(kGteVectorXY0, packed);
     writeVectorZ0(c, 0u);
-    gte_op(c, kMultiplyVector);
+    c->gte().execute(kMultiplyVector);
     const std::uint32_t firstYHigh = firstY << 16u;
-    const std::uint32_t secondX = gte_read_data(kGteIrX);
-    const std::uint32_t secondY = gte_read_data(kGteIrY);
-    const std::uint32_t secondZ = gte_read_data(kGteIrZ);
+    const std::uint32_t secondX = c->gte().readData(kGteIrX);
+    const std::uint32_t secondY = c->gte().readData(kGteIrY);
+    const std::uint32_t secondZ = c->gte().readData(kGteIrZ);
     cr0 = (secondX << 16u) + (firstX & kLowHalf);
     cr1 = (cr1 & kLowHalf) + firstYHigh;
     cr2 = (cr2 & kHighHalf) + (secondY & kLowHalf);

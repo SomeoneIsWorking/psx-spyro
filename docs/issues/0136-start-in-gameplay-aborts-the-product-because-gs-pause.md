@@ -1,12 +1,12 @@
 ---
 id: 136
 title: Start in gameplay aborts the product — GS_PauseMenu (stage 2) has no native producer
-status: open
+status: resolved
 symptom: pressing Start during gameplay sets g_Gamestate to 2 and SpyroRenderer::renderScene calls abortUnimplemented, so the process dies with SIGABRT
 state_items: S011
 tags: render,menu,input,blocking,user-reported
 created: 2026-09-27
-updated: 2026-09-27
+updated: 2026-10-15
 ---
 
 ## User-reported, and it makes the title unplayable
@@ -93,3 +93,7 @@ from-scratch screen.
 A run in which `g_Gamestate` reaches 2 and the log contains `stage selector = 2` means the producer is still
 absent. A run that reaches 2 and draws a black screen is **not** a fix either: the acceptance test is a
 screenshot showing the menu, and "it stopped aborting" is not the deliverable.
+
+## Resolution
+
+Obsolete (2026-10-15): The native scene table is deleted; on Record the guest draws GS_PauseMenu.

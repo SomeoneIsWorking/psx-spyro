@@ -7,10 +7,10 @@ namespace spyro::guest_terrain {
 // The GTE register and command numbers are shared vocabulary (psxport gte_registers.h), not this
 // pass's.
 namespace gte = psx::gte;
-void loadFogColour(Core &core, const Facts &facts) {
-  gte_write_ctrl(gte::kFarRed, core.mem_r32(facts.fogColour));
-  gte_write_ctrl(gte::kFarGreen, core.mem_r32(facts.fogColour + 4));
-  gte_write_ctrl(gte::kFarBlue, core.mem_r32(facts.fogColour + 8));
+void loadFogColour(const TerrainMemory &memory, Core &core, const Facts &facts) {
+  core.gte().writeControl(gte::kFarRed, memory.r32(facts.fogColour));
+  core.gte().writeControl(gte::kFarGreen, memory.r32(facts.fogColour + 4));
+  core.gte().writeControl(gte::kFarBlue, memory.r32(facts.fogColour + 8));
 }
 
 std::uint32_t fogColours(TerrainMemory &memory,
@@ -19,18 +19,18 @@ std::uint32_t fogColours(TerrainMemory &memory,
                          std::uint32_t colours,
                          std::uint32_t end,
                          std::uint32_t fog) {
-  loadFogColour(core, facts);
+  loadFogColour(memory, core, facts);
   std::uint32_t from = colours;
-  gte_write_data(gte::kIr0, fog);
-  gte_write_data(gte::kRgbc, core.mem_r32(from));
+  core.gte().writeData(gte::kIr0, fog);
+  core.gte().writeData(gte::kRgbc, memory.r32(from));
   from += 4;
   std::uint32_t to = facts.foggedColours;
   do {
-    gte_op(&core, gte::kDpcs);
-    const std::uint32_t next = core.mem_r32(from);
+    core.gte().execute(gte::kDpcs);
+    const std::uint32_t next = memory.r32(from);
     from += 4;
-    const std::uint32_t faded = gte_read_data(gte::kRgb2);
-    gte_write_data(gte::kRgbc, next);
+    const std::uint32_t faded = core.gte().readData(gte::kRgb2);
+    core.gte().writeData(gte::kRgbc, next);
     memory.w32(to, faded);
     to += 4;
   } while (from != end);

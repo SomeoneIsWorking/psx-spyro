@@ -35,10 +35,11 @@ std::uint32_t cellAddress(std::uint32_t index) {
 // 8002654C: page bits 28..30 select a remap that rotates or mirrors the texture by moving its
 // corners; zero is the identity.
 void writeQuadUvs(TerrainMemory &memory,
-                  std::uint32_t pageRemaps,
                   std::uint32_t prim,
-                  std::uint32_t uv,
-                  std::uint32_t page) {
+                  TextureWords texture,
+                  std::uint32_t pageRemaps) {
+  const std::uint32_t uv = texture.uv;
+  const std::uint32_t page = texture.page;
   std::uint32_t first = uv;
   std::uint32_t second = page - kTexelSpan;
   std::uint32_t third = uv + kTexelSpan;
@@ -70,15 +71,9 @@ private:
   void quad(const SplitSector &sector, const SplitPolygon &polygon);
   void triangle(const SplitSector &sector, const SplitPolygon &polygon);
   void refineCentre();
-  void drawCracks(std::uint32_t record,
-                  std::uint32_t edges,
-                  std::uint32_t table,
-                  std::uint32_t colourAdjust,
-                  std::uint32_t uv,
-                  std::uint32_t page,
-                  std::uint32_t draw);
-  void drawSubQuads(const SplitPolygon &polygon, std::uint32_t texture, std::uint32_t draw);
-  void drawSubTriangles(const SplitPolygon &polygon, std::uint32_t texture, std::uint32_t draw);
+  void drawCracks(CrackEdges edges, const CrackPolygon &polygon);
+  void drawSubQuads(const SplitPolygon &polygon, std::uint32_t draw);
+  void drawSubTriangles(const SplitPolygon &polygon, std::uint32_t draw);
   void setCellColour(std::uint32_t index, std::uint32_t colour);
 
   TerrainFrame &frame_;
@@ -87,7 +82,7 @@ private:
 };
 
 void CoarseSplitPass::run() {
-  loadFogColour(core_, frame_.facts); // 80025CD0
+  loadFogColour(memory_, core_, frame_.facts); // 80025CD0
   walkSplitList(frame_, frame_.scratch + kCoarseSplitList, *this);
 }
 
@@ -105,13 +100,13 @@ void CoarseSplitPass::setCellColour(std::uint32_t index, std::uint32_t colour) {
 
 // 80025DC4: a quad cut 2x2. Its corners are cells 0, 2, 6, 8 (first, second, fourth, third).
 void CoarseSplitPass::quad(const SplitSector &sector, const SplitPolygon &polygon) {
-  const PackedIndices vertices(core_.mem_r32(polygon.record + polygon::kIndices));
+  const PackedIndices vertices(memory_.r32(polygon.record + polygon::kIndices));
   const GridPoint p0 = unpackGridVertex(frame_, sector, vertices.first);
   const GridPoint p1 = unpackGridVertex(frame_, sector, vertices.second);
   const GridPoint p3 = unpackGridVertex(frame_, sector, vertices.fourth);
   const GridPoint p2 = unpackGridVertex(frame_, sector, vertices.third);
-  const std::uint32_t links = core_.mem_r32(polygon.record + polygon::kLinks);
-  const std::uint32_t draw = core_.mem_r32(polygon.record + polygon::kDraw);
+  const std::uint32_t links = memory_.r32(polygon.record + polygon::kLinks);
+  const std::uint32_t draw = memory_.r32(polygon.record + polygon::kDraw);
   storeGridPoint(frame_, 0, p0);
   storeGridPoint(frame_, 2, p1);
   storeGridPoint(frame_, 6, p3);
@@ -126,9 +121,9 @@ void CoarseSplitPass::quad(const SplitSector &sector, const SplitPolygon &polygo
 
   // 80025F80: the centre blends the second and fourth corners, a diagonal, where its position
   // averages all four.
-  const PackedIndices colourIndices(core_.mem_r32(polygon.record + polygon::kColours));
-  const std::uint32_t texture = frame_.textures + (draw & kTextureRecordMask) * kTextureRecordSize;
-  const std::uint32_t page = core_.mem_r32(texture + 4);
+  const PackedIndices colourIndices(memory_.r32(polygon.record + polygon::kColours));
+  const std::uint32_t texture = textureRecord(frame_, draw);
+  const std::uint32_t page = memory_.r32(texture + 4);
   const std::uint32_t code = asSigned(page) > 0 ? kOpaqueQuadCode : kSemiQuadCode;
   std::array<std::uint32_t, 4> colours = {memory_.r32(sector.colours + colourIndices.first) + code,
                                           memory_.r32(sector.colours + colourIndices.second) + code,
@@ -147,15 +142,11 @@ void CoarseSplitPass::quad(const SplitSector &sector, const SplitPolygon &polygo
 
   projectGrid(frame_, kQuadGridCells, false);
   refineCentre();
-  const std::uint32_t uv = core_.mem_r32(texture);
-  drawCracks(polygon.record,
-             quadNeighbourEdges(frame_, links, draw, 1),
-             frame_.facts.coarse.quadCracks,
-             kGt4ToGt3,
-             uv,
-             page,
-             draw);
-  drawSubQuads(polygon, texture, draw);
+  const std::uint32_t uv = memory_.r32(texture);
+  drawCracks({.edges = quadNeighbourEdges(frame_, links, draw, 1),
+              .table = frame_.facts.coarse.quadCracks},
+             {.colourAdjust = kGt4ToGt3, .uv = uv, .page = page, .draw = draw});
+  drawSubQuads(polygon, draw);
 }
 
 // 80026200: a near-enough centre is pulled toward the midpoint of the diagonal it was blended
@@ -171,48 +162,46 @@ void CoarseSplitPass::refineCentre() {
   if (asSigned(past) <= 0) {
     return;
   }
-  pullTowardPair(
-      frame_, centre, cellAddress(2), cellAddress(6), kCentreSplitSpan - past, past >> 1);
+  pullTowardPair(frame_,
+                 {.point = centre,
+                  .first = cellAddress(2),
+                  .second = cellAddress(6),
+                  .ownWeight = kCentreSplitSpan - past,
+                  .pairWeight = past >> 1});
 }
 
 // 80026324: one crack triangle per edge whose neighbour byte is set, from consecutive 12-byte
 // table entries.
-void CoarseSplitPass::drawCracks(std::uint32_t record,
-                                 std::uint32_t edges,
-                                 std::uint32_t table,
-                                 std::uint32_t colourAdjust,
-                                 std::uint32_t uv,
-                                 std::uint32_t page,
-                                 std::uint32_t draw) {
-  std::uint32_t entry = table;
-  while (edges != 0) {
-    const std::uint32_t edge = edges & 0xFFu;
-    edges >>= 8;
+void CoarseSplitPass::drawCracks(CrackEdges edges, const CrackPolygon &polygon) {
+  std::uint32_t entry = edges.table;
+  std::uint32_t remaining = edges.edges;
+  while (remaining != 0) {
+    const std::uint32_t edge = remaining & 0xFFu;
+    remaining >>= 8;
     entry += kCrackEntrySize;
     if (edge != 0) {
       const std::uint32_t crack = entry - kCrackEntrySize;
-      emitCrackTriangle(frame_, crack, colourAdjust, uv, page, draw);
+      emitCrackTriangle(frame_, crack, polygon);
     }
   }
 }
 
 // 80026438: the four GT4s take their texture from the record's next word pair.
-void CoarseSplitPass::drawSubQuads(const SplitPolygon &polygon,
-                                   std::uint32_t texture,
-                                   std::uint32_t draw) {
+void CoarseSplitPass::drawSubQuads(const SplitPolygon &polygon, std::uint32_t draw) {
+  const std::uint32_t texture = textureRecord(frame_, draw);
   for (std::uint32_t k = 0; k < 4; ++k) {
-    const std::uint32_t first = core_.mem_r32(frame_.facts.coarse.quadCells + 4 * k);
+    const std::uint32_t first = memory_.r32(frame_.facts.coarse.quadCells + 4 * k);
     frame_.v1 = first;
     const std::uint32_t pair = texture + 8 * k + 0x10;
     const std::uint32_t c0 = memory_.r32(first + cell::kDepth);
     const std::uint32_t c1 = memory_.r32(first + kCellSize + cell::kDepth);
     const std::uint32_t c3 = memory_.r32(first + 3 * kCellSize + cell::kDepth);
     const std::uint32_t c4 = memory_.r32(first + 4 * kCellSize + cell::kDepth);
-    const std::uint32_t uv = core_.mem_r32(pair);
+    const std::uint32_t uv = memory_.r32(pair);
     if ((c0 & c1 & c3 & c4 & kOutcodeMask) != 0) {
       continue;
     }
-    const std::uint32_t page = core_.mem_r32(pair + 4);
+    const std::uint32_t page = memory_.r32(pair + 4);
     const std::uint32_t sum =
         (c0 & kDepthMask) + (c1 & kDepthMask) + (c3 & kDepthMask) + (c4 & kDepthMask);
     const std::uint32_t xy0 = memory_.r32(first + cell::kScreen);
@@ -220,7 +209,7 @@ void CoarseSplitPass::drawSubQuads(const SplitPolygon &polygon,
     const std::uint32_t xy3 = memory_.r32(first + 3 * kCellSize + cell::kScreen);
     const std::uint32_t xy4 = memory_.r32(first + 4 * kCellSize + cell::kScreen);
     const std::uint32_t prim = frame_.primitive;
-    if (polygon.overflow && !facesCamera(frame_, xy0, xy1, xy3, xy4, draw)) {
+    if (polygon.overflow && !facesCamera(frame_, {xy0, xy1, xy3, xy4}, draw)) {
       memory_.w32(prim + packet::kXy0, xy0);
       continue;
     }
@@ -232,33 +221,33 @@ void CoarseSplitPass::drawSubQuads(const SplitPolygon &polygon,
     memory_.w32(prim + packet::kColour1, memory_.r32(first + kCellSize + cell::kColour));
     memory_.w32(prim + packet::kColour2, memory_.r32(first + 3 * kCellSize + cell::kColour));
     memory_.w32(prim + packet::kColour3, memory_.r32(first + 4 * kCellSize + cell::kColour));
-    writeQuadUvs(memory_, frame_.facts.coarse.pageRemaps, prim, uv, page);
+    writeQuadUvs(memory_, prim, {.uv = uv, .page = page}, frame_.facts.coarse.pageRemaps);
     memory_.w32(prim, kQuadTag);
-    frame_.v1 = frame_.linkAndAdvance(polygonBin(sum, draw), kQuadBytes).primitive >> 16;
+    frame_.v1 =
+        frame_.linkAndAdvance(polygonBin(sum, draw), PacketSize{kQuadBytes}).primitive >> 16;
   }
   frame_.v0 = frame_.facts.coarse.quadCells + 0x10;
 }
 
 // 80026AD0: the four GT3s, each a corner-dependent sub-texture of the record.
-void CoarseSplitPass::drawSubTriangles(const SplitPolygon &polygon,
-                                       std::uint32_t texture,
-                                       std::uint32_t draw) {
+void CoarseSplitPass::drawSubTriangles(const SplitPolygon &polygon, std::uint32_t draw) {
+  const std::uint32_t texture = textureRecord(frame_, draw);
   const std::uint32_t corner = (draw & kTriangleCornerMask) >> 12;
   const std::uint32_t subTextures = texture + 0x10;
   for (std::uint32_t k = 0; k < 4; ++k) {
-    const std::uint32_t layout = core_.mem_r32(frame_.facts.coarse.triangleCells + 4 * k);
+    const std::uint32_t layout = memory_.r32(frame_.facts.coarse.triangleCells + 4 * k);
     const auto offset = static_cast<std::int8_t>(
-        core_.mem_r8(frame_.facts.coarse.triangleSubTexture + (layout & 0xCu) + corner));
+        memory_.r8(frame_.facts.coarse.triangleSubTexture + (layout & 0xCu) + corner));
     const std::uint32_t c0 = kScratchpad + ((layout >> 20) & 0xFF0u);
     const std::uint32_t c1 = kScratchpad + ((layout >> 12) & 0xFF0u);
     const std::uint32_t c2 = kScratchpad + ((layout >> 4) & 0xFF0u);
     const std::uint32_t pair = subTextures + static_cast<std::uint32_t>(offset);
-    const std::uint32_t page = core_.mem_r32(pair + 4) - kTexelSpan;
-    const std::uint32_t uv = core_.mem_r32(pair);
+    const std::uint32_t page = memory_.r32(pair + 4) - kTexelSpan;
+    const std::uint32_t uv = memory_.r32(pair);
     const std::uint32_t deltas =
         frame_.facts.coarse.triangleUvs + (((layout + corner) & 3u) << 6) + ((page >> 25) & 0x38u);
-    const std::uint32_t delta = core_.mem_r32(deltas);
-    const auto third = static_cast<std::int16_t>(core_.mem_r16(deltas + 4));
+    const std::uint32_t delta = memory_.r32(deltas);
+    const auto third = static_cast<std::int16_t>(memory_.r16(deltas + 4));
     const std::uint32_t prim = frame_.primitive;
     memory_.w32(prim + packet::kUv0, (delta & 0xFFFFu) + uv);
     memory_.w32(prim + packet::kUv1, static_cast<std::uint32_t>(asSigned(delta) >> 16) + page);
@@ -277,7 +266,7 @@ void CoarseSplitPass::drawSubTriangles(const SplitPolygon &polygon,
     const std::uint32_t xy2 = memory_.r32(c2 + cell::kScreen);
     frame_.v0 = xy1;
     frame_.v1 = xy2;
-    if (polygon.overflow && !triangleFacesCamera(frame_, xy0, xy1, xy2, draw)) {
+    if (polygon.overflow && !triangleFacesCamera(frame_, {xy0, xy1, xy2}, draw)) {
       memory_.w32(prim + packet::kXy0, xy0);
       continue;
     }
@@ -288,19 +277,20 @@ void CoarseSplitPass::drawSubTriangles(const SplitPolygon &polygon,
     memory_.w32(prim + packet::kColour1, memory_.r32(c1 + cell::kColour));
     memory_.w32(prim + packet::kColour2, memory_.r32(c2 + cell::kColour));
     memory_.w32(prim, kTriangleTag);
-    frame_.v0 = frame_.linkAndAdvance(polygonBin(sum, draw), kTriangleBytes).primitive >> 16;
+    frame_.v0 =
+        frame_.linkAndAdvance(polygonBin(sum, draw), PacketSize{kTriangleBytes}).primitive >> 16;
     frame_.v1 = prim >> 16;
   }
 }
 
 // 800265E4: a triangle cut into four. Its corners are cells 0, 2, 5.
 void CoarseSplitPass::triangle(const SplitSector &sector, const SplitPolygon &polygon) {
-  const PackedIndices vertices(core_.mem_r32(polygon.record + polygon::kIndices));
+  const PackedIndices vertices(memory_.r32(polygon.record + polygon::kIndices));
   const GridPoint p0 = unpackGridVertex(frame_, sector, vertices.first);
   const GridPoint p1 = unpackGridVertex(frame_, sector, vertices.second);
   const GridPoint p2 = unpackGridVertex(frame_, sector, vertices.third);
-  const std::uint32_t links = core_.mem_r32(polygon.record + polygon::kLinks);
-  const std::uint32_t draw = core_.mem_r32(polygon.record + polygon::kDraw);
+  const std::uint32_t links = memory_.r32(polygon.record + polygon::kLinks);
+  const std::uint32_t draw = memory_.r32(polygon.record + polygon::kDraw);
   storeGridPoint(frame_, 0, p0);
   storeGridPoint(frame_, 2, p1);
   storeGridPoint(frame_, 5, p2);
@@ -308,10 +298,10 @@ void CoarseSplitPass::triangle(const SplitSector &sector, const SplitPolygon &po
   storeGridPoint(frame_, 3, midpoint(p0, p2));
   storeGridPoint(frame_, 4, midpoint(p1, p2));
 
-  const std::uint32_t colourWord = core_.mem_r32(polygon.record + polygon::kColours);
+  const std::uint32_t colourWord = memory_.r32(polygon.record + polygon::kColours);
   const PackedIndices colourIndices(colourWord);
-  const std::uint32_t texture = frame_.textures + (draw & kTextureRecordMask) * kTextureRecordSize;
-  const std::uint32_t page = core_.mem_r32(texture + 4);
+  const std::uint32_t texture = textureRecord(frame_, draw);
+  const std::uint32_t page = memory_.r32(texture + 4);
   const std::uint32_t code = asSigned(page) > 0 ? kOpaqueTriangleCode : kSemiTriangleCode;
   std::array<std::uint32_t, 3> colours = {memory_.r32(sector.colours + colourIndices.first) + code,
                                           memory_.r32(sector.colours + colourIndices.second) + code,
@@ -325,16 +315,12 @@ void CoarseSplitPass::triangle(const SplitSector &sector, const SplitPolygon &po
   setCellColour(4, blend(colours[1], colours[2]));
 
   projectGrid(frame_, kTriangleGridCells, false);
-  const std::uint32_t uv = core_.mem_r32(texture);
+  const std::uint32_t uv = memory_.r32(texture);
   const std::uint32_t corner = draw & kTriangleCornerMask;
-  drawCracks(polygon.record,
-             triangleNeighbourEdges(frame_, links, colourWord, 1),
-             frame_.facts.coarse.triangleCracks + (corner >> 7) + (corner >> 10),
-             0,
-             uv,
-             page,
-             draw);
-  drawSubTriangles(polygon, texture, draw);
+  drawCracks({.edges = triangleNeighbourEdges(frame_, links, colourWord, 1),
+              .table = frame_.facts.coarse.triangleCracks + (corner >> 7) + (corner >> 10)},
+             {.colourAdjust = 0, .uv = uv, .page = page, .draw = draw});
+  drawSubTriangles(polygon, draw);
 }
 
 } // namespace

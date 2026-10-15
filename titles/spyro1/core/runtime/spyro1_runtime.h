@@ -2,6 +2,11 @@
 
 #include "spyro1_input_phase.h"
 #include "spyro_runtime.h"
+#include "stock_libcd.h"
+#include "stock_libgpu.h"
+#include "stock_libgte.h"
+#include "stock_pad_buffers.h"
+#include "stock_vsync.h"
 
 namespace spyro1 {
 
@@ -10,41 +15,33 @@ class Spyro1Runtime final : public spyro::SpyroRuntime {
 public:
   Spyro1Runtime();
 
-  // The input phase pad recordings are keyed on (spyro1_input_phase.h). A .pad replay replays each
-  // press at its offset from the entry of the phase it was recorded in, so a boot or load that
-  // takes a different number of frames moves the phase boundary rather than every later press —
-  // which is what made the repository's only gameplay replay answer a dialog instead of the level
-  // (issue 0116). Held BY VALUE: a phase is a read of guest words, and no process-global can be
-  // what decides which instance answers.
-  std::uint64_t inputPhase(Core &core) const override {
-    return inputPhase_.of(core);
-  }
-
-  void *createContext(Core &core) override;
-  void destroyContext(void *context) override;
+  void startProgram(Core &core) override;
   void registerOverrides(Game &game) override;
-  void bootInit(Core &core) override;
-  std::unique_ptr<FrameDriver> createFrameDriver(Game &game) override;
+  std::unique_ptr<psx::game::FrameDriver> createFrameDriver(Game &game) override;
+  void deliverPad(Core &core, const psx::input::PadDelivery &delivery) override;
 
+  bool interpolates() const override;
+  RenderCapabilities renderCapabilities() const override;
+  bool guestVramIsPicture(const Game &game) const override;
+  // The boot logos are uploads at the native width; no widening applies to them.
+  bool guestPictureIsNativeWidth(const Game &game) const override;
+  bool sealedFrameIsCut(Core &core) const override;
   // Where this disc's own logo is; see spyro1_logo_facts.h.
   const spyro::TitleLogoFacts &logoFacts() const override;
-  RenderCapabilities renderCapabilities() const override {
-    return RenderCapabilities::interpolatedNative();
-  }
-  bool guestVramIsPicture(const Game &game) const override;
-  bool guestPictureIsNativeWidth(const Game &game) const override;
-  void pacePresentation(Core &core, int fields, int parts) override;
-  const GuestPadBufferLayout *guestPadBufferLayout() const override;
-  std::unique_ptr<psx::frame::TemporalFramePresentation>
-  createTemporalFramePresentation(Game &game) override;
-  const PlatformHlePlan *platformHlePlan() const override;
-  // The title's own developer commands. `gates` and `gate-teleport` were written and then never
-  // reachable, because nothing overrode this boundary: the REPL answered "? gate-teleport" and the
-  // only route to a level portal stayed unavailable.
-  bool replCommand(Core &core, const char *command, const char *line) override;
+
+  // `gates` and `gate-teleport`, the route to a level portal.
+  bool
+  titleCommand(Core &core, const psx::game::TitleCommandLine &input, std::FILE *reply) override;
+  // The phase pad recordings are keyed on, so a press keeps its offset into its screen (issue
+  // 0116).
+  std::uint64_t inputPhase(Core &core) const override;
 
 private:
-  static const GuestProgramImage programImage_;
+  psx::hle::StockVSync vsync_;
+  psx::hle::StockLibgpu libgpu_;
+  psx::hle::StockLibgte libgte_;
+  psx::cd::StockLibcd libcd_;
+  psx::input::StockPadBuffers pad_;
   InputPhase inputPhase_;
 };
 

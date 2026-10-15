@@ -157,10 +157,9 @@ void HandoffStoreObserver::capture(const psx::cpu::StoreObservation &observation
   if (isTransition(pendingSample_)) {
     pendingSample_.sampleClass = HandoffStoreClass::Transition;
     neighborhoodRemaining_ = kTransitionNeighborhood;
-  } else if (pendingSample_.guestPc == kPadVsyncPc && bracketOpen_) {
-    pendingSample_.sampleClass = HandoffStoreClass::Bracket;
   } else if (pendingSample_.guestPc == kPadVsyncPc) {
-    pendingSample_.sampleClass = HandoffStoreClass::Routine;
+    pendingSample_.sampleClass =
+        bracketOpen_ ? HandoffStoreClass::Bracket : HandoffStoreClass::Routine;
   } else if (neighborhoodRemaining_ > 0u) {
     pendingSample_.sampleClass = HandoffStoreClass::Neighborhood;
     --neighborhoodRemaining_;

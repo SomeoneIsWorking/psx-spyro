@@ -10,12 +10,17 @@ namespace {
 // One channel of the fade: the byte plus the caller's amount, dropped to zero when the sum is not
 // positive. The guest branches signed (`blez`) on a 32-bit sum, so a large amount wraps rather than
 // saturating.
-std::uint32_t fadedChannel(std::uint32_t value, std::uint32_t fade, std::uint32_t shift) {
-  const std::uint32_t faded = value + fade;
+struct Channel {
+  std::uint32_t value;
+  std::uint32_t shift; // where the channel sits in the pixel word
+};
+
+std::uint32_t fadedChannel(Channel channel, std::uint32_t fade) {
+  const std::uint32_t faded = channel.value + fade;
   if (static_cast<std::int32_t>(faded) <= 0) {
     return 0u;
   }
-  return faded << shift;
+  return faded << channel.shift;
 }
 
 // ── 0x80017F24 — subtract a per-channel fade amount from every pixel of a run list.
@@ -56,10 +61,10 @@ void writeFadedPixelRuns(Core *c) {
       const std::uint32_t red = (pixel >> 8) & 0xffu;
       const std::uint32_t alpha = pixel & 0xffu;
       pixel = c->mem_r32(cursor);
-      std::uint32_t word = fadedChannel(blue, fade, 24);
-      word += fadedChannel(green, fade, 16);
-      word += fadedChannel(red, fade, 8);
-      word += fadedChannel(alpha, fade, 0);
+      std::uint32_t word = fadedChannel({.value = blue, .shift = 24}, fade);
+      word += fadedChannel({.value = green, .shift = 16}, fade);
+      word += fadedChannel({.value = red, .shift = 8}, fade);
+      word += fadedChannel({.value = alpha, .shift = 0}, fade);
       destination += 4;
       c->mem_w32(destination - 4, word);
       cursor += 4;

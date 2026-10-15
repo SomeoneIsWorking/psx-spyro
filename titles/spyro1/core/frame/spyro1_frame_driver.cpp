@@ -1,9 +1,6 @@
 #include "spyro1_frame_driver.h"
 
-#include "cfg.h"
 #include "core.h"
-#include "frame_env.h"
-#include "frame_renderer.h"
 #include "game.h"
 #include "guest_call.h"
 #include "guest_gp.h"
@@ -11,7 +8,6 @@
 #include <algorithm>
 #include <cstdlib>
 #include <lucent/log.h>
-#include <memory>
 
 namespace spyro1 {
 namespace {
@@ -62,9 +58,7 @@ private:
 Spyro1FrameDriver::Spyro1FrameDriver(Game &game, bool observeStageUpdate, bool observeHandoffStores)
     : fields_(game), boot_(fields_), transitions_(fields_),
       stageObserver_(observeStageUpdate, kFrameUpdate),
-      handoffStoreObserver_(observeHandoffStores, fields_),
-      renderer_(std::make_unique<spyro::render::FrameRenderer>(
-          &game.core, observeStageUpdate ? &stageObserver_ : nullptr)) {}
+      handoffStoreObserver_(observeHandoffStores, fields_), cut_(kFrameCutFacts) {}
 
 Spyro1FrameDriver::~Spyro1FrameDriver() {
   stageObserver_.report();
@@ -80,7 +74,6 @@ void Spyro1FrameDriver::initialize(Core &core) {
                   static_cast<int>(storeStatus));
     std::abort();
   }
-  spyro::render::FrameRenderer::installModeFromConfig(&core);
   psx::cpu::dispatchGuestToReturn0(core,
                                    kStaticConstructors,
                                    psx::cpu::ExecutionBudget::currentTurn(core),
@@ -144,29 +137,19 @@ void Spyro1FrameDriver::stepFrame(Core &core, std::uint32_t) {
       std::abort();
     }
   }
-
   perf.phaseEnd(GpuPerf::Phase::GameLogic);
 
   perf.phaseBegin(GpuPerf::Phase::Present);
-  renderer_->drawFrame();
+  draw_.run(core, fields_);
+  cut_.onFrameDrawn(core);
+  cut_.onFrameTail(core);
+  fields_.presentFrame();
   perf.phaseEnd(GpuPerf::Phase::Present);
-  // The native renderer's commit owns the single visible fence, but it does not itself run the
-  // field scheduler. Deliver the retail tail explicitly without presenting a second picture.
-  if (fields_.fieldsThisLogicFrame() < kFieldsPerLogicFrame &&
-      !deliverNativeField(core, "native-frame-tail", true)) {
-    lucent::error("frameloop", "native frame tail could not deliver its second field");
-    std::abort();
-  }
-
-  if (!fields_.finishLogicFrame()) {
-    lucent::error("frameloop",
-                  "product step {} completed without reaching a host-owned field boundary "
-                  "(delivered={})",
-                  frame,
-                  fields_.fieldsThisLogicFrame());
-    std::abort();
-  }
   perf.frameEnd();
+}
+
+bool Spyro1FrameDriver::bootComplete() const {
+  return boot_.complete();
 }
 
 FieldScheduler &Spyro1FrameDriver::fields() {

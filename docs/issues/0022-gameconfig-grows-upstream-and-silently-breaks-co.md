@@ -1,11 +1,11 @@
 ---
 id: 22
 title: GameConfig grows upstream and silently breaks consumers' positional initializers
-status: open
+status: resolved
 symptom: Build fails with 'too many braces around scalar initializer for type uint32_t' in game/core/game_config.cpp — an error that names neither the added field nor the struct.
 tags: framework,workflow
 created: 2026-07-28
-updated: 2026-07-28
+updated: 2026-10-15
 ---
 
 Happened TWICE in one session. Upstream added `discEnvVar` (a const char*), then `bootFmv[4]`; each
@@ -29,3 +29,7 @@ TWO FIXES:
 
 Until (1) lands, treat any upstream psxport rebase as build-breaking by default, and READ the build
 output rather than a count of it.
+
+## Resolution
+
+Obsolete (2026-10-15): `GameConfig` and `game/core/game_config.cpp` no longer exist; each title implements `GameRuntime` virtuals.

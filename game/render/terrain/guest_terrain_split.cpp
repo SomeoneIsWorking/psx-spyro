@@ -58,7 +58,7 @@ GridVertex loadGridVertex(TerrainMemory &memory, std::uint32_t address) {
 SplitSector readSplitHeader(TerrainFrame &frame, std::uint32_t header) {
   Core &core = frame.core;
   const std::uint32_t sector = header << 2;
-  const std::uint32_t zx = core.mem_r32(sector + 0x08);
+  const std::uint32_t zx = frame.memory.r32(sector + 0x08);
   SplitSector result;
   if (asSigned(sector) < 0) {
     result.heightShift = kDetailHeightShift;
@@ -67,12 +67,12 @@ SplitSector readSplitHeader(TerrainFrame &frame, std::uint32_t header) {
     result.heightShift = 0;
     result.heightMask = kTranslucentHeightMask;
   }
-  gte_write_ctrl(gte::kLight4, core.mem_r32(sector + 0x10) >> 31);
-  const std::uint32_t y = core.mem_r16(sector + 0x0E);
-  result.originZ = (zx >> 14) - gte_read_ctrl(gte::kLight0);
-  result.originX = gte_read_ctrl(gte::kLight1) - ((zx & 0xFFFFu) << 2);
-  const std::uint32_t layout = core.mem_r32(sector + 0x14);
-  result.originY = gte_read_ctrl(gte::kLight2) - (y << 2);
+  core.gte().writeControl(gte::kLight4, frame.memory.r32(sector + 0x10) >> 31);
+  const std::uint32_t y = frame.memory.r16(sector + 0x0E);
+  result.originZ = (zx >> 14) - core.gte().readControl(gte::kLight0);
+  result.originX = core.gte().readControl(gte::kLight1) - ((zx & 0xFFFFu) << 2);
+  const std::uint32_t layout = frame.memory.r32(sector + 0x14);
+  result.originY = core.gte().readControl(gte::kLight2) - (y << 2);
   result.vertices = sector + 0x1C + ((layout >> 22) & 0x3FCu);
   result.colours = result.vertices + ((layout << 2) & 0x3FCu);
   frame.v0 = layout;
@@ -104,7 +104,7 @@ void walkSplitList(TerrainFrame &frame, std::uint32_t list, SplitPolygonPass &pa
 
 GridPoint
 unpackGridVertex(const TerrainFrame &frame, const SplitSector &sector, std::uint32_t index) {
-  const std::uint32_t word = frame.core.mem_r32(sector.vertices + index);
+  const std::uint32_t word = frame.memory.r32(sector.vertices + index);
   return GridPoint{((word >> 19) & 0x1FFCu) + sector.originZ,
                    sector.originX - ((word >> 8) & 0x1FFCu),
                    sector.originY - ((word << sector.heightShift) & sector.heightMask)};
@@ -118,21 +118,21 @@ void storeGridPoint(TerrainFrame &frame, std::uint32_t cellIndex, const GridPoin
 }
 
 void loadCornerColours(TerrainFrame &frame, std::uint32_t *colours, std::uint32_t count) {
-  const std::uint32_t fog = gte_read_ctrl(gte::kLight3);
+  const std::uint32_t fog = frame.core.gte().readControl(gte::kLight3);
   if (fog == 0) {
     return;
   }
-  gte_write_data(gte::kIr0, fog);
-  gte_write_data(gte::kRgbc, colours[0]);
-  if (asSigned(gte_read_ctrl(gte::kLight4)) > 0) {
+  frame.core.gte().writeData(gte::kIr0, fog);
+  frame.core.gte().writeData(gte::kRgbc, colours[0]);
+  if (asSigned(frame.core.gte().readControl(gte::kLight4)) > 0) {
     return;
   }
   for (std::uint32_t i = 0; i < count; ++i) {
     if (i != 0) {
-      gte_write_data(gte::kRgbc, colours[i]);
+      frame.core.gte().writeData(gte::kRgbc, colours[i]);
     }
-    gte_op(&frame.core, gte::kDpcs);
-    colours[i] = gte_read_data(gte::kRgb2);
+    frame.core.gte().execute(gte::kDpcs);
+    colours[i] = frame.core.gte().readData(gte::kRgb2);
   }
 }
 
@@ -143,17 +143,17 @@ void projectGrid(TerrainFrame &frame, std::uint32_t count, bool markBehind) {
   // Retail zeroes the cell after the last so its one-ahead read of it is harmless.
   memory.w32(end - kCellSize, 0);
   GridVertex next = loadGridVertex(memory, kScratchpad);
-  gte_write_data(gte::kVz0, next.z);
-  gte_write_data(gte::kVxy0, next.xy);
+  core.gte().writeData(gte::kVz0, next.z);
+  core.gte().writeData(gte::kVxy0, next.xy);
   std::uint32_t address = kScratchpad + kCellSize;
   do {
-    gte_op(&core, gte::kRtps);
+    core.gte().execute(gte::kRtps);
     const bool scaled = next.scaled;
     next = loadGridVertex(memory, address);
-    const std::uint32_t sxy = gte_read_data(gte::kSxy2);
-    std::uint32_t code = gte_read_data(gte::kSz3);
-    gte_write_data(gte::kVz0, next.z);
-    gte_write_data(gte::kVxy0, next.xy);
+    const std::uint32_t sxy = core.gte().readData(gte::kSxy2);
+    std::uint32_t code = core.gte().readData(gte::kSz3);
+    core.gte().writeData(gte::kVz0, next.z);
+    core.gte().writeData(gte::kVxy0, next.xy);
     address += kCellSize;
     if (scaled) {
       code >>= 4;
@@ -178,17 +178,13 @@ void projectGrid(TerrainFrame &frame, std::uint32_t count, bool markBehind) {
   } while (address != end);
 }
 
-void emitCrackTriangle(TerrainFrame &frame,
-                       std::uint32_t entry,
-                       std::uint32_t colourAdjust,
-                       std::uint32_t uv,
-                       std::uint32_t page,
-                       std::uint32_t draw) {
+void emitCrackTriangle(TerrainFrame &frame, std::uint32_t entry, const CrackPolygon &polygon) {
+  const auto [colourAdjust, uv, page, draw] = polygon;
   Core &core = frame.core;
   TerrainMemory &memory = frame.memory;
-  const std::uint32_t cells = core.mem_r32(entry);
-  const std::uint32_t uvFirst = core.mem_r32(entry + 4);
-  const std::uint32_t uvRest = core.mem_r32(entry + 8);
+  const std::uint32_t cells = memory.r32(entry);
+  const std::uint32_t uvFirst = memory.r32(entry + 4);
+  const std::uint32_t uvRest = memory.r32(entry + 8);
   const std::uint32_t c0 = kScratchpad + (cells >> 16);
   const std::uint32_t c1 = kScratchpad + (cells & 0xFFFFu);
   const std::uint32_t c2 = kScratchpad + (uvFirst >> 16);
@@ -210,7 +206,7 @@ void emitCrackTriangle(TerrainFrame &frame,
   memory.w32(prim + packet::kUv0, (uvFirst & 0xFFFFu) + uv);
   memory.w32(prim + packet::kUv1, static_cast<std::uint32_t>(asSigned(uvRest) >> 16) + page);
   memory.w32(prim + packet::kUv2, (uvRest & 0xFFFFu) + uv);
-  frame.linkAndAdvance(polygonBin(sum, draw), kTriangleBytes);
+  frame.linkAndAdvance(polygonBin(sum, draw), PacketSize{kTriangleBytes});
 }
 
 bool exceedsGpuSpan(std::span<const std::uint32_t> screens) {
@@ -241,12 +237,8 @@ bool exceedsGpuSpan(std::span<const std::uint32_t> screens) {
   return false;
 }
 
-void pullTowardPair(TerrainFrame &frame,
-                    std::uint32_t point,
-                    std::uint32_t first,
-                    std::uint32_t second,
-                    std::uint32_t ownWeight,
-                    std::uint32_t pairWeight) {
+void pullTowardPair(TerrainFrame &frame, const GridPull &pull) {
+  const auto [point, first, second, ownWeight, pairWeight] = pull;
   Core &core = frame.core;
   TerrainMemory &memory = frame.memory;
   const auto low = [](std::uint32_t sxy) {
@@ -256,20 +248,20 @@ void pullTowardPair(TerrainFrame &frame,
     return static_cast<std::uint32_t>(asSigned(sxy) >> 16);
   };
   const std::uint32_t own = memory.r32(point + cell::kScreen);
-  gte_write_data(gte::kIr0, ownWeight);
-  gte_write_data(gte::kIr1, low(own));
-  gte_write_data(gte::kIr2, high(own));
+  core.gte().writeData(gte::kIr0, ownWeight);
+  core.gte().writeData(gte::kIr1, low(own));
+  core.gte().writeData(gte::kIr2, high(own));
   const std::uint32_t a = memory.r32(first + cell::kScreen);
   const std::uint32_t b = memory.r32(second + cell::kScreen);
-  gte_op(&core, gte::kGpf);
-  gte_write_data(gte::kIr0, pairWeight);
-  gte_write_data(gte::kIr1, low(a) + low(b));
-  gte_write_data(gte::kIr2, high(a) + high(b));
-  const std::uint32_t ownX = gte_read_data(gte::kMac1);
-  const std::uint32_t ownY = gte_read_data(gte::kMac2);
-  gte_op(&core, gte::kGpf);
-  const std::int32_t x = asSigned(ownX + gte_read_data(gte::kMac1)) >> 8;
-  const std::int32_t y = asSigned(ownY + gte_read_data(gte::kMac2)) >> 8;
+  core.gte().execute(gte::kGpf);
+  core.gte().writeData(gte::kIr0, pairWeight);
+  core.gte().writeData(gte::kIr1, low(a) + low(b));
+  core.gte().writeData(gte::kIr2, high(a) + high(b));
+  const std::uint32_t ownX = core.gte().readData(gte::kMac1);
+  const std::uint32_t ownY = core.gte().readData(gte::kMac2);
+  core.gte().execute(gte::kGpf);
+  const std::int32_t x = asSigned(ownX + core.gte().readData(gte::kMac1)) >> 8;
+  const std::int32_t y = asSigned(ownY + core.gte().readData(gte::kMac2)) >> 8;
   memory.w32(point + cell::kScreen,
              (static_cast<std::uint32_t>(x) & 0xFFFFu) + (static_cast<std::uint32_t>(y) << 16));
 }
@@ -278,8 +270,8 @@ namespace {
 
 // NCLIP on SXY0..2, signed toward the camera for the polygon's winding.
 std::int32_t winding(TerrainFrame &frame, std::uint32_t draw) {
-  gte_op(&frame.core, gte::kNclip);
-  std::uint32_t area = gte_read_data(gte::kMac0);
+  frame.core.gte().execute(gte::kNclip);
+  std::uint32_t area = frame.core.gte().readData(gte::kMac0);
   if ((draw & kFlippedWinding) != 0) {
     area = 0u - area;
   }
@@ -289,35 +281,30 @@ std::int32_t winding(TerrainFrame &frame, std::uint32_t draw) {
 } // namespace
 
 bool facesCamera(TerrainFrame &frame,
-                 std::uint32_t first,
-                 std::uint32_t second,
-                 std::uint32_t third,
-                 std::uint32_t fourth,
+                 const std::array<std::uint32_t, 4> &screens,
                  std::uint32_t draw) {
-  gte_write_data(gte::kSxy0, first);
-  gte_write_data(gte::kSxy1, second);
-  gte_write_data(gte::kSxy2, third);
+  frame.core.gte().writeData(gte::kSxy0, screens[0]);
+  frame.core.gte().writeData(gte::kSxy1, screens[1]);
+  frame.core.gte().writeData(gte::kSxy2, screens[2]);
   if ((draw & kTwoSided) != 0) {
-    gte_op(&frame.core, gte::kNclip);
+    frame.core.gte().execute(gte::kNclip);
     return true;
   }
   if (winding(frame, draw) >= 0) {
     return true;
   }
-  gte_write_data(gte::kSxy0, fourth);
+  frame.core.gte().writeData(gte::kSxy0, screens[3]);
   return winding(frame, draw) <= 0;
 }
 
 bool triangleFacesCamera(TerrainFrame &frame,
-                         std::uint32_t first,
-                         std::uint32_t second,
-                         std::uint32_t third,
+                         const std::array<std::uint32_t, 3> &screens,
                          std::uint32_t draw) {
-  gte_write_data(gte::kSxy0, first);
-  gte_write_data(gte::kSxy1, second);
-  gte_write_data(gte::kSxy2, third);
+  frame.core.gte().writeData(gte::kSxy0, screens[0]);
+  frame.core.gte().writeData(gte::kSxy1, screens[1]);
+  frame.core.gte().writeData(gte::kSxy2, screens[2]);
   if ((draw & kTwoSided) != 0) {
-    gte_op(&frame.core, gte::kNclip);
+    frame.core.gte().execute(gte::kNclip);
     return true;
   }
   return winding(frame, draw) >= 0;

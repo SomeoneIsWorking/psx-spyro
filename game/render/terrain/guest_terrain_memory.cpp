@@ -41,7 +41,7 @@ void HostMemory::map(std::uint32_t base, std::uint32_t bytes) {
   std::vector<std::uint8_t> merged(mergedEnd - mergedBase, 0);
 
   std::vector<Segment> kept;
-  std::vector<Range> absorbed;
+  std::vector<GuestRange> absorbed;
   kept.reserve(segments_.size() + 1);
   for (Segment &segment : segments_) {
     const std::uint32_t segmentEnd =
@@ -56,12 +56,12 @@ void HostMemory::map(std::uint32_t base, std::uint32_t bytes) {
     const std::uint32_t hi = std::min(segmentEnd, mergedEnd);
     std::memcpy(
         merged.data() + (lo - mergedBase), segment.bytes.data() + (lo - segment.base), hi - lo);
-    absorbed.push_back(Range{segment.base, segmentEnd - segment.base});
+    absorbed.push_back(GuestRange{segment.base, segmentEnd - segment.base});
   }
   // Whatever the new range reaches that no absorbed segment covered starts as the guest's own
   // bytes: the passes read the level's records out of these ranges as well as writing their own.
   for (std::uint32_t address = base; address < end; ++address) {
-    const bool covered = std::any_of(absorbed.begin(), absorbed.end(), [address](Range range) {
+    const bool covered = std::any_of(absorbed.begin(), absorbed.end(), [address](GuestRange range) {
       return address >= range.base && address < range.base + range.bytes;
     });
     if (!covered) {
@@ -86,8 +86,29 @@ void HostMemory::mapEmpty(std::uint32_t base, std::uint32_t bytes) {
   }
 }
 
+std::vector<LevelWord> GuestMemory::firstReads() const {
+  std::vector<LevelWord> words;
+  words.reserve(firstReads_.size());
+  for (const auto &[address, value] : firstReads_) {
+    words.push_back(LevelWord{address, value});
+  }
+  return words;
+}
+
+void HostMemory::overlay(std::span<const LevelWord> words) {
+  for (const LevelWord &word : words) {
+    overlay_[word.address] = word.value;
+  }
+}
+
+const std::uint32_t *HostMemory::overlaid(std::uint32_t address) const {
+  const auto found = overlay_.find(address & ~3u);
+  return found == overlay_.end() ? nullptr : &found->second;
+}
+
 void HostMemory::clear() {
   segments_.clear();
+  overlay_.clear();
   guestReads_ = 0;
   refusedWrites_ = 0;
 }
@@ -107,6 +128,9 @@ HostMemory::Segment *HostMemory::find(std::uint32_t address) {
 }
 
 std::uint8_t HostMemory::guestByte(std::uint32_t address) const {
+  if (const std::uint32_t *word = overlaid(address)) {
+    return static_cast<std::uint8_t>(*word >> (8 * (address & 3u)));
+  }
   return core_.mem_r8(address);
 }
 
@@ -130,6 +154,9 @@ std::uint32_t HostMemory::r32(std::uint32_t address) const {
                    address);
     }
     ++guestReads_;
+    if (const std::uint32_t *word = overlaid(address)) {
+      return *word;
+    }
     return core_.mem_r32(address);
   }
   const std::size_t at = address - segment->base;
@@ -142,6 +169,9 @@ std::uint16_t HostMemory::r16(std::uint32_t address) const {
   const Segment *segment = find(address);
   if (segment == nullptr) {
     ++guestReads_;
+    if (const std::uint32_t *word = overlaid(address)) {
+      return static_cast<std::uint16_t>(*word >> (8 * (address & 2u)));
+    }
     return core_.mem_r16(address);
   }
   const std::size_t at = address - segment->base;
@@ -154,7 +184,7 @@ std::uint8_t HostMemory::r8(std::uint32_t address) const {
   const Segment *segment = find(address);
   if (segment == nullptr) {
     ++guestReads_;
-    return core_.mem_r8(address);
+    return guestByte(address);
   }
   return segment->bytes[address - segment->base];
 }
@@ -198,11 +228,11 @@ std::uint32_t HostMemory::mappedBytes() const {
   return total;
 }
 
-std::vector<HostMemory::Range> HostMemory::ranges() const {
-  std::vector<Range> out;
+std::vector<GuestRange> HostMemory::ranges() const {
+  std::vector<GuestRange> out;
   out.reserve(segments_.size());
   for (const Segment &segment : segments_) {
-    out.push_back(Range{segment.base, static_cast<std::uint32_t>(segment.bytes.size())});
+    out.push_back(GuestRange{segment.base, static_cast<std::uint32_t>(segment.bytes.size())});
   }
   return out;
 }

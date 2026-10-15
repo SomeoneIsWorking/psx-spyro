@@ -29,9 +29,6 @@ struct FieldOwnerFacts {
   // The guest IRQ stack the vblank callbacks run on.
   std::uint32_t handlerStackTop = 0;
   std::uint32_t handlerStackBytes = 0;
-  // A drawn iteration of the retail main loop spends at least this many; a boot step may
-  // legitimately deliver fewer.
-  std::uint32_t fieldsPerLogicFrame = 2;
 };
 
 // The shared owner runs every title-neutral effect of a field, then asks the title to observe it.
@@ -41,17 +38,7 @@ public:
   virtual void onField(Core &core, bool startEdge) = 0;
 };
 
-// The per-STEP title hook, between the guest's last work and the field being presented.
-class FrameTailObserver {
-public:
-  virtual ~FrameTailObserver() = default;
-  // The retail per-frame draw returned; its last act walked the ordering table it built.
-  virtual void onFrameDrawn(Core &) {}
-  virtual void onFrameTail(Core &core) = 0;
-};
-
-// Counts fields delivered during one logic iteration and states the minimum a product step must
-// reach.
+// Counts fields delivered during one logic iteration.
 class FieldCadence {
 public:
   void beginLogicFrame() {
@@ -66,21 +53,8 @@ public:
     return fields_;
   }
 
-  bool completesLogicFrame() const {
-    return fields_ >= minimumFieldsPerProductStep_;
-  }
-
-  void setMinimumFieldsPerProductStep(std::uint32_t minimum) {
-    minimumFieldsPerProductStep_ = minimum;
-  }
-
-  std::uint32_t minimumFieldsPerProductStep() const {
-    return minimumFieldsPerProductStep_;
-  }
-
 private:
   std::uint32_t fields_ = 0;
-  std::uint32_t minimumFieldsPerProductStep_ = 2;
 };
 
 // The one definition of "a display field happened": sample the pad, advance the
@@ -96,21 +70,16 @@ public:
   void publish();
 
   bool deliver(FieldRequest request);
+  // Crosses the presentation fence with no field of its own, paced over every field delivered since
+  // the last paced one: the frame a guest drew after its own field waits.
+  void presentFrame();
 
   void beginLogicFrame() {
     cadence_.beginLogicFrame();
   }
 
-  bool finishLogicFrame() const {
-    return cadence_.completesLogicFrame();
-  }
-
   std::uint32_t fieldsThisLogicFrame() const {
     return cadence_.fields();
-  }
-
-  FieldCadence &cadence() {
-    return cadence_;
   }
 
   std::int32_t counter() const;
@@ -133,10 +102,6 @@ public:
     return paces_;
   }
 
-  std::uint64_t temporalDeferrals() const {
-    return temporalDeferrals_;
-  }
-
   const FieldOwnerFacts &facts() const {
     return facts_;
   }
@@ -149,9 +114,9 @@ private:
   // state. Returns whether the guest root ticked the counter itself.
   bool dispatchCallbacks();
   void armHandlerStack(Core &core);
-  void reportField(const FieldRequest &request, int queueSize, bool queueWasUnconsumed);
+  void reportField(const FieldRequest &request);
   // The fields a paced present waits out: every one delivered since the previous paced present.
-  int takePacedFields(const FieldRequest &request);
+  int takePacedFields(bool pace);
 
   Game &game_;
   FieldOwnerFacts facts_;
@@ -166,12 +131,6 @@ private:
   std::uint64_t paces_ = 0;
   std::uint64_t fieldsSincePace_ = 0;
   std::uint64_t presents_ = 0;
-  // Visible fields a temporal product swallowed: the guest's ordering table was empty, so the
-  // 60 Hz output's real/in-between pair already covered the field.
-  std::uint64_t temporalDeferrals_ = 0;
-  // Scene-producer tick as of the last delivered field, so a field can ask whether the guest's
-  // native scene producers ran on IT rather than on an earlier field.
-  std::uint32_t sceneTick_ = 0;
 
   std::uint32_t callbackFallback_ = 0;
   std::uint16_t previousButtons_ = 0xFFFFu;
@@ -184,12 +143,5 @@ private:
 // turn can arrive before the driver exists, so this refuses by name instead of guessing.
 FieldOwner &fieldOwner(Core &core);
 const FieldOwner &fieldOwner(const Core &core);
-// Null when nothing is published yet: the boot prefix issues its first CD read (the WAD header
-// read at 0x8001253C) before the title's field owner exists, and a diagnostic there must be able to
-// say "no field counter yet" instead of killing the process.
-const FieldOwner *fieldOwnerIfPublished(const Core &core);
-
-// One field delivered by a title-owned native tail, outside the boot and guest paths.
-bool deliverNativeField(Core &core, const char *site, bool fps60CommitPending);
 
 } // namespace spyro

@@ -5,6 +5,7 @@ status: open
 symptom: every agent run points PSXPORT_SETTINGS at scratch/spyro-runtime/settings.ini, which does not exist, so the product runs 4:3 at 30fps with every enhancement off. The user plays with psxport_settings.ini (aspect=3, fps60=1). A green agent run says nothing about the configuration the goal is about
 state_items: S011
 tags: gate,instrument,settings,fps60,widescreen
+features: [F-FPS60, F-WIDE]
 created: 2026-09-19
 ---
 

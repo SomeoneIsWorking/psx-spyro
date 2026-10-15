@@ -3,6 +3,7 @@
 #include "lightrec_executor.h"
 #include "native_dispatch.h"
 #include "psx_exe_image.h"
+#include "test_game.h"
 #include "title_runtime_registry.h"
 #include "title_selection.h"
 
@@ -117,7 +118,7 @@ int main(int argc, char **argv) {
         "digital-input", "Spyro 1 executable refused: {}; scanned 0 input frames", selected.detail);
     return 2;
   }
-  auto game = std::make_unique<Game>();
+  auto game = std::make_unique<spyro::test::StubGame>();
   Core &core = game->core;
   load_exe(argv[1], &core);
   core.mem_w32(kActivePadPointer, kBufferedPad);
