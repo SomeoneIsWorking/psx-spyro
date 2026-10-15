@@ -40,7 +40,7 @@ name = f"{base.name} — attract demo"
 
 # The demo's own globals, from the authenticated image's symbols: g_DemoMode (include/gamepad.h:41-43,
 # DEMO_MODE_NONE/PLAY/RECORD) and the end-of-demo counter (update.c:928-950). m_DemoType is the
-# title overlay's +0x1C word (titles/spyro1/core/frame/spyro1_transition_skip.cpp:53).
+# title overlay's +0x1C word (titles/spyro1/core/frame/transition_skip.cpp:53).
 G_DEMO_MODE = 0x80075714
 G_DEMO_FADE_TIMER = 0x80075884
 G_TITLE_DEMO_TYPE = base.G_TITLESCREEN + 0x1C

@@ -1,4 +1,4 @@
-#include "terrain_rebuild.h"
+#include "render/terrain/terrain_rebuild.h"
 
 #include "gte_registers.h"
 #include "lucent/log.h"

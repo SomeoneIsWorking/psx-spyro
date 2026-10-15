@@ -46,7 +46,7 @@ thing the no-bandaid rule names outright.
 
 ## The design that follows
 
-Extend `spyro1::TransitionSkip` (`titles/spyro1/core/spyro1_transition_skip.*`), which already owns
+Extend `spyro1::TransitionSkip` (`titles/spyro1/core/frame/transition_skip.*`), which already owns
 exactly this decision for two other screens and whose header states the contract: a cancellation
 "performs exactly the terminal write the screen's own guest owner performs when that screen ends
 naturally".
@@ -71,7 +71,7 @@ independent ways from the shipping executable rather than by assumption:
    once and writes it never, so it is a consumer; 0x8004A7EC never touches it.
 2. **It matches the one call site already documented.** Scanning the whole 0x65800 text for
    `jal 0x80015370` gives 8 sites, one of which is 0x8002DFE8 — inside func_8002DF9C
-   (0x8002DF9C..0x8002DFF8). That is the call `spyro1_transition_skip.cpp:71` already describes in
+   (0x8002DF9C..0x8002DFF8). That is the call `titles/spyro1/core/frame/transition_skip.cpp:71` already describes in
    prose, arrived at here from the other direction.
 3. **It appears in the terminal pair itself**, below.
 
@@ -100,7 +100,7 @@ So the cancellation dispatches guest 0x8004AC24 then guest 0x80015370, each with
 
 ## RESOLVED 2026-09-19 — implemented, and exercised live
 
-`Cancellation::CutsceneTransitionFlyby` in `titles/spyro1/core/frame/spyro1_transition_skip.cpp`. On a
+`Cancellation::CutsceneTransitionFlyby` in `titles/spyro1/core/frame/transition_skip.cpp`. On a
 Start or Cross edge while `GS_TitleScreen` is in `TSM_Demo`/`TSS_Active` on the `TSD_Level` path, it
 dispatches the guest's own `0x8004AC24(1)` then `0x80015370(1)` — the pair at `0x80033158`/
 `0x80033160`. Nothing is hand-copied, and `m_Tick` is not written.

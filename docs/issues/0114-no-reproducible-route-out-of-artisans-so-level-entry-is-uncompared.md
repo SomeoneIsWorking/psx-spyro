@@ -139,7 +139,7 @@ synchronous CD read costs the console 4 extra display fields
 
 ### The proper fix, and it is NOT a change to the pacing clamp
 
-`spyro1_frame_driver.cpp:111` already writes `clamp(elapsedFields(), 2, 4)` and the census confirms
+`titles/spyro1/core/frame/frame_driver.cpp:111` already writes `clamp(elapsedFields(), 2, 4)` and the census confirms
 the product's count reaches it. Changing `kFrameStepMin`/`kFrameStepMax`, or special-casing the
 route, would be a fitted constant against a number that is already right.
 

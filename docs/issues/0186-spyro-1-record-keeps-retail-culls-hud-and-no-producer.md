@@ -11,7 +11,7 @@ created: 2026-10-15
 ## Observed
 Since Spyro 1 moved to the Record path, GamestateDraw `0x8001ED5C` and everything it calls run
 unmodified, so the device draws retail's ordering table. recordcheck at t=1 matches (S005). The
-canvas widens through `SpyroRuntime::guestWidescreenProjection`, but nothing else is widened,
+canvas widens through `spyro::Runtime::guestWidescreenProjection`, but nothing else is widened,
 anchored or interpolated.
 
 ## Where each decision is
@@ -50,7 +50,7 @@ the terrain RenderWorldChunks `0x800258F0` (`spyro1::terrain::TerrainImage`), th
 record), the moby emitters `0x8001F798` and `0x80020F34` (one save per drawn record), the sky `0x8004EBA8`, the drop shadow `0x80059A48`, each glow emitter `0x800580F4` and
 sparkle `0x800584C4`, and each particle record `0x800573C8`; the LinkOTPrimitives override
 `0x80016784` gives every packet its slot (`spyro1::OrderingTable`). Tests:
-`tests/test_spyro1_terrain.cpp`, `tests/test_spyro1_actors.cpp`, `tests/test_spyro1_effects.cpp`;
+`tests/spyro1/test_terrain.cpp`, `tests/spyro1/test_actors.cpp`, `tests/spyro1/test_effects.cpp`;
 the margin tests there check +0x51 and the sector marks at 16:9.
 See `docs/re-frontier.md` `spyro1.record`.
 

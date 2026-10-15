@@ -2,9 +2,9 @@
 // SCUS_944.25), as one `TerrainImage` bound to an image's facts.
 #pragma once
 
-#include "guest_render_globals.h"
-#include "guest_terrain_drawer.h"
-#include "guest_terrain_facts.h"
+#include "render/field/guest_render_globals.h"
+#include "render/terrain/guest_terrain_drawer.h"
+#include "render/terrain/guest_terrain_facts.h"
 
 namespace spyro::guest_terrain {
 

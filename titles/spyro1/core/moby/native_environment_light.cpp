@@ -1,7 +1,7 @@
-#include "native_environment_light.h"
+#include "spyro1/core/moby/native_environment_light.h"
 
-#include "guest_word.h"
-#include "native_execution.h"
+#include "core/native_execution.h"
+#include "render/field/guest_word.h"
 
 #include <cstdint>
 #include <optional>

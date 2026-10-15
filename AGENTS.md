@@ -46,7 +46,7 @@ feature chains in `docs/features.md`.
 
 ## Title selector
 
-The zero-argument `spyro_port` opens an in-window selector over Spyro 1/2/3 (the framework's `psx::host`, see `external/psxport/docs/title-host.md`; Spyro supplies `SpyroCatalog`); `./run.sh` provisions every
+The zero-argument `spyro_port` opens an in-window selector over Spyro 1/2/3 (the framework's `psx::host`, see `external/psxport/docs/title-host.md`; Spyro supplies `spyro::Catalog`); `./run.sh` provisions every
 title whose disc is configured and launches it. `spyro_port <executable>` is a maintainer override that skips the
 selector and runs that one serial-identified executable (drivers such as `tools/drive.py` use it). Headless:
 `pick <slug>` / `session return` on the control channel; proves a switch is the same run as a

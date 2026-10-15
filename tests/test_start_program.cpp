@@ -15,7 +15,7 @@
 
 namespace {
 
-static_assert(std::derived_from<spyro3::Spyro3Runtime, spyro::SpyroRuntime>);
+static_assert(std::derived_from<spyro3::Runtime, spyro::Runtime>);
 
 constexpr std::uint32_t kStackTopWord = 0x00200000u;
 constexpr std::uint32_t kReserveWord = 0x00008000u;
@@ -50,7 +50,7 @@ void test_the_fixture_encoder_matches_measured_bytes() {
   }
 }
 
-void checkStartProgram(spyro::SpyroTitle title, const Crt0Template &crt0) {
+void checkStartProgram(spyro::Title title, const Crt0Template &crt0) {
   spyro::test::BootedTitle booted(title);
   Core &core = booted.core();
   crt0_fixture_emit(crt0, [&core](std::uint32_t address, std::uint32_t word) {
@@ -72,11 +72,11 @@ void checkStartProgram(spyro::SpyroTitle title, const Crt0Template &crt0) {
 }
 
 void test_spyro2_start_program_applies_its_crt0() {
-  checkStartProgram(spyro::SpyroTitle::Spyro2, kSpyro2);
+  checkStartProgram(spyro::Title::Spyro2, kSpyro2);
 }
 
 void test_spyro3_start_program_applies_its_crt0() {
-  checkStartProgram(spyro::SpyroTitle::Spyro3, kSpyro3);
+  checkStartProgram(spyro::Title::Spyro3, kSpyro3);
 }
 
 } // namespace

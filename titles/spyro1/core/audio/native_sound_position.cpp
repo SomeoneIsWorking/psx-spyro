@@ -1,7 +1,7 @@
-#include "native_sound_position.h"
+#include "spyro1/core/audio/native_sound_position.h"
 
+#include "core/native_execution.h"
 #include "guest_call.h"
-#include "native_execution.h"
 
 #include <cstdint>
 

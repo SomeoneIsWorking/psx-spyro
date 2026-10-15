@@ -1,4 +1,4 @@
-#include "guest_depth_bins.h"
+#include "render/terrain/guest_depth_bins.h"
 
 #include "core.h"
 #include "lucent/log.h"

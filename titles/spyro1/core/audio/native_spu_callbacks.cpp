@@ -1,7 +1,7 @@
-#include "native_spu_callbacks.h"
+#include "spyro1/core/audio/native_spu_callbacks.h"
 
+#include "core/native_execution.h"
 #include "guest_call.h"
-#include "native_execution.h"
 
 #include <cstdint>
 

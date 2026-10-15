@@ -1,5 +1,5 @@
-#include "memcard_event_stack.h"
-#include "memcard_operations.h"
+#include "core/memcard_event_stack.h"
+#include "core/memcard_operations.h"
 
 #include <cstdio>
 #include <cstdlib>

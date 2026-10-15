@@ -1,8 +1,8 @@
-#include "handoff_store_observer.h"
-#include "guest_globals.h"
+#include "spyro1/core/execution/handoff_store_observer.h"
+#include "core/guest_globals.h"
 
 #include "core.h"
-#include "spyro1_field_scheduler.h"
+#include "spyro1/core/runtime/field_scheduler.h"
 
 #include <lucent/log.h>
 

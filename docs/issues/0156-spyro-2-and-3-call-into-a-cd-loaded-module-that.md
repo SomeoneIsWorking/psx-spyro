@@ -61,7 +61,7 @@ bytes: LBA 676, 932, 966).
   Spyro 1 WAD route) was refactored onto it, so both routes share the SHA-256 identity, the name format
   and the digest refusal. `psx::code_module::publishStockReadLanding` (moved from Spyro's `stock_read_publication.*`) is the landing policy Spyro 2/3 call: digest the
   bytes now in RAM, activate a new generation, or request a runtime Fault when the range does not fit main
-  RAM or no digest can be produced. `Spyro2Runtime`/`Spyro3Runtime` override `stockCdReadLanded` with one
+  RAM or no digest can be produced. `spyro2::Runtime`/`spyro3::Runtime` override `stockCdReadLanded` with one
   line each.
 - **Order is the contract.** Publication follows the write because the write's invalidation subtracts its
   bytes from any image already covering them; publishing first would be undone by the load it describes.

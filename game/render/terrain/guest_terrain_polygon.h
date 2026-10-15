@@ -16,10 +16,10 @@
 // once-per-sector header word the subdivision passes use to find the sector again.
 #pragma once
 
-#include "guest_terrain_cull.h"
-#include "guest_terrain_frame.h"
-#include "guest_terrain_split.h"
-#include "guest_word.h"
+#include "render/field/guest_word.h"
+#include "render/terrain/guest_terrain_cull.h"
+#include "render/terrain/guest_terrain_frame.h"
+#include "render/terrain/guest_terrain_split.h"
 
 #include <cstdint>
 

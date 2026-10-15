@@ -1,9 +1,9 @@
-#include "guest_terrain_mesh.h"
+#include "render/terrain/guest_terrain_mesh.h"
 
 #include "core.h"
 #include "gte_registers.h"
-#include "guest_terrain_frame.h"
-#include "guest_word.h"
+#include "render/field/guest_word.h"
+#include "render/terrain/guest_terrain_frame.h"
 
 namespace spyro::guest_terrain {
 namespace {

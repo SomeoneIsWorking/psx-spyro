@@ -1,6 +1,6 @@
 // The guest's own camera builder, re-run over the guest's own tables.
 
-#include "guest_camera_builder.h"
+#include "render/terrain/guest_camera_builder.h"
 
 #include "gte_registers.h"
 

@@ -3,11 +3,11 @@
 #pragma once
 
 #include "core.h"
-#include "guest_camera_builder.h"
-#include "guest_render_globals.h"
-#include "guest_terrain_facts.h"
-#include "guest_terrain_frame.h"
-#include "guest_working_memory.h"
+#include "render/field/guest_render_globals.h"
+#include "render/field/guest_working_memory.h"
+#include "render/terrain/guest_camera_builder.h"
+#include "render/terrain/guest_terrain_facts.h"
+#include "render/terrain/guest_terrain_frame.h"
 
 #include <array>
 #include <cstdint>

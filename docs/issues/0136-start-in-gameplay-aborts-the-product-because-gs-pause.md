@@ -14,7 +14,7 @@ updated: 2026-10-15
 Operator, 2026-09-27, with a backtrace from the player build:
 
     SpyroRenderer::renderScene -> SpyroRenderer::abortUnimplemented -> abort (SIGABRT, signal 06)
-    SpyroRenderer::drawFrame -> spyro1::Spyro1FrameDriver::stepFrame -> FrameLoopShell::step -> main
+    SpyroRenderer::drawFrame -> spyro1::FrameDriver::stepFrame -> FrameLoopShell::step -> main
 
 `[render:error] NATIVE RENDER NOT IMPLEMENTED` precedes it. **This is the reason Spyro 1 does not currently
 count as playable, and it was found only because the operator hit it, not by a gate.**

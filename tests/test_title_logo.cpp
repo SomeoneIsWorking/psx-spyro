@@ -1,8 +1,8 @@
 // A picker panel's logo is read from the GPU device's VRAM, where the guest's uploads land.
 #include "core.h"
+#include "core/title_logo.h"
 #include "test_game.h"
 #include "testutil.h"
-#include "title_logo.h"
 
 #include <array>
 #include <cstdint>

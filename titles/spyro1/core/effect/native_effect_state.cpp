@@ -1,9 +1,9 @@
-#include "native_effect_state.h"
+#include "spyro1/core/effect/native_effect_state.h"
 
-#include "spyro1_shadow_block.h"
+#include "spyro1/core/effect/shadow_block.h"
 
+#include "core/native_execution.h"
 #include "guest_call.h"
-#include "native_execution.h"
 
 #include <cstdint>
 

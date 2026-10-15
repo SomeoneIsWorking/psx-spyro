@@ -29,7 +29,7 @@ as long as the retail card.
 
 ## Why the product spends two
 
-`Spyro1FrameDriver::stepFrame` (`titles/spyro1/core/spyro1_frame_driver.cpp`) delivers
+`spyro1::FrameDriver::stepFrame` (`titles/spyro1/core/frame/frame_driver.cpp`) delivers
 `kFieldsPerLogicFrame` = 2 fields per logic frame, and then requires the frame to end on a host field
 boundary (`finishLogicFrame`), aborting if it does not. That two-field cadence is what makes the
 Artisans route agree with the reference for 477 consecutive game frames, because in gameplay the

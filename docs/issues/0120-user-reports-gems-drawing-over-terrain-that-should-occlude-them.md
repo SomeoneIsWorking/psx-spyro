@@ -49,7 +49,7 @@ f3605 [flush] resolveKeyOrder: 0 keyed faces of 1747 queued prims — nothing to
 ```
 
 Every prim carries a painter object, so the contest is skipped by construction, and Spyro declares
-`FACE_ORDER_DEPTH` as its default anyway (`game/core/spyro_runtime.h` takes the
+`FACE_ORDER_DEPTH` as its default anyway (`game/core/runtime.h` takes the
 `RenderCapabilities` default). The census names its own denominator, so this is "scanned and found
 none", not "never ran".
 

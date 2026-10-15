@@ -4,8 +4,8 @@
 #pragma once
 
 #include "gp0_primitive_decode.h"
-#include "guest_working_memory.h"
 #include "lucent/log.h"
+#include "render/field/guest_working_memory.h"
 
 #include <array>
 #include <cstdint>

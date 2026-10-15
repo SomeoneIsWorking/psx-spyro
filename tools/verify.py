@@ -51,15 +51,19 @@ def verify_every_test_is_registered() -> None:
     target is not a test, so the gate now says so by name.
     """
     cmake = (run.ROOT / "CMakeLists.txt").read_text()
-    built = set(re.findall(r"add_executable\(\s*test_(\w+)\s", cmake))
+    built = set(re.findall(r"\btests/((?:\w+/)?test_\w+)\.cpp", cmake))
     for items in re.findall(r"foreach\(test_name IN ITEMS ([^)]*)\)", cmake):
-        built |= set(items.split())
-    sources = {path.stem[len("test_") :] for path in (run.ROOT / "tests").glob("test_*.cpp")}
+        built |= {f"test_{name}" for name in items.split()}
+    # A title's tests: `<title>/<test>` builds tests/<title>/test_<test>.cpp.
+    for items in re.findall(r"foreach\(test_path IN ITEMS ([^)]*)\)", cmake):
+        built |= {f"{title}/test_{name}" for title, name in (item.split("/") for item in items.split())}
+    tests = run.ROOT / "tests"
+    sources = {path.relative_to(tests).with_suffix("").as_posix() for path in tests.rglob("test_*.cpp")}
     orphans = sorted(sources - built)
     if orphans:
         raise run.Refusal(
             f"{len(orphans)} of {len(sources)} test sources are compiled by no target: "
-            + ", ".join(f"tests/test_{name}.cpp" for name in orphans)
+            + ", ".join(f"tests/{name}.cpp" for name in orphans)
         )
     print(f"[verify] test registration: all {len(sources)} test sources are built by a target")
 

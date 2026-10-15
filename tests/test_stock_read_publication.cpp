@@ -64,7 +64,7 @@ struct StockRead {
 
 class Machine {
 public:
-  explicit Machine(spyro::SpyroTitle title) : booted_(title) {
+  explicit Machine(spyro::Title title) : booted_(title) {
     Game &game = booted_.game();
     game.gpu_dev.s_gpu_on = 0;
     game.core.r[29] = 0x801FFF00u;
@@ -75,7 +75,7 @@ public:
   Game &game() {
     return booted_.game();
   }
-  spyro::SpyroRuntime &runtime() {
+  spyro::Runtime &runtime() {
     return booted_.runtime();
   }
 
@@ -102,7 +102,7 @@ private:
   spyro::test::BootedTitle booted_;
 };
 
-void checkTitle(spyro::SpyroTitle title) {
+void checkTitle(spyro::Title title) {
   Machine machine(title);
   Core &core = machine.game().core;
   auto &catalog = core.imageCatalog();
@@ -176,7 +176,7 @@ void checkTitle(spyro::SpyroTitle title) {
 // framework would not announce one outside RAM (its own writes refuse first), so this drives the
 // title's owner directly with the exact range the framework would have named.
 void checkUnpublishableLanding() {
-  Machine machine(spyro::SpyroTitle::Spyro2);
+  Machine machine(spyro::Title::Spyro2);
   Core &core = machine.game().core;
   const auto baseline = core.imageCatalog().activeCount();
 
@@ -194,11 +194,11 @@ void checkUnpublishableLanding() {
 }
 
 void test_spyro2_publishes_a_stock_read_module() {
-  checkTitle(spyro::SpyroTitle::Spyro2);
+  checkTitle(spyro::Title::Spyro2);
 }
 
 void test_spyro3_publishes_a_stock_read_module() {
-  checkTitle(spyro::SpyroTitle::Spyro3);
+  checkTitle(spyro::Title::Spyro3);
 }
 
 void test_an_unpublishable_landing_is_a_runtime_fault() {

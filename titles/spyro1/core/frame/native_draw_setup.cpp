@@ -1,7 +1,7 @@
-#include "native_draw_setup.h"
+#include "spyro1/core/frame/native_draw_setup.h"
 
+#include "core/native_execution.h"
 #include "guest_call.h"
-#include "native_execution.h"
 
 #include <cstdint>
 

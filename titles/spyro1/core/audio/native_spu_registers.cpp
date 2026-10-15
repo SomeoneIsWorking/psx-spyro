@@ -1,6 +1,6 @@
-#include "native_spu_registers.h"
+#include "spyro1/core/audio/native_spu_registers.h"
 
-#include "native_execution.h"
+#include "core/native_execution.h"
 
 #include <cstdint>
 

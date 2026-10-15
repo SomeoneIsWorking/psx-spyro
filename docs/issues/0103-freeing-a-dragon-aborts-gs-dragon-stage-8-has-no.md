@@ -554,7 +554,7 @@ the identical call path:
     [render:error] NATIVE RENDER NOT IMPLEMENTED — stage selector = 2 (no producer is registered for this stage)
     [render:error]   fatal boundary: guest pc=0xDEAD0000 ra=0xDEAD0000 sp=0x801FFFF8 stage=2/3/2 load_stage=4294967295 state_switch=0
     SpyroRenderer::abortUnimplemented <- SpyroRenderer::renderScene <- SpyroRenderer::drawFrame
-    <- spyro1::Spyro1FrameDriver::stepFrame <- FrameLoopShell::step <- dc_step_frame <- main
+    <- spyro1::FrameDriver::stepFrame <- FrameLoopShell::step <- dc_step_frame <- main
 
 This issue records stage 8 (GS_Dragon). Stage 2 is a different producer with the same cause, and the
 stage=2/3/2 triple says the selector, not a transient, is what is unhandled.

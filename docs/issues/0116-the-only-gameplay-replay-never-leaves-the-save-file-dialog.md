@@ -97,7 +97,7 @@ card it got.
 stored as an offset from the entry of the INPUT PHASE it was recorded in, where the phase is an
 opaque `uint64_t` the title owns. The framework compares keys and records when they change; it never
 learns what a phase means. Spyro 1's key packs `g_Gamestate` with `g_LevelId`
-(`titles/spyro1/core/spyro1_input_phase.*`, both words already named in
+(`titles/spyro1/core/input/input_phase.*`, both words already named in
 `game/core/guest_globals.h`). A boot or load that takes a different number of frames now moves the
 phase boundary instead of every press inside it.
 

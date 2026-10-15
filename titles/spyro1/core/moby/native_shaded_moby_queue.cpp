@@ -1,6 +1,6 @@
-#include "native_shaded_moby_queue.h"
+#include "spyro1/core/moby/native_shaded_moby_queue.h"
 
-#include "native_execution.h"
+#include "core/native_execution.h"
 
 #include <cstdint>
 

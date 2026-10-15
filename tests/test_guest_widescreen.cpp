@@ -5,8 +5,8 @@
 #include "guest_widescreen_projection.h"
 #include "platform_hle.h"
 #include "record_wide_plan.h"
+#include "render/hud/ui_anchor.h"
 #include "testutil.h"
-#include "ui_anchor.h"
 
 #include <lucent/log.h>
 
@@ -16,7 +16,7 @@
 namespace {
 
 void test_the_hud_frame_follows_the_sessions_plan() {
-  spyro::test::BootedTitle first(spyro::SpyroTitle::Spyro2);
+  spyro::test::BootedTitle first(spyro::Title::Spyro2);
   const spyro::ui_anchor::Frame unwidened = spyro::ui_anchor::widescreenFrame(first.core(), 512);
   CHECK_EQ(unwidened.authored, 512);
   CHECK_EQ(unwidened.drawn, 512);
@@ -27,14 +27,14 @@ void test_the_hud_frame_follows_the_sessions_plan() {
 }
 
 void test_a_new_session_starts_unwidened() {
-  spyro::test::BootedTitle title(spyro::SpyroTitle::Spyro3);
+  spyro::test::BootedTitle title(spyro::Title::Spyro3);
   title.game().guestDisplay.latch(spyro::test::recordWidePlan());
   title.restart();
   const spyro::ui_anchor::Frame frame = spyro::ui_anchor::widescreenFrame(title.core(), 512);
   CHECK_EQ(frame.drawn, frame.authored);
 }
 
-void checkLibgteLeaves(spyro::SpyroTitle title,
+void checkLibgteLeaves(spyro::Title title,
                        std::uint32_t setGeomOffset,
                        std::uint32_t setGeomScreen) {
   spyro::test::BootedTitle booted(title);
@@ -46,10 +46,10 @@ void checkLibgteLeaves(spyro::SpyroTitle title,
 }
 
 void test_each_title_binds_its_own_libgte_leaves() {
-  checkLibgteLeaves(spyro::SpyroTitle::Spyro1, 0x80062618u, 0x80062638u);
-  checkLibgteLeaves(spyro::SpyroTitle::Spyro2, 0x80057AF8u, 0x80057AE8u);
+  checkLibgteLeaves(spyro::Title::Spyro1, 0x80062618u, 0x80062638u);
+  checkLibgteLeaves(spyro::Title::Spyro2, 0x80057AF8u, 0x80057AE8u);
   // Spyro 3's one CR26 write takes an argument computed at its call site; it stays guest code.
-  checkLibgteLeaves(spyro::SpyroTitle::Spyro3, 0x8005D35Cu, 0);
+  checkLibgteLeaves(spyro::Title::Spyro3, 0x8005D35Cu, 0);
 }
 
 } // namespace

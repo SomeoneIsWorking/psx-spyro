@@ -1,6 +1,6 @@
-#include "native_audio_key_state.h"
+#include "spyro1/core/audio/native_audio_key_state.h"
 
-#include "native_execution.h"
+#include "core/native_execution.h"
 
 #include <cstdint>
 

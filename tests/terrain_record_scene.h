@@ -4,19 +4,19 @@
 #pragma once
 
 #include "core.h"
+#include "core/session.h"
 #include "frame_composer.h"
 #include "gp0_primitive_decode.h"
 #include "guest_call.h"
-#include "guest_camera_builder.h"
-#include "guest_depth_bins.h"
-#include "guest_render_globals.h"
-#include "guest_terrain_facts.h"
-#include "guest_terrain_frame.h"
 #include "image_identity.h"
 #include "native_dispatch.h"
 #include "record_frames.h"
-#include "spyro_session.h"
-#include "terrain_state_producer.h"
+#include "render/field/guest_render_globals.h"
+#include "render/terrain/guest_camera_builder.h"
+#include "render/terrain/guest_depth_bins.h"
+#include "render/terrain/guest_terrain_facts.h"
+#include "render/terrain/guest_terrain_frame.h"
+#include "render/terrain/terrain_state_producer.h"
 #include "test_game.h"
 
 #include <algorithm>

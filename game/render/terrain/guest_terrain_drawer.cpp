@@ -1,8 +1,8 @@
-#include "guest_terrain_drawer.h"
+#include "render/terrain/guest_terrain_drawer.h"
 
 #include "core.h"
-#include "guest_view_slope.h"
 #include "lucent/log.h"
+#include "render/field/guest_view_slope.h"
 
 #include <algorithm>
 #include <array>

@@ -1,6 +1,6 @@
-#include "native_glow_sparkle_pools.h"
+#include "spyro1/core/hud/native_glow_sparkle_pools.h"
 
-#include "native_execution.h"
+#include "core/native_execution.h"
 
 #include <cstdint>
 

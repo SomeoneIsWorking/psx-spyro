@@ -1,8 +1,8 @@
 // The 3-word vector arithmetic leaves, and libgte's angle-table interpolator: leaves only, every
 // register the guest leaves reproduced.
 #include "core.h"
-#include "native_execution.h"
-#include "spyro_game.h"
+#include "core/native_execution.h"
+#include "core/native_owners.h"
 
 namespace {
 

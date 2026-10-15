@@ -1,7 +1,7 @@
-#include "native_gamepad.h"
+#include "spyro1/core/input/native_gamepad.h"
 
+#include "core/native_execution.h"
 #include "guest_call.h"
-#include "native_execution.h"
 
 #include <cstdint>
 #include <string_view>

@@ -1,13 +1,13 @@
-#include "archive_transfer.h"
-#include "content_identity.h"
 #include "core.h"
+#include "core/archive_transfer.h"
+#include "core/content_identity.h"
+#include "core/native_owners.h"
+#include "core/session.h"
 #include "execution_control.h"
 #include "game.h"
 #include "image_identity.h"
 #include "lightrec_executor.h"
 #include "native_dispatch.h"
-#include "spyro_game.h"
-#include "spyro_session.h"
 #include "test_game.h"
 
 #include <algorithm>

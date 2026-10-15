@@ -13,8 +13,8 @@
 // tables.
 #pragma once
 
-#include "guest_terrain_animation.h"
-#include "guest_terrain_screen.h"
+#include "render/terrain/guest_terrain_animation.h"
+#include "render/terrain/guest_terrain_screen.h"
 
 #include <array>
 #include <cstdint>

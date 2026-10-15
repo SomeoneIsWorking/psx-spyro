@@ -9,10 +9,10 @@
 #pragma once
 
 #include "core.h"
-#include "guest_render_globals.h"
-#include "guest_terrain_facts.h"
+#include "render/field/guest_render_globals.h"
+#include "render/terrain/guest_terrain_facts.h"
+#include "render/terrain/terrain_rebuild.h"
 #include "state_producer.h"
-#include "terrain_rebuild.h"
 
 #include <cstdint>
 #include <span>

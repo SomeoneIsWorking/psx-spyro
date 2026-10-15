@@ -4,16 +4,16 @@
 #pragma once
 
 #include "core.h"
-#include "engine_terrain_image.h"
+#include "core/native_execution.h"
+#include "core/session.h"
 #include "execution_control.h"
-#include "guest_depth_bins.h"
-#include "guest_moby_visibility.h"
-#include "guest_render_globals.h"
-#include "guest_terrain_facts.h"
 #include "native_dispatch.h"
-#include "native_execution.h"
-#include "spyro_session.h"
-#include "terrain_state_producer.h"
+#include "render/field/guest_moby_visibility.h"
+#include "render/field/guest_render_globals.h"
+#include "render/terrain/engine_terrain_image.h"
+#include "render/terrain/guest_depth_bins.h"
+#include "render/terrain/guest_terrain_facts.h"
+#include "render/terrain/terrain_state_producer.h"
 
 #include <algorithm>
 #include <cstdint>

@@ -6,8 +6,8 @@
 // retail does, so the GTE is left as the image leaves it.
 #pragma once
 
-#include "guest_terrain_mesh.h"
-#include "guest_word.h"
+#include "render/field/guest_word.h"
+#include "render/terrain/guest_terrain_mesh.h"
 
 #include <array>
 #include <cstddef>

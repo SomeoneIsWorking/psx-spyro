@@ -5,8 +5,8 @@
 // legitimately read, and delay slots decide the exit state: the instruction after the branch runs
 // either way, so porting it as part of the taken path matches one exit and diverges the other.
 #include "core.h"
-#include "native_execution.h"
-#include "spyro_game.h"
+#include "core/native_execution.h"
+#include "core/native_owners.h"
 
 namespace {
 

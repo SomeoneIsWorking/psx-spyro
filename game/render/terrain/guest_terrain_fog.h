@@ -8,8 +8,8 @@
 #pragma once
 
 #include "core.h"
-#include "guest_terrain_facts.h"
-#include "guest_working_memory.h"
+#include "render/field/guest_working_memory.h"
+#include "render/terrain/guest_terrain_facts.h"
 
 #include <cstdint>
 

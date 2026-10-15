@@ -1,4 +1,4 @@
-#include "spu_pio_upload.h"
+#include "core/spu_pio_upload.h"
 
 #include <cstdio>
 #include <cstdlib>

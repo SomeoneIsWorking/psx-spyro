@@ -21,7 +21,7 @@
 //   4. the angle interpolation takes the short way round 4095 -> 1, hits both endpoints exactly,
 //   and
 //      never leaves the turn.
-#include "guest_camera_builder.h"
+#include "render/terrain/guest_camera_builder.h"
 #include "test_game.h"
 
 #include "testutil.h"

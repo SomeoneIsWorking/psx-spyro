@@ -1,8 +1,8 @@
-#include "boot_prefix_frame_driver.h"
+#include "core/boot_prefix_frame_driver.h"
 
 #include "core.h"
+#include "core/session.h"
 #include "game.h"
-#include "spyro_session.h"
 
 #include "execution_exit.h"
 

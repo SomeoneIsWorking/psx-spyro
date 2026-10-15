@@ -2,8 +2,8 @@
 // A title's own logo, snapshotted from its live VRAM while its title screen is on it.
 #pragma once
 
+#include "core/title_logo_facts.h"
 #include "logo_image.h"
-#include "title_logo_facts.h"
 
 #include <optional>
 

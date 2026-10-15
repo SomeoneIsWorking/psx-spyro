@@ -34,7 +34,7 @@ Two framework defects, both fixed in psxport `s23-play` commit `2bb8d2f6` (local
 ## Consequence for the boot facts
 
 Real drive time lengthens the boot: Spyro 3's boot prefix now returns after 887 fields in 669 steps (it was 546 and
-336 with instant reads), over the shared 480-step bound. `titles/spyro3/core/spyro3_boot_facts.h` declares its own
+336 with instant reads), over the shared 480-step bound. `titles/spyro3/core/boot_facts.h` declares its own
 1024-step bound beside that measurement (`tests/test_boot_prefix_facts.cpp` pins it). Spyro 2 returns after 606 fields
 in 359 steps and keeps the defaults.
 

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "archive_transfer_contract.h"
+#include "core/archive_transfer_contract.h"
 
 #include <cstdint>
 #include <functional>

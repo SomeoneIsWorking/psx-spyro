@@ -1,7 +1,7 @@
-#include "guest_terrain_sphere.h"
+#include "render/terrain/guest_terrain_sphere.h"
 
 #include "gte_registers.h"
-#include "guest_word.h"
+#include "render/field/guest_word.h"
 
 namespace spyro::guest_terrain {
 namespace {

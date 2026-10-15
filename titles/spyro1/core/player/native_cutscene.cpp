@@ -1,7 +1,7 @@
-#include "native_cutscene.h"
+#include "spyro1/core/player/native_cutscene.h"
 
-#include "guest_globals.h"
-#include "native_execution.h"
+#include "core/guest_globals.h"
+#include "core/native_execution.h"
 
 #include <cstdint>
 

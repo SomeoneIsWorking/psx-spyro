@@ -22,7 +22,7 @@ local before/after check. Two-field presentation quotas could coalesce into one
 extra hardware edge; there is no fixed duplicate ratio.
 
 FieldScheduler now advances one physical display field before interrupt service.
-Spyro1Runtime's presentation override waits for the host deadline without advancing
+spyro1::Runtime's presentation override waits for the host deadline without advancing
 devices again. Other runtimes retain the framework's combined time-and-wait behavior.
 Per-Game FramePacer state replaces a process-global deadline.
 

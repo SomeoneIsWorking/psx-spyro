@@ -1,15 +1,15 @@
 // The terrain drawer's classification pass (SCUS_944.25 80023C0C..800245CC): which sectors are
 // drawn, and by which pass.
 
-#include "guest_terrain_passes.h"
+#include "render/terrain/guest_terrain_passes.h"
 
 #include "core.h"
 #include "gte_registers.h"
-#include "guest_render_globals.h"
-#include "guest_terrain_animation.h"
-#include "guest_terrain_frame.h"
-#include "guest_terrain_sphere.h"
-#include "guest_word.h"
+#include "render/field/guest_render_globals.h"
+#include "render/field/guest_word.h"
+#include "render/terrain/guest_terrain_animation.h"
+#include "render/terrain/guest_terrain_frame.h"
+#include "render/terrain/guest_terrain_sphere.h"
 
 #include <array>
 

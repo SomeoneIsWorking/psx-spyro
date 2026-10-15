@@ -1,8 +1,8 @@
-#include "guest_terrain_animation.h"
+#include "render/terrain/guest_terrain_animation.h"
 
 #include "core.h"
 #include "gte_registers.h"
-#include "guest_terrain_frame.h"
+#include "render/terrain/guest_terrain_frame.h"
 
 namespace spyro::guest_terrain {
 namespace {

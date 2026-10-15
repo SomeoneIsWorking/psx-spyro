@@ -1,9 +1,9 @@
 #pragma once
 
-#include "spyro1_runtime.h"
-#include "spyro2_runtime.h"
-#include "spyro3_runtime.h"
-#include "spyro_runtime.h"
+#include "core/runtime.h"
+#include "spyro1/core/runtime/runtime.h"
+#include "spyro2/core/runtime.h"
+#include "spyro3/core/runtime.h"
 #include "title_catalog.h"
 
 #include <filesystem>
@@ -13,19 +13,19 @@
 namespace spyro {
 
 // Spyro 1/2/3 as the multi-title host's catalog: entry i of the generated identities is title i.
-class SpyroCatalog final : public psx::host::TitleCatalog {
+class Catalog final : public psx::host::TitleCatalog {
 public:
   std::string_view productName() const override;
   std::filesystem::path provisioningRoot() const override;
   std::span<const psx::host::TitleIdentity> titles() const override;
-  SpyroRuntime &runtime(std::size_t index) const override;
-  SpyroTitle title(std::size_t index) const;
+  Runtime &runtime(std::size_t index) const override;
+  Title title(std::size_t index) const;
 
 private:
   // The host asks for a mutable runtime from a const catalog; each runtime is its title's one.
-  mutable spyro1::Spyro1Runtime spyro1_;
-  mutable spyro2::Spyro2Runtime spyro2_;
-  mutable spyro3::Spyro3Runtime spyro3_;
+  mutable spyro1::Runtime spyro1_;
+  mutable spyro2::Runtime spyro2_;
+  mutable spyro3::Runtime spyro3_;
 };
 
 // The product's catalog, run by the framework main (psxport_add_product).

@@ -1,10 +1,10 @@
 #include "core.h"
+#include "core/guest_globals.h"
 #include "game.h"
-#include "guest_globals.h"
-#include "handoff_store_observer.h"
 #include "image_identity.h"
 #include "lightrec_executor.h"
-#include "spyro1_field_scheduler.h"
+#include "spyro1/core/execution/handoff_store_observer.h"
+#include "spyro1/core/runtime/field_scheduler.h"
 #include "test_game.h"
 #include "testutil.h"
 

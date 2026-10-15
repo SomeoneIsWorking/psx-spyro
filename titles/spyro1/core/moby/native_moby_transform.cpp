@@ -1,8 +1,8 @@
-#include "native_moby_transform.h"
+#include "spyro1/core/moby/native_moby_transform.h"
 
+#include "core/guest_globals.h"
+#include "core/native_execution.h"
 #include "game.h"
-#include "guest_globals.h"
-#include "native_execution.h"
 
 #include <cstdint>
 

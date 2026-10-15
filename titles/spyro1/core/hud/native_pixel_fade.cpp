@@ -1,6 +1,6 @@
-#include "native_pixel_fade.h"
+#include "spyro1/core/hud/native_pixel_fade.h"
 
-#include "native_execution.h"
+#include "core/native_execution.h"
 
 #include <cstdint>
 

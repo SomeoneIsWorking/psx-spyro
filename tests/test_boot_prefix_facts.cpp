@@ -5,13 +5,14 @@
 // with a disc attached: a driver that entered the wrong boot prefix, or a leaf bound at the wrong
 // address.
 //
-// The literal addresses below are deliberately a SECOND copy of what `spyro2_boot_facts.h` and
-// `spyro3_boot_facts.h` declare, each quoted from that title's executable: a test that read them
-// back from the facts would pass for any value. The runtimes are asked for their driver, so a title
-// whose runtime composed the other title's facts fails here too.
+// The literal addresses below are deliberately a SECOND copy of what
+// `titles/spyro2/core/boot_facts.h` and `titles/spyro3/core/boot_facts.h` declare, each quoted from
+// that title's executable: a test that read them back from the facts would pass for any value. The
+// runtimes are asked for their driver, so a title whose runtime composed the other title's facts
+// fails here too.
 
-#include "boot_prefix_frame_driver.h"
 #include "booted_title.h"
+#include "core/boot_prefix_frame_driver.h"
 #include "platform_hle.h"
 #include "stock_vsync.h"
 #include "testutil.h"
@@ -104,7 +105,7 @@ void checkBindings(spyro::test::BootedTitle &booted, const ExpectedTitle &expect
 // Spyro 2 reports its parity pool from the two guest words holding its live bounds; Spyro 3 has
 // none.
 void test_only_spyro2_reports_a_packet_pool() {
-  spyro::test::BootedTitle spyro2(spyro::SpyroTitle::Spyro2);
+  spyro::test::BootedTitle spyro2(spyro::Title::Spyro2);
   Core &core = spyro2.core();
   core.mem_w32(0x80069998u, 0x80080000u);
   core.mem_w32(0x8006B2A4u, 0x80090000u);
@@ -115,18 +116,18 @@ void test_only_spyro2_reports_a_packet_pool() {
     CHECK(pool->contains(0x80080000u));
     CHECK(!pool->contains(0x80090000u));
   }
-  spyro::test::BootedTitle spyro3(spyro::SpyroTitle::Spyro3);
+  spyro::test::BootedTitle spyro3(spyro::Title::Spyro3);
   CHECK(!spyro3.runtime().packetPool(spyro3.core()).has_value());
 }
 
 void test_spyro2_facts_and_bindings_match_its_executable() {
-  spyro::test::BootedTitle booted(spyro::SpyroTitle::Spyro2);
+  spyro::test::BootedTitle booted(spyro::Title::Spyro2);
   checkDriverFacts(booted, kSpyro2);
   checkBindings(booted, kSpyro2);
 }
 
 void test_spyro3_facts_and_bindings_match_its_executable() {
-  spyro::test::BootedTitle booted(spyro::SpyroTitle::Spyro3);
+  spyro::test::BootedTitle booted(spyro::Title::Spyro3);
   checkDriverFacts(booted, kSpyro3);
   checkBindings(booted, kSpyro3);
 }

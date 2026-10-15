@@ -1,6 +1,6 @@
-#include "native_level_globals_table.h"
+#include "spyro1/core/moby/native_level_globals_table.h"
 
-#include "native_execution.h"
+#include "core/native_execution.h"
 
 #include <cstddef>
 #include <cstdint>

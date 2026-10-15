@@ -1,7 +1,7 @@
-#include "native_level_initialization.h"
+#include "spyro1/core/execution/native_level_initialization.h"
 
+#include "core/native_execution.h"
 #include "guest_call.h"
-#include "native_execution.h"
 
 #include <cstdint>
 #include <string_view>

@@ -1,15 +1,15 @@
+#include "core/field_owner.h"
+#include "core/guest_globals.h"
+#include "core/session.h"
 #include "emulated_time.h"
 #include "execution_services.h"
-#include "field_owner.h"
 #include "frame_pacer.h"
 #include "game.h"
 #include "guest_call.h"
-#include "guest_globals.h"
 #include "lightrec_executor.h"
 #include "native_dispatch.h"
-#include "spyro1_field_scheduler.h"
-#include "spyro1_runtime.h"
-#include "spyro_session.h"
+#include "spyro1/core/runtime/field_scheduler.h"
+#include "spyro1/core/runtime/runtime.h"
 #include "testutil.h"
 
 #include <memory>
@@ -166,7 +166,7 @@ public:
     }
   }
 
-  spyro1::Spyro1Runtime runtime;
+  spyro1::Runtime runtime;
   // Unpaced: host sleeps are removed while simulated display edges remain.
   std::unique_ptr<Game> game =
       std::make_unique<Game>(runtime, psx::config::Config{.unpaced = true});
