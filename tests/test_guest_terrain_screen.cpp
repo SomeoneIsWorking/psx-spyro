@@ -2,10 +2,10 @@
 // horizontal tests are the image's three integer shapes over every packed SXY word tested, and a
 // margin widens the window symmetrically without ever narrowing it. Both titles' authored width is
 // asserted here too, because the window is now stated per title rather than compiled in.
-#include "guest_terrain_screen.h"
+#include "render/terrain/guest_terrain_screen.h"
 
-#include "spyro2_render_facts.h"
-#include "spyro3_render_facts.h"
+#include "spyro2/render/render_facts.h"
+#include "spyro3/render/render_facts.h"
 
 #include <cstdint>
 #include <cstdio>

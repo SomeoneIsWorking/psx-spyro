@@ -1,4 +1,4 @@
-#include "title_logo.h"
+#include "core/title_logo.h"
 
 #include "core.h"
 #include "game.h"

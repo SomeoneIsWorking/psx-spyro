@@ -1,4 +1,4 @@
-#include "guest_terrain_fog.h"
+#include "render/terrain/guest_terrain_fog.h"
 
 #include "gte_registers.h"
 

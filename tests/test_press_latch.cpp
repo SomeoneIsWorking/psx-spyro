@@ -1,4 +1,4 @@
-#include "spyro1_press_latch.h"
+#include "spyro1/core/frame/press_latch.h"
 
 #include <cstdlib>
 #include <iostream>

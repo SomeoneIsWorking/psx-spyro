@@ -1,4 +1,4 @@
-#include "title_runtime_registry.h"
+#include "core/title_runtime_registry.h"
 
 #include "spyro_title_catalog.generated.h"
 
@@ -6,36 +6,36 @@
 
 namespace spyro {
 
-std::string_view SpyroCatalog::productName() const {
+std::string_view Catalog::productName() const {
   return "Spyro";
 }
 
-std::filesystem::path SpyroCatalog::provisioningRoot() const {
+std::filesystem::path Catalog::provisioningRoot() const {
   return "scratch/assets";
 }
 
-std::span<const psx::host::TitleIdentity> SpyroCatalog::titles() const {
+std::span<const psx::host::TitleIdentity> Catalog::titles() const {
   return generated::kExecutableCatalog;
 }
 
-SpyroTitle SpyroCatalog::title(std::size_t index) const {
+Title Catalog::title(std::size_t index) const {
   return generated::kCatalogTitles.at(index);
 }
 
-SpyroRuntime &SpyroCatalog::runtime(std::size_t index) const {
+Runtime &Catalog::runtime(std::size_t index) const {
   switch (title(index)) {
-  case SpyroTitle::Spyro1:
+  case Title::Spyro1:
     return spyro1_;
-  case SpyroTitle::Spyro2:
+  case Title::Spyro2:
     return spyro2_;
-  case SpyroTitle::Spyro3:
+  case Title::Spyro3:
     return spyro3_;
   }
   std::abort();
 }
 
 std::unique_ptr<psx::host::TitleCatalog> createCatalog() {
-  return std::make_unique<SpyroCatalog>();
+  return std::make_unique<Catalog>();
 }
 
 } // namespace spyro

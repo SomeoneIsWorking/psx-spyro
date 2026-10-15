@@ -10,5 +10,5 @@ updated: 2026-10-15
 
 ## Gap
 `game/render/terrain/guest_terrain_classify.cpp` tests sector spheres against
-`kRetailSlope`. Spyro 1's sector pass (`titles/spyro1/render/spyro1_terrain_sectors.cpp`) draws on the
+`kRetailSlope`. Spyro 1's sector pass (`titles/spyro1/render/terrain_sectors.cpp`) draws on the
 widened sphere and keeps the sector marks and `animateSector` on retail's; Spyro 2/3 need the same split.

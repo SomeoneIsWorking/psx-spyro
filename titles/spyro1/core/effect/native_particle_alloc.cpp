@@ -1,6 +1,6 @@
-#include "native_particle_alloc.h"
+#include "spyro1/core/effect/native_particle_alloc.h"
 
-#include "native_execution.h"
+#include "core/native_execution.h"
 
 #include <cstdint>
 

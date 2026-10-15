@@ -4,8 +4,8 @@
 #pragma once
 
 #include "core.h"
-#include "guest_moby_frustum.h"
-#include "guest_terrain_facts.h"
+#include "render/field/guest_moby_frustum.h"
+#include "render/terrain/guest_terrain_facts.h"
 
 namespace spyro {
 

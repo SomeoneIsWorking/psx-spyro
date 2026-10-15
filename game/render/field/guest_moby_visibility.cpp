@@ -1,13 +1,13 @@
-#include "guest_moby_visibility.h"
+#include "render/field/guest_moby_visibility.h"
 
 #include "core.h"
 #include "game.h"
-#include "guest_moby_frustum.h"
-#include "guest_moby_gte.h"
-#include "guest_moby_rotation.h"
-#include "guest_render_globals.h"
-#include "guest_view_slope.h"
-#include "guest_word.h"
+#include "render/field/guest_moby_frustum.h"
+#include "render/field/guest_moby_gte.h"
+#include "render/field/guest_moby_rotation.h"
+#include "render/field/guest_render_globals.h"
+#include "render/field/guest_view_slope.h"
+#include "render/field/guest_word.h"
 
 #include <array>
 

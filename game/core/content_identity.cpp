@@ -1,4 +1,4 @@
-#include "content_identity.h"
+#include "core/content_identity.h"
 
 #include <openssl/evp.h>
 

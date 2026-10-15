@@ -14,7 +14,7 @@ updated: 2026-08-11
 The graphics producer DB (`external/psxport/docs/plans/graphics-producer-db.md`) attributes each drawn
 primitive to the guest fn that submitted it by looking the packet's address up in OtAttr's span table.
 That table only records stores that land inside the game's PACKET POOL, and the pool comes from
-`GameRuntime::packetPool(Core&)`. Spyro 2 answers it (`Spyro2Runtime::packetPool`); Spyro 1 and Spyro 3
+`GameRuntime::packetPool(Core&)`. Spyro 2 answers it (`spyro2::Runtime::packetPool`); Spyro 1 and Spyro 3
 do not, because neither pool is RE'd, and on those two the
 guest leg of the census is **structurally blind**: every prim lands in `span_miss` and no producer row is
 ever created from the guest side. That is not "spyro's guest draws nothing".

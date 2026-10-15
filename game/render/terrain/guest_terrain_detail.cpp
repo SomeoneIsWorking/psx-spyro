@@ -1,15 +1,15 @@
 // The two near passes of the terrain drawer (SCUS_944.25 80024534..80025CC0).
 
-#include "guest_terrain_passes.h"
+#include "render/terrain/guest_terrain_passes.h"
 
 #include "core.h"
 #include "gte_registers.h"
-#include "guest_render_globals.h"
-#include "guest_terrain_fog.h"
-#include "guest_terrain_frame.h"
-#include "guest_terrain_mesh.h"
-#include "guest_terrain_polygon.h"
-#include "guest_word.h"
+#include "render/field/guest_render_globals.h"
+#include "render/field/guest_word.h"
+#include "render/terrain/guest_terrain_fog.h"
+#include "render/terrain/guest_terrain_frame.h"
+#include "render/terrain/guest_terrain_mesh.h"
+#include "render/terrain/guest_terrain_polygon.h"
 
 #include <algorithm>
 #include <cstddef>

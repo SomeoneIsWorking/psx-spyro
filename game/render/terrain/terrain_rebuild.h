@@ -7,14 +7,14 @@
 #pragma once
 
 #include "core.h"
-#include "guest_camera_builder.h"
-#include "guest_depth_bins.h"
-#include "guest_packet_chain.h"
-#include "guest_render_globals.h"
-#include "guest_terrain_drawer.h"
-#include "guest_terrain_facts.h"
-#include "guest_terrain_frame.h"
-#include "guest_working_memory.h"
+#include "render/field/guest_packet_chain.h"
+#include "render/field/guest_render_globals.h"
+#include "render/field/guest_working_memory.h"
+#include "render/terrain/guest_camera_builder.h"
+#include "render/terrain/guest_depth_bins.h"
+#include "render/terrain/guest_terrain_drawer.h"
+#include "render/terrain/guest_terrain_facts.h"
+#include "render/terrain/guest_terrain_frame.h"
 
 #include <array>
 #include <cstdint>

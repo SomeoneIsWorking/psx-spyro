@@ -2,8 +2,8 @@
 // which is exactly what the per-call differential compares, and every register it leaves —
 // including ones that "cannot matter" — is part of the contract.
 #include "core.h"
-#include "native_execution.h"
-#include "spyro_game.h"
+#include "core/native_execution.h"
+#include "core/native_owners.h"
 
 namespace {
 

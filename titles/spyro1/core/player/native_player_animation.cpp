@@ -1,8 +1,8 @@
-#include "native_player_animation.h"
+#include "spyro1/core/player/native_player_animation.h"
 
+#include "core/guest_globals.h"
+#include "core/native_execution.h"
 #include "guest_call.h"
-#include "guest_globals.h"
-#include "native_execution.h"
 
 #include <cstdint>
 

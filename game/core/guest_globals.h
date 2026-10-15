@@ -1,7 +1,7 @@
 // guest_globals.h — the retail Spyro 1 globals named once for shared owners.
 #pragma once
 
-#include "guest_gp.h"
+#include "core/guest_gp.h"
 
 #include <cstdint>
 

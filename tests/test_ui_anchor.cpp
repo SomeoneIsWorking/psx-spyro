@@ -1,6 +1,6 @@
 // test_ui_anchor.cpp — the horizontal anchoring rule: each class at 4:3 and 16:9, and each refusal.
+#include "render/hud/ui_anchor.h"
 #include "testutil.h"
-#include "ui_anchor.h"
 
 #include <optional>
 

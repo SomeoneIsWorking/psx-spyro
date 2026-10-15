@@ -152,7 +152,7 @@ selftest = SelftestSeed(G_SPYRO, "player.position", 0)
 def lookahead(core: CoreSession) -> int:
     """Both cores park with the next VBlank handler pending: the console's VBlank step stops there,
     and the product's REPL parks at the start of field delivery, before the host pad sample and the
-    guest handler (titles/spyro1/core/runtime/spyro1_field_scheduler.cpp). libpad's handler runs the SIO
+    guest handler (titles/spyro1/core/runtime/field_scheduler.cpp). libpad's handler runs the SIO
     exchange, which is what first sees a hold, so a hold committed at either park reaches the same
     game frame's update: no lookahead."""
     return 0

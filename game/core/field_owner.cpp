@@ -1,14 +1,14 @@
-#include "field_owner.h"
+#include "core/field_owner.h"
 
 #include "core.h"
+#include "core/session.h"
+#include "core/vblank_irq.h"
 #include "frame_pacer.h"
 #include "game.h"
 #include "guest_call.h"
 #include "hle.h"
 #include "host_turn.h"
 #include "snapshot.h"
-#include "spyro_session.h"
-#include "vblank_irq.h"
 
 #include <chrono>
 #include <cstdlib>

@@ -16,7 +16,7 @@ updated: 2026-10-15
 [render:error]   fatal boundary: guest pc=0xDEAD0000 ra=0xDEAD0000 sp=0x801FFFF8
   stage=0/3/2 load_stage=4294967295 state_switch=0
 [watchdog] FAULT (signal): backtrace:
-  SpyroRenderer::abortUnimplemented -> renderScene -> drawFrame -> Spyro1FrameDriver::stepFrame
+  SpyroRenderer::abortUnimplemented -> renderScene -> drawFrame -> spyro1::FrameDriver::stepFrame
 ```
 
 ## Reproduction (deterministic, 2026-09-18)

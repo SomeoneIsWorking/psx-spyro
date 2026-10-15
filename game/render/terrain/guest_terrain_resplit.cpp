@@ -12,12 +12,12 @@
 
 #include "core.h"
 #include "gte_registers.h"
-#include "guest_render_globals.h"
-#include "guest_terrain_frame.h"
-#include "guest_terrain_passes.h"
-#include "guest_terrain_polygon.h"
-#include "guest_terrain_screen.h"
-#include "guest_terrain_split.h"
+#include "render/field/guest_render_globals.h"
+#include "render/terrain/guest_terrain_frame.h"
+#include "render/terrain/guest_terrain_passes.h"
+#include "render/terrain/guest_terrain_polygon.h"
+#include "render/terrain/guest_terrain_screen.h"
+#include "render/terrain/guest_terrain_split.h"
 
 #include <array>
 #include <cstddef>

@@ -27,10 +27,10 @@
 
 #include "core.h"
 #include "gte_registers.h"
-#include "guest_render_globals.h"
-#include "guest_terrain_facts.h"
-#include "guest_terrain_screen.h"
-#include "guest_working_memory.h"
+#include "render/field/guest_render_globals.h"
+#include "render/field/guest_working_memory.h"
+#include "render/terrain/guest_terrain_facts.h"
+#include "render/terrain/guest_terrain_screen.h"
 
 #include <cstdint>
 #include <vector>

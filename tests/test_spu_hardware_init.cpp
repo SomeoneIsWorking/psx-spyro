@@ -1,4 +1,4 @@
-#include "spu_hardware_init.h"
+#include "core/spu_hardware_init.h"
 
 #include <cstdio>
 #include <cstdlib>

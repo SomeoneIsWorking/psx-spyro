@@ -1,7 +1,7 @@
-#include "guest_moby_rotation.h"
+#include "render/field/guest_moby_rotation.h"
 
 #include "core.h"
-#include "guest_moby_gte.h"
+#include "render/field/guest_moby_gte.h"
 
 namespace spyro::guest_moby_rotation {
 namespace {

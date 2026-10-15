@@ -98,7 +98,7 @@ never seeds `0x80074DEC` and never dispatches it.
 
 ## 2. The measured library leaves, and how each was located
 
-`Spyro2Runtime` and `Spyro3Runtime` bind the same stock library classes because both
+`spyro2::Runtime` and `spyro3::Runtime` bind the same stock library classes because both
 images link the same SCEI libraries. That is a reason to look in the same place, not a reason to
 copy a number: every address below was found in `SCUS_944.67`'s bytes, and the two places where
 that process changed a conclusion are called out.
@@ -420,7 +420,7 @@ Spyro 2 have exactly the same shape and would produce the same false line; this 
 where the falsifier happens to be visible.
 
 This is NOT a title-side defect and nothing in this repository should be changed to "fix" it:
-`titles/spyro3/core/spyro3_runtime.cpp:231` correctly returns a name and never calls `getenv`.
+`titles/spyro3/core/runtime.cpp:231` correctly returns a name and never calls `getenv`.
 
 **Required external change, not made here** (`~/repo/psx/psxport` is not this repository's to
 edit): the config audit must learn the title-supplied disc key. Concretely, `config.cpp`'s env
@@ -440,7 +440,7 @@ report that quoted only the old ones would be stale.
 |---|---|
 | `cmake --build build -j 4` (Clang 22.1.8, ccache) | green, **0 errors**, 245 targets |
 | `ctest --test-dir build -j 4` | **113 of 113 passed**, `100% tests passed, 0 tests failed` |
-| `clang-tidy -p build --warnings-as-errors="*"` over all 5 first-party units (`spyro3_runtime.cpp`, `spyro3_frame_driver.cpp`, `spyro_guest_call.cpp`, `test_spyro3_boot_driver.cpp`, `test_spyro3_runtime.cpp`) | clean, 0 diagnostics |
+| `clang-tidy -p build --warnings-as-errors="*"` over all 5 first-party units (`titles/spyro3/core/runtime.cpp`, `spyro3_frame_driver.cpp`, `spyro_guest_call.cpp`, `test_spyro3_boot_driver.cpp`, `test_spyro3_runtime.cpp`) | clean, 0 diagnostics |
 | `tools/format.py --check` | **393/393**, unformatted=0 |
 | `tools/source_policy.py` | **533** live files scanned, **376** product paths, PASS |
 | `tools/drive.py gameplay` (Spyro 1, the regression this work must not break) | `reached GS_Playing at frame 6360`, exit 0 |

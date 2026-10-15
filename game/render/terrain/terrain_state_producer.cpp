@@ -1,9 +1,9 @@
-#include "terrain_state_producer.h"
+#include "render/terrain/terrain_state_producer.h"
 
+#include "core/session.h"
 #include "gp0_primitive_decode.h"
-#include "guest_depth_bins.h"
 #include "lucent/log.h"
-#include "spyro_session.h"
+#include "render/terrain/guest_depth_bins.h"
 
 #include <algorithm>
 #include <cstdlib>

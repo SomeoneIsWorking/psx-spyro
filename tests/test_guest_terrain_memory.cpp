@@ -19,17 +19,17 @@
 //   still having classified that sector onto a list. If one guard is missing, that sector's
 //   animation mark, its flags, or the visibility groups the moby walk reads would differ, and this
 //   fails on the memcmp rather than on a pixel.
-#include "engine_terrain_image.h"
-#include "guest_terrain_drawer.h"
-#include "guest_terrain_frame.h"
-#include "guest_working_memory.h"
+#include "render/field/guest_working_memory.h"
+#include "render/terrain/engine_terrain_image.h"
+#include "render/terrain/guest_terrain_drawer.h"
+#include "render/terrain/guest_terrain_frame.h"
 
 #include "core.h"
+#include "core/session.h"
 #include "game.h"
-#include "guest_render_globals.h"
-#include "guest_terrain_facts.h"
-#include "guest_terrain_screen.h"
-#include "spyro_session.h"
+#include "render/field/guest_render_globals.h"
+#include "render/terrain/guest_terrain_facts.h"
+#include "render/terrain/guest_terrain_screen.h"
 #include "test_game.h"
 
 #include <cstdint>

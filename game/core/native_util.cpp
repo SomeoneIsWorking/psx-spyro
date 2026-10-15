@@ -3,8 +3,8 @@
 // contract, and delay slots decide the exit state: dl_link's pointer store is a branch delay slot,
 // so the new node becomes the list head on BOTH paths.
 #include "core.h"
-#include "native_execution.h"
-#include "spyro_game.h"
+#include "core/native_execution.h"
+#include "core/native_owners.h"
 
 namespace {
 

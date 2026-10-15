@@ -36,7 +36,7 @@ carry no cut bit, ; the placements above all sit inside the fade.
 
 `spyro2::FrameCut::cameraPlaced` samples (mode, sub-state) with the scene when the draw returns and declares a
 cut when the machine leaves 0 (mode 9, 0xB, 10) or 0x80 (mode 10) while staying in that mode. No camera
-distance is read. Test `a_cut_is_a_camera_placement_inside_one_scene` (`tests/test_spyro2_record.cpp`): 8 of 9
+distance is read. Test `a_cut_is_a_camera_placement_inside_one_scene` (`tests/spyro2/test_record.cpp`): 8 of 9
 tests passed, 60 checks, with the rule stubbed out; 9 of 9, 76 checks, with it.
 
 ## Measured

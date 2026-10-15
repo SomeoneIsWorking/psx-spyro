@@ -42,7 +42,7 @@
 #pragma once
 
 #include "core.h"
-#include "guest_render_globals.h"
+#include "render/field/guest_render_globals.h"
 
 #include <cstdint>
 

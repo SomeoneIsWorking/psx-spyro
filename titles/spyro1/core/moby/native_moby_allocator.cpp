@@ -1,6 +1,6 @@
-#include "native_moby_allocator.h"
+#include "spyro1/core/moby/native_moby_allocator.h"
 
-#include "native_execution.h"
+#include "core/native_execution.h"
 
 #include <cstdint>
 

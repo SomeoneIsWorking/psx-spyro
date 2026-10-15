@@ -1,8 +1,8 @@
-#include "native_camera.h"
+#include "spyro1/core/camera/native_camera.h"
 
-#include "guest_globals.h"
-#include "guest_gp.h"
-#include "native_execution.h"
+#include "core/guest_globals.h"
+#include "core/guest_gp.h"
+#include "core/native_execution.h"
 
 #include <cstdint>
 

@@ -1,8 +1,8 @@
 #include "core.h"
+#include "core/guest_globals.h"
+#include "core/session.h"
 #include "game.h"
-#include "guest_globals.h"
-#include "spyro_session.h"
-#include "stage_update_observer.h"
+#include "spyro1/core/frame/stage_update_observer.h"
 #include "test_game.h"
 #include "testutil.h"
 

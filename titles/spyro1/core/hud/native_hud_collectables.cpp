@@ -1,7 +1,7 @@
-#include "native_hud_collectables.h"
+#include "spyro1/core/hud/native_hud_collectables.h"
 
+#include "core/native_execution.h"
 #include "guest_call.h"
-#include "native_execution.h"
 
 #include <cstdint>
 

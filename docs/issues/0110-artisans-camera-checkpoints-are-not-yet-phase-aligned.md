@@ -702,7 +702,7 @@ cannot be assigned to camera math. No guest state was written in either arm.
 
 ## Owner of one of the two extra native fields
 
-Reading `Spyro1FrameDriver::stepFrame` against the bracket output names the delivered fields. A host
+Reading `spyro1::FrameDriver::stepFrame` against the bracket output names the delivered fields. A host
 turn (`spyro1::hostTurn`, registered with the framework) can deliver a field while the frame update
 is still executing, so the loader's stage-zero store is followed by one field inside the same guest
 call. The render-suppressed branch of `stepFrame` then delivers `kFieldsPerLogicFrame` (two) more
@@ -990,7 +990,7 @@ recorded, and it is a CD read, not a phase.
 
 ### So the product's `setFrameStep` arithmetic is right and the CAUSE is elsewhere
 
-`spyro1_frame_driver.cpp:111` already writes `clamp(elapsedFields(), 2, 4)`, and the field census
+`titles/spyro1/core/frame/frame_driver.cpp:111` already writes `clamp(elapsedFields(), 2, 4)`, and the field census
 confirms the product's count reaches that clamp on 499 of 499 iterations. **No change to
 `kFrameStepMin`/`kFrameStepMax` would move the number, and fitting one would be a fitted constant.**
 What the product does not do is spend display fields waiting for the disk: it delivers a WAD

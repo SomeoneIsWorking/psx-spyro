@@ -86,9 +86,9 @@ now recovered too, below, so the port no longer has an unrecovered cyclorama pat
 
 ## The route reaches the portal, and now crosses it
 
-`game/core/spyro_gate_debug.cpp` had a `gates` / `gate-teleport` REPL pair that nothing could reach:
+`game/core/gate_debug.cpp` had a `gates` / `gate-teleport` REPL pair that nothing could reach:
 no runtime overrode `GameRuntime::replCommand`, so the REPL answered `? gate-teleport`. Wiring it
-through `Spyro1Runtime::replCommand` makes it work, and it lists Artisans' five gates with their
+through `spyro1::Runtime::replCommand` makes it work, and it lists Artisans' five gates with their
 target levels and two path nodes each. Teleporting onto gate 0's first node puts Spyro about 1,000
 view units from the portal, which the seeker closes to 696 — the walk alone stalls at 11,272 because
 the portals sit above the hub and the steering loop cannot climb.

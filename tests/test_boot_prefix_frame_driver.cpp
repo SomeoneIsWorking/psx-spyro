@@ -31,18 +31,18 @@
 // The Game's runtime contributes only the shared Spyro session; the driver reads nothing
 // title-specific from it.
 
-#include "boot_prefix_frame_driver.h"
 #include "core.h"
+#include "core/boot_prefix_frame_driver.h"
+#include "core/field_owner.h"
+#include "core/session.h"
 #include "execution_control.h"
 #include "execution_exit.h"
 #include "execution_services.h"
-#include "field_owner.h"
 #include "game.h"
 #include "lightrec_executor.h"
 #include "native_dispatch.h"
 #include "pace_plan.h"
 #include "resumable_guest_call.h"
-#include "spyro_session.h"
 #include "test_game.h"
 #include "testutil.h"
 

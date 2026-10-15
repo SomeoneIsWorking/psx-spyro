@@ -3,7 +3,7 @@
 //
 // Each override keys the packets its guest body writes by the call site, saves what the body
 // draws from and runs the body. Both bodies link through AddPrimToOT 0x800168DC into the overlay
-// pair (spyro1_ordering_table.h), so their renders emit into that one slot.
+// pair (titles/spyro1/core/frame/ordering_table.h), so their renders emit into that one slot.
 #pragma once
 
 #include "state_producer.h"

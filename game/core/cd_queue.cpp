@@ -1,10 +1,10 @@
-#include "archive_transfer.h"
 #include "core.h"
+#include "core/archive_transfer.h"
+#include "core/native_execution.h"
+#include "core/native_owners.h"
+#include "core/session.h"
 #include "execution_control.h"
 #include "guest_call.h"
-#include "native_execution.h"
-#include "spyro_game.h"
-#include "spyro_session.h"
 
 #include <cstdint>
 #include <lucent/log.h>

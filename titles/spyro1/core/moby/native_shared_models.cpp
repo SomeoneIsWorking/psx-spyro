@@ -1,7 +1,7 @@
-#include "native_shared_models.h"
+#include "spyro1/core/moby/native_shared_models.h"
 
+#include "core/native_execution.h"
 #include "guest_call.h"
-#include "native_execution.h"
 
 #include <cstdint>
 

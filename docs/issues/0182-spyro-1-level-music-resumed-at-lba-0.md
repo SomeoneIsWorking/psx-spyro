@@ -20,7 +20,7 @@ Two framework defects (psxport issues 0153 and 0154) and one missing title fact:
 wrote `CdLastCom()`'s byte at `0x80074E55` (written by the command send at `0x80064EA4`).
 
 ## Resolution
-`titles/spyro1/core/runtime/spyro1_runtime.cpp` declares `stockCdWorkArea = {0x80074E50, 0x80074E54,
+`titles/spyro1/core/runtime/runtime.cpp` declares `stockCdWorkArea = {0x80074E50, 0x80074E54,
 0x80074E55}`; psxport answers GetlocP from the drive head and publishes the last command (0154), serves
 every elapsed drive sector (0153), and starts push-mode XA at pitch (0155).
 

@@ -1,15 +1,15 @@
-#include "screen_overlays.h"
+#include "spyro1/core/hud/screen_overlays.h"
 
 #include "blend.h"
 #include "core.h"
+#include "core/native_execution.h"
+#include "core/session.h"
 #include "execution_control.h"
 #include "frame_state.h"
 #include "gp0_primitive_decode.h"
 #include "lucent/log.h"
 #include "native_dispatch.h"
-#include "native_execution.h"
-#include "spyro1_ordering_table.h"
-#include "spyro_session.h"
+#include "spyro1/core/frame/ordering_table.h"
 
 #include <array>
 #include <cstdlib>

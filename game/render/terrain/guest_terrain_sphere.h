@@ -9,7 +9,7 @@
 #pragma once
 
 #include "core.h"
-#include "guest_moby_frustum.h"
+#include "render/field/guest_moby_frustum.h"
 
 #include <array>
 #include <cstdint>

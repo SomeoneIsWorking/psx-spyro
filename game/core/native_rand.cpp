@@ -15,8 +15,8 @@
 // hi/lo are part of the contract — `mult` writes the register pair and the runtime models it, so a
 // body that computes the right return value but leaves hi/lo stale is not equivalent.
 #include "core.h"
-#include "native_execution.h"
-#include "spyro_game.h"
+#include "core/native_execution.h"
+#include "core/native_owners.h"
 
 namespace {
 

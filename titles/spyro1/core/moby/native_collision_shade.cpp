@@ -5,12 +5,12 @@
 // The word it writes is the CALLER's latch, and the top bit it sets is the only thing that stops
 // the next call recomputing it — which is why the body reads the word back, keeps it, and rewrites
 // it unchanged when it is already positive.
-#include "native_collision_shade.h"
+#include "spyro1/core/moby/native_collision_shade.h"
 
 #include "core.h"
-#include "guest_globals.h"
-#include "guest_magnitude.h"
-#include "native_execution.h"
+#include "core/guest_globals.h"
+#include "core/guest_magnitude.h"
+#include "core/native_execution.h"
 
 #include <cstdint>
 

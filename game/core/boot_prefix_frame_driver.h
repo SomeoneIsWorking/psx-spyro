@@ -1,7 +1,7 @@
 #pragma once
 
-#include "field_owner.h"
-#include "frame_cut.h"
+#include "core/field_owner.h"
+#include "core/frame_cut.h"
 #include "game_runtime.h"
 #include "resumable_guest_call.h"
 

@@ -16,13 +16,13 @@
 
 #include "core.h"
 #include "gte_registers.h"
-#include "guest_render_globals.h"
-#include "guest_terrain_far_vertices.h"
-#include "guest_terrain_fog.h"
-#include "guest_terrain_frame.h"
-#include "guest_terrain_passes.h"
-#include "guest_terrain_screen.h"
-#include "guest_word.h"
+#include "render/field/guest_render_globals.h"
+#include "render/field/guest_word.h"
+#include "render/terrain/guest_terrain_far_vertices.h"
+#include "render/terrain/guest_terrain_fog.h"
+#include "render/terrain/guest_terrain_frame.h"
+#include "render/terrain/guest_terrain_passes.h"
+#include "render/terrain/guest_terrain_screen.h"
 
 #include <array>
 

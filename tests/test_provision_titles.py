@@ -224,7 +224,7 @@ class CatalogGenerationTest(unittest.TestCase):
         catalog = generate_title_catalog.render()
         for slug, enum_name in generate_title_catalog.TITLE_ENUMS:
             manifest = title_identity.load_manifest(slug)
-            self.assertIn(f"SpyroTitle::{enum_name}", catalog)
+            self.assertIn(f"Title::{enum_name}", catalog)
             self.assertIn(str(manifest["serial"]), catalog)
             self.assertIn(str(manifest["sha256"]), catalog)
             self.assertIn(f'.discEnvVar = "{manifest["disc_env"]}"', catalog)

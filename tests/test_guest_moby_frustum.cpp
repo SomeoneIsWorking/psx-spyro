@@ -2,7 +2,7 @@
 // are retail's literal (4, 3) and reproduce the image's plane test, the widened weights put the
 // horizontal half-angle at the plan's projection width, and a plan that does not widen never
 // narrows.
-#include "guest_moby_frustum.h"
+#include "render/field/guest_moby_frustum.h"
 
 #include <cstdint>
 #include <cstdio>

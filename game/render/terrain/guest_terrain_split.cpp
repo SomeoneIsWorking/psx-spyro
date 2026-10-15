@@ -1,10 +1,10 @@
-#include "guest_terrain_split.h"
+#include "render/terrain/guest_terrain_split.h"
 
 #include "core.h"
 #include "gte_registers.h"
-#include "guest_terrain_frame.h"
-#include "guest_terrain_polygon.h"
-#include "guest_word.h"
+#include "render/field/guest_word.h"
+#include "render/terrain/guest_terrain_frame.h"
+#include "render/terrain/guest_terrain_polygon.h"
 
 #include <array>
 #include <cstddef>

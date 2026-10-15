@@ -1,7 +1,7 @@
-#include "guest_terrain_grid.h"
+#include "render/terrain/guest_terrain_grid.h"
 
-#include "guest_terrain_frame.h"
-#include "guest_word.h"
+#include "render/field/guest_word.h"
+#include "render/terrain/guest_terrain_frame.h"
 
 #include <cstddef>
 

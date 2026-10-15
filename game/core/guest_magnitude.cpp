@@ -1,4 +1,4 @@
-#include "guest_magnitude.h"
+#include "core/guest_magnitude.h"
 
 namespace spyro::guest_magnitude {
 

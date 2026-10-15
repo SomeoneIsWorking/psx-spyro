@@ -1,4 +1,4 @@
-#include "text_sprites.h"
+#include "core/text_sprites.h"
 
 #include <cstdio>
 

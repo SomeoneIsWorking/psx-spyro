@@ -1,5 +1,5 @@
-#include "stage_update_observer.h"
-#include "guest_globals.h"
+#include "spyro1/core/frame/stage_update_observer.h"
+#include "core/guest_globals.h"
 
 #include "core.h"
 

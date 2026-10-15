@@ -7,8 +7,8 @@
 // winding), a triangle's first, second and third.
 #pragma once
 
-#include "guest_terrain_frame.h"
-#include "guest_terrain_split.h"
+#include "render/terrain/guest_terrain_frame.h"
+#include "render/terrain/guest_terrain_split.h"
 
 #include <array>
 #include <cstdint>

@@ -36,7 +36,7 @@ There is no pad read or Start test in `0x800127C0`. Boot-logo skipping is theref
 enhancement, not a dormant guest branch. The safe semantic boundary is narrower than "leave boot":
 the 3→10 loop is required loading work and may not be bypassed.
 
-`titles/spyro1/core/frame/spyro1_boot_sequence.cpp` now owns the enhancement at the only two
+`titles/spyro1/core/frame/boot_sequence.cpp` now owns the enhancement at the only two
 presentation-only holds. After `loadAssets()` has completed, a Start or Cross press takes the same
 first-hold cleanup (`0x80016914`) and fade-out route that natural expiry takes. After the 3→10 loader
 has completed, a Start or Cross press takes the existing second-logo fade-out route. The title-owned
@@ -127,7 +127,7 @@ The screen is also not a loading screen: `func_8002DF9C` calls `LoadLevel(1)` wh
 below stage 11 **or** the flag is clear, so a finished load is *held* by the animation. Cancelling
 releases that hold and leaves every load phase to run.
 
-`titles/spyro1/core/frame/spyro1_transition_skip.cpp` owns the enhancement. On a Start or Cross edge while
+`titles/spyro1/core/frame/transition_skip.cpp` owns the enhancement. On a Start or Cross edge while
 the stage selector reads 1 and the flag is still set, it performs that same single write. It does
 not touch `g_LevelTransTicks`, the gem array, the load stage, or the gamestate, and it does not
 re-run the tally update, so no simulation is fast-forwarded and no I/O is bypassed. The former host
@@ -184,7 +184,7 @@ The decomp names `func_8004AC24` in its own symbol but gives `LoadLevel` no addr
 ### The load gate is the guest's, and the press is held rather than obeyed early
 
 The terminal has **two** conditions: `m_Tick >= 384`, which is presentation, and `g_LoadStage == 13`,
-which is I/O. `spyro1_transition_skip.cpp` honours the second and cancels only the first. A Start or
+which is I/O. `titles/spyro1/core/frame/transition_skip.cpp` honours the second and cancels only the first. A Start or
 Cross edge arriving while the level is still streaming is **held** — `flybyPressHeld_`, cleared the
 moment the card is no longer up — and classified on a later frame once the load gate opens. Nothing
 writes `m_Tick`: claim C179 already established that advancing a clock is not a valid skip route, and

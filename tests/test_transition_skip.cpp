@@ -1,4 +1,4 @@
-#include "spyro1_transition_skip.h"
+#include "spyro1/core/frame/transition_skip.h"
 
 #include <cstdlib>
 #include <iostream>

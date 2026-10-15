@@ -3,9 +3,9 @@
 #pragma once
 
 #include "core.h"
+#include "core/title_runtime_registry.h"
 #include "game.h"
 #include "psx_exe_image.h"
-#include "title_runtime_registry.h"
 #include "typed_config.h"
 
 #include <cstddef>
@@ -40,7 +40,7 @@ inline std::vector<std::uint8_t> syntheticExecutable(const psx::host::TitleIdent
 class BootedTitle {
 public:
   // `registered` false leaves every guest address to guest code, for a fixture that plants its own.
-  explicit BootedTitle(SpyroTitle title, bool registered = true) : registered_(registered) {
+  explicit BootedTitle(Title title, bool registered = true) : registered_(registered) {
     for (std::size_t index = 0; index < catalog_.titles().size(); ++index) {
       if (catalog_.title(index) == title) {
         index_ = index;
@@ -55,7 +55,7 @@ public:
     admit();
   }
 
-  SpyroRuntime &runtime() const {
+  Runtime &runtime() const {
     return catalog_.runtime(index_);
   }
   Game &game() {
@@ -76,7 +76,7 @@ private:
     }
   }
 
-  SpyroCatalog catalog_;
+  Catalog catalog_;
   bool registered_ = true;
   std::size_t index_ = 0;
   std::unique_ptr<Game> game_;

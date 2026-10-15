@@ -1,10 +1,10 @@
-#include "engine_terrain_image.h"
+#include "render/terrain/engine_terrain_image.h"
 
 #include "core.h"
+#include "core/native_execution.h"
+#include "core/session.h"
 #include "gte_registers.h"
-#include "guest_terrain_passes.h"
-#include "native_execution.h"
-#include "spyro_session.h"
+#include "render/terrain/guest_terrain_passes.h"
 
 #include <algorithm>
 #include <utility>

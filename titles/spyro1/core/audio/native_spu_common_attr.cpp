@@ -1,6 +1,6 @@
-#include "native_spu_common_attr.h"
+#include "spyro1/core/audio/native_spu_common_attr.h"
 
-#include "native_execution.h"
+#include "core/native_execution.h"
 
 #include <cstddef>
 #include <cstdint>

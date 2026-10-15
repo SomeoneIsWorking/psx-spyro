@@ -18,7 +18,7 @@
 //   chain link is a 24-bit main-RAM OFFSET and a shorter or unaligned window would refuse writes
 //   the traversal is entitled to make; and a `frameTop` at or above that end is the REFUSAL case
 //   (bytes == 0), because a clamped arena is a silently truncated picture.
-#include "terrain_rebuild.h"
+#include "render/terrain/terrain_rebuild.h"
 
 #include "testutil.h"
 

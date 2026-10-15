@@ -1,11 +1,11 @@
 // Geometry leaves that use the GTE (COP2). The command is hardware, so the bodies run it on the
 // Core's own GTE rather than reimplementing COP2.
 #include "core.h"
+#include "core/guest_globals.h"
+#include "core/guest_magnitude.h"
+#include "core/native_execution.h"
+#include "core/native_owners.h"
 #include "game.h"
-#include "guest_globals.h"
-#include "guest_magnitude.h"
-#include "native_execution.h"
-#include "spyro_game.h"
 
 namespace {
 

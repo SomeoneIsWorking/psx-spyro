@@ -2,18 +2,18 @@
 #pragma once
 
 #include "core.h"
+#include "core/runtime.h"
+#include "core/session.h"
 #include "game.h"
-#include "spyro_runtime.h"
-#include "spyro_session.h"
 #include "stub_game_runtime.h"
 #include "typed_config.h"
 
 namespace spyro::test {
 
-// SpyroRuntime::createSession with no frame driver, overrides or presentation of a title.
-class SessionRuntime final : public SpyroRuntime {
+// Runtime::createSession with no frame driver, overrides or presentation of a title.
+class SessionRuntime final : public Runtime {
 public:
-  SessionRuntime() : SpyroRuntime(SpyroTitle::Spyro1) {}
+  SessionRuntime() : Runtime(Title::Spyro1) {}
 
   void registerOverrides(Game &game) override {
     (void)game;
