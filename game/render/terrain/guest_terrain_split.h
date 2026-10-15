@@ -81,6 +81,8 @@ struct SplitPolygon {
 
 class SplitPolygonPass {
 public:
+  // The sector a header word names, in this image's header layout.
+  virtual SplitSector sector(std::uint32_t header) = 0;
   virtual void polygon(const SplitSector &sector, const SplitPolygon &polygon) = 0;
 
 protected:
@@ -91,8 +93,11 @@ protected:
 };
 
 // Walk the split list at `list` (80025D0C / 80026C88 / 80027AD4), reading each sector header
-// (80025D24) and handing every entry under it to `pass`.
+// through `pass` and handing every entry under it to `pass`.
 void walkSplitList(TerrainFrame &frame, std::uint32_t list, SplitPolygonPass &pass);
+
+// SCUS_944.25 80025D24: a sector header word, and its fog exemption restated in L33.
+[[nodiscard]] SplitSector readSplitHeader(TerrainFrame &frame, std::uint32_t header);
 
 [[nodiscard]] GridPoint
 unpackGridVertex(const TerrainFrame &frame, const SplitSector &sector, std::uint32_t index);
@@ -113,7 +118,7 @@ struct CrackPolygon {
   std::uint32_t colourAdjust = 0;
   std::uint32_t uv = 0;
   std::uint32_t page = 0;
-  std::uint32_t draw = 0;
+  std::uint32_t binBias = 0; // added to the depth sum's bin
 };
 void emitCrackTriangle(TerrainFrame &frame, std::uint32_t entry, const CrackPolygon &polygon);
 
@@ -136,19 +141,11 @@ struct GridPull {
 };
 void pullTowardPair(TerrainFrame &frame, const GridPull &pull);
 
-// The backface test a subdivision pass gives a piece of an overflowed polygon (800264B0), whose
-// whole the near pass could not test: two-sided pieces pass; otherwise the (first, second, third)
-// winding decides, and a back-facing one is given a second chance on (fourth, second, third).
-[[nodiscard]] bool
-facesCamera(TerrainFrame &frame, const std::array<std::uint32_t, 4> &screens, std::uint32_t draw);
-[[nodiscard]] bool triangleFacesCamera(TerrainFrame &frame,
-                                       const std::array<std::uint32_t, 3> &screens,
-                                       std::uint32_t draw);
-
 // Whether a GT3 (3 screen words) or GT4 (4) is too large for the GPU, which draws nothing 512 or
 // more high or 1024 or more wide (80027944): retail tests the vertical spans of the edges and the
 // quad's diagonal first, then the horizontal ones.
-[[nodiscard]] bool exceedsGpuSpan(std::span<const std::uint32_t> screens);
+enum class GpuSpan : std::uint8_t { Within, TooHigh, TooWide };
+[[nodiscard]] GpuSpan gpuSpan(std::span<const std::uint32_t> screens);
 
 // Which edges of the polygon border a neighbour the detail pass drew coarser: one byte per edge,
 // each the neighbour's flag byte (1 drawn whole, 2 deferred coarse) masked with `bit`. A record's

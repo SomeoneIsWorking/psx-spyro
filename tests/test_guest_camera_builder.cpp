@@ -50,8 +50,8 @@ public:
     }
   }
 
-  [[nodiscard]] cam::Builder builder() const {
-    return cam::Builder(core_, {.sine = kSine, .cosine = kCosine});
+  [[nodiscard]] cam::EngineBuilder builder() const {
+    return cam::EngineBuilder(core_, {.sine = kSine, .cosine = kCosine});
   }
 
   // The exact 12-bit-fraction circle the guest's tables hold, so a builder reading these reads the
@@ -161,7 +161,7 @@ void test_rx_is_the_left_factor() {
 void test_repeatable_and_in_range() {
   spyro::test::StubCore core;
   Tables tables(core);
-  const cam::Builder builder = tables.builder();
+  const cam::EngineBuilder builder = tables.builder();
   for (std::int32_t angle = 0; angle < 4096; angle += 37) {
     const cam::Angles a{angle, angle * 3, angle * 5};
     const cam::Matrices first = builder.build(a);

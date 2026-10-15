@@ -83,6 +83,8 @@ inline constexpr spyro::guest_terrain::Facts kTerrainFacts{
     // The geometry init states SetGeomOffset(0x100, 0x78) for the 512-dot display mode, the same
     // pair Spyro 2 states, so the guest's authored view is 512 columns wide.
     .nativeWidth = 512,
+    // The outcode tests' `lui 0xD` and `lui 0xE4`: rows 13 and 228.
+    .vertical = {.top = 0x000D0000u, .bottom = 0x00E40000u},
     // The passes' own tables. Each Spyro 2 address is the one its use in game/render/
     // guest_terrain_*.cpp names, and each Spyro 3 address was read out of THIS image at the
     // offset-aligned counterpart instruction -- which is exact rather than inferred, because the
@@ -94,7 +96,12 @@ inline constexpr spyro::guest_terrain::Facts kTerrainFacts{
             .sectorTable = 0x8006D048u,  // 80023140
             .sectorCount = 0x8006D04Cu,  // 80023144
             .viewRotation = 0x8006E00Cu, // 800223A8: five RT words, camera-relative
-            .animationTables = {0x8006E364u, 0x8006E36Cu, 0x8006E374u, 0x8006E37Cu},
+            .animation =
+                {
+                    .tables = {0x8006E364u, 0x8006E36Cu, 0x8006E374u, 0x8006E37Cu},
+                    .vectorFlags = {0x2000u, 0x4000u},
+                    .definitionOffsetsTarget = true,
+                },
         },
     .detail =
         {
@@ -129,6 +136,7 @@ inline constexpr spyro::guest_terrain::Facts kTerrainFacts{
         },
     .resplit =
         {
+            .queue = 0x2400u,              // the coarse split list, already walked
             .trianglePieces = 0x80066228u, // 80027138
             .quadPieces = 0x80066244u,     // 80026F6C
         },

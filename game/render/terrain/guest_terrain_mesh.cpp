@@ -3,105 +3,49 @@
 #include "core.h"
 #include "gte_registers.h"
 #include "guest_terrain_frame.h"
+#include "guest_word.h"
 
 namespace spyro::guest_terrain {
 namespace {
 
-// The GTE register and command numbers are shared vocabulary (psxport gte_registers.h), not this
-// pass's.
 namespace gte = psx::gte;
 
-constexpr std::int32_t asSigned(std::uint32_t value) {
-  return static_cast<std::int32_t>(value);
-}
+using spyro::guest_word::asSigned;
 
-constexpr std::uint32_t kFarDepth = 0x600;   // 80024800: at or past this, the plain outcodes
-constexpr std::uint32_t kCloseDepth = 0x100; // 80024810: nearer than this may be re-projected
-constexpr std::uint32_t kRefineSpan = 0x100; // 80024824: |MAC1|, |MAC2| under this
+constexpr std::uint32_t kFarDepth = 0x600;   // at or past this, the plain outcodes
+constexpr std::uint32_t kCloseDepth = 0x100; // nearer than this may be re-projected
+constexpr std::uint32_t kRefineSpan = 0x100; // |MAC1|, |MAC2| under this
 constexpr std::uint32_t kRefineMask = 0xFFF0FFF0u;
-constexpr std::uint32_t kOverflowSeen = 0x80000000u;
 
-// The sector origin, camera-relative, in the units the packed vertex offsets subtract from.
-struct SectorOrigin {
-  std::uint32_t z;
-  std::uint32_t x;
-  std::uint32_t y;
-};
+} // namespace
 
-struct UnpackedVertex {
-  std::uint32_t z;
-  std::uint32_t xy;
-};
+SectorProjector::SectorProjector(TerrainFrame &frame)
+    : frame_(frame), slot_(kScratchpad), depthSlot_(kVertexDepths) {}
 
-UnpackedVertex unpack(std::uint32_t word, const SectorOrigin &origin, NearPass pass) {
-  const std::uint32_t height = pass == NearPass::Detail ? (word << 3) & 0x1FFCu : word & 0x3FFu;
-  const std::uint32_t z = ((word >> 19) & 0x1FFCu) + origin.z;
-  const std::uint32_t x = origin.x - ((word >> 8) & 0x1FFCu);
-  const std::uint32_t y = origin.y - height;
-  return UnpackedVertex{z, x + (y << 16)};
-}
-
-void load(Core &core, const UnpackedVertex &vertex) {
-  core.gte().writeData(gte::kVz0, vertex.z);
-  core.gte().writeData(gte::kVxy0, vertex.xy);
-}
-
-class SectorProjector {
-public:
-  SectorProjector(TerrainFrame &frame, std::uint32_t sector, NearPass pass);
-
-  ProjectedSector run(std::uint32_t sectorClass);
-
-private:
-  void projectInside();
-  void projectEdge();
-  void projectClose();
-  std::uint32_t edgeOutcode(std::uint32_t sxy);
-  void advance();
-  // One projected vertex's scratch words: its screen word (or outcode) and its depth.
-  struct Projected {
-    std::uint32_t word = 0;
-    std::uint32_t depth = 0;
-  };
-
-  void store(const Projected &projected);
-
-  TerrainFrame &frame_;
-  Core &core_;
-  TerrainMemory &memory_;
-  NearPass pass_;
-  SectorOrigin origin_{};
-  std::uint32_t cursor_ = 0; // t7: the next vertex word to read
-  std::uint32_t end_ = 0;    // s0
-  std::uint32_t next_ = 0;   // at: the vertex word read one ahead
-  std::uint32_t slot_ = kScratchpad;
-  std::uint32_t depthSlot_ = kVertexDepths;
-  std::uint32_t common_ = 0xFFFFFFFFu; // t0: the outcode bits every vertex shares
-  std::uint32_t overflow_ = 0;         // s1
-};
-
-SectorProjector::SectorProjector(TerrainFrame &frame, std::uint32_t sector, NearPass pass)
-    : frame_(frame), core_(frame.core), memory_(frame.memory), pass_(pass) {
-  const std::uint32_t zx = memory_.r32(sector + near_sector::kOriginZX);
-  const std::uint32_t y = memory_.r32(sector + near_sector::kOriginY);
-  origin_.z = (zx >> 14) - frame.core.gte().readControl(gte::kLight0);
-  origin_.x = frame.core.gte().readControl(gte::kLight1) - ((zx & 0xFFFFu) << 2);
-  origin_.y = frame.core.gte().readControl(gte::kLight2) - (y >> 14);
-  const std::uint32_t layout = memory_.r32(sector + near_sector::kLayout);
+ProjectedSector SectorProjector::project(std::uint32_t entry) {
+  const std::uint32_t sectorClass = entry & kSectorClassMask;
+  const std::uint32_t sector = entry ^ sectorClass;
+  guest_memory::WorkingMemory &memory = frame_.memory;
+  Core &core = frame_.core;
+  const std::uint32_t camera = cameraRegister();
+  const std::uint32_t zx = memory.r32(sector + near_sector::kOriginZX);
+  const std::uint32_t y = memory.r32(sector + near_sector::kOriginY);
+  originZ_ = (zx >> 14) - core.gte().readControl(camera);
+  originX_ = core.gte().readControl(camera + 1) - ((zx & 0xFFFFu) << 2);
+  originY_ = core.gte().readControl(camera + 2) - (y >> 14);
+  const std::uint32_t layout = memory.r32(sector + near_sector::kLayout);
   const std::uint32_t first = sector + near_sector::kData + ((layout >> 22) & 0x3FCu);
   end_ = first + 4 * ((layout & 0xFFu) + 2);
-  next_ = memory_.r32(first + 4);
-  load(core_, unpack(memory_.r32(first), origin_, pass_));
+  next_ = memory.r32(first + 4);
+  load(unpack(memory.r32(first)));
   cursor_ = first + 8;
-}
 
-ProjectedSector SectorProjector::run(std::uint32_t sectorClass) {
   ProjectedSector result;
   result.vertexEnd = end_;
   if ((sectorClass & kCloseSector) != 0) {
     projectClose();
     result.clipped = true;
-    result.overflowed = overflow_ != 0;
+    result.overflowed = overflow_;
   } else if (sectorClass != 0) {
     projectEdge();
     result.clipped = true;
@@ -114,41 +58,53 @@ ProjectedSector SectorProjector::run(std::uint32_t sectorClass) {
   return result;
 }
 
+SectorProjector::UnpackedVertex SectorProjector::unpack(std::uint32_t word) const {
+  const std::uint32_t z = ((word >> 19) & 0x1FFCu) + originZ_;
+  const std::uint32_t x = originX_ - ((word >> 8) & 0x1FFCu);
+  const std::uint32_t y = originY_ - height(word);
+  return UnpackedVertex{z, x + (y << 16)};
+}
+
+void SectorProjector::load(const UnpackedVertex &vertex) {
+  frame_.core.gte().writeData(gte::kVz0, vertex.z);
+  frame_.core.gte().writeData(gte::kVxy0, vertex.xy);
+}
+
 // Unpack the vertex read one ahead into VZ0/VXY0 for the next RTPS, and read the one after it.
 void SectorProjector::advance() {
-  const UnpackedVertex vertex = unpack(next_, origin_, pass_);
-  next_ = memory_.r32(cursor_);
+  const UnpackedVertex vertex = unpack(next_);
+  next_ = frame_.memory.r32(cursor_);
   cursor_ += 4;
-  load(core_, vertex);
+  load(vertex);
 }
 
 void SectorProjector::store(const Projected &projected) {
-  memory_.w32(slot_, projected.word);
-  memory_.w16(depthSlot_, static_cast<std::uint16_t>(projected.depth));
+  frame_.memory.w32(slot_, projected.word);
+  frame_.memory.w16(depthSlot_, static_cast<std::uint16_t>(projected.depth));
   slot_ += 4;
   depthSlot_ += 2;
 }
 
-// 800246B0.
 void SectorProjector::projectInside() {
+  Core &core = frame_.core;
   do {
-    core_.gte().execute(gte::kRtps);
+    core.gte().execute(gte::kRtps);
     advance();
-    const std::uint32_t sxy = core_.gte().readData(gte::kSxy2);
-    const std::uint32_t depth = core_.gte().readData(gte::kSz3);
+    const std::uint32_t sxy = core.gte().readData(gte::kSxy2);
+    const std::uint32_t depth = core.gte().readData(gte::kSz3);
     frame_.v0 = sxy;
     frame_.v1 = depth;
     store({sxy, depth});
   } while (cursor_ != end_);
 }
 
-// 80024760: the edge outcode, also used for close vertices at or past kFarDepth.
+// The edge outcode, also used for close vertices at or past kFarDepth.
 std::uint32_t SectorProjector::edgeOutcode(std::uint32_t sxy) {
   std::uint32_t code = sxy << 5;
-  if (aboveTop(sxy)) {
+  if (frame_.bounds.aboveTop(sxy)) {
     code += 1;
   }
-  if (belowBottom(sxy)) {
+  if (frame_.bounds.belowBottom(sxy)) {
     code += 2;
   }
   if (frame_.bounds.outsideHorizontal(sxy)) {
@@ -160,58 +116,58 @@ std::uint32_t SectorProjector::edgeOutcode(std::uint32_t sxy) {
   return code;
 }
 
-// 80024718.
 void SectorProjector::projectEdge() {
+  Core &core = frame_.core;
   do {
-    core_.gte().execute(gte::kRtps);
+    core.gte().execute(gte::kRtps);
     advance();
-    const std::uint32_t sxy = core_.gte().readData(gte::kSxy2);
-    const std::uint32_t depth = core_.gte().readData(gte::kSz3);
+    const std::uint32_t sxy = core.gte().readData(gte::kSxy2);
+    const std::uint32_t depth = core.gte().readData(gte::kSz3);
     store({edgeOutcode(sxy), depth});
   } while (cursor_ != end_);
 }
 
-// 800247B4 (detail) and 80025608 (translucent).
 void SectorProjector::projectClose() {
+  Core &core = frame_.core;
   std::uint32_t depthSum = 0;
   bool lastDeep = false;
   do {
-    core_.gte().execute(gte::kRtps);
-    const UnpackedVertex vertex = unpack(next_, origin_, pass_);
-    next_ = memory_.r32(cursor_);
+    core.gte().execute(gte::kRtps);
+    const UnpackedVertex vertex = unpack(next_);
+    next_ = frame_.memory.r32(cursor_);
     cursor_ += 4;
-    const std::uint32_t depth = core_.gte().readData(gte::kSz3);
-    std::uint32_t sxy = core_.gte().readData(gte::kSxy2);
+    const std::uint32_t depth = core.gte().readData(gte::kSz3);
+    std::uint32_t sxy = core.gte().readData(gte::kSxy2);
     lastDeep = depth >= kFarDepth;
-    if (pass_ == NearPass::Detail || !lastDeep) {
+    if (sumsDepth(lastDeep)) {
       depthSum += depth;
     }
     if (lastDeep) {
-      load(core_, vertex);
+      load(vertex);
       store({edgeOutcode(sxy), depth});
       continue;
     }
-    if (depth != 0 && depth < kCloseDepth) {
-      const std::uint32_t mac1 = core_.gte().readData(gte::kMac1) + kRefineSpan;
-      const std::uint32_t mac2 = core_.gte().readData(gte::kMac2) + kRefineSpan;
+    if (depth < kCloseDepth && refines(depth)) {
+      const std::uint32_t mac1 = core.gte().readData(gte::kMac1) + kRefineSpan;
+      const std::uint32_t mac2 = core.gte().readData(gte::kMac2) + kRefineSpan;
       if (asSigned(mac1) > 0 && asSigned(mac1 - 2 * kRefineSpan) < 0 && asSigned(mac2) > 0 &&
           asSigned(mac2 - 2 * kRefineSpan) < 0) {
-        core_.gte().writeData(gte::kVz0, core_.gte().readData(gte::kVz0) << 4);
-        core_.gte().writeData(gte::kVxy0, (core_.gte().readData(gte::kVxy0) << 4) & kRefineMask);
-        core_.gte().execute(gte::kRtps);
-        sxy = core_.gte().readData(gte::kSxy2);
+        core.gte().writeData(gte::kVz0, core.gte().readData(gte::kVz0) << 4);
+        core.gte().writeData(gte::kVxy0, (core.gte().readData(gte::kVxy0) << 4) & kRefineMask);
+        core.gte().execute(gte::kRtps);
+        sxy = core.gte().readData(gte::kSxy2);
       }
     }
     std::uint32_t code = sxy << 5;
-    if (pass_ == NearPass::Detail && asSigned(core_.gte().readControl(gte::kFlag)) < 0) {
+    if (reportsOverflow() && asSigned(core.gte().readControl(gte::kFlag)) < 0) {
       code += kOverflowOutcode;
-      overflow_ = kOverflowSeen;
+      overflow_ = true;
     }
-    load(core_, vertex);
-    if (aboveTop(sxy)) {
+    load(vertex);
+    if (frame_.bounds.aboveTop(sxy)) {
       code += 1;
     }
-    if (belowBottom(sxy)) {
+    if (frame_.bounds.belowBottom(sxy)) {
       code += 2;
     }
     if (frame_.bounds.atOrLeftOfLeft(sxy)) {
@@ -225,18 +181,74 @@ void SectorProjector::projectClose() {
     common_ &= code;
     store({code, depth});
   } while (cursor_ != end_);
-  // 800248DC: an all-deep-free sector whose depths sum to zero is behind the camera. A sector
-  // whose last vertex was deep is not given that test (80024940).
-  if ((common_ & 0xFu) == 0 && !lastDeep && depthSum == 0) {
+  // A sector whose depths sum to zero is behind the camera; one whose last vertex was deep is not
+  // given that test.
+  if (testsBehind() && (common_ & 0xFu) == 0 && !lastDeep && depthSum == 0) {
     common_ = 0xFu;
   }
 }
 
+namespace {
+
+// SCUS_944.25 800245D0: the camera in the light matrix's first three words.
+class DetailProjector final : public SectorProjector {
+public:
+  explicit DetailProjector(TerrainFrame &frame) : SectorProjector(frame) {}
+
+private:
+  [[nodiscard]] std::uint32_t height(std::uint32_t word) const override {
+    return (word << 3) & 0x1FFCu;
+  }
+  [[nodiscard]] std::uint32_t cameraRegister() const override {
+    return gte::kLight0;
+  }
+  [[nodiscard]] bool refines(std::uint32_t depth) const override {
+    return depth != 0;
+  }
+  [[nodiscard]] bool reportsOverflow() const override {
+    return true;
+  }
+  [[nodiscard]] bool sumsDepth(bool) const override {
+    return true;
+  }
+  [[nodiscard]] bool testsBehind() const override {
+    return true;
+  }
+};
+
+// SCUS_944.25 80025440.
+class TranslucentProjector final : public SectorProjector {
+public:
+  explicit TranslucentProjector(TerrainFrame &frame) : SectorProjector(frame) {}
+
+private:
+  [[nodiscard]] std::uint32_t height(std::uint32_t word) const override {
+    return word & 0x3FFu;
+  }
+  [[nodiscard]] std::uint32_t cameraRegister() const override {
+    return gte::kLight0;
+  }
+  [[nodiscard]] bool refines(std::uint32_t depth) const override {
+    return depth != 0;
+  }
+  [[nodiscard]] bool reportsOverflow() const override {
+    return false;
+  }
+  [[nodiscard]] bool sumsDepth(bool deep) const override {
+    return !deep;
+  }
+  [[nodiscard]] bool testsBehind() const override {
+    return true;
+  }
+};
+
 } // namespace
 
-ProjectedSector
-projectSector(TerrainFrame &frame, std::uint32_t sector, std::uint32_t sectorClass, NearPass pass) {
-  return SectorProjector(frame, sector, pass).run(sectorClass);
+ProjectedSector projectSector(TerrainFrame &frame, std::uint32_t entry, NearPass pass) {
+  if (pass == NearPass::Detail) {
+    return DetailProjector(frame).project(entry);
+  }
+  return TranslucentProjector(frame).project(entry);
 }
 
 } // namespace spyro::guest_terrain

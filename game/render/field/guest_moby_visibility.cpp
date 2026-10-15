@@ -6,6 +6,8 @@
 #include "guest_moby_gte.h"
 #include "guest_moby_rotation.h"
 #include "guest_render_globals.h"
+#include "guest_view_slope.h"
+#include "guest_word.h"
 
 #include <array>
 
@@ -83,25 +85,13 @@ constexpr std::int32_t kFarDepth = 63000;
 constexpr std::uint32_t kDeferredUnbounded = 0xFFFF;
 constexpr std::uint32_t kNegativeTextureBits = 0xFC000000u;
 
-constexpr std::int32_t asSigned(std::uint32_t value) {
-  return static_cast<std::int32_t>(value);
-}
+using spyro::guest_word::asSigned;
 
 constexpr std::uint32_t asWord(std::int32_t value) {
   return static_cast<std::uint32_t>(value);
 }
 
 // The register numbers retail saves, in save-area order.
-
-// The horizontal slope the walk culls with: retail's unless the presentation widens.
-HorizontalSlope slopeFor(const Core &core) {
-  const GuestProjectionPlan &plan = core.game->guestDisplay.plan();
-  if (!plan.widescreen()) {
-    return guest_moby_frustum::kRetailSlope;
-  }
-  return guest_moby_frustum::widenedSlope(plan.nativeProjectionExtent.width,
-                                          plan.projectionExtent.width);
-}
 
 class MobyWalk {
 public:
@@ -515,7 +505,7 @@ MobyWalk::Step MobyWalk::finishEntry(const Candidate &candidate) {
 } // namespace
 
 void walk(Core &core, const Facts &facts, const guest_render_globals::Globals &globals) {
-  MobyWalk(core, facts, globals, slopeFor(core)).run();
+  MobyWalk(core, facts, globals, presentedSlope(core)).run();
 }
 
 } // namespace spyro::guest_moby

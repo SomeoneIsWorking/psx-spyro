@@ -1,6 +1,6 @@
-// A Spyro 2/3 terrain field drawn through the title's shipping overrides over a one-sector
-// synthetic level, then walked by DMA into the device's record: what the Record tests compare
-// frames with.
+// A terrain field drawn through the title's shipping overrides over a one-sector synthetic level,
+// then walked by DMA into the device's record: what the Record tests compare frames with. The
+// chain walk and the compose check are every title's; `TerrainScene` is Spyro 2/3's level.
 #pragma once
 
 #include "core.h"
@@ -100,6 +100,50 @@ struct DrawnFrame {
   psx::present::FrameState state;
 };
 
+// A table of depth bins.
+struct BinTable {
+  std::uint32_t base = 0;
+  std::uint32_t bins = 0;
+};
+
+// The guest flatten's chain over `bins`: each bin's packets from the first linked to the head,
+// deepest bin first, the last head pointing at the end-of-list tag.
+inline std::uint32_t linkChain(Core &core, const BinTable &bins) {
+  const auto [table, count] = bins;
+  namespace sink = depth_bins;
+  const auto linkAfter = [&core](std::uint32_t packet, std::uint32_t next) {
+    const std::uint32_t tag = core.mem_r32(packet);
+    core.mem_w32(packet, (tag & 0xFF000000u) | psx::gpu::mainRamOffsetOf(next));
+  };
+  core.mem_w32(kChainEnd, kEndOfList);
+  std::uint32_t head = kChainEnd;
+  std::uint32_t tail = 0;
+  for (std::int32_t bin = static_cast<std::int32_t>(count) - 1; bin >= 0; --bin) {
+    const std::uint32_t pair = table + static_cast<std::uint32_t>(bin) * sink::kBinStride;
+    const std::uint32_t first = core.mem_r32(pair + sink::kBinFirstOffset);
+    if (first == 0) {
+      continue;
+    }
+    if (tail == 0) {
+      head = first;
+    } else {
+      linkAfter(tail, first);
+    }
+    tail = core.mem_r32(pair);
+  }
+  if (tail != 0) {
+    linkAfter(tail, kChainEnd);
+  }
+  return head;
+}
+
+// The chain DrawOTag walks into the device, and the states its producers saved.
+inline DrawnFrame submitField(Core &core, std::uint32_t head) {
+  psx::present::FrameRecord shown = submitChain(core, head);
+  psx::present::FrameState state = core.frameStates.collect(shown);
+  return {std::move(shown), std::move(state)};
+}
+
 class TerrainScene {
 public:
   explicit TerrainScene(const TerrainTitle &title) : title_(title) {
@@ -124,7 +168,7 @@ public:
   void setCamera(const terrain::CameraState &camera) {
     const auto &globals = title_.globals;
     const guest_camera::Matrices matrices =
-        guest_camera::Builder(
+        guest_camera::EngineBuilder(
             core(), {.sine = globals.cameraSineTable, .cosine = globals.cameraCosineTable})
             .build({camera.angles[0], camera.angles[1], camera.angles[2]});
     for (std::uint32_t i = 0; i < 5; ++i) {
@@ -168,17 +212,16 @@ public:
 
   // One field from an empty table and pool: the draw, the flatten's bucket assignment, the chain
   // the guest flatten links, and DrawOTag's walk of it into the device.
-  DrawnFrame drawFrame(const terrain::CameraState &camera, std::uint32_t a0 = kScratchEnd) {
+  // The guest's caller passes a $a0 that alternates with the double-buffered packet pool, so each
+  // `field` has its own.
+  DrawnFrame drawFrame(const terrain::CameraState &camera, std::uint32_t field) {
     plantFrame();
     clearTable();
     core().frameStates.clear();
     setCamera(camera);
-    drawTerrain(a0);
+    drawTerrain(kScratchEnd + 0x100u * field);
     flatten();
-    const std::uint32_t head = linkChain();
-    psx::present::FrameRecord shown = submitChain(core(), head);
-    psx::present::FrameState state = core().frameStates.collect(shown);
-    return {std::move(shown), std::move(state)};
+    return submitField(core(), linkChain(core(), {.base = kTable, .bins = depth_bins::kBins}));
   }
 
   [[nodiscard]] Linked linkedPackets() {
@@ -241,9 +284,9 @@ public:
     return session(core()).stateProducers;
   }
 
-  // Moves the level's vertex `index` to (z, x, y), as a guest update between fields would.
-  void moveVertex(std::uint32_t index, std::uint32_t z, std::uint32_t x, std::uint32_t y) {
-    core().mem_w32(kSector + 0x1C + 4 * index, vertexWord(z, x, y));
+  // Moves a level vertex the field read, as a guest update between fields would.
+  void rewriteLevel() {
+    core().mem_w32(kSector + 0x1C + 4 * 2, vertexWord(0x40, 0x240, 0x120));
   }
 
 private:
@@ -326,44 +369,12 @@ private:
     }
   }
 
-  // The guest flatten's chain: each bin's packets from the first linked to the head, deepest bin
-  // first, the last head pointing at the end-of-list tag.
-  std::uint32_t linkChain() {
-    namespace sink = depth_bins;
-    core().mem_w32(kChainEnd, kEndOfList);
-    std::uint32_t head = kChainEnd;
-    std::uint32_t tail = 0;
-    for (std::int32_t bin = static_cast<std::int32_t>(sink::kBins) - 1; bin >= 0; --bin) {
-      const std::uint32_t pair = kTable + static_cast<std::uint32_t>(bin) * sink::kBinStride;
-      const std::uint32_t first = core().mem_r32(pair + sink::kBinFirstOffset);
-      if (first == 0) {
-        continue;
-      }
-      if (tail == 0) {
-        head = first;
-      } else {
-        linkAfter(tail, first);
-      }
-      tail = core().mem_r32(pair);
-    }
-    if (tail != 0) {
-      linkAfter(tail, kChainEnd);
-    }
-    return head;
-  }
-
-  void linkAfter(std::uint32_t packet, std::uint32_t next) {
-    const std::uint32_t tag = core().mem_r32(packet);
-    core().mem_w32(packet, (tag & 0xFF000000u) | psx::gpu::mainRamOffsetOf(next));
-  }
-
   TerrainTitle title_;
   std::unique_ptr<SessionGame> game_;
 };
 
 // Three fields of one level: `from`, `to` a turned and moved camera later, and `midway` drawn at
-// the camera halfway between. The guest's caller passes a $a0 that alternates with the
-// double-buffered packet pool, so each field's is different.
+// the camera halfway between.
 struct ComposeCheck {
   bool drawn = false;         // every field linked packets
   bool asDrawn = false;       // t = 1 composes `to` as drawn
@@ -372,29 +383,36 @@ struct ComposeCheck {
   bool keepsItsLevel = false; // t = 1 is still `to` after the guest moves a vertex it read
 };
 
-inline ComposeCheck composeAcrossTwoFields(TerrainScene &scene) {
+// `to` composed from `from` at t = 1, and at t = 0.5 against `midway`.
+inline ComposeCheck composeBetween(const psx::present::StateProducers &producers,
+                                   const DrawnFrame &from,
+                                   const DrawnFrame &midway,
+                                   const DrawnFrame &to) {
+  ComposeCheck check;
+  check.drawn = !primitives(from.shown).empty() && !primitives(midway.shown).empty() &&
+                !primitives(to.shown).empty();
+  const auto atOne = psx::present::composeFrame(to.shown, &from.state, to.state, 1.0f, producers);
+  check.asDrawn = atOne && sameFrame(primitives(*atOne), primitives(to.shown));
+  const auto atHalf = psx::present::composeFrame(to.shown, &from.state, to.state, 0.5f, producers);
+  check.between = atHalf && sameFrame(primitives(*atHalf), primitives(midway.shown));
+  check.midwayMoved = !sameFrame(primitives(midway.shown), primitives(to.shown));
+  return check;
+}
+
+template <typename Scene> ComposeCheck composeAcrossTwoFields(Scene &scene) {
   terrain::CameraState after = kRestCamera;
   after.angles[1] = 0x20;
   after.position[0] += 0x40;
   terrain::CameraState midway = kRestCamera;
   midway.angles[1] = 0x10;
   midway.position[0] += 0x20;
-  const DrawnFrame from = scene.drawFrame(kRestCamera, kScratchEnd);
-  const DrawnFrame half = scene.drawFrame(midway, kScratchEnd + 0x100u);
-  const DrawnFrame to = scene.drawFrame(after, kScratchEnd + 0x200u);
+  const DrawnFrame from = scene.drawFrame(kRestCamera, 0);
+  const DrawnFrame half = scene.drawFrame(midway, 1);
+  const DrawnFrame to = scene.drawFrame(after, 2);
 
-  ComposeCheck check;
-  check.drawn = !primitives(from.shown).empty() && !primitives(half.shown).empty() &&
-                !primitives(to.shown).empty();
-  const auto atOne =
-      psx::present::composeFrame(to.shown, &from.state, to.state, 1.0f, scene.producers());
-  check.asDrawn = atOne && sameFrame(primitives(*atOne), primitives(to.shown));
-  const auto atHalf =
-      psx::present::composeFrame(to.shown, &from.state, to.state, 0.5f, scene.producers());
-  check.between = atHalf && sameFrame(primitives(*atHalf), primitives(half.shown));
-  check.midwayMoved = !sameFrame(primitives(half.shown), primitives(to.shown));
+  ComposeCheck check = composeBetween(scene.producers(), from, half, to);
   // The next field's update rewrites level words before `to` is presented.
-  scene.moveVertex(2, 0x40, 0x240, 0x120);
+  scene.rewriteLevel();
   const auto rewritten =
       psx::present::composeFrame(to.shown, &from.state, to.state, 1.0f, scene.producers());
   check.keepsItsLevel = rewritten && sameFrame(primitives(*rewritten), primitives(to.shown));

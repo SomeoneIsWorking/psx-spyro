@@ -2,7 +2,7 @@
 //
 // WHAT IS BEING CLAIMED. The terrain drawer is one set of seven passes that has to run twice: once
 // over the guest's own RAM for the field the guest drew, and once over host memory for a frame
-// between two of them. The passes reach the frame's five working ranges (guest_terrain_memory.h)
+// between two of them. The passes reach the frame's five working ranges (guest_working_memory.h)
 // through one accessor, and every thing only the guest's own field may do is behind
 // `TerrainFrame::realField()` (guest_terrain_frame.h). Two things therefore have to be true, and
 // both are checked here rather than argued:
@@ -19,9 +19,10 @@
 //   still having classified that sector onto a list. If one guard is missing, that sector's
 //   animation mark, its flags, or the visibility groups the moby walk reads would differ, and this
 //   fails on the memcmp rather than on a pixel.
+#include "engine_terrain_image.h"
 #include "guest_terrain_drawer.h"
 #include "guest_terrain_frame.h"
-#include "guest_terrain_memory.h"
+#include "guest_working_memory.h"
 
 #include "core.h"
 #include "game.h"
@@ -103,11 +104,14 @@ spyro::guest_terrain::Facts fixtureFacts() {
   facts.fogColour = kFogColour;
   facts.foggedColours = kFoggedColours;
   facts.nativeWidth = 320;
+  facts.vertical = {.top = 0x000D0000u, .bottom = 0x00E40000u};
   facts.classify.sectorTable = kSectorTable;
   facts.classify.sectorCount = kSectorCount;
   facts.classify.viewRotation = kViewRotation;
-  facts.classify.animationTables = {
+  facts.classify.animation.tables = {
       kAnimationTable, kAnimationTable, kAnimationTable, kAnimationTable};
+  facts.classify.animation.vectorFlags = {0x2000u, 0x4000u};
+  facts.classify.animation.definitionOffsetsTarget = true;
   facts.detail.textureTable = kTextureTable;
   facts.detail.fogLevel = kFogLevel;
   facts.far.farDepth = kFarDepth;
@@ -159,7 +163,7 @@ void plantLevel(Core &core, const spyro::guest_terrain::Facts &facts) {
   core.mem_w32(kSector + kSectorLayout, 2u); // two vertices, no colours, no records
   core.mem_w32(kSector + kSectorAnimationMarks, 0);
   // Slot 0's animation: one key at index 0 whose fraction is zero, so the copy loop runs once.
-  core.mem_w32(facts.classify.animationTables[0], 0x80062000u);
+  core.mem_w32(facts.classify.animation.tables[0], 0x80062000u);
   core.mem_w32(0x80062000u + 0x08, 0x40u);       // frame data at +0x40
   core.mem_w32(0x80062000u + 0x06, 4u);          // four bytes per frame
   core.mem_w32(0x80062000u + 0x0C, 0x00000000u); // key 0: fraction 0, frames 0, frame word 0
@@ -170,13 +174,15 @@ void plantLevel(Core &core, const spyro::guest_terrain::Facts &facts) {
 // ──────────────────────────────────────────────────────────────────────────────
 void testMarkOrdering() {
   using namespace spyro::guest_terrain;
+  using namespace spyro::guest_memory;
   auto game = std::make_unique<spyro::test::SessionGame>();
   Core &core = game->core;
 
   GuestMemory memory(core, {});
   const Facts facts = fixtureFacts();
   const spyro::guest_render_globals::Globals globals = fixtureGlobals();
-  TerrainFrame frame(core, facts, globals, ScreenBounds(320, 0), memory, FrameMode::InBetween);
+  TerrainFrame frame(
+      core, facts, globals, ScreenBounds(320, 0, facts.vertical), memory, FrameMode::InBetween);
   frame.orderingTable = kOrderingTable;
 
   // The draw publishes the mark one past the last of the 512 bins. Its ORDINAL is 512, and the two
@@ -229,6 +235,7 @@ void testMarkOrdering() {
 // ── 2. The mode guards ───────────────────────────────────────────────────────────────────────────
 void testModeGuards() {
   using namespace spyro::guest_terrain;
+  using namespace spyro::guest_memory;
   auto game = std::make_unique<spyro::test::SessionGame>();
   Core &core = game->core;
   core.gte().bind();
@@ -259,7 +266,8 @@ void testModeGuards() {
   host.map(facts.foggedColours, 0x1000u);
 
   const std::vector<std::uint8_t> before = guestBytes(core);
-  Drawer(core, facts, globals, host, FrameMode::InBetween).run();
+  const EngineTerrainImage image(facts, globals);
+  Drawer(core, image, host, FrameMode::InBetween).run();
   const std::vector<std::uint8_t> after = guestBytes(core);
 
   // NOT ONE BYTE. Every guard in the drawer exists for this comparison.
@@ -289,10 +297,32 @@ void testModeGuards() {
 
   // The mode itself is the only gate, so it is asked directly on both sides.
   GuestMemory guest(core, {});
-  TerrainFrame real(core, facts, globals, ScreenBounds(320, 0), guest, FrameMode::RealField);
-  TerrainFrame between(core, facts, globals, ScreenBounds(320, 0), host, FrameMode::InBetween);
+  TerrainFrame real(
+      core, facts, globals, ScreenBounds(320, 0, facts.vertical), guest, FrameMode::RealField);
+  TerrainFrame between(
+      core, facts, globals, ScreenBounds(320, 0, facts.vertical), host, FrameMode::InBetween);
   expect(real.realField(), "the real field is the guest's own");
   expect(!between.realField(), "an in-between field is not");
+}
+
+// A main-RAM byte is one store under its KUSEG and KSEG0 names: the detail pass writes an inside
+// sector's flag bytes through the sign-cleared cursor and the split passes read them through KSEG0.
+void testMainRamAliases() {
+  using namespace spyro::guest_terrain;
+  using namespace spyro::guest_memory;
+  auto game = std::make_unique<spyro::test::SessionGame>();
+  Core &core = game->core;
+  constexpr std::uint32_t kBlock = 0x80070000u;
+  core.mem_w8(kBlock + 0x10, 0x5A);
+  HostMemory host(core);
+  host.mapEmpty(kBlock, 0x100);
+  expect(host.mapped(kBlock & 0x7FFFFFFFu), "the KUSEG name of a mapped byte is mapped");
+  host.w8((kBlock & 0x7FFFFFFFu) + 0x20, 0x04);
+  expectEq(host.r8(kBlock + 0x20), 0x04u, "a KUSEG write reads back through KSEG0");
+  expectEq(host.r8(kBlock + 0x10), 0u, "the mapping is empty under both names");
+  expectEq(core.mem_r8(kBlock + 0x20), 0u, "the guest's byte is untouched");
+  host.overlay(std::vector<LevelWord>{{.address = 0x00071000u, .value = 0x12345678u}});
+  expectEq(host.r32(0x80071000u), 0x12345678u, "a saved word reads back under its KSEG0 name");
 }
 
 } // namespace
@@ -300,6 +330,7 @@ void testModeGuards() {
 int main() {
   testMarkOrdering();
   testModeGuards();
+  testMainRamAliases();
   if (failures != 0) {
     std::fprintf(stderr, "%d failure(s)\n", failures);
     return 1;

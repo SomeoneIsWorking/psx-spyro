@@ -9,6 +9,7 @@
 #include "guest_terrain_frame.h"
 #include "guest_terrain_mesh.h"
 #include "guest_terrain_polygon.h"
+#include "guest_word.h"
 
 #include <algorithm>
 #include <cstddef>
@@ -20,9 +21,7 @@ namespace {
 
 namespace gte = psx::gte;
 
-constexpr std::int32_t asSigned(std::uint32_t value) {
-  return static_cast<std::int32_t>(value);
-}
+using spyro::guest_word::asSigned;
 
 // Thresholds are on the sum of a polygon's four depths; a triangle counts its third twice.
 constexpr std::uint32_t kSplitSum = 0x2000;
@@ -79,7 +78,7 @@ private:
 
   TerrainFrame &frame_;
   Core &core_;
-  TerrainMemory &memory_;
+  guest_memory::WorkingMemory &memory_;
   std::uint32_t list_ = 0;
   std::uint32_t fog_ = 0;
   std::uint32_t sectorWord_ = 0; // the sector address, plus the split headers it has written
@@ -124,7 +123,7 @@ void DetailPass::drawSector(std::uint32_t listWord) {
   sectorWord_ = listWord ^ sectorClass;
   const std::uint32_t sector = sectorWord_;
   flagCursor_ = frame_.scratch + (memory_.r32(sector + near_sector::kOriginY) & 0xFFFFu);
-  const ProjectedSector projected = projectSector(frame_, sector, sectorClass, NearPass::Detail);
+  const ProjectedSector projected = projectSector(frame_, listWord, NearPass::Detail);
   if (!projected.drawn) {
     return;
   }
@@ -214,13 +213,10 @@ ShadedVertex DetailPass::shadeVertex(const VertexShade &input) {
   if (asSigned(fade) <= 0) {
     return ShadedVertex{farColour, fade, Shade::Far};
   }
-  core_.gte().writeControl(gte::kFarRed, (nearColour << 4) & 0xFF0u);
-  core_.gte().writeControl(gte::kFarGreen, (nearColour >> 4) & 0xFF0u);
-  core_.gte().writeControl(gte::kFarBlue, nearColour >> 12);
-  core_.gte().writeData(gte::kRgbc, farColour);
-  core_.gte().writeData(gte::kIr0, fade);
-  core_.gte().execute(gte::kDpcs);
-  return ShadedVertex{core_.gte().readData(gte::kRgb2), fade, Shade::Faded};
+  return ShadedVertex{
+      fadeColour(core_, {.nearColour = nearColour, .farColour = farColour, .fade = fade}),
+      fade,
+      Shade::Faded};
 }
 
 // A vertex after the first and before the last: track the brightest fade.
@@ -258,47 +254,21 @@ PrimitiveFinish DetailPass::finishPrimitive(const VertexShade &last, std::uint32
 void DetailPass::drawQuad(const PackedIndices &vertices) {
   const bool clipped = asSigned(flagCursor_) <= 0;
   flagCursor_ += 1;
-  std::uint32_t xy0 = screenWord(vertices.first);
-  std::uint32_t xy1 = screenWord(vertices.second);
-  std::uint32_t xy2 = screenWord(vertices.third);
-  std::uint32_t xy3 = screenWord(vertices.fourth);
-  std::uint32_t overflow = 0;
-  if (clipped) {
-    if ((xy0 & xy1 & xy2 & xy3 & 0xFu) != 0) {
-      return;
-    }
-    if (overflowOutcodes_) {
-      overflow = (xy0 | xy1 | xy2 | xy3) & kOverflowOutcode;
-    }
-    xy0 = static_cast<std::uint32_t>(asSigned(xy0) >> 5);
-    xy1 = static_cast<std::uint32_t>(asSigned(xy1) >> 5);
-    xy2 = static_cast<std::uint32_t>(asSigned(xy2) >> 5);
-    xy3 = static_cast<std::uint32_t>(asSigned(xy3) >> 5);
+  const auto corners = unclipCorners<4>({screenWord(vertices.first),
+                                         screenWord(vertices.second),
+                                         screenWord(vertices.third),
+                                         screenWord(vertices.fourth)},
+                                        clipped,
+                                        overflowOutcodes_);
+  if (!corners) {
+    return;
   }
+  const auto [xy, overflow] = *corners;
   const std::uint32_t draw = memory_.r32(record_ - polygon::kSize + polygon::kDraw);
-  core_.gte().writeData(gte::kSxy0, xy0);
-  core_.gte().writeData(gte::kSxy1, xy1);
-  core_.gte().writeData(gte::kSxy2, xy3);
-  core_.gte().execute(gte::kNclip);
-  const bool flipped = (draw & kFlippedWinding) != 0;
-  if (overflow == 0) {
-    std::uint32_t winding = core_.gte().readData(gte::kMac0);
-    if (flipped) {
-      winding = 0u - winding;
-    }
-    if (asSigned(winding) < 0) {
-      // 80024B08: the other diagonal's triangle decides.
-      core_.gte().writeData(gte::kSxy0, xy2);
-      core_.gte().execute(gte::kNclip);
-      if ((draw & kTwoSided) == 0) {
-        const std::int32_t second = asSigned(core_.gte().readData(gte::kMac0));
-        if (flipped ? second < 0 : second > 0) {
-          frame_.v0 = depth(vertices.second);
-          frame_.v1 = depth(vertices.third);
-          return;
-        }
-      }
-    }
+  if (!nearQuadFacesCamera(frame_, {xy[0], xy[1], xy[3], xy[2]}, sidedness(draw), overflow != 0)) {
+    frame_.v0 = depth(vertices.second);
+    frame_.v1 = depth(vertices.third);
+    return;
   }
   const std::uint32_t depths[4] = {
       depth(vertices.first), depth(vertices.second), depth(vertices.third), depth(vertices.fourth)};
@@ -323,10 +293,10 @@ void DetailPass::drawQuad(const PackedIndices &vertices) {
   const std::uint32_t prim = frame_.primitive;
   const PackedIndices colours(memory_.r32(record_ - polygon::kSize + polygon::kColours));
   const std::uint32_t bin = polygonBin(sum, draw);
-  memory_.w32(prim + packet::kXy0, xy0);
-  memory_.w32(prim + packet::kXy1, xy1);
-  memory_.w32(prim + packet::kXy2, xy3);
-  memory_.w32(prim + packet::kXy3, xy2);
+  memory_.w32(prim + packet::kXy0, xy[0]);
+  memory_.w32(prim + packet::kXy1, xy[1]);
+  memory_.w32(prim + packet::kXy2, xy[3]);
+  memory_.w32(prim + packet::kXy3, xy[2]);
   std::uint32_t record = (draw & kTextureRecordMask) * kTextureRecordSize;
 
   const ShadedVertex first = shadeVertex({colours.first, depths[0]});
@@ -362,36 +332,19 @@ void DetailPass::drawQuad(const PackedIndices &vertices) {
 void DetailPass::drawTriangle(const PackedIndices &vertices) {
   const bool clipped = asSigned(flagCursor_) <= 0;
   flagCursor_ += 1;
-  std::uint32_t xy0 = screenWord(vertices.first);
-  std::uint32_t xy1 = screenWord(vertices.second);
-  std::uint32_t xy2 = screenWord(vertices.third);
-  std::uint32_t overflow = 0;
-  if (clipped) {
-    if ((xy0 & xy1 & xy2 & 0xFu) != 0) {
-      return;
-    }
-    if (overflowOutcodes_) {
-      overflow = (xy0 | xy1 | xy2) & kOverflowOutcode;
-    }
-    xy0 = static_cast<std::uint32_t>(asSigned(xy0) >> 5);
-    xy1 = static_cast<std::uint32_t>(asSigned(xy1) >> 5);
-    xy2 = static_cast<std::uint32_t>(asSigned(xy2) >> 5);
+  const auto corners = unclipCorners<3>(
+      {screenWord(vertices.first), screenWord(vertices.second), screenWord(vertices.third)},
+      clipped,
+      overflowOutcodes_);
+  if (!corners) {
+    return;
   }
+  const auto [xy, overflow] = *corners;
   const std::uint32_t draw = memory_.r32(record_ - polygon::kSize + polygon::kDraw);
-  core_.gte().writeData(gte::kSxy0, xy0);
-  core_.gte().writeData(gte::kSxy1, xy1);
-  core_.gte().writeData(gte::kSxy2, xy2);
-  core_.gte().execute(gte::kNclip);
-  if (((draw & kTwoSided) | overflow) == 0) {
-    std::uint32_t winding = core_.gte().readData(gte::kMac0);
-    if ((draw & kFlippedWinding) != 0) {
-      winding = 0u - winding;
-    }
-    if (asSigned(winding) < 0) {
-      frame_.v0 = kVertexDepths + (vertices.second >> 1);
-      frame_.v1 = kVertexDepths + (vertices.third >> 1);
-      return;
-    }
+  if (!nearTriangleFacesCamera(frame_, xy, sidedness(draw), overflow != 0)) {
+    frame_.v0 = kVertexDepths + (vertices.second >> 1);
+    frame_.v1 = kVertexDepths + (vertices.third >> 1);
+    return;
   }
   const std::uint32_t depths[3] = {
       depth(vertices.first), depth(vertices.second), depth(vertices.third)};
@@ -415,9 +368,9 @@ void DetailPass::drawTriangle(const PackedIndices &vertices) {
   const std::uint32_t prim = frame_.primitive;
   const PackedIndices colours(memory_.r32(record_ - polygon::kSize + polygon::kColours));
   const std::uint32_t bin = polygonBin(sum, draw);
-  memory_.w32(prim + packet::kXy0, xy0);
-  memory_.w32(prim + packet::kXy1, xy1);
-  memory_.w32(prim + packet::kXy2, xy2);
+  memory_.w32(prim + packet::kXy0, xy[0]);
+  memory_.w32(prim + packet::kXy1, xy[1]);
+  memory_.w32(prim + packet::kXy2, xy[2]);
   std::uint32_t record = (draw & kTextureRecordMask) * kTextureRecordSize;
 
   const ShadedVertex first = shadeVertex({colours.first, depths[0]});

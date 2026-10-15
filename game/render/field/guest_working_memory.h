@@ -1,39 +1,27 @@
-// guest_terrain_memory.h — where one traversal of the terrain drawer reads and writes its WORKING
-// memory, so the same traversal can run over the guest's own RAM and over host memory.
+// guest_working_memory.h — where a hand-written render routine reads and writes, so the same
+// traversal runs over the guest's RAM for a real field and over host bytes for an in-between.
 //
-// WHAT "WORKING MEMORY" IS. The drawer's seven passes do not walk the level's geometry; they walk
-// five ranges the frame owns for the length of one field:
-//
-//   the scratchpad        [0x1F800000, +0x400)  the vertex caches, the split grid cells, the
-//                                                      projected (screen, depth) pairs
-//   the scratch block     [scratch, +0x3000)    the five sector lists and their split entries
-//   the primitive arena   [cursor, scratch+0x1000)  the GP0 packets the passes emit
-//   the ordering table    [table, +0x1000)      the 512 8-byte depth bins packets link into
-//   the fogged colours    [foggedColours, +0x1000)  the DPCS-faded copy a sector's polygons read
-//
-// Everything else the passes touch — sector records, polygon records, texture records, the crack
-// and piece tables, the camera, the level's globals — is the LEVEL. The passes read it through the
-// accessor too: the real field records each word as it first read it, and an in-between reads
-// those (`overlay`), because the guest rewrites level words between fields (sector animation,
-// streamed data) before the field is presented.
-//
-// WHY TWO PLACES. The real field must read and write exactly the bytes retail did, so it runs over
-// `GuestMemory`, which forwards to `Core` and is byte-identical by construction. An in-between
-// field runs the identical passes with no guest code and no guest write, so it runs over
-// `HostMemory`: guest-shaped ranges backed by host bytes, where a read of an unmapped address falls
-// through to the field's saved words, then to the guest (level geometry is legitimately there) and
-// a WRITE of an unmapped address is refused by name, because that is the one mistake that would
-// change the real field.
+// A routine owns working ranges for one field (scratchpad, scratch block, packet pool, ordering
+// table) and reads everything else as level data. `GuestMemory` forwards to `Core` and records
+// each level word as first read; `HostMemory` maps the working ranges on host bytes, reads level
+// words from that record or the guest, and refuses a write it does not own.
 #pragma once
 
 #include "core.h"
+#include "lucent/log.h"
 
+#include <array>
+#include <cstddef>
 #include <cstdint>
+#include <cstdlib>
+#include <cstring>
+#include <optional>
 #include <span>
+#include <type_traits>
 #include <unordered_map>
 #include <vector>
 
-namespace spyro::guest_terrain {
+namespace spyro::guest_memory {
 
 // [base, base + bytes) of guest address space.
 struct GuestRange {
@@ -45,6 +33,34 @@ struct GuestRange {
   }
 };
 
+// One past the last byte of the 2 MiB of main RAM, as a KSEG0 address.
+inline constexpr std::uint32_t kMainRamEnd = 0x80200000u;
+
+// The KSEG0 name of a main-RAM address, whose KUSEG, KSEG0, KSEG1 and mirror names are one store;
+// any other address unsegmented.
+[[nodiscard]] constexpr std::uint32_t canonicalAddress(std::uint32_t address) {
+  const std::uint32_t physical = address & 0x1FFFFFFFu;
+  return physical < 0x800000u ? 0x80000000u | (physical & 0x1FFFFFu) : physical;
+}
+
+// Where an in-between links its packets. The address has to be guest-shaped because a packet's
+// chain link is a 24-bit main-RAM offset. `bytes == 0` is the refusal case: the caller must not
+// present a truncated picture.
+struct PacketArena {
+  std::uint32_t base = 0;
+  std::uint32_t bytes = 0;
+};
+
+// Everything from the page above `frameTop`, the end of the last range the traversal owns, to the
+// end of main RAM.
+[[nodiscard]] constexpr PacketArena packetArenaWindow(std::uint32_t frameTop) {
+  const std::uint32_t base = (frameTop + 0xFFFu) & ~0xFFFu;
+  if (base >= kMainRamEnd) {
+    return PacketArena{};
+  }
+  return PacketArena{base, kMainRamEnd - base};
+}
+
 // A guest word as a real field first read it.
 struct LevelWord {
   std::uint32_t address = 0;
@@ -53,9 +69,9 @@ struct LevelWord {
 
 // The working-memory accessor every pass reads and writes through. Three widths, because the
 // traversal packs GP0 tag address fields, 16-bit screen words and 8-bit flags into the same ranges.
-class TerrainMemory {
+class WorkingMemory {
 public:
-  virtual ~TerrainMemory() = default;
+  virtual ~WorkingMemory() = default;
 
   [[nodiscard]] virtual std::uint32_t r32(std::uint32_t address) const = 0;
   [[nodiscard]] virtual std::uint16_t r16(std::uint32_t address) const = 0;
@@ -71,7 +87,7 @@ public:
 
 // The guest's own RAM, byte for byte. What the real field runs over. Reads outside `working`, the
 // ranges the traversal owns, are level words and are kept for the field's in-betweens.
-class GuestMemory final : public TerrainMemory {
+class GuestMemory final : public WorkingMemory {
 public:
   GuestMemory(Core &core, std::span<const GuestRange> working) : core_(core), working_(working) {}
 
@@ -103,12 +119,16 @@ public:
 
   // Every level word read so far, with the value it held when first read.
   [[nodiscard]] std::vector<LevelWord> firstReads() const;
+  // Starts a new record of first reads, for a routine that saves one per object it draws.
+  void forgetReads() {
+    firstReads_.clear();
+  }
 
 private:
   void recordRead(std::uint32_t address) const {
     const std::uint32_t word = address & ~3u;
     for (const GuestRange &range : working_) {
-      if (range.contains(word)) {
+      if (GuestRange{canonicalAddress(range.base), range.bytes}.contains(canonicalAddress(word))) {
         return;
       }
     }
@@ -120,13 +140,14 @@ private:
   mutable std::unordered_map<std::uint32_t, std::uint32_t> firstReads_;
 };
 
-// Guest-shaped ranges backed by host bytes.
+// Guest-shaped ranges backed by host bytes. A main-RAM address is one store under all its names, so
+// a byte written through KUSEG reads back through KSEG0.
 //
 // A mapping copies the guest's current bytes, so a range that is only partly rewritten by a pass
 // still holds the level data the passes read out of it. Overlapping mappings MERGE: the primitive
 // arena's top is inside the scratch block, and the ordering table's low bins are inside it too, so
 // treating them as separate objects would make one of the two lose the other's writes.
-class HostMemory final : public TerrainMemory {
+class HostMemory final : public WorkingMemory {
 public:
   explicit HostMemory(Core &core) : core_(core) {}
 
@@ -148,6 +169,13 @@ public:
 
   // Forget every mapping, overlay and counted read and write.
   void clear();
+
+  // From now on keep each level word a read falls through to, with the value it gave: what a run
+  // over host memory read of the level, for a field's saved draw.
+  void keepLevelReads() {
+    keepsLevelReads_ = true;
+  }
+  [[nodiscard]] std::vector<LevelWord> levelReads() const;
 
   [[nodiscard]] std::uint32_t r32(std::uint32_t address) const override;
   [[nodiscard]] std::uint16_t r16(std::uint32_t address) const override;
@@ -177,20 +205,59 @@ private:
     std::vector<std::uint8_t> bytes;
   };
 
-  // The segment holding `address`, or nullptr.
+  // The segment holding canonical `address`, or nullptr.
   [[nodiscard]] const Segment *find(std::uint32_t address) const;
-  [[nodiscard]] Segment *find(std::uint32_t address);
+  // The host byte any name of `address` maps to, or nullptr.
+  [[nodiscard]] const std::uint8_t *byteAt(std::uint32_t address) const;
+  [[nodiscard]] std::uint8_t *byteAt(std::uint32_t address);
+  void store(std::uint32_t address, const void *bytes, std::uint32_t count);
   [[nodiscard]] std::uint8_t guestByte(std::uint32_t address) const;
   void refuseWrite(std::uint32_t address, std::uint32_t bytes) const;
 
   // The overlaid word at a 4-aligned address, or nullptr.
   [[nodiscard]] const std::uint32_t *overlaid(std::uint32_t address) const;
 
+  void noteLevelRead(std::uint32_t address) const;
+
   Core &core_;
   std::vector<Segment> segments_;
   std::unordered_map<std::uint32_t, std::uint32_t> overlay_;
+  bool keepsLevelReads_ = false;
+  mutable std::unordered_map<std::uint32_t, std::uint32_t> levelReads_;
   mutable std::uint64_t guestReads_ = 0;
   mutable std::uint64_t refusedWrites_ = 0;
 };
 
-} // namespace spyro::guest_terrain
+// A saved draw: a trivially copyable header, then the level words the draw read.
+template <typename Header> struct SavedDraw {
+  Header header;
+  std::vector<LevelWord> reads;
+};
+
+template <typename Header>
+[[nodiscard]] std::vector<std::byte> packDraw(const Header &header,
+                                              std::span<const LevelWord> reads) {
+  static_assert(std::is_trivially_copyable_v<Header>);
+  std::vector<std::byte> bytes(sizeof(Header) + reads.size() * sizeof(LevelWord));
+  std::memcpy(bytes.data(), &header, sizeof(Header));
+  std::memcpy(bytes.data() + sizeof(Header), reads.data(), reads.size() * sizeof(LevelWord));
+  return bytes;
+}
+
+// Aborts naming `what` when `bytes` is not a header and whole words.
+template <typename Header>
+[[nodiscard]] SavedDraw<Header> unpackDraw(std::span<const std::byte> bytes, const char *what) {
+  static_assert(std::is_trivially_copyable_v<Header>);
+  if (bytes.size() < sizeof(Header) || (bytes.size() - sizeof(Header)) % sizeof(LevelWord) != 0) {
+    lucent::error("guestmem", "a saved {} of {} bytes is not one", what, bytes.size());
+    std::abort();
+  }
+  SavedDraw<Header> saved;
+  std::memcpy(&saved.header, bytes.data(), sizeof(Header));
+  saved.reads.resize((bytes.size() - sizeof(Header)) / sizeof(LevelWord));
+  std::memcpy(
+      saved.reads.data(), bytes.data() + sizeof(Header), saved.reads.size() * sizeof(LevelWord));
+  return saved;
+}
+
+} // namespace spyro::guest_memory

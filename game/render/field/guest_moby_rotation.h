@@ -1,7 +1,8 @@
 // guest_moby_rotation.h — a moby's orientation, composed onto the camera rotation by the moby
 // visibility walk of this engine family (SCUS_944.25 0x80043858, 80043B9C..80043D7C and
 // 800441BC..800444B0; SCUS_944.67 0x80030478, 800307BC..800309BC and 80030FBC..800312B0; see
-// guest_moby_visibility.h).
+// guest_moby_visibility.h) and by SCUS_942.28's actor passes (8001F50C..8001F70C,
+// 80022DD4..80022FE8, 800241E0..800243F8).
 //
 // A moby carries three 8-bit angles (bytes 2, 1, 0 of its rotation word, 256 steps per
 // turn). For each non-zero angle the walk rotates the current GTE rotation matrix about one axis:
@@ -22,6 +23,7 @@
 
 #include <array>
 #include <cstdint>
+#include <optional>
 
 class Core;
 
@@ -45,13 +47,19 @@ struct AngleWords {
 // How far past a sine entry its cosine entry is: a quarter turn of 256 halfword entries.
 inline constexpr std::uint32_t kCosineOffset = 0x80u;
 
+// Whether the byte-0 axis loads its result into CR0..CR4. SCUS_942.28's actor list builders only
+// store it (8001F70C).
+enum class Byte0Result : std::uint8_t { Loaded, Stored };
+
 // Rotate `rotation` by `angles.angles`, reading the tables directly; the flags are not read. Loads
 // the result into CR0..CR4 after each angle, as retail does. `rotation` must hold what CR0..CR4
-// hold on entry.
-void composeTabled(Core &core,
-                   std::uint32_t sineTable,
-                   const MobyAngles &angles,
-                   RotationWords &rotation);
+// hold on entry. Returns what retail leaves in $v1 when an angle applied: the last product's IR3,
+// shifted up 16 when that was the byte-0 axis.
+std::optional<std::uint32_t> composeTabled(Core &core,
+                                           std::uint32_t sineTable,
+                                           const MobyAngles &angles,
+                                           RotationWords &rotation,
+                                           Byte0Result byte0 = Byte0Result::Loaded);
 
 // The same, with each angle refined by the matching 4-bit fraction of `angles.flags` (bits 16, 8,
 // 0).

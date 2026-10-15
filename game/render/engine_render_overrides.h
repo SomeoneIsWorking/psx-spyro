@@ -4,6 +4,7 @@
 #pragma once
 
 #include "core.h"
+#include "engine_terrain_image.h"
 #include "execution_control.h"
 #include "guest_depth_bins.h"
 #include "guest_moby_visibility.h"
@@ -35,8 +36,11 @@ struct EngineRenderFacts {
 namespace engine_render {
 
 // An override is a plain `void (*)(Core *)`, so each image's facts are a template argument.
+template <const EngineRenderFacts &facts>
+inline constexpr guest_terrain::EngineTerrainImage kTerrainImage{facts.terrain, facts.globals};
+
 template <const EngineRenderFacts &facts> void drawTerrain(Core *core) {
-  guest_terrain::drawField(*core, facts.terrain, facts.globals);
+  guest_terrain::drawField(*core, kTerrainImage<facts>);
 }
 
 template <const EngineRenderFacts &facts> void walkMobys(Core *core) {
@@ -57,9 +61,9 @@ template <const EngineRenderFacts &facts> void flatten(Core *core) {
 // The drawer's one caller passes $a1 = 0, its one object; $a0 is the scratch block's end, which
 // alternates with the double-buffered packet pool.
 template <const EngineRenderFacts &facts> void registerEngineRenderOverrides(Core &core) {
-  session(core).stateProducers.install(
-      facts.terrain.entry,
-      std::make_unique<guest_terrain::TerrainStateProducer>(core, facts.terrain, facts.globals));
+  session(core).stateProducers.install(facts.terrain.entry,
+                                       std::make_unique<guest_terrain::TerrainStateProducer>(
+                                           core, engine_render::kTerrainImage<facts>));
   psx::cpu::installNativeOverride(core,
                                   facts.terrain.entry,
                                   facts.terrain.overrideName,

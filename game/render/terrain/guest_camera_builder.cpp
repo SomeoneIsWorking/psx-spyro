@@ -16,14 +16,10 @@ constexpr std::int32_t kShift = 12;
 constexpr std::int32_t kMin = -0x8000;
 constexpr std::int32_t kMax = 0x7FFF;
 
-struct Element3 {
-  std::int32_t row[3][3]{};
-};
+} // namespace
 
-// One `MVMVA sf, IR * V0` column product, in int64 so the products cannot overflow before the
-// shift.
-Element3 product(const Element3 &ir, const Element3 &matrix) {
-  Element3 out{};
+Rotation multiply(const Rotation &ir, const Rotation &matrix) {
+  Rotation out{};
   for (std::int32_t column = 0; column < 3; ++column) {
     for (std::int32_t row = 0; row < 3; ++row) {
       const std::int64_t sum = static_cast<std::int64_t>(ir.row[row][0]) * matrix.row[0][column] +
@@ -36,8 +32,11 @@ Element3 product(const Element3 &ir, const Element3 &matrix) {
   return out;
 }
 
-// The five control words, in the packing both the drawer and the classification pass read.
-std::array<std::uint32_t, psx::gte::kRotationWords> controlWords(const Element3 &matrix) {
+namespace {
+
+// The five control words, in the packing both the drawer and the classification pass read. The
+// last holds one element, sign-extended as the builders store it.
+std::array<std::uint32_t, psx::gte::kRotationWords> controlWords(const Rotation &matrix) {
   const auto element = [](std::int32_t value) {
     return static_cast<std::uint32_t>(static_cast<std::uint16_t>(static_cast<std::int16_t>(value)));
   };
@@ -45,7 +44,8 @@ std::array<std::uint32_t, psx::gte::kRotationWords> controlWords(const Element3 
           element(matrix.row[0][2]) | (element(matrix.row[1][0]) << 16),
           element(matrix.row[1][1]) | (element(matrix.row[1][2]) << 16),
           element(matrix.row[2][0]) | (element(matrix.row[2][1]) << 16),
-          element(matrix.row[2][2])};
+          static_cast<std::uint32_t>(
+              static_cast<std::int32_t>(static_cast<std::int16_t>(matrix.row[2][2])))};
 }
 
 struct SinCos {
@@ -57,8 +57,8 @@ struct SinCos {
 // into 20..29.
 
 // Ry, on rows 1 and 2 with x fixed.
-Element3 aroundY(SinCos t) {
-  Element3 out{};
+Rotation aroundY(SinCos t) {
+  Rotation out{};
   out.row[0][0] = 0x1000;
   out.row[1][1] = t.cos;
   out.row[1][2] = -t.sin;
@@ -68,8 +68,8 @@ Element3 aroundY(SinCos t) {
 }
 
 // Rz, on rows 0 and 2 with y fixed.
-Element3 aroundZ(SinCos t) {
-  Element3 out{};
+Rotation aroundZ(SinCos t) {
+  Rotation out{};
   out.row[0][0] = t.cos;
   out.row[0][2] = t.sin;
   out.row[1][1] = 0x1000;
@@ -79,8 +79,8 @@ Element3 aroundZ(SinCos t) {
 }
 
 // Rx, on rows 0 and 1 with z fixed.
-Element3 aroundX(SinCos t) {
-  Element3 out{};
+Rotation aroundX(SinCos t) {
+  Rotation out{};
   out.row[0][0] = t.cos;
   out.row[0][1] = t.sin;
   out.row[1][0] = -t.sin;
@@ -131,17 +131,13 @@ Matrices Builder::build(const Angles &angles) const {
   const auto y = static_cast<std::uint32_t>(angles.aroundY);
   const auto z = static_cast<std::uint32_t>(angles.aroundZ);
   const auto x = static_cast<std::uint32_t>(angles.aroundX);
-
-  // FUN_80059D6C(a, b) is a * b: first Ry * Rz, then Rx * that.
-  Element3 view = product(
-      aroundX({.cos = cos(x), .sin = sin(x)}),
-      product(aroundY({.cos = cos(y), .sin = sin(y)}), aroundZ({.cos = cos(z), .sin = sin(z)})));
-
+  Rotation view = compose(aroundX({.cos = cos(x), .sin = sin(x)}),
+                          aroundY({.cos = cos(y), .sin = sin(y)}),
+                          aroundZ({.cos = cos(z), .sin = sin(z)}));
   Matrices out{};
   out.view = controlWords(view);
-  // Row 1 (R21, R22, R23) by 0x140 >> 9 for the projection matrix at 0x80067E84.
   for (std::int32_t column = 0; column < 3; ++column) {
-    view.row[1][column] = (view.row[1][column] * kVerticalScale) >> kVerticalScaleShift;
+    view.row[1][column] = scaleVertical(view.row[1][column]);
   }
   out.projection = controlWords(view);
   return out;

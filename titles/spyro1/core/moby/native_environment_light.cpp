@@ -1,5 +1,6 @@
 #include "native_environment_light.h"
 
+#include "guest_word.h"
 #include "native_execution.h"
 
 #include <cstdint>
@@ -7,6 +8,8 @@
 
 namespace spyro1::native {
 namespace {
+
+using spyro::guest_word::sra;
 
 constexpr std::uint32_t kNodeLists = 0x80078560u;
 constexpr std::uint32_t kMobyTable = 0x800785A8u;
@@ -96,10 +99,6 @@ std::uint32_t biased(const Components &components, const FieldLayout &layout) {
   const std::uint32_t narrow = (static_cast<std::uint32_t>(second - reference) & layout.mask)
                                << layout.secondShift;
   return base | wide | narrow;
-}
-
-std::uint32_t signedShift(std::uint32_t value, unsigned amount) {
-  return static_cast<std::uint32_t>(static_cast<std::int32_t>(value) >> amount);
 }
 
 // The tick test every list opens a node with, 0x8002A71C..0x8002A748. Bit 1 of the node's flag byte
@@ -416,13 +415,13 @@ Triple blendComponent(Core *c, const BlendSource &source, std::uint32_t offset) 
 // second, and the third blend is the far vertex itself.
 void writeBlendedVertex(Core *c, const BlendSource &source, std::uint32_t dest) {
   const Triple first = blendComponent(c, source, 0u);
-  c->mem_w32(kGteScratch + 0x00u, signedShift(first.x, 12));
-  c->mem_w32(kGteScratch + 0x04u, signedShift(first.y, 12));
-  c->mem_w32(kGteScratch + 0x08u, signedShift(first.z, 12));
+  c->mem_w32(kGteScratch + 0x00u, sra(first.x, 12));
+  c->mem_w32(kGteScratch + 0x04u, sra(first.y, 12));
+  c->mem_w32(kGteScratch + 0x08u, sra(first.z, 12));
   const Triple second = blendComponent(c, source, 4u);
-  c->mem_w32(kGteScratch + 0x0Cu, signedShift(second.x, 12));
-  c->mem_w32(kGteScratch + 0x10u, signedShift(second.y, 12));
-  c->mem_w32(kGteScratch + 0x14u, signedShift(second.z, 12));
+  c->mem_w32(kGteScratch + 0x0Cu, sra(second.x, 12));
+  c->mem_w32(kGteScratch + 0x10u, sra(second.y, 12));
+  c->mem_w32(kGteScratch + 0x14u, sra(second.z, 12));
   const Triple third = blendComponent(c, source, 8u);
   const std::int32_t farX = static_cast<std::int32_t>(third.x >> 12);
   const std::int32_t farY = static_cast<std::int32_t>(third.y >> 12);

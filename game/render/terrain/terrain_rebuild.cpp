@@ -14,18 +14,6 @@ namespace gte = psx::gte;
 
 // The end of the 2 MB main-RAM window a guest packet address can name.
 
-// The detail pass sign-clears its flag cursor (guest_terrain_detail.cpp), which leaves it in the
-// 64 KB window below the scratch block.
-constexpr std::uint32_t kKseg0SignBit = 0x80000000u;
-constexpr std::uint32_t kFlagWindowBytes = 0x10000u;
-
-// The DPCS-faded copy of a sector's colours: one buffer, overwritten per sector.
-constexpr std::uint32_t kFoggedColourBytes = 0x1000u;
-
-// The far pass names bins past 512 (bin 573 measured on SCUS_944.25), so the table window is
-// doubled; a bin beyond that is refused by name.
-constexpr std::uint32_t kOrderingWindowBytes = 2 * kOrderingTableBytes;
-
 // One field's terrain allocates at most 55,672 bytes of packets (measured on SCUS_944.25).
 constexpr std::uint32_t kMinArenaBytes = 0x10000u;
 
@@ -64,7 +52,7 @@ CameraState readCamera(Core &core, const guest_render_globals::Globals &globals)
 }
 
 InBetweenCamera cameraBetween(Core &core,
-                              const guest_render_globals::Globals &globals,
+                              const TerrainImage &image,
                               const CameraState &from,
                               const CameraState &to,
                               double f) {
@@ -73,10 +61,7 @@ InBetweenCamera cameraBetween(Core &core,
       guest_camera::interpolate({from.angles[0], from.angles[1], from.angles[2]},
                                 {to.angles[0], to.angles[1], to.angles[2]},
                                 at);
-  const guest_camera::Matrices matrices =
-      guest_camera::Builder(core,
-                            {.sine = globals.cameraSineTable, .cosine = globals.cameraCosineTable})
-          .build(angles);
+  const guest_camera::Matrices matrices = image.camera(core, angles);
   InBetweenCamera camera{};
   for (std::uint32_t i = 0; i < gte::kRotationWords; ++i) {
     camera.rotation[i] = matrices.projection[i];
@@ -97,38 +82,17 @@ std::vector<std::uint8_t> unionVisibility(std::span<const std::uint8_t> from,
   return out;
 }
 
-FieldWindows
-fieldWindows(Core &core, const Facts &facts, const guest_render_globals::Globals &globals) {
-  // The windows are disjoint: the guest's own cursor can already be past the field's packets.
-  const std::uint32_t scratch = core.mem_r32(globals.scratchBaseWord) - facts.scratchListsBelowEnd;
-  const std::uint32_t tableBase = core.mem_r32(globals.orderingTable);
-  // The scratch block runs to `frameTop` because a split list can grow past retail's block when
-  // the camera sits between two fields.
-  const std::uint32_t frameTop = std::max({scratch + facts.scratchListsBelowEnd,
-                                           tableBase + kOrderingWindowBytes,
-                                           facts.foggedColours + kFoggedColourBytes});
-  return FieldWindows{.scratch = scratch,
-                      .tableBase = tableBase,
-                      .frameTop = frameTop,
-                      .owned = {GuestRange{kScratchpad, kScratchpadBytes},
-                                GuestRange{scratch, frameTop - scratch},
-                                GuestRange{scratch & ~kKseg0SignBit, kFlagWindowBytes},
-                                GuestRange{tableBase, kOrderingWindowBytes},
-                                GuestRange{facts.foggedColours, kFoggedColourBytes}}};
-}
-
 Rebuild::Rebuild(Core &core,
-                 const Facts &facts,
-                 const guest_render_globals::Globals &globals,
+                 const TerrainImage &image,
                  const InBetweenCamera &camera,
                  const FieldInputs &field)
     : core_(core), memory_(core), camera_(camera) {
-  const FieldWindows windows = fieldWindows(core, facts, globals);
-  const PacketArena arena = packetArenaWindow(windows.frameTop);
+  const FieldWindows windows = image.windows(core);
+  const guest_memory::PacketArena arena = windows.inBetweenArena;
   if (arena.bytes < kMinArenaBytes) {
     lucent::error("terrrebuild",
-                  "refusing a terrain in-between: the packet arena above this field's own state "
-                  "runs from 0x{:08X} for {} bytes, and one field's terrain needs more than {}",
+                  "refusing a terrain in-between: its packet arena runs from 0x{:08X} for {} "
+                  "bytes, and one field's terrain needs more than {}",
                   arena.base,
                   arena.bytes,
                   kMinArenaBytes);
@@ -137,7 +101,7 @@ Rebuild::Rebuild(Core &core,
 
   // Every range starts empty: seeding from the guest would hand the traversal the last real
   // field's lists and bins.
-  for (const GuestRange &range : windows.owned) {
+  for (const guest_memory::GuestRange &range : windows.owned) {
     memory_.mapEmpty(range.base, range.bytes);
   }
   memory_.mapEmpty(arena.base, arena.bytes);
@@ -155,11 +119,11 @@ Rebuild::Rebuild(Core &core,
     }
   }
   drawer_.emplace(core,
-                  facts,
-                  globals,
+                  image,
                   memory_,
                   FrameMode::InBetween,
                   InBetweenWindow{.camera = &camera_,
+                                  .argument = field.argument,
                                   .arenaBase = arena.base,
                                   .packetBudget = field.packetBudget});
   const TerrainFrame &ran = drawer_->run();

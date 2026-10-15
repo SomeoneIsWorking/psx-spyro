@@ -13,6 +13,9 @@
 // tables.
 #pragma once
 
+#include "guest_terrain_animation.h"
+#include "guest_terrain_screen.h"
+
 #include <array>
 #include <cstdint>
 
@@ -23,8 +26,7 @@ struct ClassifyFacts {
   std::uint32_t sectorTable = 0;
   std::uint32_t sectorCount = 0;
   std::uint32_t viewRotation = 0;
-  // The animation tables, one per word slot.
-  std::array<std::uint32_t, 4> animationTables{};
+  AnimationLayout animation{};
 };
 
 // The detail pass's own guest words.
@@ -65,6 +67,7 @@ struct FineFacts {
 
 // The GPU-size re-split pass's tables. They are a third pair, distinct from both split passes'.
 struct ResplitFacts {
+  std::uint32_t queue = 0;          // the queue's offset in the scratch block
   std::uint32_t trianglePieces = 0; // 7 words: three cell offsets, plus bit 0 "never too large"
   std::uint32_t quadPieces = 0;
 };
@@ -94,6 +97,8 @@ struct Facts {
 
   // The authored horizontal window this title's own display bootstrap states, in columns.
   std::int32_t nativeWidth = 0;
+  // The rows the passes' vertical outcodes test against.
+  VerticalBounds vertical{};
 
   ClassifyFacts classify{};
   DetailFacts detail{};

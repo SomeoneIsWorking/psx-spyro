@@ -1,5 +1,7 @@
 #include "native_effect_state.h"
 
+#include "spyro1_shadow_block.h"
+
 #include "guest_call.h"
 #include "native_execution.h"
 
@@ -63,16 +65,6 @@ constexpr std::uint32_t kFlameSelect = 0x80078762u;    // +0x9A
 constexpr std::uint32_t kFlameVariant = 0x80078763u;   // +0x9B, the rand() bit
 constexpr std::uint32_t kFlameSuper = 0x80078764u;     // +0x9C, the recipe's superflame word
 constexpr std::uint32_t kFairyKissTimer = 0x80078768u; // +0xA0, m_FairyKissTimer
-
-// D_8007AA10 is the ground-shadow state the shadow drawer 0x80059A48 reads; its +0x20 ring index
-// is the only address the body forms itself, so the rest are offsets from it.
-constexpr std::uint32_t kShadowRingIndex = 0x8007AA30u;
-constexpr std::uint32_t kShadowHeights = kShadowRingIndex - 0x20u;   // +0x00, eight signed bytes
-constexpr std::uint32_t kShadowSlotFlags = kShadowRingIndex - 0x18u; // +0x08, eight bytes
-constexpr std::uint32_t kShadowAnchor = kShadowRingIndex - 0x10u;    // +0x10, the anchor position
-constexpr std::uint32_t kShadowReference = kShadowRingIndex - 0x08u; // +0x18, the reference height
-constexpr std::uint32_t kShadowBias = kShadowRingIndex - 0x04u;      // +0x1C
-constexpr std::uint32_t kShadowSuppress = kShadowRingIndex + 0x04u;  // +0x24, non-zero hides it
 
 constexpr std::uint32_t kShadowBlendLimit = 0x7Fu;
 constexpr std::uint32_t kShadowNearBand = 0x80u;
@@ -434,29 +426,29 @@ void updateGroundShadow(Core *c) {
   c->r[5] = frame + 0x10u;
   c->r[6] = kSpyroPosition;
   psx::cpu::callGuestNow(*c, kGroundShadow, kVecAdd, c->r[4], c->r[5], c->r[6], c->r[7]);
-  c->r[4] = kShadowAnchor;
+  c->r[4] = shadow_block::kAnchor;
   c->r[5] = frame + 0x10u;
   psx::cpu::callGuestNow(*c, kGroundShadow, kVecCopy, c->r[4], c->r[5], c->r[6], c->r[7]);
   if (c->mem_r8(kSpyroSortingDepth) < kShadowBlendLimit) {
     c->mem_w8(kSpyroSortingDepth, 5);
   }
   const std::uint32_t reference = c->mem_r32(kSpyroSurfaceBelow);
-  c->mem_w32(kShadowReference, reference);
-  c->mem_w32(kShadowBias, 3);
+  c->mem_w32(shadow_block::kReference, reference);
+  c->mem_w32(shadow_block::kBias, 3);
   const std::int32_t drop =
       static_cast<std::int32_t>(c->mem_r32(kSpyroPositionZ)) - static_cast<std::int32_t>(reference);
   if (drop >= kShadowDropRange) {
-    c->mem_w32(kShadowBias, 5);
+    c->mem_w32(shadow_block::kBias, 5);
   }
   const std::int32_t threshold =
       static_cast<std::int32_t>(c->mem_r32(kHeightThresholdTable + c->mem_r32(kLevelIndex) * 4u));
   const std::uint32_t proximity = c->mem_r32(kSurfaceProximityState);
   const std::uint32_t suppress =
       threshold >= static_cast<std::int32_t>(reference) || proximity != 0u ? 1u : 0u;
-  c->mem_w32(kShadowSuppress, suppress);
-  c->r[17] = kShadowRingIndex;
-  const std::uint32_t slot = (c->mem_r32(kShadowRingIndex) + 1u) & (kShadowSlots - 1u);
-  c->mem_w32(kShadowRingIndex, slot);
+  c->mem_w32(shadow_block::kSuppress, suppress);
+  c->r[17] = shadow_block::kRingIndex;
+  const std::uint32_t slot = (c->mem_r32(shadow_block::kRingIndex) + 1u) & (kShadowSlots - 1u);
+  c->mem_w32(shadow_block::kRingIndex, slot);
   if (armed != 0u) {
     c->r[4] = kSpyroRotation;
     c->r[5] = kShadowFanOffsets + slot * kShadowStride;
@@ -476,30 +468,31 @@ void updateGroundShadow(Core *c) {
     c->mem_w32(frame + 0x18u, anchorZ);
     const std::int32_t lift = static_cast<std::int32_t>(anchorZ) - surface;
     const bool near = (static_cast<std::uint32_t>(lift) + kShadowNearBand) < 0x100u;
-    const std::uint32_t store = c->mem_r32(kShadowRingIndex);
+    const std::uint32_t store = c->mem_r32(shadow_block::kRingIndex);
     if (near) {
-      c->mem_w8(kShadowSlotFlags + store, 0);
+      c->mem_w8(shadow_block::kSlotFlags + store, 0);
       std::int32_t scaled =
-          (static_cast<std::int32_t>(c->mem_r32(kShadowReference)) - surface) * kShadowLiftScale;
+          (static_cast<std::int32_t>(c->mem_r32(shadow_block::kReference)) - surface) *
+          kShadowLiftScale;
       if (scaled < 0) {
         scaled += 0x1FF;
       }
       const std::uint32_t value = static_cast<std::uint32_t>(scaled >> 9);
-      c->mem_w8(kShadowHeights + store, static_cast<std::uint8_t>(value));
+      c->mem_w8(shadow_block::kHeights + store, static_cast<std::uint8_t>(value));
       c->r[2] = value;
-      c->r[3] = kShadowHeights + store;
+      c->r[3] = shadow_block::kHeights + store;
     } else {
-      c->mem_w8(kShadowSlotFlags + store, 1);
-      c->mem_w8(kShadowHeights + store, 0);
-      c->r[2] = kShadowHeights + store;
-      c->r[3] = kShadowHeights;
+      c->mem_w8(shadow_block::kSlotFlags + store, 1);
+      c->mem_w8(shadow_block::kHeights + store, 0);
+      c->r[2] = shadow_block::kHeights + store;
+      c->r[3] = shadow_block::kHeights;
     }
   } else {
-    const std::uint32_t store = c->mem_r32(kShadowRingIndex);
-    c->mem_w8(kShadowSlotFlags + store, 0);
-    c->mem_w8(kShadowHeights + store, 0);
-    c->r[2] = kShadowHeights + store;
-    c->r[3] = kShadowHeights;
+    const std::uint32_t store = c->mem_r32(shadow_block::kRingIndex);
+    c->mem_w8(shadow_block::kSlotFlags + store, 0);
+    c->mem_w8(shadow_block::kHeights + store, 0);
+    c->r[2] = shadow_block::kHeights + store;
+    c->r[3] = shadow_block::kHeights;
   }
   c->r[16] = entryS0;
   c->r[17] = entryS1;

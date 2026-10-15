@@ -258,18 +258,18 @@ void test_a_saved_field_keeps_only_level_words() {
     return;
   }
   const std::size_t count =
-      (state->size() - sizeof(terrain::FieldState)) / sizeof(terrain::LevelWord);
-  std::vector<terrain::LevelWord> words(count);
+      (state->size() - sizeof(terrain::FieldState)) / sizeof(spyro::guest_memory::LevelWord);
+  std::vector<spyro::guest_memory::LevelWord> words(count);
   std::memcpy(words.data(), state->data() + sizeof(terrain::FieldState), count * sizeof(words[0]));
-  const terrain::GuestRange owned[] = {
+  const spyro::guest_memory::GuestRange owned[] = {
       {terrain::kScratchpad, terrain::kScratchpadBytes},
       {spyro::test::kScratchEnd - spyro2::kTerrainFacts.scratchListsBelowEnd,
        spyro2::kTerrainFacts.scratchListsBelowEnd},
       {kTable, terrain::kOrderingTableBytes},
   };
   bool levelRead = false;
-  for (const terrain::LevelWord &word : words) {
-    for (const terrain::GuestRange &range : owned) {
+  for (const spyro::guest_memory::LevelWord &word : words) {
+    for (const spyro::guest_memory::GuestRange &range : owned) {
       CHECK(!range.contains(word.address));
     }
     levelRead = levelRead ||

@@ -31,7 +31,7 @@ int main() {
   using spyro::guest_terrain::ScreenBounds;
 
   // Retail's spellings, over x and y wide enough to wrap the shifted comparisons.
-  const ScreenBounds retail(spyro2::kTerrainFacts.nativeWidth, 0);
+  const ScreenBounds retail(spyro2::kTerrainFacts.nativeWidth, 0, spyro2::kTerrainFacts.vertical);
   bool agrees = true;
   for (std::int32_t x = -1100; x <= 1100; x += 3) {
     for (std::int32_t y = -300; y <= 300; y += 50) {
@@ -60,7 +60,7 @@ int main() {
          "the two titles read different split tables");
 
   // A 16:9 margin of 86 columns: [-86, 598).
-  const ScreenBounds wide(spyro2::kTerrainFacts.nativeWidth, 86);
+  const ScreenBounds wide(spyro2::kTerrainFacts.nativeWidth, 86, spyro2::kTerrainFacts.vertical);
   expect(wide.left() == -86 && wide.right() == 598, "16:9 window");
   expect(!wide.outsideHorizontal(sxy(-86, 40)), "left edge inside");
   expect(wide.outsideHorizontal(sxy(-87, 40)), "past left edge outside");
@@ -73,7 +73,7 @@ int main() {
          "retail's edges are inside the wide window");
 
   // A negative margin never narrows the window.
-  const ScreenBounds narrow(spyro2::kTerrainFacts.nativeWidth, -20);
+  const ScreenBounds narrow(spyro2::kTerrainFacts.nativeWidth, -20, spyro2::kTerrainFacts.vertical);
   expect(narrow.left() == 0 && narrow.right() == spyro2::kTerrainFacts.nativeWidth,
          "never narrower");
 

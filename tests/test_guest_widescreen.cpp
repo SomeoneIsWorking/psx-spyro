@@ -4,6 +4,7 @@
 #include "game.h"
 #include "guest_widescreen_projection.h"
 #include "platform_hle.h"
+#include "record_wide_plan.h"
 #include "testutil.h"
 #include "ui_anchor.h"
 
@@ -14,24 +15,12 @@
 
 namespace {
 
-// The plan the Record presenter latches for a 512x240 display at 16:9.
-GuestProjectionPlan widePlan() {
-  return guest_projection_plan({
-      .path = RenderPath::Record,
-      .requested = PresentationAspect::Wide16x9,
-      .nativePresentation = {512, 240},
-      .nativeProjection = {.extent = {512, 240}, .drawWidth = 512},
-      .sink = {1920, 1080},
-      .vramWidth = 1024,
-  });
-}
-
 void test_the_hud_frame_follows_the_sessions_plan() {
   spyro::test::BootedTitle first(spyro::SpyroTitle::Spyro2);
   const spyro::ui_anchor::Frame unwidened = spyro::ui_anchor::widescreenFrame(first.core(), 512);
   CHECK_EQ(unwidened.authored, 512);
   CHECK_EQ(unwidened.drawn, 512);
-  first.game().guestDisplay.latch(widePlan());
+  first.game().guestDisplay.latch(spyro::test::recordWidePlan());
   const spyro::ui_anchor::Frame widened = spyro::ui_anchor::widescreenFrame(first.core(), 512);
   CHECK_EQ(widened.authored, 512);
   CHECK_EQ(widened.drawn, 684);
@@ -39,7 +28,7 @@ void test_the_hud_frame_follows_the_sessions_plan() {
 
 void test_a_new_session_starts_unwidened() {
   spyro::test::BootedTitle title(spyro::SpyroTitle::Spyro3);
-  title.game().guestDisplay.latch(widePlan());
+  title.game().guestDisplay.latch(spyro::test::recordWidePlan());
   title.restart();
   const spyro::ui_anchor::Frame frame = spyro::ui_anchor::widescreenFrame(title.core(), 512);
   CHECK_EQ(frame.drawn, frame.authored);

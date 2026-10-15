@@ -1,6 +1,7 @@
 // guest_terrain_resplit.cpp — the re-split pass of the terrain drawer of this engine family
 // (SCUS_944.25 80028504..80028B14): the GPU draws nothing 512 or more dots high or 1024 or more
-// wide, so every primitive the fine pass found that large (kResplitQueue) is cut in screen space.
+// wide, so every primitive the fine pass found that large (ResplitFacts::queue) is cut in screen
+// space.
 //
 // The primitive is already linked into the ordering table. Retail empties it in place (its tag
 // length byte becomes 0, a no-op the GPU walks through) and chains the pieces after it, ahead of
@@ -116,7 +117,7 @@ private:
 
   TerrainFrame &frame_;
   Core &core_;
-  TerrainMemory &memory_;
+  guest_memory::WorkingMemory &memory_;
   std::uint32_t queueEnd_ = 0; // sp
   std::uint32_t clut_ = 0;     // t5: the first texture word's CLUT half
   std::uint32_t page_ = 0;     // t6: the second's texture page half
@@ -125,7 +126,7 @@ private:
 // 80028504.
 void ResplitPass::run() {
   queueEnd_ = memory_.r32(kSplitPrimitiveCursor);
-  std::uint32_t queue = frame_.scratch + kResplitQueue;
+  std::uint32_t queue = frame_.scratch + frame_.facts.resplit.queue;
   while (queue != queueEnd_) {
     const std::uint32_t primitive = memory_.r32(queue);
     queue += 4;
@@ -184,10 +185,10 @@ void ResplitPass::classifyPoints(std::uint32_t count) {
     const std::uint32_t cell = kScratchpad + i * kCellSize;
     const std::uint32_t sxy = memory_.r32(cell + point::kScreen);
     std::uint8_t code = 0;
-    if (aboveTop(sxy)) {
+    if (frame_.bounds.aboveTop(sxy)) {
       code |= kOutAbove;
     }
-    if (belowBottom(sxy)) {
+    if (frame_.bounds.belowBottom(sxy)) {
       code |= kOutBelow;
     }
     if (frame_.bounds.atOrLeftOfLeft(sxy)) {
@@ -230,7 +231,7 @@ void ResplitPass::emitPieces(std::uint32_t primitive, PieceTable pieces) {
     memory_.w32(prim + packet::kUv0, memory_.r16(cells[0] + point::kUv) + clut_);
     memory_.w32(prim + packet::kUv1, memory_.r16(cells[1] + point::kUv) + page_);
     memory_.w32(prim + packet::kUv2, memory_.r16(cells[2] + point::kUv));
-    if ((piece & kPieceFitsGpu) == 0 && exceedsGpuSpan(screens)) {
+    if ((piece & kPieceFitsGpu) == 0 && gpuSpan(screens) != GpuSpan::Within) {
       memory_.w32(queueEnd_, prim);
       queueEnd_ += 4;
     }
