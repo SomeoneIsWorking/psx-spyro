@@ -16,7 +16,10 @@
 // once-per-sector header word the subdivision passes use to find the sector again.
 #pragma once
 
+#include "guest_terrain_cull.h"
 #include "guest_terrain_frame.h"
+#include "guest_terrain_split.h"
+#include "guest_word.h"
 
 #include <cstdint>
 
@@ -106,7 +109,7 @@ struct SplitEntry {
 };
 
 // Append the entry, first writing the header if this sector has not yet put anything on the list.
-inline void deferToSplitList(TerrainMemory &memory,
+inline void deferToSplitList(guest_memory::WorkingMemory &memory,
                              SplitList list,
                              std::uint32_t &sectorWord,
                              SplitEntry entry) {
@@ -128,7 +131,7 @@ struct TextureWords {
 
 // 80025378 / 80025C14: a textured triangle's three UV words over a record's 32-texel square; the
 // triangle drops the corner its draw word names. Returns the value retail leaves in v1.
-inline std::uint32_t writeTriangleUvs(TerrainMemory &memory,
+inline std::uint32_t writeTriangleUvs(guest_memory::WorkingMemory &memory,
                                       std::uint32_t primitive,
                                       TextureWords texture,
                                       std::uint32_t corner) {
@@ -158,9 +161,49 @@ inline std::uint32_t writeTriangleUvs(TerrainMemory &memory,
   }
 }
 
+// Where an image's table of GT3 piece UV deltas puts a piece's: its turn (two bits) shifted by
+// `turnShift`, plus the texture page's class ((page >> 25) & `pageClassMask`).
+struct PieceUvLayout {
+  std::uint32_t turnShift = 0;
+  std::uint32_t pageClassMask = 0;
+};
+inline constexpr PieceUvLayout kEnginePieceUvs{.turnShift = 6, .pageClassMask = 0x38};
+
+// A piece's delta table and its turn.
+struct PieceUvs {
+  std::uint32_t table = 0;
+  std::uint32_t turn = 0;
+};
+
+// A GT3 piece's three UV words (SCUS_944.25 80026AD0 / 80028248, SCUS_942.28 80028408): the texture
+// pair's corner moved by the table's deltas.
+inline void writePieceTriangleUvs(guest_memory::WorkingMemory &memory,
+                                  std::uint32_t primitive,
+                                  TextureWords pair,
+                                  PieceUvs uvs,
+                                  PieceUvLayout layout) {
+  const std::uint32_t deltas = uvs.table + ((uvs.turn & 3u) << layout.turnShift) +
+                               ((pair.page >> 25) & layout.pageClassMask);
+  const std::uint32_t delta = memory.r32(deltas);
+  const auto third = static_cast<std::int16_t>(memory.r16(deltas + 4));
+  memory.w32(primitive + packet::kUv0, (delta & 0xFFFFu) + pair.uv);
+  memory.w32(primitive + packet::kUv1, guest_word::sra(delta, 16) + pair.page);
+  memory.w32(primitive + packet::kUv2, static_cast<std::uint32_t>(std::int32_t{third}) + pair.uv);
+}
+
+// The draw word's sides, as the subdivision passes' backface tests take them.
+inline Sidedness sidedness(std::uint32_t draw) {
+  return Sidedness{.twoSided = (draw & kTwoSided) != 0, .flipped = (draw & kFlippedWinding) != 0};
+}
+
+// The bins a draw word moves its polygon back by.
+inline std::uint32_t binBias(std::uint32_t draw) {
+  return (draw & kBinBiasMask) >> 5;
+}
+
 // The ordering-table bin of a polygon whose vertex depths sum to `depthSum`.
 inline std::uint32_t polygonBin(std::uint32_t depthSum, std::uint32_t draw) {
-  return (depthSum >> 7) + ((draw & kBinBiasMask) >> 5);
+  return (depthSum >> 7) + binBias(draw);
 }
 
 } // namespace spyro::guest_terrain

@@ -23,6 +23,7 @@ namespace spyro::guest_terrain {
 // A saved field is this header followed by the guest words the field read.
 struct FieldState {
   CameraState camera;
+  std::uint32_t argument = 0;
   std::int32_t packetBudget = 0;
   std::uint32_t sectorCount = 0;
   std::uint8_t visible[kScratchpadBytes] = {};
@@ -34,20 +35,18 @@ static_assert(std::is_trivially_copyable_v<FieldState>);
 
 // The real drawer's field, saved for the scope it draws in. Aborts when the level declares more
 // sectors than the state holds.
-void drawField(Core &core, const Facts &facts, const guest_render_globals::Globals &globals);
+void drawField(Core &core, const TerrainImage &image);
 
 class TerrainStateProducer final : public psx::present::StateProducer {
 public:
-  TerrainStateProducer(Core &core, const Facts &facts, const guest_render_globals::Globals &globals)
-      : core_(core), facts_(facts), globals_(globals) {}
+  TerrainStateProducer(Core &core, const TerrainImage &image) : core_(core), image_(image) {}
 
   void render(const psx::present::StateInterval &states,
               psx::present::PrimitiveSink &sink) const override;
 
 private:
   Core &core_;
-  const Facts &facts_;
-  const guest_render_globals::Globals &globals_;
+  const TerrainImage &image_;
 };
 
 } // namespace spyro::guest_terrain

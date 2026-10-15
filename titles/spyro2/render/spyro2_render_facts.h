@@ -79,6 +79,8 @@ inline constexpr spyro::guest_terrain::Facts kTerrainFacts{
     // The display bootstrap's own geometry init states SetGeomOffset(0x100, 0x78) for the 512-dot
     // display mode, so the guest's authored view is 512 columns wide.
     .nativeWidth = 512,
+    // The outcode tests' `lui 0xD` and `lui 0xE4`: rows 13 and 228.
+    .vertical = {.top = 0x000D0000u, .bottom = 0x00E40000u},
     // The passes' own tables, each named at its use in game/render/guest_terrain_*.cpp with the
     // instruction here that reaches it.
     .classify =
@@ -86,7 +88,12 @@ inline constexpr spyro::guest_terrain::Facts kTerrainFacts{
             .sectorTable = 0x800673D4u,  // 8002497C
             .sectorCount = 0x800673D8u,  // 80024980
             .viewRotation = 0x80067E98u, // 80023C20: five RT words, camera-relative
-            .animationTables = {0x800681E8u, 0x800681F0u, 0x800681F8u, 0x80068200u},
+            .animation =
+                {
+                    .tables = {0x800681E8u, 0x800681F0u, 0x800681F8u, 0x80068200u},
+                    .vectorFlags = {0x2000u, 0x4000u},
+                    .definitionOffsetsTarget = true,
+                },
         },
     .detail =
         {
@@ -121,6 +128,7 @@ inline constexpr spyro::guest_terrain::Facts kTerrainFacts{
         },
     .resplit =
         {
+            .queue = 0x2400u,              // the coarse split list, already walked
             .trianglePieces = 0x80062560u, // 80028974
             .quadPieces = 0x8006257Cu,     // 800287A8
         },

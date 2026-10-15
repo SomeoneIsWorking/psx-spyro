@@ -20,8 +20,8 @@
 // or a call only the guest can make; nothing else is gated, and the gating is what makes the real
 // field provably unchanged.
 //
-// `TerrainMemory`. The five ranges the passes own for the length of a field (see
-// guest_terrain_memory.h) are read and written through one accessor, so the same traversal runs
+// `WorkingMemory`. The five ranges the passes own for the length of a field (see
+// guest_working_memory.h) are read and written through one accessor, so the same traversal runs
 // over the guest's RAM for a real field and over host memory for an in-between.
 #pragma once
 
@@ -29,8 +29,8 @@
 #include "gte_registers.h"
 #include "guest_render_globals.h"
 #include "guest_terrain_facts.h"
-#include "guest_terrain_memory.h"
 #include "guest_terrain_screen.h"
+#include "guest_working_memory.h"
 
 #include <cstdint>
 #include <vector>
@@ -45,9 +45,6 @@ inline constexpr std::uint32_t kTranslucentList = 0x2200; // translucent sectors
 inline constexpr std::uint32_t kFineSplitList = 0x2300; // polygons with a vertex nearer than 0x140
 inline constexpr std::uint32_t kCoarseSplitList = 0x2400; // polygons near enough to split once
 inline constexpr std::uint32_t kFarList = 0x2A00;         // untextured low-detail sectors
-// The fine pass reuses kCoarseSplitList, already walked, as the queue of primitives too large for
-// the GPU (guest_terrain_resplit.cpp); kSplitPrimitiveCursor is its end.
-inline constexpr std::uint32_t kResplitQueue = kCoarseSplitList;
 
 // The drawer's scratchpad. Every pass reuses the same region for its vertex cache. It is scratchpad
 // RAM, not guest RAM, and therefore the same address in every image of this family.
@@ -55,8 +52,8 @@ inline constexpr std::uint32_t kScratchpad = 0x1F800000u;
 // The whole scratchpad, and therefore every address the passes own above it.
 inline constexpr std::uint32_t kScratchpadBytes = 0x400u;
 inline constexpr std::uint32_t kVertexDepths = 0x1F8002A8u; // the detail passes' SZ halfwords
-inline constexpr std::uint32_t kSplitPrimitiveCursor =
-    0x1F8003FCu; // one past kResplitQueue's last entry
+// One past the last entry of the queue of primitives too large for the GPU (ResplitFacts::queue).
+inline constexpr std::uint32_t kSplitPrimitiveCursor = 0x1F8003FCu;
 
 // A CAMERA THE RENDER READS, held by the frame rather than read from the globals word, so an
 // in-between field can present a camera between two of the guest's own.
@@ -119,7 +116,7 @@ struct TerrainFrame {
                const Facts &facts,
                const guest_render_globals::Globals &globals,
                ScreenBounds bounds,
-               TerrainMemory &memory,
+               guest_memory::WorkingMemory &memory,
                FrameMode mode)
       : core(core), facts(facts), globals(globals), bounds(bounds), memory(memory), mode(mode) {}
 
@@ -249,9 +246,10 @@ struct TerrainFrame {
   const Facts &facts;
   const guest_render_globals::Globals &globals;
   const ScreenBounds bounds;
-  TerrainMemory &memory;
+  guest_memory::WorkingMemory &memory;
   const FrameMode mode;
-  std::uint32_t scratch = 0;           // the scratch block base, VXY1
+  std::uint32_t argument = 0;          // the drawer's $a0
+  std::uint32_t scratch = 0;           // the scratch block base
   std::uint32_t primitive = 0;         // fp: the next free primitive packet
   std::uint32_t orderingTable = 0;     // the ordering table's bin 0
   std::uint32_t textures = 0;          // the level's 48-byte texture records

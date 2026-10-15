@@ -12,7 +12,8 @@
 //   at or left of left    (int32)(sxy << 16) <= 0         x <= 0
 //   at or right of right  (int32)((sxy << 16) - 0x2000000) >= 0    x >= 512
 //
-// (the vertical tests compare the whole word against 13 << 16 and 228 << 16 and are not touched).
+// The vertical tests compare the whole word against a title's top and bottom rows (y << 16) and are
+// not touched by widescreen.
 //
 // WIDESCREEN. At 16:9 the presentation shows the guest's picture with `margin` extra columns on
 // each side, so the window a vertex must leave before its polygon may be dropped is [-margin, 512 +
@@ -30,12 +31,19 @@
 
 namespace spyro::guest_terrain {
 
+// A title's vertical window as its image tests it: `sxy - top <= 0` above, `sxy - bottom >= 0`
+// below.
+struct VerticalBounds {
+  std::uint32_t top = 0;
+  std::uint32_t bottom = 0;
+};
+
 class ScreenBounds {
 public:
-  constexpr ScreenBounds() = default;
   // A window `nativeWidth` wide, `margin` columns wider on each side. Never narrower than retail's.
-  constexpr ScreenBounds(std::int32_t nativeWidth, std::int32_t margin)
-      : left_(margin > 0 ? -margin : 0), right_(nativeWidth + (margin > 0 ? margin : 0)) {}
+  constexpr ScreenBounds(std::int32_t nativeWidth, std::int32_t margin, VerticalBounds vertical)
+      : left_(margin > 0 ? -margin : 0), right_(nativeWidth + (margin > 0 ? margin : 0)),
+        vertical_(vertical) {}
 
   [[nodiscard]] constexpr std::int32_t left() const {
     return left_;
@@ -60,21 +68,18 @@ public:
     return static_cast<std::int32_t>((sxy << 16) - (static_cast<std::uint32_t>(right_) << 16)) >= 0;
   }
 
+  [[nodiscard]] constexpr bool aboveTop(std::uint32_t sxy) const {
+    return static_cast<std::int32_t>(sxy - vertical_.top) <= 0;
+  }
+
+  [[nodiscard]] constexpr bool belowBottom(std::uint32_t sxy) const {
+    return static_cast<std::int32_t>(sxy - vertical_.bottom) >= 0;
+  }
+
 private:
   std::int32_t left_ = 0;
-  std::int32_t right_ = 512;
+  std::int32_t right_ = 0;
+  VerticalBounds vertical_;
 };
-
-// The vertical tests, which widescreen leaves as retail's.
-inline constexpr std::uint32_t kScreenTop = 0x000D0000u;    // sxy - kScreenTop <= 0: above
-inline constexpr std::uint32_t kScreenBottom = 0x00E40000u; // sxy - kScreenBottom >= 0: below
-
-[[nodiscard]] constexpr bool aboveTop(std::uint32_t sxy) {
-  return static_cast<std::int32_t>(sxy - kScreenTop) <= 0;
-}
-
-[[nodiscard]] constexpr bool belowBottom(std::uint32_t sxy) {
-  return static_cast<std::int32_t>(sxy - kScreenBottom) >= 0;
-}
 
 } // namespace spyro::guest_terrain

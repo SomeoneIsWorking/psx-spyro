@@ -17,10 +17,12 @@
 #include "core.h"
 #include "gte_registers.h"
 #include "guest_render_globals.h"
+#include "guest_terrain_far_vertices.h"
 #include "guest_terrain_fog.h"
 #include "guest_terrain_frame.h"
 #include "guest_terrain_passes.h"
 #include "guest_terrain_screen.h"
+#include "guest_word.h"
 
 #include <array>
 
@@ -31,13 +33,8 @@ namespace {
 // pass's.
 namespace gte = psx::gte;
 
-constexpr std::int32_t asSigned(std::uint32_t value) {
-  return static_cast<std::int32_t>(value);
-}
-
-std::uint32_t shiftRightArithmetic(std::uint32_t value, std::uint32_t bits) {
-  return static_cast<std::uint32_t>(asSigned(value) >> bits);
-}
+using spyro::guest_word::asSigned;
+using spyro::guest_word::sra;
 
 // SCUS_944.25 80028B2C: the buffer ends at scratch + 0x1000.
 
@@ -65,16 +62,10 @@ struct FarLayout {
 
 constexpr std::uint32_t kRecordSize = 8;
 constexpr std::uint32_t kTwoSided = 0x80000000u; // in the record's vertex word
-constexpr std::uint32_t kVertexCellSize = 8;     // screen word, SZ
 constexpr std::uint32_t kBinBase = 0x30;
 constexpr std::uint32_t kBinBiasMask = 0xF;
 
-constexpr std::uint32_t kOutAbove = 1;
-constexpr std::uint32_t kOutBelow = 2;
-constexpr std::uint32_t kOutHorizontal = 4;
-constexpr std::uint32_t kOutNear = 8;
 constexpr std::uint32_t kOutcodeMask = 0xF;
-constexpr std::uint32_t kOutcodeShift = 5;
 
 constexpr std::uint32_t kG4Tag = 0x08000000u;
 constexpr std::uint32_t kG4Code = 0x38000000u;
@@ -93,14 +84,12 @@ public:
 
 private:
   Sector drawSector(std::uint32_t listWord);
-  bool projectVertices(std::uint32_t data, const FarLayout &layout);
-  void loadVertex(std::uint32_t word);
   Sector drawPolygon(std::uint32_t record);
   bool link(std::uint32_t bin, std::uint32_t bytes);
 
   TerrainFrame &frame_;
   Core &core_;
-  TerrainMemory &memory_;
+  guest_memory::WorkingMemory &memory_;
   std::uint32_t lastBin_ = 0;   // s2
   std::uint32_t bufferEnd_ = 0; // LO
   // s3: the deepest bin any primitive has started in, as an ORDINAL. Retail holds the bin's slot
@@ -149,7 +138,12 @@ Sector FarPass::drawSector(std::uint32_t listWord) {
              camera_[2] - memory_.r16(sector + far_sector::kOriginY)};
   const FarLayout layout(memory_.r32(sector + far_sector::kLayout));
   const std::uint32_t data = sector + far_sector::kData;
-  if (!projectVertices(data, layout)) {
+  const FarClip clip{
+      .clipped = sectorClass_ != 0, .edge = (sectorClass_ & 1u) != 0, .nearBias = layout.nearBias};
+  if (!projectFarVertices(frame_,
+                          {.data = data, .count = layout.vertexCount, .origin = origin_},
+                          clip,
+                          FarHeight::Doubled)) {
     return Sector::Drawn;
   }
 
@@ -170,60 +164,6 @@ Sector FarPass::drawSector(std::uint32_t listWord) {
     }
   }
   return Sector::Drawn;
-}
-
-// The vertex word's position relative to the camera into the GTE's V0: z in the top 11 bits,
-// x and y below it.
-void FarPass::loadVertex(std::uint32_t word) {
-  const std::uint32_t z = (word >> 21) + origin_[0];
-  const std::uint32_t x = origin_[1] - ((word >> 10) & 0x7FFu);
-  const std::uint32_t y = origin_[2] - ((word << 1) & 0x7FFu);
-  core_.gte().writeData(gte::kVz0, z);
-  core_.gte().writeData(gte::kVxy0, x + (y << 16));
-}
-
-// 80028BC0: project every vertex into the scratchpad. Like retail, the loop loads one vertex past
-// the array into V0. Returns false when every vertex shares an outcode.
-bool FarPass::projectVertices(std::uint32_t data, const FarLayout &layout) {
-  const std::uint32_t sectorClass = sectorClass_;
-  const std::uint32_t end = data + 4 * layout.vertexCount + 8;
-  std::uint32_t next = data;
-  loadVertex(memory_.r32(next));
-  next += 8;
-  std::uint32_t cell = kScratchpad;
-  std::uint32_t shared = 0xFFFFFFFFu;
-  do {
-    core_.gte().execute(gte::kRtps);
-    loadVertex(memory_.r32(next - 4));
-    next += 4;
-    const std::uint32_t sxy = core_.gte().readData(gte::kSxy2);
-    const std::uint32_t sz = core_.gte().readData(gte::kSz3);
-    frame_.v0 = sxy;
-    frame_.v1 = sz;
-    std::uint32_t word = sxy;
-    if (sectorClass != 0) {
-      word = sxy << kOutcodeShift;
-      if ((sectorClass & 1u) != 0) {
-        if (aboveTop(sxy)) {
-          word += kOutAbove;
-        }
-        if (belowBottom(sxy)) {
-          word += kOutBelow;
-        }
-        if (frame_.bounds.outsideHorizontal(sxy)) {
-          word += kOutHorizontal;
-        }
-      }
-      if (asSigned(sz + layout.nearBias) < 0) {
-        word += kOutNear;
-      }
-      shared &= word;
-    }
-    memory_.w32(cell, word);
-    memory_.w32(cell + 4, sz);
-    cell += kVertexCellSize;
-  } while (next != end);
-  return (sectorClass & 1u) == 0 || (shared & kOutcodeMask) == 0;
 }
 
 // 80028E28: one record, a G4 or (third and fourth vertex equal) a G3.
@@ -251,7 +191,7 @@ Sector FarPass::drawPolygon(std::uint32_t record) {
       return Sector::Drawn;
     }
     for (std::uint32_t i = 0; i < corners; ++i) {
-      screens[i] = shiftRightArithmetic(screens[i], kOutcodeShift);
+      screens[i] = sra(screens[i], kFarOutcodeShift);
     }
     frame_.v0 = screens[1];
     frame_.v1 = screens[2];

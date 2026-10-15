@@ -20,7 +20,7 @@ behavior or native owner it observed; it does not prove that the native/Lightrec
 | S002 | Stage-13 title modes 0 and 1 are presented | partial — on Record the guest's title overlay draws them and recordcheck at t=1 matches through the boot route; the native title-menu owner was deleted 2026-10-15 | S001 | G003 |
 | S003 | Stage-13 title mode 2 presents the three-slot save screen | partial — on Record the guest's overlay draws it; the 900-field mode-2 route has not been rerun on Record (it was verified on the deleted native owner) | S002 | G003 |
 | S004 | Spyro 1 boot and gameplay advance under a title-owned frame/field scheduler | partial — since 2026-10-15 the main loop runs GamestateDraw `0x8001ED5C` through its own display tail: each `VSync(0)` of its pace loop is one field delivered by `spyro1::FrameDraw`, and the frame is presented once after its DrawOTag (`FieldScheduler::presentFrame`); the boot logos still run on `spyro1::BootSequence` | S001 | G002, G003 |
-| S005 | Spyro 1 presents on the Record path | partial — since 2026-10-15 `Spyro1Runtime` selects `RenderPath::Record` with `interpolates()`; the device draws the guest's own ordering table, so draw order is retail OT order. `PSXPORT_DEBUG=recordcheck`, 1x 4:3, 3000 steps to the attract demo's gameplay (gamestate 0): 2566 of 2566 checked records `mismatched=0` (the 24bpp boot logos are not record presents). Its producers are the fullscreen tint 0x800190D4 and cinematic letterbox 0x80018F30 (`spyro1::ScreenOverlays`); the same run composes the tint at t=1 with mismatched=0 and the census shows keyed 44, all under a producer with a render. World, actors, sky and the rest of the HUD are the guest's packets as drawn, so their in-betweens repeat the shown record (issue 0186) | S002, S004 | G003 |
+| S005 | Spyro 1 presents on the Record path | partial — since 2026-10-15 `Spyro1Runtime` selects `RenderPath::Record` with `interpolates()`; the device draws the guest's own ordering table, so draw order is retail OT order. `PSXPORT_DEBUG=recordcheck`, 1x 4:3, 3000 steps to the attract demo's gameplay (gamestate 0): 2566 of 2566 checked records `mismatched=0` (the 24bpp boot logos are not record presents). Its producers are the fullscreen tint 0x800190D4 and cinematic letterbox 0x80018F30 (`spyro1::ScreenOverlays`); the same run composes the tint at t=1 with mismatched=0 and the census shows keyed 44, all under a producer with a render. The terrain, sprite queue, Spyro, moby emitters, sky, drop shadow, glows and particles are producers too (S020); portals and the remaining effects are the guest's packets as drawn, so their in-betweens repeat the shown record (issue 0186) | S002, S004 | G003 |
 | S006 | Spyro 2 has identity-derived executable facts and a title-local native boot owner through the pre-display boundary | partial — the finite three-field bootstrap and its `0x80011B1C` stop are DELETED; the retail boot prefix `0x80011E9C` executes through Lightrec and, since issue 0156, RETURNS: the loader's modules are published as images (framework `stockCdReadLanded`, psxport `guest_code_module.*`), the boot prefix returns after 43 steps and 133 fields with instantaneous CD reads (359 steps and 606 fields once reads take the drive's time, issue 0164), and the per-frame update `0x8001B140`/draw `0x800156FC` then run 784 product steps / 1,500 fields with 0 faults (`tools/boot_run.py --title spyro2 --frames 784`, fence steps); the loader's CD completion is fixed (psxport `28682cde`, issue 0143). Nothing is claimed about what those frames draw, and zero interpreter fallback is still refused by a Lightrec self-modifying-block false positive at `0x8005FFFC` (37 blocks, issue 0092 section 4) | — | G001 **MEASURED 2026-10-01 (commits a8781a3, 02a9514, 3bbaf41, 9a7bb73; issues 0159-0162): the title screen is PRESENTED.** Captures at steps 300..2400 (`PSXPORT_PRESENT_SHOT_AT`, headless): logo sign at 300 (555,363 of 691,200 pixels non-black), Spyro flies in at 600 (621,978), the "Spyro Ripto's Rage" logo with "press start" from step 900 (621,534; 621,363 at 2400). Blockers cleared: the frame driver ran one call per step (0162), negative VSync answered the HBlank timer instead of `[0x80066618]` (0160), retail CdControlB `0x80058994` waited out a 0x3C0-vblank deadline before each XA Setmode (0161), native CdInit removed (0159). Not compared pixel-for-pixel against the full-console oracle; fields-per-step is an assumption (2). |
 | S007 | Spyro 1 accepts held digital input and moves the player after the New Game field handoff | partial | S004 | G001, G003 |
 | S008 | psxport executes remaining Spyro guest code through a per-Core Lightrec runtime with bounded, accounted fallback | partial | — | G002, G004 |
@@ -34,9 +34,9 @@ behavior or native owner it observed; it does not prove that the native/Lightrec
 | S016 | Android CI produces an APK with ARM64 dynarec execution and authored touch controls | missing | S008, S018 | G004 |
 | S017 | A WASM gameplay build is released through CI and deployed on GitHub Pages | missing | S008, S018 | G004 |
 | S018 | Packaged first launch selects, validates and persists user-supplied game files without a terminal | missing | S001 | G004 |
-| S019 | Widescreen renders additional horizontal scene coverage without stretching the original image: every horizontal cull or screen-rect limit the title owns is overridden natively so the margins show what the view would, with guest memory untouched | partial — on Record (2026-10-15) the canvas widens (`SpyroRuntime::guestWidescreenProjection`, 684x240 at 16:9) but every cull is retail's, so margins show only what straddles the 4:3 edge (issue 0186) | S005 | G003 |
-| S030 | Spyro 1 widescreen anchors the UI: edge HUD elements sit at the widened edges, centred elements stay centred, nothing stretches | partial — on Record the HUD is the guest's own at its 4:3 columns (issue 0186) | S019 | G003 |
-| S020 | Spyro 1 presents interpolated 60fps | partial — producers are the fullscreen tint and the letterbox (`tests/test_spyro1_screen_overlays.cpp`); everything else repeats the shown record (issue 0186) | S004, S005 | G003 |
+| S019 | Widescreen renders additional horizontal scene coverage without stretching the original image: every horizontal cull or screen-rect limit the title owns is overridden natively so the margins show what the view would, with guest memory untouched | partial — on Record (2026-10-15) the canvas widens (`SpyroRuntime::guestWidescreenProjection`, 684x240 at 16:9); S1's terrain, moby list planes, moby emitters, sprite queue, sky, glows and particles cull on the widened window, leaving the seen and fade bytes, moby drawn byte +0x51, sector marks and sector animation as retail's 4:3 view writes them; its portal bodies clip at 512 (issue 0186) | S005 | G003 |
+| S030 | Spyro 1 widescreen anchors the UI: edge HUD elements sit at the widened edges, centred elements stay centred, nothing stretches | partial — the HUD icon and text records and the life-orb and egg quads take their edge class through `spyro::ui_anchor` (`spyro1::hud_anchor`, `tests/test_spyro1_actors.cpp`); 16:9 captures show gems at the left edge, dragons centred, lives at the right edge. The life orbs were not on screen in the capture, and the transition fade still covers only the 4:3 columns | S019 | G003 |
+| S020 | Spyro 1 presents interpolated 60fps | partial — producers are the fullscreen tint and the letterbox (`tests/test_spyro1_screen_overlays.cpp`), the terrain (`tests/test_spyro1_terrain.cpp`; override differential 4661/4661, 0 mismatches), the sprite queue and Spyro (`tests/test_spyro1_actors.cpp`; differentials 2744/2744 and 2739/2740, 1 incomparable), the moby emitters (`tests/test_spyro1_actors.cpp`; differentials 4792/4792 and 1972/1972), the sky, drop shadow, glows and particles (`tests/test_spyro1_effects.cpp`; differentials 4792/4792 and 1972/1972 each); census 7787825 of 7823787 primitives keyed. Portals and the remaining effects repeat the shown record (issue 0186) | S004, S005 | G003 |
 | S021 | Touch-enabled releases provide an authored SVG control interface | missing | S018 | G004 |
 | S022 | Spyro 1 streams its XA music through the shared CD/XA owner | partial — **MEASURED 2026-10-13 (issue 0182, psxport 0153-0155), player build in a mapped window with the user's pad:** the title stream decodes 238 of 238 sectors at -0.01% pitch (was 97, ~40% of the time audible), and the level music resumes at LBA 60000/60099 after the flyby skip (was LBA 0, silent). Still `partial`: not compared against the console, and the host queue holds ~200-290 ms of audio latency | S008 | G002 |
 | S023 | Spyro 3 has identity-derived executable facts and a title-local native boot owner through the pre-display boundary | partial — every S023 fact is now confirmed against `SCUS_944.67`'s own crt0 and library bytes (entry `0x80059444`, bss `0x8006C4F4..0x800742D0`, stack top `0x8006C3E4` with bias `-8`, GP `0x8006C3B0`, game main `0x8001200C`, libetc VSync `0x8005956C` on counter `0x1F801110`, `SetGeomOffset 0x8005D35C`, `CdInit 0x8005DB1C`/`CdRead 0x8005D96C`/`CdSync 0x8005E074`/`CdCommand 0x8005E0BC`/`CdReadyCallback 0x8005DB08`), and the boot prefix `0x8002AB38` now **executes** through Lightrec on a real disc: 484 fields, 481 product steps, 481 presentation fences, 23,373,822 executed blocks, 135,585,657 instructions, 429 translated blocks, 0 faults, 0 interpreter fallback; that run stopped at `0x800504F0` inside the CD loader for a read completion the stock `CdRead` never raised (psxport `28682cde` fixed it), then at the loaded module's entry `0x80074DEC` for want of a published image (issue 0156 fixed it); the boot prefix now RETURNS (336 steps and 546 fields with instantaneous CD reads; 669 steps and 887 fields once reads take the drive's time, issue 0164), with 13 loader reads published as images. Guest libetc VSync `0x8005956C` **provably never executed**: 6 of 6 of its store instructions, 0 executions across 135,585,657 JIT instructions, against a control store that did execute in the same run. Still `partial`, not `verified`: `game main 0x8001200C` is never dispatched (the port drives the retail per-frame update `0x80055400` and draw `0x8001E638` directly), and the first main-loop draw's fault (`0x8001C4EC`) is fixed (issue 0158, psxport `96462c8e`); the run now reaches the 1,500-field cap with 0 faults (S025) | S008 | G001 **MEASURED 2026-10-01 (issues 0159, 0160, 0162): the title screen is PRESENTED.** Insomniac logo at step 300 (128,277 of 691,200 non-black), sign/egg/ninja at 600-900 (595,485-601,554), "Spyro Year of the Dragon" with "PRESS START" at 1200-1800 (621,849-622,011), then the attract demo "Entering Demo Mode" at 2400 (509,760). 0 `intr timeout`, 0 faults in 4500 fields after the native CdInit was removed so retail `CD_init` registers libcd's interrupt handler (0159). One "CD timeout ... CdlReset" from boot-time `CD_init` remains: the controller emulation does not answer the init reset. |
@@ -61,8 +61,8 @@ All three titles present on the Record path, with 60 fps as psxport F-FPS60 (`do
 Spyro 2 and Spyro 3 interpolate their terrain through the shared
 `guest_terrain::TerrainStateProducer` (S028, S029); a saved field carries every guest word the
 drawer read, as first read, because the guest rewrites level words between a field's draw and its
-present. Spyro 1 composes its two screen overlays (S020). Open: Spyro 1's world, actor and sky
-producers, culls and HUD anchoring (issue 0186); Spyro 2/3 mobys, HUD, sky and particles (issue
+present. Spyro 1 composes its screen overlays, terrain, sprite queue, Spyro, sky, drop shadow, glows
+and particles (S020). Open: Spyro 1's portals and remaining effects (issue 0186); Spyro 2/3 mobys, HUD, sky and particles (issue
 0176); the aspect-dependent walk (issue 0178, proper fix is a margin-only side list).
 
 ## Hosted verification and host gaps
@@ -149,8 +149,8 @@ Evidence: `PSXPORT_DEBUG=recordcheck` at 1x 4:3 over 3000 steps to the attract d
 of 2566 checked records `mismatched=0`; the 24bpp boot logos are not record presents. Tests:
 `tests/test_spyro1_record.cpp`, `tests/test_spyro1_screen_overlays.cpp`.
 
-Gap: only the fullscreen tint and the letterbox are producers; world, actors, sky, particles and the
-rest of the HUD repeat the shown record in an in-between (issue 0186). The guest facts recovered by
+Gap: the portal bodies and the effects listed in issue 0186 have no producer, so they repeat the
+shown record in an in-between. The guest facts recovered by
 the deleted native renderer are in `docs/findings/spyro1-field-draw-families.md`.
 
 ### S006 — Spyro 2 measured boot boundary
@@ -354,26 +354,39 @@ archive/SAF mechanisms must be consumed from their canonical owners rather than 
 Spyro 1 widens its canvas through `SpyroRuntime::guestWidescreenProjection`, with its projection leaves
 `0x80062618`/`0x80062638` (684x240 at 16:9); the guest's centre and draw rectangle stay retail's.
 
-Gap: every horizontal cull is retail's, so the margins show only geometry that straddles the 4:3
-edge. Each cull sits inside a whole guest routine with no leaf at the decision (RenderWorldChunks
-`0x800258F0`, BuildActorDrawList `0x8001F158`, `0x800208FC`, `0x80022A2C`, `0x800573C8`,
-`0x80058BA8`, `0x80050BD0`), so widening needs native ports that write the guest's packets
-(issue 0186). Widening must not write guest state: the field-particle visibility byte is the known
-trap (`docs/findings/spyro1-field-draw-families.md`).
+The terrain's sector plane and face clip draw the widened window (native RenderWorldChunks), and
+so do the moby list planes (BuildActorDrawList `0x8001F158`, `0x800208FC`) and the sprite queue
+`0x80022A2C`, each a byte-exact native port.
+
+The sky `0x8004EBA8`, glows `0x800580F4`/`0x800584C4`, particles `0x800573C8` and the moby
+emitters `0x8001F798`/`0x80020F34` test x on the widened window too; a moby straddling the 16:9
+edge keeps its polygons between the 4:3 and 16:9 edges (`tests/test_spyro1_actors.cpp`). Widening must not write guest state: the particle seen byte and the sparkle
+fade are written from retail's 4:3 window (`spyro1::kRetailBounds`), whatever the widened window
+drew (`tests/test_spyro1_effects.cpp`); a moby's drawn byte +0x51 and the sector marks
+`0x800771C8` and sector animation follow retail's plane and sphere, since level code reads them
+(`tests/test_spyro1_actors.cpp`, `tests/test_spyro1_terrain.cpp`).
+
+Gap: the portal bodies of `0x80050BD0` clip at 512 (issue 0186).
 
 ### S020 — Spyro 1 60 fps
 
 `Spyro1Runtime::interpolates()` is true; in-betweens are psxport F-FPS60. Producers: the fullscreen
 tint `0x800190D4` and the cinematic letterbox `0x80018F30` (`spyro1::ScreenOverlays`), each keyed by
-its call site and slotted by the LinkOTPrimitives override `spyro1::OrderingTable`. Tests:
+its call site and slotted by the LinkOTPrimitives override `spyro1::OrderingTable`; the terrain,
+RenderWorldChunks `0x800258F0` (`spyro1::terrain::TerrainImage`, `tests/test_spyro1_terrain.cpp`);
+each record of the sprite queue `0x80022A2C`, Spyro `0x80023AC4` and each moby the emitters
+`0x8001F798`/`0x80020F34` draw (`SpriteQueueProducer`, `PairedActorProducer`,
+`ActorEmitterProducer`, `tests/test_spyro1_actors.cpp`), position and angles moved at t; the sky
+`0x8004EBA8` (rotations at t), the drop shadow `0x80059A48` (ground point and heading), each glow
+emitter `0x800580F4` and sparkle `0x800584C4`, and each particle record `0x800573C8` (points and
+angle when the kind is unchanged) (`tests/test_spyro1_effects.cpp`). recordcheck
+1x 4:3, 3000 steps: 2566 of 2566 records `mismatched=0`, 2559 composed at t=1. Tests:
 `tests/test_spyro1_screen_overlays.cpp` (t=1 composes the drawn frame, t=0.5 the frame drawn
 halfway). recordcheck composes the tint at t=1 with `mismatched=0`; the census shows keyed 44, all
 under a producer with a render.
 
-Gap: no producer for terrain, actors, particles, the drop shadow or sky (issue 0186). RenderWorldChunks
-`0x800258F0` matches Spyro 2's drawer in opcode shape for 3905 of 4994 instructions but has its own
-sector loop, LOD argument and flag masks, so the shared `TerrainStateProducer` does not apply. No
-real-time check of this path is recorded.
+Gap: no producer for the portal bodies or the remaining effects (issue 0186); the census, attract
+route, 6000 steps, leaves 35962 of 7823787 primitives unkeyed, all from those. No real-time check of this path is recorded.
 
 ### S021 — SVG touch-control interface
 

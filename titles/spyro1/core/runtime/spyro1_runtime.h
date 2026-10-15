@@ -20,6 +20,7 @@ public:
   std::unique_ptr<psx::game::FrameDriver> createFrameDriver(Game &game) override;
   void deliverPad(Core &core, const psx::input::PadDelivery &delivery) override;
 
+  std::optional<psx::gpu::PacketPoolExtent> packetPool(Core &core) const override;
   bool interpolates() const override;
   RenderCapabilities renderCapabilities() const override;
   bool guestVramIsPicture(const Game &game) const override;

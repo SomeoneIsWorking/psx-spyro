@@ -1,4 +1,4 @@
-#include "guest_terrain_memory.h"
+#include "guest_working_memory.h"
 
 #include "core.h"
 
@@ -8,22 +8,24 @@
 
 #include <lucent/log.h>
 
-namespace spyro::guest_terrain {
+namespace spyro::guest_memory {
 namespace {
 
 // Reading an address this accessor does not own is NORMAL and expected: the passes read the level's
 // sector records, polygon records and static tables straight out of the guest's RAM. Only the FIRST
 // such read is logged, so a frame that legitimately reads ten thousand guest words does not print
 // ten thousand lines; the count is available for a diagnostic.
-constexpr const char *kChannel = "terrmem";
+constexpr const char *kChannel = "guestmem";
 
 } // namespace
 
-void HostMemory::map(std::uint32_t base, std::uint32_t bytes) {
-  if (bytes == 0) {
+void HostMemory::map(std::uint32_t guestBase, std::uint32_t bytes) {
+  const GuestRange range{.base = canonicalAddress(guestBase), .bytes = bytes};
+  if (range.bytes == 0) {
     return;
   }
-  const std::uint32_t end = base + bytes;
+  const std::uint32_t base = range.base;
+  const std::uint32_t end = base + range.bytes;
   // The union of this range and every segment it covers or touches. Two of the frame's ranges DO
   // overlap -- the primitive arena's top is inside the scratch block -- so treating them as
   // separate objects would make one of the two lose the other's writes.
@@ -75,15 +77,12 @@ void HostMemory::map(std::uint32_t base, std::uint32_t bytes) {
   segments_ = std::move(kept);
 }
 
-void HostMemory::mapEmpty(std::uint32_t base, std::uint32_t bytes) {
+void HostMemory::mapEmpty(std::uint32_t guestBase, std::uint32_t bytes) {
   if (bytes == 0) {
     return;
   }
-  map(base, bytes);
-  Segment *const segment = find(base);
-  if (segment != nullptr) {
-    std::memset(segment->bytes.data() + (base - segment->base), 0, bytes);
-  }
+  map(guestBase, bytes);
+  std::memset(byteAt(guestBase), 0, bytes);
 }
 
 std::vector<LevelWord> GuestMemory::firstReads() const {
@@ -95,13 +94,32 @@ std::vector<LevelWord> GuestMemory::firstReads() const {
   return words;
 }
 
+std::vector<LevelWord> HostMemory::levelReads() const {
+  std::vector<LevelWord> words;
+  words.reserve(levelReads_.size());
+  for (const auto &[address, value] : levelReads_) {
+    words.push_back(LevelWord{address, value});
+  }
+  return words;
+}
+
+void HostMemory::noteLevelRead(std::uint32_t address) const {
+  if (!keepsLevelReads_) {
+    return;
+  }
+  const std::uint32_t word = address & ~3u;
+  const std::uint32_t *overlay = overlaid(word);
+  levelReads_.try_emplace(word, overlay != nullptr ? *overlay : core_.mem_r32(word));
+}
+
 void HostMemory::overlay(std::span<const LevelWord> words) {
   for (const LevelWord &word : words) {
-    overlay_[word.address] = word.value;
+    overlay_[canonicalAddress(word.address)] = word.value;
   }
 }
 
-const std::uint32_t *HostMemory::overlaid(std::uint32_t address) const {
+const std::uint32_t *HostMemory::overlaid(std::uint32_t guestAddress) const {
+  const std::uint32_t address = canonicalAddress(guestAddress);
   const auto found = overlay_.find(address & ~3u);
   return found == overlay_.end() ? nullptr : &found->second;
 }
@@ -111,6 +129,7 @@ void HostMemory::clear() {
   overlay_.clear();
   guestReads_ = 0;
   refusedWrites_ = 0;
+  levelReads_.clear();
 }
 
 const HostMemory::Segment *HostMemory::find(std::uint32_t address) const {
@@ -123,8 +142,23 @@ const HostMemory::Segment *HostMemory::find(std::uint32_t address) const {
   return nullptr;
 }
 
-HostMemory::Segment *HostMemory::find(std::uint32_t address) {
-  return const_cast<Segment *>(static_cast<const HostMemory *>(this)->find(address));
+const std::uint8_t *HostMemory::byteAt(std::uint32_t guestAddress) const {
+  const std::uint32_t address = canonicalAddress(guestAddress);
+  const Segment *segment = find(address);
+  return segment == nullptr ? nullptr : segment->bytes.data() + (address - segment->base);
+}
+
+std::uint8_t *HostMemory::byteAt(std::uint32_t guestAddress) {
+  return const_cast<std::uint8_t *>(static_cast<const HostMemory *>(this)->byteAt(guestAddress));
+}
+
+void HostMemory::store(std::uint32_t address, const void *bytes, std::uint32_t count) {
+  std::uint8_t *at = byteAt(address);
+  if (at == nullptr) {
+    refuseWrite(canonicalAddress(address), count);
+    return;
+  }
+  std::memcpy(at, bytes, count);
 }
 
 std::uint8_t HostMemory::guestByte(std::uint32_t address) const {
@@ -144,9 +178,10 @@ void HostMemory::refuseWrite(std::uint32_t address, std::uint32_t bytes) const {
   std::abort();
 }
 
-std::uint32_t HostMemory::r32(std::uint32_t address) const {
-  const Segment *segment = find(address);
-  if (segment == nullptr) {
+std::uint32_t HostMemory::r32(std::uint32_t guestAddress) const {
+  const std::uint32_t address = canonicalAddress(guestAddress);
+  const std::uint8_t *at = byteAt(address);
+  if (at == nullptr) {
     if (guestReads_ == 0) {
       lucent::info(kChannel,
                    "first unmapped read at 0x{:08X}: the level's records are the guest's own and "
@@ -154,70 +189,58 @@ std::uint32_t HostMemory::r32(std::uint32_t address) const {
                    address);
     }
     ++guestReads_;
+    noteLevelRead(address);
     if (const std::uint32_t *word = overlaid(address)) {
       return *word;
     }
     return core_.mem_r32(address);
   }
-  const std::size_t at = address - segment->base;
   std::uint32_t value = 0;
-  std::memcpy(&value, segment->bytes.data() + at, sizeof value);
+  std::memcpy(&value, at, sizeof value);
   return value;
 }
 
-std::uint16_t HostMemory::r16(std::uint32_t address) const {
-  const Segment *segment = find(address);
-  if (segment == nullptr) {
+std::uint16_t HostMemory::r16(std::uint32_t guestAddress) const {
+  const std::uint32_t address = canonicalAddress(guestAddress);
+  const std::uint8_t *at = byteAt(address);
+  if (at == nullptr) {
     ++guestReads_;
+    noteLevelRead(address);
     if (const std::uint32_t *word = overlaid(address)) {
       return static_cast<std::uint16_t>(*word >> (8 * (address & 2u)));
     }
     return core_.mem_r16(address);
   }
-  const std::size_t at = address - segment->base;
   std::uint16_t value = 0;
-  std::memcpy(&value, segment->bytes.data() + at, sizeof value);
+  std::memcpy(&value, at, sizeof value);
   return value;
 }
 
-std::uint8_t HostMemory::r8(std::uint32_t address) const {
-  const Segment *segment = find(address);
-  if (segment == nullptr) {
+std::uint8_t HostMemory::r8(std::uint32_t guestAddress) const {
+  const std::uint32_t address = canonicalAddress(guestAddress);
+  const std::uint8_t *at = byteAt(address);
+  if (at == nullptr) {
     ++guestReads_;
+    noteLevelRead(address);
     return guestByte(address);
   }
-  return segment->bytes[address - segment->base];
+  return *at;
 }
 
 void HostMemory::w32(std::uint32_t address, std::uint32_t value) {
-  Segment *segment = find(address);
-  if (segment == nullptr) {
-    refuseWrite(address, 4);
-    return;
-  }
-  std::memcpy(segment->bytes.data() + (address - segment->base), &value, sizeof value);
+  store(address, &value, sizeof value);
 }
 
 void HostMemory::w16(std::uint32_t address, std::uint16_t value) {
-  Segment *segment = find(address);
-  if (segment == nullptr) {
-    refuseWrite(address, 2);
-    return;
-  }
-  std::memcpy(segment->bytes.data() + (address - segment->base), &value, sizeof value);
+  store(address, &value, sizeof value);
 }
 
 void HostMemory::w8(std::uint32_t address, std::uint8_t value) {
-  Segment *segment = find(address);
-  if (segment == nullptr) {
-    refuseWrite(address, 1);
-    return;
-  }
-  segment->bytes[address - segment->base] = value;
+  store(address, &value, sizeof value);
 }
 
 bool HostMemory::mapped(std::uint32_t address) const {
-  return find(address) != nullptr;
+  return byteAt(address) != nullptr;
 }
 
 std::uint32_t HostMemory::mappedBytes() const {
@@ -237,4 +260,4 @@ std::vector<GuestRange> HostMemory::ranges() const {
   return out;
 }
 
-} // namespace spyro::guest_terrain
+} // namespace spyro::guest_memory

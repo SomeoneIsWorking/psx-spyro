@@ -71,8 +71,13 @@ S2 and S3 take the BIOS pad path.
 | 2 | S2, S3 | psxport F-WIDE.2 | `game/render/field/guest_moby_visibility.cpp` — the moby walk (`0x80043858`, `0x80030478`) with its plane tests widened by `Game::guestDisplay`'s plan |
 | 3 | S2, S3 | psxport F-WIDE.2 | `game/render/terrain/guest_terrain_drawer.cpp` — the terrain drawer with its X outcodes on the widened window |
 | 4 | S2, S3 | title | `s2/render/spyro2_hud_anchor.cpp`, `s3/render/spyro3_hud_anchor.cpp` — edge HUD widgets through `spyro::ui_anchor` |
+| 5 | S1 | psxport F-WIDE.2 | `s1/render/spyro1_terrain_sectors.cpp` — RenderWorldChunks' sector plane on `presentedSlope`, its sector marks (`0x800771C8`) and animation on retail's; its face clip on the widened window through the shared passes |
+| 6 | S1 | psxport F-WIDE.2 | `s1/render/spyro1_actor_list.cpp`, `spyro1_sprite_queue.cpp` — the moby list planes (`0x8001F158`, `0x800208FC`) on `presentedSlope`; the sprite queue (`0x80022A2C`) culled and outcoded on the widened window; both set the drawn byte +0x51, which level code reads, on retail's plane |
+| 7 | S1 | title | `s1/hud/spyro1_hud_anchor.cpp` — HUD records in the sprite queue and the life-orb and egg quads (`0x8001919C`) through `spyro::ui_anchor` |
+| 8 | S1 | psxport F-WIDE.2 | `s1/render/spyro1_sky.cpp`, `spyro1_glows.cpp`, `spyro1_particles.cpp` — the cyclorama (`0x8004EBA8`), glows (`0x800580F4`, `0x800584C4`) and particles (`0x800573C8`) test x on the widened window; the seen and fade bytes they write follow `spyro1_screen.h:kRetailBounds` |
+| 9 | S1 | psxport F-WIDE.2 | `s1/render/spyro1_actor_emitter_vertices.cpp:ActorEmitter::keepScreen` — the moby emitters (`0x8001F798`, `0x80020F34`) outcode a straddling moby's vertices on `spyro::presentedBounds` (`guest_view_slope.h`) |
 
-S1 keeps retail's culls and HUD placement (issue 0186).
+The portal bodies of `0x80050BD0` clip at 512 (issue 0186).
 
 ## F-FPS60
 
@@ -83,9 +88,13 @@ S1 keeps retail's culls and HUD placement (issue 0186).
 | 3 | S2, S3 | psxport F-FPS60.1 | `game/render/engine_render_overrides.h:engine_render::flatten` — every packet's bin through `depth_bins::assignBins`, from the flatten (`0x8001B2A8`, `0x8004E664`) |
 | 4 | S1 | psxport F-FPS60.1 | `s1/hud/screen_overlays.cpp:FullscreenTint`, `CinematicLetterbox` — `0x800190D4` and `0x80018F30` |
 | 5 | S1 | psxport F-FPS60.1 | `s1/frame/spyro1_ordering_table.cpp:OrderingTable` — LinkOTPrimitives `0x80016784` gives each linked packet its slot |
+| 7 | S1 | psxport F-FPS60.1 | `s1/render/spyro1_terrain_image.cpp:TerrainImage` — RenderWorldChunks `0x800258F0` redrawn over the field's saved words at t, camera from `CameraBuilder` (`0x80033C50`) |
+| 8 | S1 | psxport F-FPS60.1 | `s1/render/spyro1_sprite_queue_producer.cpp:SpriteQueueProducer`, `spyro1_paired_actor_producer.cpp:PairedActorProducer` — each queued record (`0x80022A2C`) and Spyro (`0x80023AC4`) redrawn at t, position and angles moved |
+| 9 | S1 | psxport F-FPS60.1 | `s1/render/spyro1_sky_producer.cpp:SkyProducer`, `spyro1_drop_shadow_producer.cpp:DropShadowProducer`, `spyro1_glow_producers.cpp:GlowFanProducer`, `SparkleProducer`, `spyro1_particle_producer.cpp:ParticleProducer` — the sky (`0x8004EBA8`), drop shadow (`0x80059A48`), each glow emitter, sparkle and particle record redrawn at t |
+| 10 | S1 | psxport F-FPS60.1 | `s1/render/spyro1_actor_emitter_producer.cpp:ActorEmitterProducer` — each moby the emitters (`0x8001F798`, `0x80020F34`) draw, its list entry rebuilt and drawn at t, record and camera moved |
 | 6 | all | psxport F-FPS60.2 | `game/core/frame_cut.cpp:FrameCut::isCut` — game state, level, or (S2, S3) a camera placement inside a scene |
 
-S1's world, actors and sky have no producer yet; their in-betweens repeat the shown record (issue 0186).
+S1's portal bodies and remaining effects have no producer yet; their in-betweens repeat the shown record (issue 0186).
 
 ## F-DEBUG
 

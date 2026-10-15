@@ -7,6 +7,7 @@
 #include "guest_terrain_mesh.h"
 #include "guest_terrain_passes.h"
 #include "guest_terrain_polygon.h"
+#include "guest_word.h"
 
 namespace spyro::guest_terrain {
 namespace {
@@ -15,9 +16,7 @@ namespace {
 // pass's.
 namespace gte = psx::gte;
 
-constexpr std::int32_t asSigned(std::uint32_t value) {
-  return static_cast<std::int32_t>(value);
-}
+using spyro::guest_word::asSigned;
 
 constexpr std::uint32_t kSplitSum = 0x2000;
 constexpr std::uint32_t kDropSum = 0x6000;
@@ -62,7 +61,7 @@ private:
 
   TerrainFrame &frame_;
   Core &core_;
-  TerrainMemory &memory_;
+  guest_memory::WorkingMemory &memory_;
   std::uint32_t sectorWord_ = 0; // t9: the sector address, plus the split headers it has written
   bool clipped_ = false;         // s6
   std::uint32_t record_ = 0;     // s1: one past the current polygon record
@@ -89,8 +88,7 @@ void TranslucentPass::drawSector(std::uint32_t listWord) {
   const std::uint32_t sectorClass = listWord & kSectorClassMask;
   sectorWord_ = listWord ^ sectorClass;
   const std::uint32_t sector = sectorWord_;
-  const ProjectedSector projected =
-      projectSector(frame_, sector, sectorClass, NearPass::Translucent);
+  const ProjectedSector projected = projectSector(frame_, listWord, NearPass::Translucent);
   if (!projected.drawn) {
     return;
   }
@@ -157,19 +155,16 @@ std::uint32_t TranslucentPass::fadedColour(std::uint32_t depth) {
 
 // 800257F0.
 void TranslucentPass::drawQuad(const PackedIndices &vertices) {
-  std::uint32_t xy0 = screenWord(vertices.first);
-  std::uint32_t xy1 = screenWord(vertices.second);
-  std::uint32_t xy2 = screenWord(vertices.third);
-  std::uint32_t xy3 = screenWord(vertices.fourth);
-  if (clipped_) {
-    if ((xy0 & xy1 & xy2 & xy3 & 0xFu) != 0) {
-      return;
-    }
-    xy0 = static_cast<std::uint32_t>(asSigned(xy0) >> 5);
-    xy1 = static_cast<std::uint32_t>(asSigned(xy1) >> 5);
-    xy2 = static_cast<std::uint32_t>(asSigned(xy2) >> 5);
-    xy3 = static_cast<std::uint32_t>(asSigned(xy3) >> 5);
+  const auto corners = unclipCorners<4>({screenWord(vertices.first),
+                                         screenWord(vertices.second),
+                                         screenWord(vertices.third),
+                                         screenWord(vertices.fourth)},
+                                        clipped_,
+                                        false);
+  if (!corners) {
+    return;
   }
+  const std::array<std::uint32_t, 4> &xy = corners->xy;
   const std::uint32_t draw = memory_.r32(record_ - polygon::kSize + polygon::kDraw);
   const std::uint32_t d0 = depth(vertices.first);
   const std::uint32_t d1 = depth(vertices.second);
@@ -191,10 +186,10 @@ void TranslucentPass::drawQuad(const PackedIndices &vertices) {
   // 80025908: one semi-transparent GT4. Retail pairs the third vertex's colour with the fourth's
   // position and the fourth's colour with the third's (the detail pass pairs them correctly).
   const std::uint32_t prim = frame_.primitive;
-  memory_.w32(prim + packet::kXy0, xy0);
-  memory_.w32(prim + packet::kXy1, xy1);
-  memory_.w32(prim + packet::kXy2, xy3);
-  memory_.w32(prim + packet::kXy3, xy2);
+  memory_.w32(prim + packet::kXy0, xy[0]);
+  memory_.w32(prim + packet::kXy1, xy[1]);
+  memory_.w32(prim + packet::kXy2, xy[3]);
+  memory_.w32(prim + packet::kXy3, xy[2]);
   const std::uint32_t c0 = fadedColour(d0);
   const std::uint32_t c1 = fadedColour(d1);
   const std::uint32_t c2 = fadedColour(d2);
@@ -219,17 +214,14 @@ void TranslucentPass::drawQuad(const PackedIndices &vertices) {
 
 // 80025A4C.
 void TranslucentPass::drawTriangle(const PackedIndices &vertices) {
-  std::uint32_t xy0 = screenWord(vertices.first);
-  std::uint32_t xy1 = screenWord(vertices.second);
-  std::uint32_t xy2 = screenWord(vertices.third);
-  if (clipped_) {
-    if ((xy0 & xy1 & xy2 & 0xFu) != 0) {
-      return;
-    }
-    xy0 = static_cast<std::uint32_t>(asSigned(xy0) >> 5);
-    xy1 = static_cast<std::uint32_t>(asSigned(xy1) >> 5);
-    xy2 = static_cast<std::uint32_t>(asSigned(xy2) >> 5);
+  const auto corners = unclipCorners<3>(
+      {screenWord(vertices.first), screenWord(vertices.second), screenWord(vertices.third)},
+      clipped_,
+      false);
+  if (!corners) {
+    return;
   }
+  const std::array<std::uint32_t, 3> &xy = corners->xy;
   const std::uint32_t draw = memory_.r32(record_ - polygon::kSize + polygon::kDraw);
   const std::uint32_t d0 = depth(vertices.first);
   const std::uint32_t d1 = depth(vertices.second);
@@ -251,9 +243,9 @@ void TranslucentPass::drawTriangle(const PackedIndices &vertices) {
 
   // 80025B50: one semi-transparent GT3.
   const std::uint32_t prim = frame_.primitive;
-  memory_.w32(prim + packet::kXy0, xy0);
-  memory_.w32(prim + packet::kXy1, xy1);
-  memory_.w32(prim + packet::kXy2, xy2);
+  memory_.w32(prim + packet::kXy0, xy[0]);
+  memory_.w32(prim + packet::kXy1, xy[1]);
+  memory_.w32(prim + packet::kXy2, xy[2]);
   const std::uint32_t c0 = fadedColour(d0);
   const std::uint32_t c1 = fadedColour(d1);
   memory_.w32(prim + packet::kColour0, c0 | kSemiTriangleCode);

@@ -4,6 +4,7 @@
 #include "gte_registers.h"
 #include "guest_terrain_frame.h"
 #include "guest_terrain_polygon.h"
+#include "guest_word.h"
 
 #include <array>
 #include <cstddef>
@@ -15,9 +16,7 @@ namespace {
 // pass's.
 namespace gte = psx::gte;
 
-constexpr std::int32_t asSigned(std::uint32_t value) {
-  return static_cast<std::int32_t>(value);
-}
+using spyro::guest_word::asSigned;
 
 // The two height packings (80025D28): the detail pass's (w << 3) & 0x1FFC and the translucent
 // pass's w & 0x3FF, told apart by the header's top bit.
@@ -41,7 +40,7 @@ bool fitsScaled(std::int32_t coordinate) {
   return (((coordinate >> 8) + 1) >> 1) == 0;
 }
 
-GridVertex loadGridVertex(TerrainMemory &memory, std::uint32_t address) {
+GridVertex loadGridVertex(guest_memory::WorkingMemory &memory, std::uint32_t address) {
   const std::int32_t z = static_cast<std::int16_t>(memory.r16(address + cell::kZ));
   const std::int32_t x = static_cast<std::int16_t>(memory.r16(address + cell::kX));
   const std::int32_t y = static_cast<std::int16_t>(memory.r16(address + cell::kY));
@@ -54,7 +53,8 @@ GridVertex loadGridVertex(TerrainMemory &memory, std::uint32_t address) {
   return GridVertex{word(z), word(x) + (word(y) << 16), false};
 }
 
-// 80025D24: a sector header word, and its fog exemption restated in L33.
+} // namespace
+
 SplitSector readSplitHeader(TerrainFrame &frame, std::uint32_t header) {
   Core &core = frame.core;
   const std::uint32_t sector = header << 2;
@@ -80,8 +80,6 @@ SplitSector readSplitHeader(TerrainFrame &frame, std::uint32_t header) {
   return result;
 }
 
-} // namespace
-
 void walkSplitList(TerrainFrame &frame, std::uint32_t list, SplitPolygonPass &pass) {
   SplitSector sector;
   for (;;) {
@@ -91,7 +89,7 @@ void walkSplitList(TerrainFrame &frame, std::uint32_t list, SplitPolygonPass &pa
       return;
     }
     if (asSigned(entry) >= 0) {
-      sector = readSplitHeader(frame, entry);
+      sector = pass.sector(entry);
       entry = frame.memory.r32(list);
       list += 4;
     }
@@ -138,7 +136,7 @@ void loadCornerColours(TerrainFrame &frame, std::uint32_t *colours, std::uint32_
 
 void projectGrid(TerrainFrame &frame, std::uint32_t count, bool markBehind) {
   Core &core = frame.core;
-  TerrainMemory &memory = frame.memory;
+  guest_memory::WorkingMemory &memory = frame.memory;
   const std::uint32_t end = kScratchpad + (count + 1) * kCellSize;
   // Retail zeroes the cell after the last so its one-ahead read of it is harmless.
   memory.w32(end - kCellSize, 0);
@@ -161,10 +159,10 @@ void projectGrid(TerrainFrame &frame, std::uint32_t count, bool markBehind) {
     if (markBehind && asSigned(code) <= 0) {
       code |= kOutcodeMask;
     }
-    if (aboveTop(sxy)) {
+    if (frame.bounds.aboveTop(sxy)) {
       code |= kAbove;
     }
-    if (belowBottom(sxy)) {
+    if (frame.bounds.belowBottom(sxy)) {
       code |= kBelow;
     }
     if (frame.bounds.atOrLeftOfLeft(sxy)) {
@@ -179,9 +177,9 @@ void projectGrid(TerrainFrame &frame, std::uint32_t count, bool markBehind) {
 }
 
 void emitCrackTriangle(TerrainFrame &frame, std::uint32_t entry, const CrackPolygon &polygon) {
-  const auto [colourAdjust, uv, page, draw] = polygon;
+  const auto [colourAdjust, uv, page, bias] = polygon;
   Core &core = frame.core;
-  TerrainMemory &memory = frame.memory;
+  guest_memory::WorkingMemory &memory = frame.memory;
   const std::uint32_t cells = memory.r32(entry);
   const std::uint32_t uvFirst = memory.r32(entry + 4);
   const std::uint32_t uvRest = memory.r32(entry + 8);
@@ -191,6 +189,8 @@ void emitCrackTriangle(TerrainFrame &frame, std::uint32_t entry, const CrackPoly
   const std::uint32_t d0 = memory.r32(c0 + cell::kDepth);
   const std::uint32_t d1 = memory.r32(c1 + cell::kDepth);
   const std::uint32_t d2 = memory.r32(c2 + cell::kDepth);
+  frame.v0 = c0;
+  frame.v1 = c1;
   if ((d0 & d1 & d2 & kOutcodeMask) != 0) {
     return;
   }
@@ -206,10 +206,11 @@ void emitCrackTriangle(TerrainFrame &frame, std::uint32_t entry, const CrackPoly
   memory.w32(prim + packet::kUv0, (uvFirst & 0xFFFFu) + uv);
   memory.w32(prim + packet::kUv1, static_cast<std::uint32_t>(asSigned(uvRest) >> 16) + page);
   memory.w32(prim + packet::kUv2, (uvRest & 0xFFFFu) + uv);
-  frame.linkAndAdvance(polygonBin(sum, draw), PacketSize{kTriangleBytes});
+  frame.v0 = bias;
+  frame.v1 = frame.linkAndAdvance((sum >> 7) + bias, PacketSize{kTriangleBytes}).head;
 }
 
-bool exceedsGpuSpan(std::span<const std::uint32_t> screens) {
+GpuSpan gpuSpan(std::span<const std::uint32_t> screens) {
   constexpr std::int32_t kGpuSpanHigh = 0x200;
   constexpr std::int32_t kGpuSpanWide = 0x400;
   constexpr std::array<std::array<std::size_t, 2>, 5> kPairs = {
@@ -226,21 +227,21 @@ bool exceedsGpuSpan(std::span<const std::uint32_t> screens) {
   };
   for (std::size_t i = 0; i < pairCount; ++i) {
     if (exceeds(y(screens[kPairs[i][0]]) - y(screens[kPairs[i][1]]), kGpuSpanHigh)) {
-      return true;
+      return GpuSpan::TooHigh;
     }
   }
   for (std::size_t i = 0; i < pairCount; ++i) {
     if (exceeds(x(screens[kPairs[i][0]]) - x(screens[kPairs[i][1]]), kGpuSpanWide)) {
-      return true;
+      return GpuSpan::TooWide;
     }
   }
-  return false;
+  return GpuSpan::Within;
 }
 
 void pullTowardPair(TerrainFrame &frame, const GridPull &pull) {
   const auto [point, first, second, ownWeight, pairWeight] = pull;
   Core &core = frame.core;
-  TerrainMemory &memory = frame.memory;
+  guest_memory::WorkingMemory &memory = frame.memory;
   const auto low = [](std::uint32_t sxy) {
     return static_cast<std::uint32_t>(static_cast<std::int16_t>(sxy & 0xFFFFu));
   };
@@ -266,55 +267,11 @@ void pullTowardPair(TerrainFrame &frame, const GridPull &pull) {
              (static_cast<std::uint32_t>(x) & 0xFFFFu) + (static_cast<std::uint32_t>(y) << 16));
 }
 
-namespace {
-
-// NCLIP on SXY0..2, signed toward the camera for the polygon's winding.
-std::int32_t winding(TerrainFrame &frame, std::uint32_t draw) {
-  frame.core.gte().execute(gte::kNclip);
-  std::uint32_t area = frame.core.gte().readData(gte::kMac0);
-  if ((draw & kFlippedWinding) != 0) {
-    area = 0u - area;
-  }
-  return asSigned(area);
-}
-
-} // namespace
-
-bool facesCamera(TerrainFrame &frame,
-                 const std::array<std::uint32_t, 4> &screens,
-                 std::uint32_t draw) {
-  frame.core.gte().writeData(gte::kSxy0, screens[0]);
-  frame.core.gte().writeData(gte::kSxy1, screens[1]);
-  frame.core.gte().writeData(gte::kSxy2, screens[2]);
-  if ((draw & kTwoSided) != 0) {
-    frame.core.gte().execute(gte::kNclip);
-    return true;
-  }
-  if (winding(frame, draw) >= 0) {
-    return true;
-  }
-  frame.core.gte().writeData(gte::kSxy0, screens[3]);
-  return winding(frame, draw) <= 0;
-}
-
-bool triangleFacesCamera(TerrainFrame &frame,
-                         const std::array<std::uint32_t, 3> &screens,
-                         std::uint32_t draw) {
-  frame.core.gte().writeData(gte::kSxy0, screens[0]);
-  frame.core.gte().writeData(gte::kSxy1, screens[1]);
-  frame.core.gte().writeData(gte::kSxy2, screens[2]);
-  if ((draw & kTwoSided) != 0) {
-    frame.core.gte().execute(gte::kNclip);
-    return true;
-  }
-  return winding(frame, draw) >= 0;
-}
-
 std::uint32_t quadNeighbourEdges(TerrainFrame &frame,
                                  std::uint32_t links,
                                  std::uint32_t draw,
                                  std::uint32_t bit) {
-  TerrainMemory &memory = frame.memory;
+  guest_memory::WorkingMemory &memory = frame.memory;
   const std::uint32_t flags = frame.scratch;
   const std::uint32_t first = memory.r8(flags + (links >> 19)) & bit;
   const std::uint32_t second = memory.r8(flags + ((links >> 6) & 0x1FFFu)) & bit;
@@ -327,7 +284,7 @@ std::uint32_t triangleNeighbourEdges(TerrainFrame &frame,
                                      std::uint32_t links,
                                      std::uint32_t colourIndices,
                                      std::uint32_t bit) {
-  TerrainMemory &memory = frame.memory;
+  guest_memory::WorkingMemory &memory = frame.memory;
   const std::uint32_t flags = frame.scratch;
   const std::uint32_t first = memory.r8(flags + (links >> 19)) & bit;
   const std::uint32_t second = memory.r8(flags + ((links >> 6) & 0x1FFFu)) & bit;

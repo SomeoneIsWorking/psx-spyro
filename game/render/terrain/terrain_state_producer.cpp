@@ -7,30 +7,16 @@
 
 #include <algorithm>
 #include <cstdlib>
-#include <cstring>
+#include <utility>
 #include <vector>
 
 namespace spyro::guest_terrain {
 namespace {
 
-struct SavedField {
-  FieldState header;
-  std::vector<LevelWord> readWords;
-};
+using SavedField = guest_memory::SavedDraw<FieldState>;
 
 SavedField readField(std::span<const std::byte> bytes) {
-  if (bytes.size() < sizeof(FieldState) ||
-      (bytes.size() - sizeof(FieldState)) % sizeof(LevelWord) != 0) {
-    lucent::error("terrstate", "a saved terrain field of {} bytes is not one", bytes.size());
-    std::abort();
-  }
-  SavedField field;
-  std::memcpy(&field.header, bytes.data(), sizeof(FieldState));
-  field.readWords.resize((bytes.size() - sizeof(FieldState)) / sizeof(LevelWord));
-  std::memcpy(field.readWords.data(),
-              bytes.data() + sizeof(FieldState),
-              field.readWords.size() * sizeof(LevelWord));
-  return field;
+  return guest_memory::unpackDraw<FieldState>(bytes, "terrain field");
 }
 
 } // namespace
@@ -39,10 +25,11 @@ FieldState fieldHeader(std::span<const std::byte> state) {
   return readField(state).header;
 }
 
-void drawField(Core &core, const Facts &facts, const guest_render_globals::Globals &globals) {
+void drawField(Core &core, const TerrainImage &image) {
   FieldState state;
-  state.camera = readCamera(core, globals);
-  const std::vector<LevelWord> read = draw(core, facts, globals);
+  state.camera = readCamera(core, image.globals());
+  state.argument = core.r[4];
+  const std::vector<guest_memory::LevelWord> read = draw(core, image);
   const std::vector<std::uint8_t> &visible = spyro::session(core).terrainVisibility;
   if (visible.size() > kScratchpadBytes) {
     lucent::error("terrstate",
@@ -55,9 +42,7 @@ void drawField(Core &core, const Facts &facts, const guest_render_globals::Globa
   state.packetBudget = spyro::session(core).terrainPacketBudget;
   state.sectorCount = static_cast<std::uint32_t>(visible.size());
   std::copy(visible.begin(), visible.end(), state.visible);
-  std::vector<std::byte> bytes(sizeof(FieldState) + read.size() * sizeof(LevelWord));
-  std::memcpy(bytes.data(), &state, sizeof(FieldState));
-  std::memcpy(bytes.data() + sizeof(FieldState), read.data(), read.size() * sizeof(LevelWord));
+  const std::vector<std::byte> bytes = guest_memory::packDraw(state, read);
   core.frameStates.save(core.emission.current(), std::span<const std::byte>(bytes));
 }
 
@@ -66,30 +51,36 @@ void TerrainStateProducer::render(const psx::present::StateInterval &states,
   const SavedField before = readField(states.from);
   const SavedField after = readField(states.to);
   const InBetweenCamera camera = cameraBetween(
-      core_, globals_, before.header.camera, after.header.camera, static_cast<double>(states.t));
+      core_, image_, before.header.camera, after.header.camera, static_cast<double>(states.t));
   const std::vector<std::uint8_t> visible =
       unionVisibility(std::span(before.header.visible, before.header.sectorCount),
                       std::span(after.header.visible, after.header.sectorCount));
   Rebuild rebuild(core_,
-                  facts_,
-                  globals_,
+                  image_,
                   camera,
                   FieldInputs{.visibleSectors = visible,
-                              .readWords = after.readWords,
+                              .readWords = after.reads,
+                              .argument = after.header.argument,
                               .packetBudget = after.header.packetBudget});
-  rebuild.forEachPacket(
-      [&sink](std::uint32_t bin, std::uint32_t packet, std::span<const std::uint32_t> words) {
-        const auto primitive = psx::gpu::decodePacketPrimitive(words);
-        if (!primitive) {
-          lucent::error("terrstate",
-                        "the {}-word packet at 0x{:08X} in bin {} is not a polygon",
-                        words.size(),
-                        packet,
-                        bin);
-          std::abort();
-        }
-        sink.emit(psx::present::OtSlot{depth_bins::kTable, bin}, *primitive);
-      });
+  guest_memory::DrawMode drawMode;
+  rebuild.forEachPacket([&sink, &drawMode](std::uint32_t bin,
+                                           std::uint32_t packet,
+                                           std::span<const std::uint32_t> words) {
+    if (drawMode.take(words)) {
+      return;
+    }
+    auto primitive = psx::gpu::decodePacketPrimitive(words);
+    if (!primitive) {
+      lucent::error("terrstate",
+                    "the {}-word packet at 0x{:08X} in bin {} is not a polygon",
+                    words.size(),
+                    packet,
+                    bin);
+      std::abort();
+    }
+    drawMode.apply(*primitive);
+    sink.emit(psx::present::OtSlot{depth_bins::kTable, bin}, *primitive);
+  });
 }
 
 } // namespace spyro::guest_terrain

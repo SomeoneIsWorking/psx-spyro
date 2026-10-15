@@ -39,9 +39,19 @@
 #include "native_spu_voice_pitch.h"
 #include "platform_hle.h"
 #include "screen_overlays.h"
+#include "spyro1_actor_emitter_producer.h"
+#include "spyro1_actor_list.h"
+#include "spyro1_drop_shadow_producer.h"
 #include "spyro1_frame_driver.h"
+#include "spyro1_glow_producers.h"
+#include "spyro1_hud_anchor.h"
 #include "spyro1_logo_facts.h"
 #include "spyro1_ordering_table.h"
+#include "spyro1_paired_actor_producer.h"
+#include "spyro1_particle_producer.h"
+#include "spyro1_sky_producer.h"
+#include "spyro1_sprite_queue_producer.h"
+#include "spyro1_terrain_image.h"
 #include "spyro_game.h"
 #include "spyro_gate_debug.h"
 
@@ -96,6 +106,14 @@ constexpr std::uint32_t kCdInitHandshake = 0x800653B4u;
 
 constexpr psx::input::StockPadBuffers::Layout kPadBuffers{.slot0Buffer = 0x800786A0u,
                                                           .slot1Buffer = 0x800786C2u};
+
+// InitActorMeshScratchRegions 0x8005B6F8 carves pool 0 [base0, base1) and pool 1 [base1, top); the
+// bases are each frame env's +0x70 and the top its +0x78.
+constexpr psx::gpu::GuestPacketPoolWindows kPacketPool{
+    .representation = psx::gpu::GuestPacketPoolWindows::Representation::LiveBaseEndPointers,
+    .basePointer = {0x80076F50u, 0x80076FD4u},
+    .endPointer = {0x80076FD4u, 0x80076FDCu},
+};
 
 } // namespace
 
@@ -158,6 +176,16 @@ void Spyro1Runtime::registerOverrides(Game &game) {
   native::registerSpuCommonAttrOverrides(game.core);
   OrderingTable::registerOverrides(game.core);
   ScreenOverlays::registerOverrides(game.core);
+  spyro1::terrain::registerOverrides(game.core);
+  actors::registerListOverrides(game.core);
+  actors::registerEmitterOverrides(game.core);
+  actors::registerSpriteQueueOverrides(game.core);
+  actors::registerPairedActorOverrides(game.core);
+  sky::registerSkyOverrides(game.core);
+  shadow::registerDropShadowOverrides(game.core);
+  glows::registerGlowOverrides(game.core);
+  particles::registerParticleOverrides(game.core);
+  hud_anchor::registerOverrides(game.core);
   lucent::info("boot", "installed Spyro 1's verified image-scoped native overrides");
 }
 
@@ -168,6 +196,10 @@ std::unique_ptr<psx::game::FrameDriver> Spyro1Runtime::createFrameDriver(Game &g
 
 void Spyro1Runtime::deliverPad(Core &core, const psx::input::PadDelivery &delivery) {
   pad_.deliver(core, delivery);
+}
+
+std::optional<psx::gpu::PacketPoolExtent> Spyro1Runtime::packetPool(Core &core) const {
+  return kPacketPool.extent(core);
 }
 
 bool Spyro1Runtime::interpolates() const {

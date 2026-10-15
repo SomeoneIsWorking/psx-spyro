@@ -45,9 +45,12 @@ void load(Core &core, const RotationWords &rotation) {
 //   byte 2  80043BAC..80043C34 / 800441D8..800442B0
 //   byte 1  80043C44..80043CD4 / 800442D0..800443B0
 //   byte 0  80043CE4..80043D7C / 800443CC..800444B0
-void rotate(Core &core, Axis axis, AngleWords angle, RotationWords &m) {
+// Returns what retail leaves in $v1: the second product's IR3, shifted up on the byte-0 axis.
+std::uint32_t rotate(Core &core, Axis axis, AngleWords angle, RotationWords &m, Byte0Result byte0) {
   const std::uint32_t s = angle.sine;
   const std::uint32_t c = angle.cosine;
+  std::uint32_t ir3 = 0;
+  bool loads = true;
   switch (axis) {
   case Axis::Byte2: {
     const Product a = rotateV0(core, c, s);
@@ -57,6 +60,7 @@ void rotate(Core &core, Axis axis, AngleWords angle, RotationWords &m) {
     m[1] = (b.ir1 & kLow) + (a.ir2 << 16);
     m[2] = (m[2] & kLow) + (b.ir2 << 16);
     m[4] = b.ir3 & kLow;
+    ir3 = b.ir3;
     break;
   }
   case Axis::Byte1: {
@@ -67,6 +71,7 @@ void rotate(Core &core, Axis axis, AngleWords angle, RotationWords &m) {
     m[1] = (m[1] & kHigh) + (b.ir1 & kLow);
     m[2] = (b.ir2 << 16) + (a.ir2 & kLow);
     m[4] = b.ir3 & kLow;
+    ir3 = b.ir3;
     break;
   }
   case Axis::Byte0: {
@@ -77,10 +82,15 @@ void rotate(Core &core, Axis axis, AngleWords angle, RotationWords &m) {
     m[2] = (m[2] & kHigh) + (b.ir2 & kLow);
     m[0] = (b.ir1 << 16) + (a.ir1 & kLow);
     m[3] = (b.ir3 << 16) + (a.ir3 & kLow);
+    ir3 = b.ir3 << 16;
+    loads = byte0 == Byte0Result::Loaded;
     break;
   }
   }
-  load(core, m);
+  if (loads) {
+    load(core, m);
+  }
+  return ir3;
 }
 
 struct Channel {
@@ -117,21 +127,25 @@ std::int32_t interpolate(Core &core, const TableStep &step) {
 
 } // namespace
 
-void composeTabled(Core &core,
-                   std::uint32_t sineTable,
-                   const MobyAngles &angles,
-                   RotationWords &rotation) {
+std::optional<std::uint32_t> composeTabled(Core &core,
+                                           std::uint32_t sineTable,
+                                           const MobyAngles &angles,
+                                           RotationWords &rotation,
+                                           Byte0Result byte0) {
+  std::optional<std::uint32_t> last;
   for (const Channel &channel : kChannels) {
     const std::uint32_t angle = (angles.angles >> channel.angleShift) & 0xFFu;
     if (angle == 0) {
       continue;
     }
     const std::uint32_t entry = tableEntry(sineTable, angle);
-    rotate(core,
-           channel.axis,
-           AngleWords{core.mem_r16(entry), core.mem_r16(entry + kCosineOffset)},
-           rotation);
+    last = rotate(core,
+                  channel.axis,
+                  AngleWords{core.mem_r16(entry), core.mem_r16(entry + kCosineOffset)},
+                  rotation,
+                  byte0);
   }
+  return last;
 }
 
 void composeInterpolated(Core &core,
@@ -148,10 +162,11 @@ void composeInterpolated(Core &core,
     const std::int32_t sine = interpolate(core, {.entry = entry, .fraction = fraction});
     const std::int32_t cosine =
         interpolate(core, {.entry = entry + kCosineOffset, .fraction = fraction});
-    rotate(core,
-           channel.axis,
-           AngleWords{static_cast<std::uint32_t>(sine), static_cast<std::uint32_t>(cosine)},
-           rotation);
+    (void)rotate(core,
+                 channel.axis,
+                 AngleWords{static_cast<std::uint32_t>(sine), static_cast<std::uint32_t>(cosine)},
+                 rotation,
+                 Byte0Result::Loaded);
   }
 }
 

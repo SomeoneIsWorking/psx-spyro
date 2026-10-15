@@ -7,13 +7,13 @@ namespace spyro::guest_terrain {
 // The GTE register and command numbers are shared vocabulary (psxport gte_registers.h), not this
 // pass's.
 namespace gte = psx::gte;
-void loadFogColour(const TerrainMemory &memory, Core &core, const Facts &facts) {
+void loadFogColour(const guest_memory::WorkingMemory &memory, Core &core, const Facts &facts) {
   core.gte().writeControl(gte::kFarRed, memory.r32(facts.fogColour));
   core.gte().writeControl(gte::kFarGreen, memory.r32(facts.fogColour + 4));
   core.gte().writeControl(gte::kFarBlue, memory.r32(facts.fogColour + 8));
 }
 
-std::uint32_t fogColours(TerrainMemory &memory,
+std::uint32_t fogColours(guest_memory::WorkingMemory &memory,
                          Core &core,
                          const Facts &facts,
                          std::uint32_t colours,
@@ -35,6 +35,17 @@ std::uint32_t fogColours(TerrainMemory &memory,
     to += 4;
   } while (from != end);
   return to;
+}
+
+std::uint32_t fadeColour(Core &core, const ColourFade &colours) {
+  const auto [nearColour, farColour, fade] = colours;
+  core.gte().writeControl(gte::kFarRed, (nearColour << 4) & 0xFF0u);
+  core.gte().writeControl(gte::kFarGreen, (nearColour >> 4) & 0xFF0u);
+  core.gte().writeControl(gte::kFarBlue, nearColour >> 12);
+  core.gte().writeData(gte::kRgbc, farColour);
+  core.gte().writeData(gte::kIr0, fade);
+  core.gte().execute(gte::kDpcs);
+  return core.gte().readData(gte::kRgb2);
 }
 
 } // namespace spyro::guest_terrain

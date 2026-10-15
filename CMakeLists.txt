@@ -112,6 +112,7 @@ set(SPYRO_RUNTIME_SOURCES
   titles/spyro1/core/hud/native_pause_menu.cpp
   titles/spyro1/core/hud/native_pixel_fade.cpp
   titles/spyro1/core/hud/screen_overlays.cpp
+  titles/spyro1/core/hud/spyro1_hud_anchor.cpp
   titles/spyro1/core/player/native_player_animation.cpp
   titles/spyro1/core/player/native_player_physics.cpp
   titles/spyro1/core/execution/native_random_range.cpp
@@ -127,18 +128,54 @@ set(SPYRO_RUNTIME_SOURCES
   titles/spyro1/core/audio/native_spu_common_attr.cpp
   game/render/field/guest_moby_rotation.cpp
   game/render/field/guest_moby_visibility.cpp
+  game/render/field/guest_view_slope.cpp
+  game/render/field/guest_working_memory.cpp
+  game/render/terrain/engine_terrain_image.cpp
+  game/render/terrain/guest_terrain_animation.cpp
   game/render/terrain/guest_terrain_classify.cpp
   game/render/terrain/guest_terrain_coarse.cpp
+  game/render/terrain/guest_terrain_cull.cpp
   game/render/terrain/guest_terrain_detail.cpp
   game/render/terrain/guest_terrain_drawer.cpp
   game/render/terrain/guest_terrain_far.cpp
+  game/render/terrain/guest_terrain_far_vertices.cpp
   game/render/terrain/guest_terrain_fine.cpp
   game/render/terrain/guest_terrain_fog.cpp
+  game/render/terrain/guest_terrain_grid.cpp
   game/render/terrain/guest_terrain_mesh.cpp
-  game/render/terrain/guest_terrain_memory.cpp
   game/render/terrain/guest_terrain_resplit.cpp
+  game/render/terrain/guest_terrain_sphere.cpp
   game/render/terrain/guest_terrain_split.cpp
   game/render/terrain/guest_terrain_translucent.cpp
+  titles/spyro1/render/spyro1_actor_between.cpp
+  titles/spyro1/render/spyro1_actor_emitter.cpp
+  titles/spyro1/render/spyro1_actor_emitter_polygons.cpp
+  titles/spyro1/render/spyro1_actor_emitter_producer.cpp
+  titles/spyro1/render/spyro1_actor_emitter_vertices.cpp
+  titles/spyro1/render/spyro1_actor_list.cpp
+  titles/spyro1/render/spyro1_local_bins.cpp
+  titles/spyro1/render/spyro1_lit_actor_emitter.cpp
+  titles/spyro1/render/spyro1_paired_actor.cpp
+  titles/spyro1/render/spyro1_paired_actor_polygons.cpp
+  titles/spyro1/render/spyro1_paired_actor_producer.cpp
+  titles/spyro1/render/spyro1_paired_actor_vertices.cpp
+  titles/spyro1/render/spyro1_drop_shadow.cpp
+  titles/spyro1/render/spyro1_drop_shadow_producer.cpp
+  titles/spyro1/render/spyro1_glow_producers.cpp
+  titles/spyro1/render/spyro1_glows.cpp
+  titles/spyro1/render/spyro1_particle_producer.cpp
+  titles/spyro1/render/spyro1_particles.cpp
+  titles/spyro1/render/spyro1_sky.cpp
+  titles/spyro1/render/spyro1_sky_producer.cpp
+  titles/spyro1/render/spyro1_sprite_queue.cpp
+  titles/spyro1/render/spyro1_sprite_queue_producer.cpp
+  titles/spyro1/render/spyro1_terrain_coarse.cpp
+  titles/spyro1/render/spyro1_terrain_detail.cpp
+  titles/spyro1/render/spyro1_terrain_far.cpp
+  titles/spyro1/render/spyro1_terrain_fine.cpp
+  titles/spyro1/render/spyro1_terrain_image.cpp
+  titles/spyro1/render/spyro1_terrain_sectors.cpp
+  titles/spyro1/render/spyro1_terrain_split.cpp
   titles/spyro2/core/spyro2_runtime.cpp
   titles/spyro2/render/spyro2_hud_anchor.cpp
   titles/spyro3/core/spyro3_runtime.cpp
@@ -163,6 +200,7 @@ target_include_directories(spyro_runtime PUBLIC
   titles/spyro1/core/moby
   titles/spyro1/core/player
   titles/spyro1/core/runtime
+  titles/spyro1/render
   titles/spyro2/core
   titles/spyro2/render
   titles/spyro3/core
@@ -191,7 +229,7 @@ if(BUILD_TESTING)
   add_test(NAME archive_transfer COMMAND test_archive_transfer)
   # A missing image, so the loader-fault case reaches the production disc owner with no media.
   set_tests_properties(archive_transfer PROPERTIES ENVIRONMENT "PSXPORT_DISC=${CMAKE_BINARY_DIR}/no-disc.chd")
-  foreach(test_name IN ITEMS actor_mesh_scratch archive_transfer_contract memcard_event_stack spu_hardware_init spu_pio_upload spyro_gate_debug text_sprites field_scheduler transition_skip press_latch guest_moby_frustum spyro2_hud_anchor spyro3_hud_anchor guest_terrain_screen guest_camera_builder guest_terrain_memory terrain_packet_window ui_anchor spyro1_screen_overlays title_logo)
+  foreach(test_name IN ITEMS actor_mesh_scratch archive_transfer_contract memcard_event_stack spu_hardware_init spu_pio_upload spyro_gate_debug text_sprites field_scheduler transition_skip press_latch guest_moby_frustum spyro2_hud_anchor spyro3_hud_anchor guest_terrain_screen guest_camera_builder guest_terrain_memory terrain_packet_window ui_anchor spyro1_screen_overlays spyro1_terrain spyro1_actors spyro1_effects title_logo)
 
     add_executable(test_${test_name} tests/test_${test_name}.cpp)
     target_include_directories(test_${test_name} PRIVATE ${PSXPORT_DIR}/tests)
