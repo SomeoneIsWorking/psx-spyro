@@ -97,7 +97,7 @@ public:
     // The fixture's scheduler, not the runtime's frame driver, owns this session's fields.
     fields.publish();
     // Exercise the actual Core presentation backend without creating a graphics device/window.
-    game->gpu_dev.s_gpu_on = 0;
+    game->disablePresentation();
   }
 
   bool install() {
@@ -194,7 +194,7 @@ void test_unpresented_field_advances_time_and_full_root_once() {
 void test_pending_edge_uses_hook_continuation_once() {
   FieldFixture fixture;
   CHECK(fixture.install());
-  fixture.game->framePacer.paceSubframeFields(fixture.game->core, 1, 1);
+  fixture.game->framePacer.paceSubframeFields(fixture.game->core, {1, 1});
   CHECK_EQ(fixture.game->core.mem_r32(kIStat) & 1u, 1u);
   CHECK(fixture.fields.deliver({"test-pending-edge", false, false}));
   psx::cpu::servicePendingWork(fixture.game->core);
@@ -235,7 +235,7 @@ void test_root_without_hook_survives_pending_work_inside_guest_dispatch() {
   CHECK(fixture.install());
   CHECK(fixture.game->hle.dispatchBios('B', 0x18));
   static_cast<R3000 &>(fixture.game->core) = fixture.saved;
-  fixture.game->framePacer.paceSubframeFields(fixture.game->core, 1, 1);
+  fixture.game->framePacer.paceSubframeFields(fixture.game->core, {1, 1});
   CHECK_EQ(fixture.game->core.mem_r32(kIStat) & 1u, 1u);
   CHECK((fixture.game->core.pending_work & Core::PW_IRQ) != 0u);
   CHECK(fixture.fields.deliver({"test-no-hook", false, false}));
@@ -278,10 +278,10 @@ void test_default_runtime_presentation_still_delivers_hardware_fields() {
   CHECK(fixture.install());
   // An ordinary runtime's existing combined contract remains available. Qualify the base method
   // explicitly rather than borrowing another title or changing Spyro 1's runtime ownership.
-  fixture.runtime.psx::game::GameRuntime::pacePresentation(fixture.game->core, 1, 2);
+  fixture.runtime.psx::game::GameRuntime::pacePresentation(fixture.game->core, {1, 2});
   psx::cpu::servicePendingWork(fixture.game->core);
   CHECK_EQ(fixture.fields.counter(), 0);
-  fixture.runtime.psx::game::GameRuntime::pacePresentation(fixture.game->core, 1, 2);
+  fixture.runtime.psx::game::GameRuntime::pacePresentation(fixture.game->core, {1, 2});
   psx::cpu::servicePendingWork(fixture.game->core);
   fixture.checkRegisters();
   fixture.checkCallbacks(1u);
@@ -424,5 +424,5 @@ int main() {
   RUN(skip_map_reads_the_three_title_fields_apart);
   RUN(skip_map_reports_an_unpublished_cutscene_layout_as_not_resident);
   RUN(skip_map_carries_the_cards_own_gate);
-  return pt_summary();
+  return psx::test::summary();
 }

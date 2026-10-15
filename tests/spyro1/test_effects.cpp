@@ -345,7 +345,7 @@ int main() {
     RUN(the_composer_draws_a_sparkle_between_two_fields);
     RUN(the_composer_draws_a_particle_between_two_fields);
     RUN(the_margins_leave_guest_state_as_retail_wrote_it);
-    return pt_summary();
+    return psx::test::summary();
   } catch (const std::exception &error) {
     lucent::error("test_spyro1_effects", "FAIL: {}", error.what());
     return 1;

@@ -42,7 +42,7 @@ listReads(Core &guest, const EmitterPass &pass, std::uint32_t record) {
   probe.map(kWorkBlock, kWorkBlockBytes);
   probe.map(record, static_cast<std::uint32_t>(sizeof(MobyBytes)));
   probe.map(kShadowListEnd, 4);
-  const psx::present::GteGuard gte;
+  const psx::present::GteGuard gte(guest.gte());
   (void)listRecord(guest, probe, *pass.list, record);
   return probe.levelReads();
 }
@@ -121,7 +121,7 @@ void ActorEmitterProducer::render(const psx::present::StateInterval &states,
   host.mapEmpty(kShadowListEnd, 4);
   host.w32(kShadowListEnd, kShadowList);
 
-  const psx::present::GteGuard gte;
+  const psx::present::GteGuard gte(core_.gte());
   if (!listRecord(core_, host, *pass_.list, state.record)) {
     return;
   }

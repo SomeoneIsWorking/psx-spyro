@@ -8,7 +8,6 @@
 #include "guest_call.h"
 #include "hle.h"
 #include "host_turn.h"
-#include "snapshot.h"
 
 #include <chrono>
 #include <cstdlib>
@@ -170,7 +169,7 @@ bool FieldOwner::deliver(FieldRequest request) {
   const bool startDown = (game_.pad.buttons & kPadStart) == 0;
   const bool startEdge = startDown && (previousButtons_ & kPadStart) != 0;
   previousButtons_ = game_.pad.buttons;
-  if (!game_.timing.advanceDisplayFields(1, 1, core.game->framePacer.fieldRateMilliHz(core))) {
+  if (!game_.timing.advanceDisplayFields({1, 1}, core.game->framePacer.fieldRateMilliHz(core))) {
     lucent::error(
         "fields", "{} display clock refused one field at {}", facts_.titleName, request.site);
     std::abort();
@@ -184,13 +183,13 @@ bool FieldOwner::deliver(FieldRequest request) {
   if (observer_ != nullptr) {
     observer_->onField(core, startEdge);
   }
-  snapshot_tick(&core);
+  core.game->snapshots.tick(core);
 
   if (request.present) {
     game_.presentation.commit(&core, takePacedFields(request.pace));
     ++presents_;
   } else if (request.pace) {
-    game_.framePacer.waitPresentedFields(core, takePacedFields(request.pace), 1);
+    game_.framePacer.waitPresentedFields(core, {takePacedFields(request.pace), 1});
   }
   game_.spu_audio.frame();
   if (request.pace) {

@@ -2,6 +2,7 @@
 
 #include "core.h"
 #include "game.h"
+#include "gpu_ports.h"
 
 #include <lucent/log.h>
 
@@ -112,7 +113,7 @@ std::optional<psx::host::LogoImage> extractPanelLogo(Core &core, const TitleLogo
     return std::nullopt;
   }
 
-  const Vram vram = core.gpuDevice.vram();
+  const Vram vram = psx::gpu::vram(core);
   // Each part's (u, v) is its recorded position on the page the game uploaded, so the wordmark is
   // placed where the game placed it and is never re-lettered as equal pieces.
   std::vector<SpriteRecord> parts;

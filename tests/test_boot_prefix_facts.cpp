@@ -139,7 +139,7 @@ int main() {
     RUN(spyro2_facts_and_bindings_match_its_executable);
     RUN(spyro3_facts_and_bindings_match_its_executable);
     RUN(only_spyro2_reports_a_packet_pool);
-    return pt_summary();
+    return psx::test::summary();
   } catch (const std::exception &error) {
     lucent::error("test_boot_prefix_facts", "FAIL: {}", error.what());
     return 1;

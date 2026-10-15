@@ -105,7 +105,7 @@ void SkyProducer::render(const psx::present::StateInterval &states,
   host.w32(terrain::kPacketPoolEnd, arena.base + arena.bytes);
   host.mapEmpty(kPoolExhausted, 4);
 
-  const psx::present::GteGuard gte;
+  const psx::present::GteGuard gte(core_.gte());
   Cyclorama sky(core_, host, spyro::presentedBounds(core_, spyro1::terrain::kSharedFacts));
   const std::optional<SkyChain> chain = sky.draw(after.header.group, rotations);
   if (!chain) {

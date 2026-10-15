@@ -23,7 +23,7 @@ public:
   std::unique_ptr<psx::game::TitleSessionState> createSession(Game &game) final;
   const psx::present::StateProducer *stateProducer(Core &core, std::uint32_t producer) const final;
   // The field owner already delivered the simulated fields, so presentation only waits.
-  void pacePresentation(Core &core, int guestFields, int parts) final;
+  void pacePresentation(Core &core, psx::frame::FieldCadence cadence) final;
   std::optional<psx::host::LogoImage> panelLogo(Core &core) const final;
   // The player's aspect; the canvas holds the margins and each title widens its own culls.
   const GuestWidescreenProjection *guestWidescreenProjection() const final;

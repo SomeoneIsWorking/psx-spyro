@@ -29,7 +29,7 @@ archive_transfer::Decision refuse(Core &core, const ArchiveRead &request, std::s
 archive_transfer::Decision
 ArchiveTransfer::read(Core &core, const ArchiveRead &request, bool deferred) {
   return read(core, request, deferred, [&core](std::uint32_t lba, auto sector) {
-    return core.game != nullptr && disc_read_sector(&core.game->disc, lba, sector.data()) != 0;
+    return core.game != nullptr && core.game->disc.readSector(lba, sector.data()) != 0;
   });
 }
 

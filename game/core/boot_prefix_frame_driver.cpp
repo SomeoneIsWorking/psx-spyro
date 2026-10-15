@@ -63,7 +63,10 @@ bool BootPrefixFrameDriver::enterCall(std::uint32_t entry) {
     return false;
   }
   // The turn cap is the title's bound; this driver ends a call on its own field and step bounds.
-  call_.begin(core_, facts_.callName, entry, returnPc, psx::cpu::kUnboundedCallTurns);
+  call_.begin(core_,
+              facts_.callName,
+              psx::cpu::GuestCallSite{entry, returnPc},
+              psx::cpu::kUnboundedCallTurns);
   callTurns_ = 0;
   callCycles_ = 0;
   return true;

@@ -45,7 +45,7 @@ constexpr Crt0Template kSpyro3{.entry = 0x80059444u,
                                .heapBasePtr = 0x80069F00u};
 
 void test_the_fixture_encoder_matches_measured_bytes() {
-  for (const Crt0PinRow &pin : crt0_fixture_pins()) {
+  for (const Crt0PinRow &pin : psx::test::crt0::pins()) {
     CHECK_EQ(pin.got, pin.want);
   }
 }
@@ -53,7 +53,7 @@ void test_the_fixture_encoder_matches_measured_bytes() {
 void checkStartProgram(spyro::Title title, const Crt0Template &crt0) {
   spyro::test::BootedTitle booted(title);
   Core &core = booted.core();
-  crt0_fixture_emit(crt0, [&core](std::uint32_t address, std::uint32_t word) {
+  psx::test::crt0::emit(crt0, [&core](std::uint32_t address, std::uint32_t word) {
     core.mem_w32(address, word);
   });
   core.mem_w32(crt0.stackTopBase, kStackTopWord);
@@ -86,7 +86,7 @@ int main() {
     RUN(the_fixture_encoder_matches_measured_bytes);
     RUN(spyro2_start_program_applies_its_crt0);
     RUN(spyro3_start_program_applies_its_crt0);
-    return pt_summary();
+    return psx::test::summary();
   } catch (const std::exception &error) {
     lucent::error("test_start_program", "FAIL: {}", error.what());
     return 1;

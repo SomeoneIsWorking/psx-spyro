@@ -91,7 +91,7 @@ void PairedActorProducer::render(const psx::present::StateInterval &states,
   }
   host.mapEmpty(kHornRotation, kHornRotationBytes);
 
-  const psx::present::GteGuard gte;
+  const psx::present::GteGuard gte(core_.gte());
   PairedActor actor(core_, host);
   if (!actor.draw()) {
     return;

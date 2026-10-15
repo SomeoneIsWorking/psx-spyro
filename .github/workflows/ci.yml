@@ -15,7 +15,7 @@ concurrency:
 jobs:
   verify:
     name: Build, C++ quality and tests (Linux x86_64)
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 45
     env:
       CC: clang
@@ -34,7 +34,7 @@ jobs:
           enable-cache: false
 
       - name: Resolve psxport
-        run: uv run --frozen python tools/psxport_fetch.py --auto
+        run: uv run --no-project https://raw.githubusercontent.com/SomeoneIsWorking/psxport/main/tools/psxport_fetch.py --auto
 
       - name: Provision the canonical Linux dependencies
         uses: ./external/psxport/.github/actions/setup-linux

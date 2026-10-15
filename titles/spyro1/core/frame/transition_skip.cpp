@@ -154,16 +154,18 @@ void TransitionSkip::observe(Core &core) {
     return;
   case Cancellation::CutsceneTransitionFlyby:
     flybyPressHeld_ = false;
-    psx::cpu::dispatchGuestToReturn1(core,
-                                     kResetSpyroForGameplay,
-                                     1u,
-                                     psx::cpu::ExecutionBudget::fromCycles(kFlybyTerminalCycles),
-                                     "transition-flyby-reset-spyro");
-    psx::cpu::dispatchGuestToReturn1(core,
-                                     kLoadLevel,
-                                     1u,
-                                     psx::cpu::ExecutionBudget::fromCycles(kFlybyTerminalCycles),
-                                     "transition-flyby-load-level");
+    psx::cpu::dispatchGuestWithArgumentsToReturn(
+        core,
+        kResetSpyroForGameplay,
+        std::array<std::uint32_t, 1>{1u},
+        psx::cpu::ExecutionBudget::fromCycles(kFlybyTerminalCycles),
+        "transition-flyby-reset-spyro");
+    psx::cpu::dispatchGuestWithArgumentsToReturn(
+        core,
+        kLoadLevel,
+        std::array<std::uint32_t, 1>{1u},
+        psx::cpu::ExecutionBudget::fromCycles(kFlybyTerminalCycles),
+        "transition-flyby-load-level");
     ++cancellations_;
     lucent::info("transition",
                  "level flyby cancelled ({}); guest 0x{:08X} then 0x{:08X} left stage {} load "

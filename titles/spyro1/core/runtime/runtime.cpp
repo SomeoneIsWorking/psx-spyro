@@ -118,7 +118,8 @@ constexpr psx::gpu::GuestPacketPoolWindows kPacketPool{
 } // namespace
 
 Runtime::Runtime()
-    : spyro::Runtime(spyro::Title::Spyro1), vsync_(kVSync, kVSyncQueryCounter), libgpu_(kLibgpu),
+    : spyro::Runtime(spyro::Title::Spyro1),
+      vsync_({.entry = kVSync, .queryCounter = kVSyncQueryCounter}), libgpu_(kLibgpu),
       libgte_(kLibgte), libcd_(kLibcd, kCdWorkArea, 0), pad_(kPadBuffers) {}
 
 void Runtime::startProgram(Core &core) {
@@ -203,17 +204,6 @@ std::optional<psx::gpu::PacketPoolExtent> Runtime::packetPool(Core &core) const 
 }
 
 bool Runtime::interpolates() const {
-  return true;
-}
-
-RenderCapabilities Runtime::renderCapabilities() const {
-  return RenderCapabilities{
-      .defaultPath = RenderPath::Record,
-      .nativeRenderPath = false,
-  };
-}
-
-bool Runtime::guestVramIsPicture(const Game &) const {
   return true;
 }
 

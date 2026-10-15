@@ -47,19 +47,18 @@ void StageUpdateObserver::beginStage(Core &core, std::uint32_t entry) {
   if (entry != target_) {
     return;
   }
-  if (stageArmed_ || core.rsub.gtePreOp.armed()) {
+  if (stageArmed_ || core.gte().observer().armed()) {
     lucent::error("stage-observe",
                   "cannot arm camera projection: a GTE observer already owns this Core");
     std::abort();
   }
-  core.rsub.gtePreOp.arm(beforeGte, afterGte, this);
+  core.gte().observer().arm({.pre = beforeGte, .post = afterGte}, this);
   stageArmed_ = true;
 }
 
-void StageUpdateObserver::beforeGte(
-    Core *core, std::uint64_t ordinal, std::uint32_t, std::uint32_t instruction, void *user) {
+void StageUpdateObserver::beforeGte(Core *core, const GteOp &op, void *user) {
   auto &observer = *static_cast<StageUpdateObserver *>(user);
-  if (instruction != kProjectionRtps) {
+  if (op.instruction != kProjectionRtps) {
     return;
   }
   ++observer.stageRtpsOps_;
@@ -93,7 +92,7 @@ void StageUpdateObserver::beforeGte(
   }
 
   ++observer.stageProjection_.candidates;
-  observer.pendingProjectionOrdinal_ = ordinal;
+  observer.pendingProjectionOrdinal_ = op.ordinal;
   if (observer.stageProjection_.candidates != 1u) {
     return;
   }
@@ -106,10 +105,9 @@ void StageUpdateObserver::beforeGte(
   observer.stageProjection_.h = core->gte().readControl(26u);
 }
 
-void StageUpdateObserver::afterGte(
-    Core *core, std::uint64_t ordinal, std::uint32_t, std::uint32_t, void *user) {
+void StageUpdateObserver::afterGte(Core *core, const GteOp &op, void *user) {
   auto &observer = *static_cast<StageUpdateObserver *>(user);
-  if (ordinal != observer.pendingProjectionOrdinal_) {
+  if (op.ordinal != observer.pendingProjectionOrdinal_) {
     return;
   }
   observer.pendingProjectionOrdinal_ = 0;
@@ -128,7 +126,7 @@ void StageUpdateObserver::afterReturn(Core &core, std::uint32_t entry) {
     return;
   }
   if (stageArmed_) {
-    stageGteOps_ = core.rsub.gtePreOp.disarm();
+    stageGteOps_ = core.gte().observer().disarm();
     stageArmed_ = false;
   }
   gteOps_ += stageGteOps_;

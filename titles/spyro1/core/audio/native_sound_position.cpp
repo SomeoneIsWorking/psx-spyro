@@ -457,7 +457,7 @@ void assignActiveSoundSlot(Core *c) {
                                  1u);
     }
     if (recordKind <= 2u) {
-      cpu_div(c, c->r[2], range);
+      psx::cpu::divide(c, {.numerator = c->r[2], .denominator = range});
       const std::uint32_t moved = multiplyLow(c, c->hi, step);
       const std::uint32_t current = c->mem_r16(frame + 0x2Cu);
       c->mem_w16(frame + 0x2Cu,

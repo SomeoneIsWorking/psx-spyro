@@ -59,7 +59,7 @@ int main() {
     RUN(the_hud_frame_follows_the_sessions_plan);
     RUN(a_new_session_starts_unwidened);
     RUN(each_title_binds_its_own_libgte_leaves);
-    return pt_summary();
+    return psx::test::summary();
   } catch (const std::exception &error) {
     lucent::error("test_guest_widescreen", "FAIL: {}", error.what());
     return 1;

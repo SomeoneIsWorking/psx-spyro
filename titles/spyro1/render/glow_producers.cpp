@@ -119,7 +119,7 @@ void GlowFanProducer::render(const psx::present::StateInterval &states,
                      actors::wordBetween(before.header.position[i], state.position[i], states.t));
   }
 
-  const psx::present::GteGuard gte;
+  const psx::present::GteGuard gte(core_.gte());
   GlowFans fans(core_, between.host, spyro::presentedBounds(core_, spyro1::terrain::kSharedFacts));
   fans.begin();
   if (fans.draw(state.emitter)) {
@@ -138,7 +138,7 @@ void SparkleProducer::render(const psx::present::StateInterval &states,
   actors::mapBytes(
       between.host, state.record, sparkleBetween(before.header.bytes, state.bytes, states.t));
 
-  const psx::present::GteGuard gte;
+  const psx::present::GteGuard gte(core_.gte());
   Sparkles sparkles(
       core_, between.host, spyro::presentedBounds(core_, spyro1::terrain::kSharedFacts));
   sparkles.begin(0);

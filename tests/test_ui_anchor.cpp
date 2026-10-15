@@ -62,5 +62,5 @@ int main() {
   RUN(each_class_moves_by_its_share_of_the_margin);
   RUN(the_correction_undoes_the_centring_per_class);
   RUN(a_misread_frame_is_refused_and_not_moved);
-  return pt_summary();
+  return psx::test::summary();
 }

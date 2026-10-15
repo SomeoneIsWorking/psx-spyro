@@ -1,5 +1,7 @@
 #pragma once
 
+#include "gte_preop_observer.h"
+
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -74,16 +76,8 @@ public:
 
 private:
   static constexpr std::size_t kFirstGameplaySamples = 128;
-  static void beforeGte(Core *core,
-                        std::uint64_t ordinal,
-                        std::uint32_t guestPc,
-                        std::uint32_t instruction,
-                        void *user);
-  static void afterGte(Core *core,
-                       std::uint64_t ordinal,
-                       std::uint32_t guestPc,
-                       std::uint32_t instruction,
-                       void *user);
+  static void beforeGte(Core *core, const GteOp &op, void *user);
+  static void afterGte(Core *core, const GteOp &op, void *user);
 
   bool enabled_ = false;
   bool stageArmed_ = false;

@@ -71,7 +71,7 @@ void DropShadowProducer::render(const psx::present::StateInterval &states,
                    shadow_block::kBlock,
                    shadowBetween(before.header.shadow, after.header.shadow, states.t));
 
-  const psx::present::GteGuard gte;
+  const psx::present::GteGuard gte(core_.gte());
   DropShadow shadow(core_, host);
   if (shadow.draw()) {
     actors::emitDepthBins(host, arena, table, sink, "shadow");

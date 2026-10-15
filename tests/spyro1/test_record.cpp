@@ -53,11 +53,8 @@ void writeSyntheticDraw(Core &core) {
   }
 }
 
-void test_spyro1_replays_its_record_and_interpolates_it() {
+void test_spyro1_interpolates() {
   const spyro1::Runtime spyro1;
-  const RenderCapabilities caps = spyro1.renderCapabilities();
-  CHECK(caps.defaultPath == RenderPath::Record);
-  CHECK(!caps.nativeRenderPath);
   CHECK(spyro1.interpolates());
   CHECK(spyro1.guestWidescreenProjection() != nullptr);
 }
@@ -92,8 +89,7 @@ void test_the_boot_picture_is_native_width_until_the_main_loop() {
   spyro::test::BootedTitle booted(spyro::Title::Spyro1, false);
   Game &game = booted.game();
   Core &core = booted.core();
-  game.gpu_dev.s_gpu_on = 0;
-  CHECK(booted.runtime().guestVramIsPicture(game));
+  game.disablePresentation();
   CHECK(booted.runtime().guestPictureIsNativeWidth(game));
   plantBootStubs(core);
   core.r[29] = 0x801FFF00u;
@@ -135,7 +131,7 @@ void test_a_cut_is_a_new_game_state_or_level() {
 void test_the_draws_field_waits_are_fields_and_the_frame_is_presented_once() {
   spyro::test::BootedTitle booted(spyro::Title::Spyro1);
   Core &core = booted.core();
-  booted.game().gpu_dev.s_gpu_on = 0;
+  booted.game().disablePresentation();
   spyro1::FieldScheduler fields(booted.game());
   fields.publish();
   writeSyntheticDraw(core);
@@ -157,11 +153,11 @@ void test_the_draws_field_waits_are_fields_and_the_frame_is_presented_once() {
 
 int main() {
   try {
-    RUN(spyro1_replays_its_record_and_interpolates_it);
+    RUN(spyro1_interpolates);
     RUN(the_boot_picture_is_native_width_until_the_main_loop);
     RUN(a_cut_is_a_new_game_state_or_level);
     RUN(the_draws_field_waits_are_fields_and_the_frame_is_presented_once);
-    return pt_summary();
+    return psx::test::summary();
   } catch (const std::exception &error) {
     lucent::error("test_spyro1_record", "FAIL: {}", error.what());
     return 1;

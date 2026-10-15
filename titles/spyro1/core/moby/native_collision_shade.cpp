@@ -73,7 +73,7 @@ std::uint32_t quadrantSum(Core *c, std::uint32_t reference, std::uint32_t compon
   }
   c->r[6] = dividend;
   c->r[7] = base;
-  cpu_div(c, dividend, divisor);
+  psx::cpu::divide(c, {.numerator = dividend, .denominator = divisor});
   return c->lo + base;
 }
 

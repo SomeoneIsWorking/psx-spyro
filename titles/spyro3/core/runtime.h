@@ -19,8 +19,6 @@ public:
   void stockCdReadLanded(Core &core, const psx::cd::StockReadLanding &landing) override;
 
   bool interpolates() const override;
-  RenderCapabilities renderCapabilities() const override;
-  bool guestVramIsPicture(const Game &game) const override;
   bool sealedFrameIsCut(Core &core) const override;
   // Where this disc's own logo is, once measured; see titles/spyro3/core/logo_facts.h.
   const spyro::TitleLogoFacts &logoFacts() const override;

@@ -33,9 +33,9 @@ void test_reached_and_unreachable_returns_use_the_same_sampler() {
   spyro1::StageUpdateObserver unreachable(true, 0xFFFFFFFCu);
   spyro1::StageUpdateObserver disabled(false, kStageUpdate);
   unreachable.beginStage(core, kStageUpdate);
-  CHECK(!core.rsub.gtePreOp.armed());
+  CHECK(!core.gte().observer().armed());
   disabled.beginStage(core, kStageUpdate);
-  CHECK(!core.rsub.gtePreOp.armed());
+  CHECK(!core.gte().observer().armed());
   reached.afterReturn(core, kStageUpdate);
   unreachable.afterReturn(core, kStageUpdate);
   disabled.afterReturn(core, kStageUpdate);
@@ -110,13 +110,13 @@ void test_projection_reads_live_gte_result_and_rejects_wrong_operands() {
 
   spyro1::StageUpdateObserver observed(true, kStageUpdate);
   observed.beginStage(core, kStageUpdate);
-  CHECK(core.rsub.gtePreOp.armed());
+  CHECK(core.gte().observer().armed());
   core.pc = 0xFFFFFFFFu;
   core.gte().execute(kProjectionRtps);
   const std::uint32_t sxy2 = core.gte().readData(14u);
   const std::uint32_t mac3 = core.gte().readData(27u);
   observed.afterReturn(core, kStageUpdate);
-  CHECK(!core.rsub.gtePreOp.armed());
+  CHECK(!core.gte().observer().armed());
   CHECK_EQ(observed.samples().size(), 1u);
   CHECK_EQ(observed.samples()[0].gteOps, 1u);
   CHECK_EQ(observed.samples()[0].rtpsOps, 1u);
@@ -183,5 +183,5 @@ int main() {
   RUN(reached_and_unreachable_returns_use_the_same_sampler);
   RUN(non_gameplay_returns_are_counted_without_samples);
   RUN(projection_reads_live_gte_result_and_rejects_wrong_operands);
-  return pt_summary();
+  return psx::test::summary();
 }

@@ -622,7 +622,7 @@ def main() -> int:
         action="append",
         default=[],
         metavar="NAME=VALUE",
-        help="extra PSXPORT_* knob for this run, e.g. --env PSXPORT_RENDER_PATH=gte",
+        help="extra PSXPORT_* knob for this run, e.g. --env PSXPORT_RENDER_PATH=device",
     )
     parser.add_argument(
         "--settings",
