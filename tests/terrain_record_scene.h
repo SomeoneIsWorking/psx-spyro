@@ -109,7 +109,6 @@ struct BinTable {
 // The guest flatten's chain over `bins`: each bin's packets from the first linked to the head,
 // deepest bin first, the last head pointing at the end-of-list tag.
 inline std::uint32_t linkChain(Core &core, const BinTable &bins) {
-  const auto [table, count] = bins;
   namespace sink = depth_bins;
   const auto linkAfter = [&core](std::uint32_t packet, std::uint32_t next) {
     const std::uint32_t tag = core.mem_r32(packet);
@@ -118,8 +117,8 @@ inline std::uint32_t linkChain(Core &core, const BinTable &bins) {
   core.mem_w32(kChainEnd, kEndOfList);
   std::uint32_t head = kChainEnd;
   std::uint32_t tail = 0;
-  for (std::int32_t bin = static_cast<std::int32_t>(count) - 1; bin >= 0; --bin) {
-    const std::uint32_t pair = table + static_cast<std::uint32_t>(bin) * sink::kBinStride;
+  for (std::int32_t bin = static_cast<std::int32_t>(bins.bins) - 1; bin >= 0; --bin) {
+    const std::uint32_t pair = bins.base + static_cast<std::uint32_t>(bin) * sink::kBinStride;
     const std::uint32_t first = core.mem_r32(pair + sink::kBinFirstOffset);
     if (first == 0) {
       continue;
