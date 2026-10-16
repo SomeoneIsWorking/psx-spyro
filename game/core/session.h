@@ -1,8 +1,10 @@
 #pragma once
 
+#include <memory>
 #include <vector>
 
 #include "core/archive_transfer.h"
+#include "core/debug/warp.h"
 #include "core/field_owner.h"
 #include "game_runtime.h"
 #include "render/hud/hud_draw_context.h"
@@ -31,6 +33,8 @@ public:
   std::int32_t terrainPacketBudget = 0;
   // The state renders this title's producers registered, keyed by producer entry.
   psx::present::StateProducerTable stateProducers;
+  // The title's `warp` request, applied by its frame driver.
+  std::unique_ptr<Warp> warp;
 };
 
 // The session of the Game `core` belongs to; a native override reaches it from its Core alone.

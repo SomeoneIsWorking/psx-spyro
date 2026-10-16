@@ -72,6 +72,7 @@ set(SPYRO_RUNTIME_SOURCES
   game/core/native_vec.cpp
   game/core/session.cpp
   game/core/gate_debug.cpp
+  game/core/debug/warp.cpp
   game/core/runtime.cpp
   game/core/title_runtime_registry.cpp
   game/core/title_logo.cpp
@@ -90,6 +91,7 @@ set(SPYRO_RUNTIME_SOURCES
   titles/spyro1/core/frame/stage_update_observer.cpp
   titles/spyro1/core/frame/transition_skip.cpp
   titles/spyro1/core/runtime/runtime.cpp
+  titles/spyro1/core/debug/warp.cpp
   titles/spyro1/core/audio/native_sound_position.cpp
   titles/spyro1/core/audio/native_audio_key_state.cpp
   titles/spyro1/core/camera/native_camera.cpp
@@ -177,8 +179,10 @@ set(SPYRO_RUNTIME_SOURCES
   titles/spyro1/render/terrain_sectors.cpp
   titles/spyro1/render/terrain_split.cpp
   titles/spyro2/core/runtime.cpp
+  titles/spyro2/core/warp.cpp
   titles/spyro2/render/hud_anchor.cpp
   titles/spyro3/core/runtime.cpp
+  titles/spyro3/core/warp.cpp
   titles/spyro3/render/hud_anchor.cpp)
 
 add_library(spyro_runtime STATIC ${SPYRO_RUNTIME_SOURCES})
@@ -211,7 +215,7 @@ if(BUILD_TESTING)
   add_test(NAME archive_transfer COMMAND test_archive_transfer)
   # A missing image, so the loader-fault case reaches the production disc owner with no media.
   set_tests_properties(archive_transfer PROPERTIES ENVIRONMENT "PSXPORT_DISC=${CMAKE_BINARY_DIR}/no-disc.chd")
-  foreach(test_name IN ITEMS actor_mesh_scratch archive_transfer_contract memcard_event_stack spu_hardware_init spu_pio_upload gate_debug text_sprites field_scheduler transition_skip press_latch guest_moby_frustum guest_terrain_screen guest_camera_builder guest_terrain_memory terrain_packet_window ui_anchor title_logo)
+  foreach(test_name IN ITEMS actor_mesh_scratch archive_transfer_contract memcard_event_stack spu_hardware_init spu_pio_upload gate_debug text_sprites field_scheduler transition_skip press_latch guest_moby_frustum guest_terrain_screen guest_camera_builder guest_terrain_memory terrain_packet_window ui_anchor title_logo warp)
 
     add_executable(test_${test_name} tests/test_${test_name}.cpp)
     target_include_directories(test_${test_name} PRIVATE ${PSXPORT_DIR}/tests)

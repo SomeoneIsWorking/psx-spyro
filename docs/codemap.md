@@ -26,6 +26,7 @@ S3 `SCUS_944.67`. `game/` and `titles/` are the include roots, so a header is in
 | `guest_magnitude` | `game/core/guest_magnitude.h` | The normalise tail libgte's leaves and the collision shade share |
 | `extractPanelLogo`, `TitleLogoFacts` | `game/core/title_logo.h`, `game/core/title_logo_facts.h` | A title's wordmark read out of the GPU device's VRAM for its picker panel |
 | `gate_debug` | `game/core/gate_debug.h` | The `gates` and `gate-teleport` control commands |
+| `spyro::Warp` | `game/core/debug/warp.h` | The `warp <level-id>` control command: parses and arms it, applies it at a frame boundary once the title screen is idle; titles subclass it with their level ids and title-screen route |
 | guest facts | `game/core/guest_globals.h`, `guest_gp.h`, `vblank_irq.h`, `memcard_*.h`, `spu_*.h`, `text_sprites.h`, `actor_mesh_scratch.h` | Guest globals, the pending-VBlank test, memory-card plans, SPU init and upload, glyph vocabulary, mesh scratch layout |
 
 ### Shared render — `game/render/`
@@ -76,6 +77,7 @@ S3 `SCUS_944.67`. `game/` and `titles/` are the include roots, so a header is in
 | `glows::GlowFans`, `Sparkles` | `titles/spyro1/render/glow{s,_producers}.h` | The glow fans `0x800580F4` and sparkles `0x800584C4` of `0x80058BA8`, widened, and their producers |
 | `particles::EmitList`, `ParticleProducer` | `titles/spyro1/render/particle{s,_producer}.h` | RasterizeEmitList `0x800573C8`, widened, and its producer per record |
 | `hud_anchor` | `titles/spyro1/core/hud/hud_anchor.h` | Each HUD record's and HUD quad's edge class; EmitTexturedQuad `0x8001919C`'s override |
+| `spyro1::Warp` | `titles/spyro1/core/debug/warp.h` | S1's warp route: the reset `0x8001277C` then the TSM_Demo/TSD_Level handoff New Game runs after its intro |
 | `InputPhase` | `titles/spyro1/core/input/input_phase.h` | Which screen takes input this pad frame, the key of a recorded `.pad` frame |
 | native leaves | `titles/spyro1/core/<concept>/native_*` | One module per decomp source file, each named for the guest function it replaces |
 
@@ -86,6 +88,7 @@ S3 `SCUS_944.67`. `game/` and `titles/` are the include roots, so a header is in
 | `spyro2::Runtime`, `spyro3::Runtime` | `titles/spyro{2,3}/core/runtime.h` | Crt0 image, stock libraries (libgte's projection leaves included) and `GuestInterruptLibcd`, boot-prefix driver, module landing, packet pool (S2), cut, logo |
 | boot facts | `titles/spyro{2,3}/core/boot_facts.h` | The boot prefix, update/draw pair, field-owner and cut words, with the bytes that give each address |
 | logo facts | `titles/spyro{2,3}/core/logo_facts.h` | Where the wordmark would land |
+| `spyro2::Warp`, `spyro3::Warp` | `titles/spyro{2,3}/core/warp.h` | Each title's warp route: its title screen's own Start teardown with the level id set |
 | render facts | `titles/spyro{2,3}/render/render_facts.h` | Each image's `EngineRenderFacts`: the moby walk, terrain drawer and flatten |
 | `hud_anchor` | `titles/spyro{2,3}/render/hud_anchor.h` | The HUD widget drawers anchored per element class |
 | manifest | `titles/spyro{1,2,3}/executable.json` | Serial, hashes, labels, environment keys |

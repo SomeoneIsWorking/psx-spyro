@@ -201,6 +201,9 @@ void BootPrefixFrameDriver::stepMainLoop(Core &core) {
   // carries the frame's wait, resuming whichever call the previous step left suspended. Resuming a
   // suspended draw as the update would leave the update unreachable after its first iteration.
   for (int calls = 0; calls < kMaxLoopCallsPerStep; ++calls) {
+    if (!call_.pending() && loopCall_ == LoopCall::Update) {
+      session(core).warp->applyArmed(core, static_cast<std::uint32_t>(steps_));
+    }
     if (!call_.pending() && !enterCall(entryOf(loopCall_))) {
       return;
     }
