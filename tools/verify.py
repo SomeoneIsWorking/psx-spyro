@@ -76,7 +76,7 @@ def verify(jobs: int) -> None:
         run.ROOT,
         run.MAINTAINER_BUILD,
         compiler_options,
-        f"-DPSXPORT_DIR={psxport}",
+        *run.framework_definitions(psxport),
         build_testing=True,
     )
     run.command(["cmake", "--build", run.MAINTAINER_BUILD, "-j", str(jobs)])
