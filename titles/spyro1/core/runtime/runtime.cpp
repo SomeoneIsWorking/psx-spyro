@@ -17,6 +17,7 @@
 #include "spyro1/core/audio/native_spu_voice_attributes.h"
 #include "spyro1/core/audio/native_spu_voice_pitch.h"
 #include "spyro1/core/camera/native_camera.h"
+#include "spyro1/core/debug/warp.h"
 #include "spyro1/core/effect/native_effect_state.h"
 #include "spyro1/core/effect/native_particle_alloc.h"
 #include "spyro1/core/execution/native_level_initialization.h"
@@ -221,11 +222,16 @@ const spyro::TitleLogoFacts &Runtime::logoFacts() const {
 }
 
 bool Runtime::titleCommand(Core &core, const psx::game::TitleCommandLine &input, std::FILE *reply) {
-  return spyro::gate_debug::command(core, input, reply);
+  return spyro::Runtime::titleCommand(core, input, reply) ||
+         spyro::gate_debug::command(core, input, reply);
 }
 
 std::uint64_t Runtime::inputPhase(Core &core) const {
   return inputPhase_.of(core);
+}
+
+std::unique_ptr<spyro::Warp> Runtime::createWarp() const {
+  return std::make_unique<Warp>();
 }
 
 } // namespace spyro1

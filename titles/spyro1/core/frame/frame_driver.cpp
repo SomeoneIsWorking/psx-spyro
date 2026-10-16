@@ -2,6 +2,7 @@
 
 #include "core.h"
 #include "core/guest_gp.h"
+#include "core/session.h"
 #include "game.h"
 #include "guest_call.h"
 
@@ -127,6 +128,7 @@ void FrameDriver::stepFrame(Core &core, std::uint32_t) {
   // delivers deterministically. One product step is therefore one drawn iteration, preceded by
   // however many draw-less iterations the guest chains in front of it.
   perf.phaseBegin(GpuPerf::Phase::GameLogic);
+  spyro::session(core).warp->applyArmed(core, frame);
   while (runGuestUpdate(core)) {
     if (fields_.fieldsThisLogicFrame() > kSuppressedFieldLimit) {
       lucent::error("frameloop",

@@ -88,7 +88,14 @@ Statuses: ✅ re-verified · 🟡 re-partial · 🔬 in-progress · ⬜ todo · 
 - deps: dynarec.gameplay
 - evidence: Spyro 1 `0x80075714` (`spyro::guest::kDemoMode`, the stage-0 draw gate tests it at `0x8001EFF0`); Spyro 2 `0x80066D40`, confirmed causally: zero through the cards, non-zero while the attract demo plays, and clearing it during the demo returns the disc to its "SPYRO Riptor's Rage! press start" title screen. The picker no longer reads either; its panels pre-roll a fixed step count.
 - where: game/core/guest_globals.h (Spyro 1)
-- gap: Spyro 3's flag is not located. A live RAM sweep across `0x80068000-0x80070000` between its card and its demo found 14 changed words and none removed the "Entering Demo Mode" caption.
+- gap: Spyro 3's candidate is `0x8006C658` (0 none, 1 playback, 2 record), read from its title and demo code while tracing the warp route; not yet confirmed causally. An earlier live RAM sweep across `0x80068000-0x80070000` found 14 changed words and none removed the "Entering Demo Mode" caption.
+
+### title.warp — Each title's own route from the title screen into a chosen level
+- status: re-partial
+- deps: dynarec.gameplay
+- evidence: Spyro 1: gamestate `0x800757D8` = 13 with g_TitlescreenState `0x80078D78` m_Mode 0 and m_SubState 3 is the idle title; New Game's post-intro handoff runs the reset `0x8001277C` (level 10), then sets g_LevelId `0x8007596C`, m_Mode TSM_Demo (3), m_State TSS_Setup (0), m_DemoType TSD_Level (1), and the flyby loads the level. Valid ids 10..64 with id%10 <= 5 (retail level-warp cheat bounds). Spyro 2: game state `0x800681C8` = 11 with title state `0x80067E0C` = 2 is the idle "press start"; title state 5 at tick `0x80067E00` >= 12 runs the title teardown (`0x800741A0`, `0x8007DC3C`, `0x8007CCD8`) then the load starter `0x80019230(start index 0x80067E14)`; index 0 keeps level id `0x80066F90`. Level id table `0x80064940` (29 ids). Spyro 3: game state `0x8006E344` = 11 is the title; title state byte `0x8007F12C` 19 runs the pre-start fade and prep (`0x8007D218`, `0x8007C268`), then 20 calls `0x80079B94` and WarpToLevel `0x800584BC(0, level id 0x8006C5BC)`; homeworld table `0x800671A0` gives 9/9/9/10 levels from ids 10/20/30/40. `warp 10` reaches gameplay in all three (Artisans, Summer Forest, Sunrise Spring) in the real window.
+- where: game/core/debug/warp.*; titles/spyro1/core/debug/warp.*; titles/spyro{2,3}/core/warp.*
+- gap: calling the S2 load starter or S3's WarpToLevel straight from the idle title faults in the load (the title's own music and CD teardown is skipped), so the route enters each title's Start states instead. Only level 10 was reached live; the other ids are bounds from the tables. Spyro 1's warp shows one backwards record across the handoff (issue 0194).
 
 ### spyro1.record — Present Spyro 1 from its frame record
 - status: re-partial

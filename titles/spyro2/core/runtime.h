@@ -27,6 +27,9 @@ public:
   // Where this disc's own logo is; see titles/spyro2/core/logo_facts.h.
   const spyro::TitleLogoFacts &logoFacts() const override;
 
+protected:
+  std::unique_ptr<spyro::Warp> createWarp() const override;
+
 private:
   psx::hle::StockVSync vsync_;
   psx::hle::StockLibgpu libgpu_;

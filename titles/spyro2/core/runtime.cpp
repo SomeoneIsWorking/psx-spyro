@@ -8,6 +8,7 @@
 #include "guest_code_module.h"
 #include "spyro2/core/boot_facts.h"
 #include "spyro2/core/logo_facts.h"
+#include "spyro2/core/warp.h"
 #include "spyro2/render/hud_anchor.h"
 #include "spyro2/render/render_facts.h"
 
@@ -164,6 +165,10 @@ bool Runtime::sealedFrameIsCut(Core &core) const {
 
 const spyro::TitleLogoFacts &Runtime::logoFacts() const {
   return kLogoFacts;
+}
+
+std::unique_ptr<spyro::Warp> Runtime::createWarp() const {
+  return std::make_unique<Warp>();
 }
 
 } // namespace spyro2

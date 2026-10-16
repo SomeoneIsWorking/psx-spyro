@@ -5,6 +5,7 @@
 #include "core/runtime.h"
 #include "core/session.h"
 #include "game.h"
+#include "spyro1/core/debug/warp.h"
 #include "stub_game_runtime.h"
 #include "typed_config.h"
 
@@ -17,6 +18,11 @@ public:
 
   void registerOverrides(Game &game) override {
     (void)game;
+  }
+
+protected:
+  std::unique_ptr<Warp> createWarp() const override {
+    return std::make_unique<spyro1::Warp>();
   }
 };
 

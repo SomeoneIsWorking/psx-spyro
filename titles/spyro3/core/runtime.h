@@ -23,6 +23,9 @@ public:
   // Where this disc's own logo is, once measured; see titles/spyro3/core/logo_facts.h.
   const spyro::TitleLogoFacts &logoFacts() const override;
 
+protected:
+  std::unique_ptr<spyro::Warp> createWarp() const override;
+
 private:
   psx::hle::StockVSync vsync_;
   psx::cd::GuestInterruptLibcd libcd_;

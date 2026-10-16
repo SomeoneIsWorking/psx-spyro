@@ -100,4 +100,5 @@ S1's portal bodies and remaining effects have no producer yet; their in-betweens
 | hop | title | joins | owner |
 |---|---|---|---|
 | 1 | S1 | psxport F-DEBUG.1 | `titles/spyro1/core/runtime/runtime.cpp:spyro1::Runtime::titleCommand` — `gate_debug::command`: `gates`, `gate-teleport` |
-| 2 | S1 | title | `s1/frame/stage_update_observer.cpp:StageUpdateObserver`, `s1/execution/handoff_store_observer.cpp:HandoffStoreObserver` — opt-in samples on the `stage-observe` and `handoff-store` channels |
+| 2 | S1/S2/S3 | title | `game/core/runtime.cpp:spyro::Runtime::titleCommand` — `warp <level-id>` arms `game/core/debug/warp.cpp:spyro::Warp`; the S1 `FrameDriver` and S2/S3 `BootPrefixFrameDriver` apply it before the update once the title screen is idle, through `titles/spyro1/core/debug/warp.cpp`, `titles/spyro{2,3}/core/warp.cpp` |
+| 3 | S1 | title | `s1/frame/stage_update_observer.cpp:StageUpdateObserver`, `s1/execution/handoff_store_observer.cpp:HandoffStoreObserver` — opt-in samples on the `stage-observe` and `handoff-store` channels |
