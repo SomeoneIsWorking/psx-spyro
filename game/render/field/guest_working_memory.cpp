@@ -20,7 +20,14 @@ constexpr const char *kChannel = "guestmem";
 } // namespace
 
 void HostMemory::map(std::uint32_t guestBase, std::uint32_t bytes) {
-  const GuestRange range{.base = canonicalAddress(guestBase), .bytes = bytes};
+  place(GuestRange{.base = canonicalAddress(guestBase), .bytes = bytes}, Seed::Guest);
+}
+
+void HostMemory::mapEmpty(std::uint32_t guestBase, std::uint32_t bytes) {
+  place(GuestRange{.base = canonicalAddress(guestBase), .bytes = bytes}, Seed::Zero);
+}
+
+void HostMemory::place(GuestRange range, Seed seed) {
   if (range.bytes == 0) {
     return;
   }
@@ -60,14 +67,22 @@ void HostMemory::map(std::uint32_t guestBase, std::uint32_t bytes) {
         merged.data() + (lo - mergedBase), segment.bytes.data() + (lo - segment.base), hi - lo);
     absorbed.push_back(GuestRange{segment.base, segmentEnd - segment.base});
   }
-  // Whatever the new range reaches that no absorbed segment covered starts as the guest's own
-  // bytes: the passes read the level's records out of these ranges as well as writing their own.
-  for (std::uint32_t address = base; address < end; ++address) {
-    const bool covered = std::any_of(absorbed.begin(), absorbed.end(), [address](GuestRange range) {
-      return address >= range.base && address < range.base + range.bytes;
-    });
-    if (!covered) {
-      merged[address - mergedBase] = guestByte(address);
+  if (seed == Seed::Zero) {
+    // `merged` starts zeroed; only bytes copied from an absorbed segment need clearing.
+    if (!absorbed.empty()) {
+      std::memset(merged.data() + (base - mergedBase), 0, range.bytes);
+    }
+  } else {
+    // Whatever the new range reaches that no absorbed segment covered starts as the guest's own
+    // bytes: the passes read the level's records out of these ranges as well as writing their own.
+    for (std::uint32_t address = base; address < end; ++address) {
+      const bool covered =
+          std::any_of(absorbed.begin(), absorbed.end(), [address](GuestRange held) {
+            return held.contains(address);
+          });
+      if (!covered) {
+        merged[address - mergedBase] = guestByte(address);
+      }
     }
   }
   kept.push_back(Segment{mergedBase, std::move(merged)});
@@ -75,14 +90,6 @@ void HostMemory::map(std::uint32_t guestBase, std::uint32_t bytes) {
     return a.base < b.base;
   });
   segments_ = std::move(kept);
-}
-
-void HostMemory::mapEmpty(std::uint32_t guestBase, std::uint32_t bytes) {
-  if (bytes == 0) {
-    return;
-  }
-  map(guestBase, bytes);
-  std::memset(byteAt(guestBase), 0, bytes);
 }
 
 std::vector<LevelWord> GuestMemory::firstReads() const {

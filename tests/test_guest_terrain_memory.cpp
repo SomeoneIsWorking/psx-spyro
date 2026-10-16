@@ -32,6 +32,7 @@
 #include "render/terrain/guest_terrain_screen.h"
 #include "test_game.h"
 
+#include <chrono>
 #include <cstdint>
 #include <cstdio>
 #include <memory>
@@ -325,12 +326,37 @@ void testMainRamAliases() {
   expectEq(host.r32(0x80071000u), 0x12345678u, "a saved word reads back under its KSEG0 name");
 }
 
+// An in-between maps a fresh packet arena for every producer render, so emptying one must cost a
+// fill, not a guest read per byte.
+void testEmptyMappingIsAFill() {
+  using namespace spyro::guest_memory;
+  auto game = std::make_unique<spyro::test::SessionGame>();
+  Core &core = game->core;
+  const PacketArena arena = packetArenaWindow(0x80000000u);
+  constexpr int kMappings = 64;
+  constexpr double kBudgetMs = 40.0;
+  const auto start = std::chrono::steady_clock::now();
+  for (int i = 0; i < kMappings; ++i) {
+    HostMemory host(core);
+    host.mapEmpty(arena.base, arena.bytes);
+    expectEq(host.r8(arena.base + arena.bytes - 1), 0u, "an empty mapping reads zero");
+  }
+  const double ms =
+      std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
+  if (ms > kBudgetMs) {
+    std::fprintf(
+        stderr, "FAIL: %d empty 2 MiB mappings took %.1f ms of %.0f\n", kMappings, ms, kBudgetMs);
+    ++failures;
+  }
+}
+
 } // namespace
 
 int main() {
   testMarkOrdering();
   testModeGuards();
   testMainRamAliases();
+  testEmptyMappingIsAFill();
   if (failures != 0) {
     std::fprintf(stderr, "%d failure(s)\n", failures);
     return 1;
