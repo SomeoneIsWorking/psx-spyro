@@ -205,6 +205,12 @@ private:
     std::vector<std::uint8_t> bytes;
   };
 
+  // Where a mapping's bytes that no earlier mapping held come from.
+  enum class Seed : std::uint8_t { Guest, Zero };
+
+  // Merges `range` (canonical) with every segment it covers or touches.
+  void place(GuestRange range, Seed seed);
+
   // The segment holding canonical `address`, or nullptr.
   [[nodiscard]] const Segment *find(std::uint32_t address) const;
   // The host byte any name of `address` maps to, or nullptr.
