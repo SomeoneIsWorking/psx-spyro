@@ -423,10 +423,28 @@ def provision(spec, disc, _psxport, discdump):
         raise Refusal(str(error)) from error
 
 
+def framework_definitions(psxport):
+    """`-DPSXPORT_DIR` plus psxport's Lightrec and Lightning definitions from its `tools/project.py`."""
+    tools = str(Path(psxport) / "tools")
+    sys.path.insert(0, tools)
+    try:
+        policy = runpy.run_path(str(Path(tools) / "project.py"))
+    finally:
+        sys.path.remove(tools)
+    try:
+        return [
+            f"-DPSXPORT_DIR={psxport}",
+            *policy["lightrec_cmake_definitions"](os.environ),
+            *policy["lightning_cmake_definitions"](os.environ),
+        ]
+    except policy["ToolError"] as error:
+        raise Refusal(str(error)) from error
+
+
 def configure_and_build(psxport, compiler_options):
     jobs = str(os.cpu_count() or 4)
     say(f"building the native port (CMake -j{jobs})…")
-    configure(ROOT, PLAYER_BUILD, compiler_options, f"-DPSXPORT_DIR={psxport}")
+    configure(ROOT, PLAYER_BUILD, compiler_options, *framework_definitions(psxport))
     target = "spyro_port"
     product = PLAYER_BUILD / "bin" / target
     command(["cmake", "--build", PLAYER_BUILD, "--target", target, "-j", jobs])
