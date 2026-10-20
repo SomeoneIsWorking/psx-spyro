@@ -114,9 +114,10 @@ std::optional<psx::host::LogoImage> extractPanelLogo(Core &core, const TitleLogo
   for (const SpriteRecord &sprite : parts) {
     const psx::gpu::TexPage page = psx::gpu::decodeTexPage(sprite.tpage);
     if (page.depth == psx::gpu::TexDepth::Reserved) {
-      lucent::error("picker",
-                    "the logo's texture page {:04X} names depth 3 — no such format — the panel shows no logo",
-                    sprite.tpage);
+      lucent::error(
+          "picker",
+          "the logo's texture page {:04X} names depth 3 — no such format — the panel shows no logo",
+          sprite.tpage);
       return std::nullopt;
     }
     const psx::gpu::VramPoint clut = psx::gpu::decodeClut(sprite.clut);
@@ -129,11 +130,8 @@ std::optional<psx::host::LogoImage> extractPanelLogo(Core &core, const TitleLogo
         }
         const std::size_t at = static_cast<std::size_t>(y) * width + x;
         std::uint8_t *pixel = &rgba[at * 4];
-        const std::uint16_t colour = psx::gpu::sampleTexel(vram,
-                                                           page,
-                                                           clut,
-                                                           static_cast<int>(sprite.u + col),
-                                                           static_cast<int>(sprite.v + row));
+        const std::uint16_t colour = psx::gpu::sampleTexel(
+            vram, page, clut, static_cast<int>(sprite.u + col), static_cast<int>(sprite.v + row));
         // A 0x0000 texel is not drawn: index 0 is the surround and lets the panel through.
         if (colour == 0) {
           pixel[3] = 0;
