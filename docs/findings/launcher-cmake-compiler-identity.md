@@ -77,8 +77,6 @@ to `/usr/bin/ccache`, and collapsing them would hide a real switch behind an ali
 
 ## Verified
 
-- `tests/test_launcher.py` (24 tests) covers alias spelling preserving the tree, a changed compiler
-  resetting it, and a configure that records another compiler refusing by name.
 - After one transition run, both real trees record the requested paths: `build/player` and
   `build/player-tools` hold `CMAKE_C_COMPILER=/usr/lib64/ccache/clang` and
   `CMAKE_CXX_COMPILER=/usr/lib64/ccache/clang++`. The transition run rebuilt once — 507 Ninja edges —

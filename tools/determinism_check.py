@@ -20,7 +20,7 @@ named that field the first time.
 THE NEGATIVE. A check that has only ever printed PASS has not shown it can fail. After the two identical legs
 the tool runs a THIRD whose only difference is one pad tap at product step `PERTURB_STEP`; it must diverge, and
 not before field `PERTURB_STEP` (a step is at least one field, so the tap's field is no earlier). A tool whose perturbed leg still matches is refused as blind. Needs the disc and the built port;
-the comparison logic is exercised without either by `--selftest` (a ctest).
+the comparison logic is exercised without either by `--selftest`.
 """
 
 from __future__ import annotations

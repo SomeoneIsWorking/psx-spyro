@@ -1,2 +1,0 @@
-# re-harness cpp_policy sites this repository has not yet moved to an owner. The list only shrinks:
-# a site that no longer occurs fails the gate until its line is deleted.

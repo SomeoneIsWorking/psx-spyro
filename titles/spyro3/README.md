@@ -28,4 +28,4 @@ camera, sector visibility and the guest words it read, and `guest_terrain::Terra
 redraws the terrain from them at any t. `spyro::FrameCut` declares a cut on a new game state
 (`0x8006E344`), level (`0x8006C5BC`) or a camera placement by the controller `0x800144B4`
 (`0x8006E044`/`0x8006E048`). Widescreen keeps the guest's projection and draw area and widens the
-canvas. Tests: `tests/spyro3/test_record.cpp`.
+canvas.

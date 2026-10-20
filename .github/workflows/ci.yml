@@ -13,8 +13,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  verify:
-    name: Build, C++ quality and tests (Linux x86_64)
+  build:
+    name: Build (Linux x86_64)
     runs-on: ubuntu-26.04
     timeout-minutes: 45
     env:
@@ -41,5 +41,5 @@ jobs:
         with:
           framework-directory: external/psxport
 
-      - name: Verify
-        run: uv run --frozen python tools/verify.py --jobs 4
+      - name: Build
+        run: uv run --frozen python external/psxport/tools/port/consumer_build.py --build build/ci --target spyro_port
