@@ -470,6 +470,9 @@ def launch_environment(psxport, discs):
                                       settings=ROOT / "tools" / "shipping_settings.ini")
     env.setdefault("PSXPORT_ASSET_DIR", str(psxport))
     env.setdefault("PSXPORT_DEBUG_SERVER", "1")
+    # The selector opens borderless fullscreen at the display's own resolution: the player's screen,
+    # not a 960x720 window. An explicit PSXPORT_FULLSCREEN in the environment still wins.
+    env.setdefault("PSXPORT_FULLSCREEN", "1")
     for spec, disc in discs.items():
         env[spec.disc_env] = str(disc)
     return env
