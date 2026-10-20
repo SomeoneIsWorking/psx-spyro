@@ -1,20 +1,7 @@
 #!/usr/bin/env python3
-"""re_globals.py — which globals does this guest function touch, and how?
+"""Which globals a guest function touches: lui/lo pairs decoded numerically from the shipping executable.
 
-WHY THIS EXISTS. Porting a guest routine needs the ADDRESS of every global it reads or writes, and
-the decomp gives names without addresses: its data symbols are placed by the linker, so
-`g_GemTotal` appears in a header with no number beside it. Reading those numbers back out of a
-disassembly listing by eye is slow and silently wrong whenever the listing desyncs on data.
-
-So this decodes the shipping executable NUMERICALLY. A MIPS global access is a `lui` that loads the
-high half into a register followed by an instruction that adds the signed low half, so tracking the
-`lui` per register and pairing it with the next use of that register recovers the exact address
-without needing the surrounding instruction stream to be valid.
-
-WHAT A NEGATIVE LOOKS LIKE. A function with no global accesses prints its instruction count and
-`no lui/lo pairs` — which reads differently from a function that was never decoded, and differently
-again from a refusal to open the image. A `lui` whose register is never paired is reported as
-`unpaired`, because silently dropping it would hide exactly the access being searched for.
+A `lui` never paired with a use is reported as `unpaired`.
 """
 
 import argparse

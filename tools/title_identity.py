@@ -11,7 +11,8 @@ import sys
 from dataclasses import dataclass
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT / "external" / "psxport" / "tools"))
+# Appended, so a launcher that put PSXPORT_DIR's tools first keeps them.
+sys.path.append(str(ROOT / "external" / "psxport" / "tools"))
 
 from automation.process import ToolError  # noqa: E402
 from formats import psx_exe  # noqa: E402

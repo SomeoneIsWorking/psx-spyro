@@ -1,19 +1,7 @@
 #!/usr/bin/env python3
-"""repl_walk.py — walk Spyro to a place by pressing the pad over the port's REPL.
+"""Walk Spyro to a place by pressing the pad over the port's REPL.
 
-WHY THIS IS ITS OWN MODULE. The walking stepper used to live in drive.py, which drove ONE route
-shape: get to GS_Playing, seek an optional destination, then apply a fixed list of holds and taps.
-The scene routes (tools/route_scenes.py) walk the same way and have to refuse the same way, so
-keeping the stepper inside drive.py would make route_scenes import drive.py, which imports
-route_scenes. The stepper needs no core of its own -- it drives anything with press/tap/run/words
--- so it is its own owner and both callers use it.
-
-`spyro1_steering.Walk` owns WHERE to press and when a destination is abandoned; this module owns
-pressing, running a fixed number of FIELDS, and releasing, and it reports the distance actually
-reached. The split is the one spyro1_steering's own docstring already describes: the route policy
-is core-independent, the stepping belongs to the driver.
-
-Nothing here writes guest memory. Every step is press / run / release, the same edges a player uses.
+`spyro1_steering.Walk` decides where to press; this module presses, runs and releases.
 """
 
 from __future__ import annotations
@@ -26,21 +14,15 @@ import spyro1_steering
 from automation.process import ToolError  # noqa: E402  (path set by title_identity)
 from spyro1_steering import Walk
 
-# common.h's Gamestate values the walker has to know about. Every other non-zero state (level
-# transition, respawn, game over, fairy) is something the walk's own `stop` predicate names or
-# something that ends the walk, so it is only waited out, never pressed through.
+# common.h's Gamestate values the walker acts on; every other state is waited out.
 GS_PLAYING = 0
 GS_DRAGON = 8  # the "Press Cross" dragon cutscene that opens a homeworld; it takes Cross to leave
 
-# Every target the walk policy was given, named and positioned, before any walking starts. A centre
-# in the wrong units or read from the wrong field looks exactly like an unreachable destination once
-# the walk starts, so a refused route can say what it was aiming at.
 Target = spyro1_steering.Target
 
 
 class ReplPort(Protocol):
-    """The slice of tools/drive.py's Port this module drives. A duck type on purpose: the stepper
-    must not import the driver, and the driver must not have to know what a walk is."""
+    """The slice of tools/drive.py's Port this module drives."""
 
     def press(self, button: str) -> None: ...
     def tap(self, button: str, frames: int = ...) -> None: ...
@@ -51,25 +33,11 @@ class ReplPort(Protocol):
 class Seeker:
     """Walk the product to one of a set of world positions, steering from the guest's own camera.
 
-    Holding one direction cannot reach anything: the pad is camera-relative, and a homeworld's
-    destinations sit tens of thousands of units away on a bearing the start position does not face.
-    A fixed input list cannot reach them either, for the same reason every fixed route in this
-    project was replaced.
-
-    A destination that must make something HAPPEN -- a portal entry, a fairy cutscene, not a visit
-    -- gives its own predicate, and the walk keeps closing the gap until that predicate holds.
-    Ending at a proximity radius would report "reached" for a walk that never entered anything.
-
-    `hop_within` makes the walk jump on every decision inside that view-space distance. A fairy
-    hangs a jump above the ground and her trigger has a height window, so walking under her
-    never opens it (g_Spyro's z has to be within 0x200 of hers): a player jumps at her, and so
-    does the walk.
+    `stop` ends the walk when something happens at the destination; `hop_within` jumps on every
+    decision inside that view-space distance (the fairy's trigger has a height window).
     """
 
-    # Product steps (the REPL's `run N` unit, two fields each in gameplay) the guest may spend outside
-    # GS_Playing before the walk refuses. The opening dragon dialogue alone is ~1600 fields of Cross
-    # taps (measured), and it is not walking, so it is bounded on its own instead of eating the walking
-    # budget.
+    # Product steps the guest may spend outside GS_Playing; the opening dragon alone is ~1600 fields.
     CUTSCENE_BUDGET = 3000
     JUMP_PRESS = 2  # steps Cross is held before it is released
     JUMP_SETTLE = 2  # steps with nothing held between the release and the direction
@@ -96,13 +64,7 @@ class Seeker:
         self._view = spyro1_steering.player_view if from_player else spyro1_steering.camera
 
     def _cutscene_step(self) -> bool:
-        """Advance one step through a guest state in which the pad does not steer Spyro.
-
-        Walking in a cutscene is not walking: Spyro does not move, so the stall rule would read
-        the frozen frames as a wall and abandon a destination the level never blocked. The
-        gamestate is the guest's own word, so the walker defers to it. The dragon cutscene is left
-        the way a player leaves it, with Cross; every other state is waited out.
-        """
+        """Advance one step outside GS_Playing without counting it as a stall; Cross leaves the dragon."""
         state = self._port.words(guest_globals.kGamestate, 1)[0]
         if state == GS_PLAYING:
             return False
@@ -131,8 +93,7 @@ class Seeker:
         self._held = wanted
 
     def walk(self) -> int:
-        """The view-space distance actually reached, or refuse by name. The pad is released on every
-        way out, so a walk that ends leaves nothing held for the next one."""
+        """The view-space distance actually reached, or refuse by name; the pad is always released."""
         try:
             return self._walk_loop()
         finally:
@@ -154,11 +115,7 @@ class Seeker:
                 print(f"seek: reached {self._walk.what} at {self._walk.closest}", file=sys.stderr)
                 return self._walk.closest
             print(f"seek: {decision.describe()}", file=sys.stderr)
-            # A jump is a Cross PRESS-AND-RELEASE with the direction joining after it. Measured at
-            # a pond's curb: Cross held (alone or alongside the direction) never leaves the ground
-            # in 8 decisions, while Cross pressed for 3 fields and released, then the direction,
-            # clears the curb on the next ascent. The direction is not held during the press
-            # because `tap` would replace the pad; the release is the edge the guest acts on.
+            # A jump is Cross pressed and released, then the direction; held Cross never leaves the ground.
             jump = (decision.hop and self._hop) or decision.distance <= self._hop_within
             airborne = spent < self._jump_until
             if jump and not airborne:

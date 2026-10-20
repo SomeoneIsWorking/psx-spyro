@@ -1,23 +1,11 @@
 #!/usr/bin/env python3
-"""title_conversation.py — walk into a Spyro 2 conversation and prove its text box draws glyphs.
+"""Walk into a Spyro 2 conversation and check its text box draws glyphs.
 
     uv run --frozen python tools/title_conversation.py --title spyro2 --shot-dir scratch/play/spyro2-talk
 
-WHY THIS EXISTS. `title_route.py` walks AWAY from the first conversation because an early capture of it
-showed dark rounded rectangles and no text. The cause was not a missing text path: the guest reveals a
-conversation's words one character at a time after the box opens (and the box shrinks away empty at the
-end), so a capture taken while the box is opening or closing has a box and no glyphs, and the same run
-captured later shows the whole speech. This route makes that a measured fact instead of an impression:
-it walks forward until the guest's own game state says "conversation", then photographs the box every
-SAMPLE steps and counts glyph-coloured pixels in the box body for each photograph.
-
-WHAT COUNTS AS DRAWN TEXT. The state must have been the title's conversation state; at least MIN_CAPTURES
-captures must have been taken inside it; and the body must hold at least MIN_GLYPH_PIXELS glyph pixels in
-its fullest capture, with the first capture (box just opened) holding fewer. A run where the box opens and
-no glyph ever appears is refused by name, which is the failure the early capture looked like. The glyph
-colours are the two font colours measured from the shipped captures (not asserted by the guest), counted by
-exact match so Spyro's orange wings and the HUD cannot be mistaken for text; the body region excludes the
-speaker-name strip above the box. Every capture prints its count against the region's pixel total.
+Walks forward until the guest's state is the conversation, then shoots the box every SAMPLE steps and counts
+exact font-colour pixels in its body; refused unless the fullest of MIN_CAPTURES captures holds at least
+MIN_GLYPH_PIXELS and more than the first (the text is revealed a character at a time).
 """
 
 from __future__ import annotations

@@ -29,11 +29,7 @@ import oracle_spyro1_demo  # noqa: E402
 OUT_DIR = ROOT / "scratch" / "oracle"
 DEFAULT_BIOS = ROOT.parent / "SCPH1001.BIN"
 
-# One lens, two routes. `artisans` drives the New Game menu into the homeworld; `demo` hands the
-# title screen to the attract demo and compares a LEVEL ENTRY, which the menu route cannot reach
-# (docs/issues/0114, and oracle_spyro1_demo's docstring). They are separate modules rather than one
-# route with flags because checkpoints are a single ordered chain from boot: the demo's timeout arm
-# lives in TSM_Init, which a route that has already answered the menu never returns to.
+# Separate modules because checkpoints are one chain from boot and the demo's timeout is in TSM_Init.
 ROUTES = {"artisans": oracle_spyro1, "demo": oracle_spyro1_demo}
 
 

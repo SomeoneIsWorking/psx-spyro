@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """The per-title facts a driver needs to play Spyro 2 or Spyro 3.
 
-Game-state and level-id words come from each title's `core/boot_facts.h`; the rest are cited inline.
+Game-state and level-id words come from each title's `core/boot_facts.h` and Spyro 3's camera
+position from its `render/render_facts.h`; the rest are cited inline.
 
     uv run --frozen python tools/title_profile.py
 """
@@ -39,8 +40,8 @@ class TitleProfile:
     state_title: int
     state_loading: int
     state_playing: int
-    # The first word of the player's (x, y, z) triple; y is +4 and z +8.
-    position_word: int
+    # The first word of an (x, y, z) triple that follows the player; y is +4 and z +8.
+    follow_word: int
     # Walks away from the first conversation.
     walk_button: str
     # None when this title's conversation has not been observed.
@@ -53,8 +54,8 @@ class TitleProfile:
         if len(states) != 3:
             raise ToolError(f"{self.label}: title, loading and playing must be three distinct game states")
 
-    def position_words(self) -> tuple[int, int, int]:
-        return self.position_word, self.position_word + 4, self.position_word + 8
+    def follow_words(self) -> tuple[int, int, int]:
+        return self.follow_word, self.follow_word + 4, self.follow_word + 8
 
 
 TITLES: Mapping[str, TitleProfile] = {
@@ -65,8 +66,8 @@ TITLES: Mapping[str, TitleProfile] = {
         state_title=11,
         state_loading=5,
         state_playing=0,
-        # 0x80016AF4 `lui $s1,0x8006 ; addiu $s1,$s1,0x7EE4` hands the triple to 0x80016AFC.
-        position_word=0x80067EE4,
+        # The camera's copy of the player position: FUN_80016328 copies 0x80069FF0 here each field.
+        follow_word=0x80067EE4,
         walk_button="down",
         state_dialogue=1,
         dialogue_button="up",
@@ -85,8 +86,7 @@ TITLES: Mapping[str, TitleProfile] = {
         state_title=11,
         state_loading=5,
         state_playing=0,
-        # 0x80012FC0 `addiu $a0,$a0,-0x1FE0` hands the triple to 0x8004F178.
-        position_word=0x8006E020,
+        follow_word=guest_globals.render_field("spyro3", "cameraPosition"),
         walk_button="up",
     ),
 }

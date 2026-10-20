@@ -67,8 +67,7 @@ class View:
         return int(math.hypot(view[0], view[2])), math.degrees(math.atan2(view[0], view[2]))
 
     def nearest(self, targets) -> tuple[int, int, float]:
-        """Index, distance and bearing of the closest of `targets`; refuses an empty set rather
-        than reporting a distance of infinity that reads like an unreachable destination."""
+        """Index, distance and bearing of the closest of `targets`; refuses an empty set."""
         if not targets:
             raise ToolError("nothing to steer at: the target list is empty")
         best = None
@@ -115,28 +114,14 @@ def camera(words: Words) -> View:
 
 
 def player_view(words: Words) -> View:
-    """The camera's orientation seen from Spyro's own position.
-
-    The pad is camera-relative, so the matrix decides which button points where; but the camera
-    trails Spyro by thousands of units, and a distance measured from it is off by that much. A
-    route through a narrow causeway has to know where Spyro is, so it measures from him.
-    """
+    """The camera's matrix placed at Spyro's position: the pad is camera-relative, distances are his."""
     view = camera(words)
     position = tuple(signed(v) for v in words(guest_globals.kSpyro, 3))
     return View(view.matrix, position)
 
 
 def portal_targets(words: Words, level: int | None = None) -> list[Target]:
-    """Centres of this level's portals, which are a loaded table rather than Mobys.
-
-    A homeworld's portals are the only way into a level. g_Portals holds up to six pointers and
-    g_PortalCount says how many are live; each Portal carries its own centre after the skybox
-    pointer, point count, unknown vector and world sector.
-
-    `level` selects one destination by the level id the Portal itself carries, which is how a
-    route asks for a flight or a boss portal instead of walking to whichever is nearest. It is a
-    filter on guest state, not a hardcoded waypoint: an empty result is a fact about the level.
-    """
+    """Centres of the live entries of g_Portals, optionally only those leading to `level`."""
     count = words(guest_globals.kPortalCount, 1)[0]
     if not 0 <= count <= PORTAL_SLOTS:
         raise ToolError(f"g_PortalCount holds {count}, which is outside the table's {PORTAL_SLOTS} slots")
@@ -199,23 +184,14 @@ class Decision:
 
 class Walk:
     """The route policy: close the gap, detour around what blocks it, hop onto what it stands on,
-    and abandon a target that never gets closer.
-
-    It owns no core and takes no steps. A driver reads the camera, asks what to press, presses it
-    for as long as that driver's step is, and asks again. That is what lets the interactive driver
-    and the oracle — which step their cores in different units, fields and game frames — walk the
-    same route instead of two routes that happen to share a comment.
-    """
+    and abandon a target that never gets closer. It takes no steps, so any driver can use it."""
 
     ARRIVED = 500       # view-space units (~1/4 of world scale); close enough to be on screen
     STALL_STEPS = 15    # decisions without closing the gap before this target is abandoned
     PROGRESS = 200      # view-space units that count as having closed the gap
-    # Decisions of no progress before the walk starts hopping. Portals sit on raised platforms, so
-    # steering alone circles the base forever; a jump is ordinary traversal, not a state write.
+    # Decisions of no progress before the walk starts hopping onto what it stands against.
     JUMP_AFTER = 3
-    # Bearing offsets tried in turn once the straight line stops closing the gap. Walking around an
-    # obstacle is what a player does; pressing harder into the same wall is not. Index 0 is the
-    # straight line, so an unobstructed walk never detours.
+    # Bearing offsets tried in turn once the straight line stops closing the gap.
     DETOURS = (0, 60, -60, 120, -120)
 
     def __init__(self, what: str, targets: list[Target], arrived: int | None = None,
@@ -226,18 +202,13 @@ class Walk:
                 "this is not the level that carries it"
             )
         self.what = what
-        # A recorded route is already a path around the obstacles, so a leg that is slow to turn
-        # must keep its bearing: a detour mid-turn steers the other way and undoes the turn.
+        # A recorded route already goes around obstacles, so it walks without detours.
         self.detours = self.DETOURS if detour else (0,)
-        # The thresholds below are tuned for a 24-field decision. A driver deciding every 8 fields
-        # moves a third as far per decision, so progress is a third and the patience is three times
-        # the decisions: the same distance and the same number of fields.
+        # The thresholds are tuned for a 24-field decision; `step_scale` keeps distance and fields equal.
         self.progress = self.PROGRESS * step_scale
         self.stall_steps = max(1, round(self.STALL_STEPS / step_scale))
         self.jump_after = max(1, round(self.JUMP_AFTER / step_scale))
-        # A driver that must make something HAPPEN at the destination — walking into a portal, not
-        # standing near it — passes arrived=0 so the walk keeps closing the gap until its own
-        # predicate fires, and the stall rule moves it to the next destination if nothing does.
+        # arrived=0 walks into the destination until the driver's own predicate fires.
         self.arrived = self.ARRIVED if arrived is None else arrived
         self.remaining = list(targets)
         self.abandoned: list[str] = []
@@ -264,9 +235,7 @@ class Walk:
             self.stalled += 1
             if self.stalled < self.stall_steps:
                 break
-            # Blocked by geometry or standing under a ledge. Retail levels put several destinations
-            # around one hub, so taking the next nearest is a real route; pressing harder into the
-            # same wall is not.
+            # Blocked: take the next nearest destination.
             self.abandoned.append(f"{self.remaining[index].what} stuck at {distance}")
             self.remaining.pop(index)
             self.best, self.stalled = None, 0
@@ -276,9 +245,7 @@ class Walk:
         return Decision(sector(steered), self.stalled >= self.jump_after, distance, bearing, detour)
 
     def rebase(self) -> None:
-        """Forget the progress made so far. A cutscene can move Spyro (the opening dragon puts him
-        back at the start of the approach), and a distance that grew because the guest moved him is
-        not a wall the walk ran into."""
+        """Forget the progress made so far, after a cutscene moved Spyro."""
         self.best, self.stalled = None, 0
 
     def exhausted(self, steps: int) -> ToolError:

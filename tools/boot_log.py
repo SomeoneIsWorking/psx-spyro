@@ -1,14 +1,4 @@
-"""boot_log.py — read a boot run's own log into the counters a boot claim needs, with denominators.
-
-The port prints everything a Spyro 2/3 boot measurement needs, but across five differently shaped
-lines. This module is the only reader of them, so no two tools can disagree
-about what a line means. It is pure: text in, a `BootReport` out, nothing launched.
-
-WHAT IT REFUSES TO DO is report a count it did not read. A run that aborts before its `run complete`
-line has NO executed-block, instruction, fault or fallback totals, and every one of those comes back
-as `None` and prints as NOT MEASURED. Printing 0 there would read as "no faults" about a run that
-never finished — the confident zero this repository has been bitten by before.
-"""
+"""Parse a boot run's log into the counters a boot claim needs; a count the log lacks stays `None`."""
 
 from __future__ import annotations
 
@@ -17,9 +7,8 @@ from dataclasses import dataclass, field
 
 _PAIRS = re.compile(r"(\w+)=(\d+)")
 _RUN_COMPLETE = re.compile(r"\[runtime\] run complete: (?P<body>.*)")
-_FALLBACK = re.compile(r"Lightrec fallback telemetry \[run-complete\]: (?P<body>.*)")
-_REASONS = re.compile(r"\breasons\{(?P<body>[^}]*)\}")
-_REFUSED = re.compile(r"refused_reasons\{(?P<body>[^}]*)\}")
+_FALLBACK_REASONS = ("compilation_failed", "self_modifying_code", "unsupported_block", "load_delay_hazard",
+                     "unsafe_instruction_fetch")
 _RESUME = re.compile(r"delivered (?P<fields>\d+) field\(s\) in total .*ending the run at resume (?P<pc>0x[0-9A-Fa-f]+)")
 _STOP = re.compile(r"\] Spyro \d stopped: (?P<body>.*)")
 _STOP_PC = re.compile(r"at guest pc=(?P<pc>0x[0-9A-Fa-f]+) ra=(?P<ra>0x[0-9A-Fa-f]+)")
@@ -34,9 +23,9 @@ _PUBLISHED = re.compile(
     r"(?P<image>\d+) generation (?P<generation>\d+)"
 )
 _CD_READ = re.compile(r"\[cd\] CdRead (?P<sectors>\d+) sector\(s\) .* from LBA (?P<lba>\d+)")
-_QUEUED = re.compile(r"\[cdirq\] stock CdRead of \d+ sector\(s\) queued its data-ready completion")
+_QUEUED = re.compile(r"\[cdirq\] stock CdRead of \d+ sector\(s\) owes its data-ready completion")
 _DELIVERED = re.compile(r"\[cdirq\] CD data-ready -> callback")
-_DECLINED = re.compile(r"\[cdirq\] CD data-ready owed, (?:DEFERRED|NOTHING DELIVERED)")
+_DECLINED = re.compile(r"\[cdirq\] CD data-ready owed, (?:deferred|nothing installed)")
 
 
 @dataclass
@@ -53,7 +42,7 @@ class BootReport:
     executed_blocks: int | None = None
     executed_instructions: int | None = None
     faults: int | None = None
-    fallback_blocks: int | None = None
+    fallback_calls: int | None = None
     fallback_instructions: int | None = None
     fallback_reasons: dict[str, int] = field(default_factory=dict)
     refused_reasons: dict[str, int] = field(default_factory=dict)
@@ -78,26 +67,36 @@ def _pairs(body: str) -> dict[str, int]:
     return {key: int(value) for key, value in _PAIRS.findall(body)}
 
 
+def ledger_sections(text: str, phase: str = "") -> dict[str, dict[str, int]]:
+    """The `guest:` and `fallback:` lines of psx::cpu::ledgerLines; `phase` is logLedger's prefix."""
+    lead = re.escape(f"{phase}: ") if phase else ""
+    pattern = re.compile(rf"(?:^|\s){lead}(?P<section>guest|fallback): (?P<body>.*)")
+    sections: dict[str, dict[str, int]] = {}
+    for line in text.splitlines():
+        if (m := pattern.search(line)) is not None:
+            sections[m["section"]] = _pairs(m["body"])
+    return sections
+
+
 def parse(log: str) -> BootReport:
     report = BootReport()
+    ledger = ledger_sections(log, "run-end")
+    if (guest := ledger.get("guest")) is not None:
+        report.translated_blocks = guest.get("translated_blocks")
+        report.executed_blocks = guest.get("executed_blocks")
+        report.executed_instructions = guest.get("executed_instructions")
+        report.faults = guest.get("faults")
+    if (fallback := ledger.get("fallback")) is not None:
+        report.fallback_calls = fallback.get("calls")
+        report.fallback_instructions = fallback.get("instructions")
+        report.fallback_reasons = {key: fallback[key] for key in _FALLBACK_REASONS if key in fallback}
+        report.refused_reasons = {key: fallback[f"refused_{key}"] for key in _FALLBACK_REASONS
+                                  if f"refused_{key}" in fallback}
     for line in log.splitlines():
         if (m := _RUN_COMPLETE.search(line)) is not None:
             counts = _pairs(m["body"])
             report.product_steps = counts.get("product_steps")
             report.presentation_fences = counts.get("presentation_fences")
-            report.translated_blocks = counts.get("translated_blocks")
-            report.executed_blocks = counts.get("executed_blocks")
-            report.executed_instructions = counts.get("executed_instructions")
-            report.faults = counts.get("faults")
-        elif (m := _FALLBACK.search(line)) is not None:
-            body = m["body"]
-            counts = _pairs(_REASONS.sub("", _REFUSED.sub("", body)))
-            report.fallback_blocks = counts.get("fallback_blocks")
-            report.fallback_instructions = counts.get("fallback_instructions")
-            if (r := _REASONS.search(_REFUSED.sub("", body))) is not None:
-                report.fallback_reasons = _pairs(r["body"])
-            if (r := _REFUSED.search(body)) is not None:
-                report.refused_reasons = _pairs(r["body"])
         elif (m := _RESUME.search(line)) is not None:
             report.end_kind = "resume"
             report.end_pc = m["pc"]
@@ -132,7 +131,6 @@ def parse(log: str) -> BootReport:
         elif _DECLINED.search(line) is not None:
             report.deferrals += 1
     if report.end_kind is None and report.product_steps is not None and report.faults is not None:
-        # A run that completed its own accounting with no stop and no resume ended at the product-step cap.
         report.end_kind = "cap"
         report.end_detail = "the run reached its product-step cap with no fault and no stop"
     return report
@@ -166,7 +164,7 @@ def render(report: BootReport, *, title: str) -> str:
         f"  executed blocks:         {_value(report.executed_blocks, aborted)}",
         f"  executed instructions:   {_value(report.executed_instructions, aborted)}",
         f"  faults:                  {_value(report.faults, aborted)}",
-        f"  fallback blocks:         {_value(report.fallback_blocks, aborted)}",
+        f"  fallback calls:          {_value(report.fallback_calls, aborted)}",
         f"  fallback instructions:   {_value(report.fallback_instructions, aborted)}",
     ]
     if report.fallback_reasons:

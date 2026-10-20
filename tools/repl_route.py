@@ -1,20 +1,7 @@
 #!/usr/bin/env python3
-"""repl_route.py — follow a recorded waypoint route through a level, then hand over to the seeker.
+"""Follow a recorded waypoint route (tools/routes/*.json) through a level, one Seeker per leg.
 
-WHY THIS EXISTS. tools/repl_walk.py's Seeker closes the straight-line gap to a destination, which
-is all it can do: it has no map. A homeworld's portals and fairies sit behind rims, ramps and
-rings that no straight line crosses, so the seeker stalls at the base of the first wall and the
-corpus's flight, boss and fairy scenes never arrive (docs/issues/0147).
-
-A route is a list of world positions through walkable ground, recorded from the level's own render
-mesh (tools/routes/*.json). Following it is the same press / run / release the seeker does, one
-Seeker per leg, so cutscene handling and the stall rule live in one place. A route is only valid
-for the level it was recorded in: the file names its level id and the follower refuses to walk it
-anywhere else, because a route followed in the wrong level is a walk into a wall that looks like a
-defect in the walker.
-
-Nothing here writes guest memory, and no leg is timed: a leg ends when the guest's own camera
-and position words put Spyro within ARRIVED of the waypoint.
+A route is refused outside the level it was recorded in; a leg ends when Spyro is within LEG_ARRIVED.
 """
 
 from __future__ import annotations
@@ -32,8 +19,7 @@ from spyro1_steering import Target
 ROUTES_DIR = Path(__file__).resolve().parent / "routes"
 LEG_ARRIVED = 200    # view-space units (~800 world, measured from Spyro): a waypoint is a way
 LEG_BUDGET = 1500    # fields one leg may take before the route refuses
-# Causeways are narrower than the 24-field decision the seeker defaults to: Spyro covers ~1000 units
-# in one, so a bearing error that a hub forgives walks off a ramp. Routes decide every 8 fields.
+# Routes decide every 8 fields: Spyro covers ~1000 units in the seeker's default 24-field decision.
 ROUTE_STEP = 8
 CLIMB_ALWAYS = 1 << 30  # a hop_within no distance exceeds: hop on every decision
 
@@ -50,8 +36,7 @@ class Route:
 
     @classmethod
     def load(cls, path: Path, name: str) -> "Route | None":
-        """The named route, or None when the file records no such route (a fact about the
-        recording, so the caller can fall back to the seeker). A malformed file refuses."""
+        """The named route, or None when the file has none; a malformed file refuses."""
         data = json.loads(path.read_text())
         raw = data["routes"].get(name)
         if raw is None:
@@ -76,9 +61,8 @@ class Route:
 
 
 def follow(port, route: Route, stop: Callable[[], bool] | None = None, stop_is: str = "") -> None:
-    """Walk every waypoint of `route` in order. Refuses by name if the level is not the one the
-    route was recorded in, or if a leg never arrives. `stop` ends the route early, on the guest's
-    own word, when the thing the route exists to cause (a death, a cutscene) has happened."""
+    """Walk every waypoint of `route` in order, refusing in another level or on a leg that never
+    arrives; `stop` ends the route once what it exists to cause has happened."""
     level = port.words(guest_globals.kLevelId, 1)[0]
     if level != route.level:
         raise ToolError(
