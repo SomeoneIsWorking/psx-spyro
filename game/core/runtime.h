@@ -24,7 +24,7 @@ public:
   void pacePresentation(Core &core, psx::frame::FieldCadence cadence) final;
   std::optional<psx::host::LogoImage> panelLogo(Core &core) const final;
   // The player's aspect; the canvas holds the margins and each title widens its own culls.
-  const GuestWidescreenProjection *guestWidescreenProjection() const final;
+  const psx::present::GuestWidescreenProjection *guestWidescreenProjection() const final;
   void reportRun(Core &core) const final;
   bool interpolates() const final;
   // `warp <level>`, armed on the session's warp.
@@ -40,7 +40,7 @@ protected:
   virtual std::unique_ptr<TitleState> createTitleState() const;
 
 private:
-  GuestWidescreenProjection aspectPolicy_;
+  psx::present::GuestWidescreenProjection aspectPolicy_;
 };
 
 } // namespace spyro

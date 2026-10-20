@@ -15,7 +15,7 @@ const char *channel() {
 } // namespace
 
 Frame widescreenFrame(const Core &core, std::uint32_t authoredWidth) {
-  const GuestProjectionPlan &plan = core.game->guestDisplay.plan();
+  const psx::present::GuestProjectionPlan &plan = core.game->guestDisplay.plan();
   if (!plan.widescreen()) {
     return Frame{.authored = static_cast<std::int32_t>(authoredWidth),
                  .drawn = static_cast<std::int32_t>(authoredWidth)};
