@@ -6,9 +6,8 @@
 
 namespace spyro1 {
 
-// Sprite 0 of the title overlay's table at 0x8006FACC is the wordmark; 128 of its 255 texels are
-// the logo, the rest is the banner's page.
-inline constexpr spyro::TitleLogoPart kLogoParts[] = {{.record = 0x8006FACCu, .clipWidth = 128u}};
+// Sprite 0 of the title overlay's table at 0x8006FACC is the wordmark.
+inline constexpr spyro::TitleLogoPart kLogoParts[] = {{.record = 0x8006FACCu}};
 
 // The overlay draws the logo from m_CurrentTick 1169 (titlescreen.c:100-157).
 inline constexpr spyro::TitleLogoFacts kLogoFacts{

@@ -24,10 +24,6 @@ inline constexpr std::size_t kTitleLogoMaximumParts = 8;
 // own sprite table, read from the guest at the moment the gate is open.
 struct TitleLogoPart {
   std::uint32_t record = 0; // guest address of one 8-byte sprite record
-  // How much of that record's own width this part occupies, or 0 for all of it. In 8-bit mode a
-  // texture page is 512 texels wide, so two sprites whose page origins are 128 texels apart share
-  // the VRAM the later one reads.
-  std::uint32_t clipWidth = 0;
 };
 
 struct TitleLogoFacts {
@@ -36,24 +32,5 @@ struct TitleLogoFacts {
   TitleLogoGate gate{};
   std::span<const TitleLogoPart> parts{};
 };
-
-// The texpage and clut words decoded, as the guest's own renderer applies them when it hands a
-// sprite to the GPU; they live here so a VRAM snapshot cannot drift from what was sampled.
-constexpr int texturePageX(std::uint16_t tpage) {
-  return static_cast<int>(tpage & 0xFu) * 64;
-}
-constexpr int texturePageY(std::uint16_t tpage) {
-  return static_cast<int>((tpage >> 4) & 1u) * 256;
-}
-// 0 = 4-bit indexed, 1 = 8-bit indexed, 2 = 15-bit direct colour. 3 is not a depth and refuses.
-constexpr int texturePageDepth(std::uint16_t tpage) {
-  return static_cast<int>((tpage >> 7) & 3u);
-}
-constexpr int paletteX(std::uint16_t clut) {
-  return static_cast<int>(clut & 0x3Fu) * 16;
-}
-constexpr int paletteY(std::uint16_t clut) {
-  return static_cast<int>((clut >> 6) & 0x1FFu);
-}
 
 } // namespace spyro
