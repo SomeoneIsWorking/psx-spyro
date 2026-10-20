@@ -39,6 +39,9 @@ inline constexpr std::uint32_t kEnvironmentOcclusionGroupCount = kEnvironment + 
 // g_LoadStage (main.c): the streaming/load phase the main loop and the boot sequence both watch.
 inline constexpr std::uint32_t kLoadStage = 0x80075864u;
 
+// g_LevelTransHudActive: func_8002DA74 ends the level-transition tally by clearing it.
+inline constexpr std::uint32_t kLevelTransHudActive = 0x800756B0u;
+
 // g_TitlescreenState (titlescreen.h): four-byte fields in declaration order.
 inline constexpr std::uint32_t kTitlescreenState = 0x80078D78u;
 inline constexpr std::uint32_t kTitlescreenMode = kTitlescreenState + 0x00u;     // m_Mode

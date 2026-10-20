@@ -1,24 +1,12 @@
 #!/usr/bin/env python3
-"""determinism_check.py — prove two runs of the same binary on the same inputs are the same run.
+"""Check that two runs of the same binary on the same inputs are the same run, field by field.
 
     uv run --frozen python tools/determinism_check.py --title spyro2
     uv run --frozen python tools/determinism_check.py --title spyro3 --steps 1500
 
-WHAT IT MEASURES. The framework's `fielddigest` channel (psxport `runtime/psx/debug/field_digest.h`) prints one
-line per display field: the emulated CPU tick, a hash of all 2 MB of main RAM, I_STAT, I_MASK and the pad.
-Nothing host-derived is in it. This tool launches the title headless twice with identical inputs, reads
-both digests, and refuses unless every field of one equals the same field of the other. When they differ it
-names the FIRST field and the columns that differ, which is the divergence point and the only place to look.
-
-WHY IT EXISTS (docs/issues/0169). Spyro 3's route reached gameplay at field 4740 on two runs and 4890 on a
-third, Spyro 2's at 3340 once and 3190 after. The cause was not host time: the memory card is an input the
-guest reads at boot and a file the run writes, and every run shared one. A digest of two Spyro 2 runs agreed
-for fields 0..244 and differed at 245, where the guest first reads the card. This is the check that would have
-named that field the first time.
-
-THE NEGATIVE. A check that has only ever printed PASS has not shown it can fail. After the two identical legs
-the tool runs a THIRD whose only difference is one pad tap at product step `PERTURB_STEP`; it must diverge, and
-not before field `PERTURB_STEP` (a step is at least one field, so the tap's field is no earlier). A tool whose perturbed leg still matches is refused as blind. Needs the disc and the built port.
+Compares psxport's `fielddigest` lines (CPU tick, main-RAM hash, I_STAT, I_MASK, pad) of two identical
+headless runs and names the first field and columns that differ (docs/issues/0169). A third run with one
+pad tap at `PERTURB_STEP` must diverge in guest RAM, or the check is refused as blind.
 """
 
 from __future__ import annotations
@@ -65,8 +53,7 @@ class Divergence:
 
 
 def parse_digest(text: str) -> list[FieldState]:
-    """Every `fielddigest` line of a run log, in order. Refuses a log with none: a run whose channel never
-    printed would compare equal to anything, which is the failure this tool exists to rule out."""
+    """Every `fielddigest` line of a run log, in order; refuses a log with none."""
     states = [
         FieldState(int(m[1]), int(m[2]), m[3], m[4], m[5], m[6]) for m in _LINE.finditer(text)
     ]
@@ -103,8 +90,7 @@ def judge(baseline: Sequence[FieldState], repeat: Sequence[FieldState], perturbe
     repeated = first_divergence(baseline, repeat)
     if repeated is not None:
         failures.append(f"two identical runs differ: {_describe(repeated)}")
-    # The pad column echoes the tap itself, so only a difference in guest RAM shows the digest can see
-    # the guest reacting to an input, which is what a match between the identical legs must be worth.
+    # The pad column echoes the tap, so only guest RAM shows the guest reacting to it.
     seen = first_divergence(baseline, perturbed, ("ram",))
     if seen is None:
         failures.append(f"the perturbed leg (a pad tap at field {perturb_field} or later) left guest RAM identical to "

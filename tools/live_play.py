@@ -1,23 +1,10 @@
 #!/usr/bin/env python3
-"""live_play.py — PLAY the port over its live debug server and report what it did.
+"""Play Spyro 1 at full speed over the live debug server, hold buttons in gameplay, and report what moved.
 
     uv run --frozen python tools/live_play.py
     uv run --frozen python tools/live_play.py --hold left --seconds 20 --port 5971
 
-WHY THIS IS NOT `tools/drive.py`. `drive.py` blocks the product between commands over the framework
-REPL, which is the right tool for stepping to a state and reading it. This one leaves the product
-running at full speed and talks to it the way a player would be watched: a pad edge delivered across
-real presented frames, guest state sampled while the picture keeps updating, and screenshots taken of
-what is actually on screen. That is the only way to see a defect that needs the game to be RUNNING —
-a producer that refuses after 20 seconds of play, a picture that goes black on the way to a portal, a
-frame-time cliff — rather than a state that happens to be parked at a barrier.
-
-The menu sequence is NOT written here: `tools/title_prompts.py` owns which button a screen is asking
-for, and `tools/drive.py` asks the same function, so the two drivers cannot answer different prompts.
-
-The run is headless, silent and unpaced (the framework's `agent_environment`, via `drive.py`), and it
-kills the product by the PID it launched. It is still a real product run: no interpreter, no
-fabricated state, and every number it prints came out of the running game.
+Unlike `drive.py`, the product keeps running between commands; `title_prompts.py` picks the menu buttons.
 """
 
 from __future__ import annotations
@@ -30,6 +17,7 @@ import sys
 import time
 from pathlib import Path
 
+import boot_log
 import drive
 import guest_globals
 import title_prompts
@@ -44,17 +32,9 @@ OBSERVE_FRAMES = 20  # frames between decisions, as drive.py's Navigator uses
 
 def launch(executable: Path, binary: Path, port: int, log: Path,
            settings: Path | None = None) -> subprocess.Popen:
-    """The product, headless and silent, with the live endpoint on its own port. PSXPORT_REPL is popped
-    because nothing here speaks that protocol, and a product waiting for a prompt on stdin would never
-    start presenting.
-
-    `settings` names the tracked .ini the run is configured with, and defaults to the shipping one. It
-    is a parameter because a MEASUREMENT sometimes needs the other configuration: the 60fps cadence
-    claim is only readable against a leg with the feature OFF, and that leg is a different tracked file,
-    not a patched default. Reading a boot log line to decide which configuration ran is not good enough
-    either — the picture's mode can change after boot — so the caller asks the configuration owner over
-    the endpoint afterwards."""
+    """The product, headless and silent, serving the live endpoint on `port` with `settings` (default shipping)."""
     environment = drive.environment("spyro1", settings)
+    # A product waiting for REPL input on stdin would never present.
     environment.pop("PSXPORT_REPL", None)
     environment["PSXPORT_DEBUG_SERVER"] = str(port)
     environment["PSXPORT_LOG_FILE"] = str(log)
@@ -65,9 +45,7 @@ def launch(executable: Path, binary: Path, port: int, log: Path,
 
 
 def connect(port: int, seconds: float) -> LiveClient:
-    """Wait for the endpoint, and REFUSE with the product's own log if it never answers. A client that
-    cannot connect must not fall back to anything else: 'no live session' is the finding, and a run
-    that quietly used another path would report play evidence it does not have."""
+    """Wait for the endpoint; refuse when it never answers."""
     deadline = time.monotonic() + seconds
     last: OSError | None = None
     while time.monotonic() < deadline:
@@ -81,9 +59,7 @@ def connect(port: int, seconds: float) -> LiveClient:
 
 
 class Session:
-    """The play-through: reach gameplay the way a player does, then hold what it is told to and report
-    what it saw. Every step counts what it did, so a run that never got past the title says so with a
-    number rather than a zero."""
+    """Reach gameplay through the menus, then hold the requested buttons and report what moved."""
 
     def __init__(self, client: LiveClient, log: Path) -> None:
         self.client = client
@@ -95,7 +71,7 @@ class Session:
         return title_prompts.Screen(
             gamestate=self.client.word(guest_globals.kGamestate),
             title=TitleState(*self.client.words(guest_globals.kTitlescreenState, 6)),
-            level_trans_hud=self.client.word(drive.G_LEVEL_TRANS_HUD))
+            level_trans_hud=self.client.word(guest_globals.kLevelTransHudActive))
 
     def answer(self, prompt: title_prompts.Prompt) -> bool:
         if prompt.refuse:
@@ -108,9 +84,7 @@ class Session:
         return True
 
     def advance(self, frames: int = OBSERVE_FRAMES) -> int:
-        """Wait for `frames` presented frames. `pause`/`step` would make this exact, but the point of
-        this tool is a RUNNING game, so it reads the product's own frame counter instead of ordering
-        the product to do anything."""
+        """Wait for `frames` presented frames by watching the product's frame counter."""
         target = self.client.frame() + frames
         while self.client.frame() < target:
             time.sleep(0.01)
@@ -141,8 +115,7 @@ class Session:
         return spent
 
     def hold(self, buttons: tuple[str, ...], seconds: float) -> dict:
-        """Hold buttons for a wall-clock window while the game runs, and report what moved. Held input
-        is what a player does; a tap is a menu answer."""
+        """Hold buttons for a wall-clock window while the game runs, and report what moved."""
         for button in buttons:
             self.client.press(button)
         before = self.client.frame()
@@ -165,21 +138,12 @@ class Session:
 
 
 def effective_configuration(client: LiveClient) -> dict:
-    """The configuration the product is actually running, asked of the configuration owner over the
-    endpoint. This is a QUERY, not a log read: the boot log prints each knob once, at boot, and the
-    picture's mode changes afterwards, so a log line is a statement about the past and this is the
-    answer as it stands. `cvars` also carries the layer each value came from, which is what says
-    whether a run tested what it meant to test."""
+    """Each knob's current value and source layer, from the product's `cvars` reply."""
     reply = client.send("cvars")
     knobs: dict[str, str] = {}
     layers: dict[str, str] = {}
     for line in reply.splitlines():
-        # "  NAME  kind = value [layer]" — parsed by SHAPE, not by field count. The old parser required
-        # six whitespace-separated fields, and a cvar whose value has no space produces exactly FIVE
-        # ("PSXPORT_FPS60 bool = true [value]"), so it dropped nearly every knob and returned a partial
-        # dict that looked like an answer. The layer is whatever is in the trailing bracket and the
-        # value is everything between the first "=" and that bracket, which also survives a value that
-        # legitimately contains spaces.
+        # "  NAME  kind = value [layer]"; a value may contain spaces.
         match = re.match(r"\s+(\S+)\s+(\S+)\s+=\s+(.*?)\s+\[([^\]]+)\]", line)
         if not match:
             continue
@@ -192,27 +156,8 @@ def effective_configuration(client: LiveClient) -> dict:
 
 
 def guest_execution(client: LiveClient) -> dict:
-    """The dynarec's own denominators for this run, live. A gameplay claim needs nonzero translated and
-    executed blocks with the fallback accounted for; these are the numbers that say so, asked of the
-    process rather than recovered from text it happened to print.
-
-    The reply carries TWO lines, `guest:` and `fallback:`, and BOTH name `calls` and `instructions`.
-    They are kept apart by their prefix rather than merged into one dict, because a merged dict
-    answers both questions with whichever line was parsed last: on a run with zero fallback, the
-    merged reading of `instructions` is the 202 million the DYNAREC executed.
-    """
-    numbers: dict[str, dict[str, int]] = {}
-    for line in client.send("guest").splitlines():
-        prefix, separator, rest = line.partition(":")
-        prefix = prefix.strip()
-        if not separator or prefix not in ("guest", "fallback"):
-            continue
-        numbers.setdefault(prefix, {})
-        for token in rest.split():
-            key, equals, value = token.partition("=")
-            if equals:
-                numbers[prefix][key] = int(value) if value.isdigit() else -1
-    return numbers
+    """The executor's ledger now, keyed by its `guest` and `fallback` sections."""
+    return boot_log.ledger_sections(client.send("guest"))
 
 
 def report_run(client: LiveClient) -> None:
@@ -292,8 +237,6 @@ def main() -> int:
     finally:
         if client is not None:
             client.close()
-        # Kill by the PID this tool launched, never by name: another agent's product run must not die
-        # with this one.
         if product.poll() is None:
             product.send_signal(signal.SIGTERM)
             try:

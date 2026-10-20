@@ -2,9 +2,8 @@
 #include "spyro1/core/guest_globals.h"
 
 #include "core.h"
-#include "guest_call.h"
 #include "core/field_owner.h"
-#include "spyro1/core/guest_globals.h"
+#include "guest_call.h"
 
 #include <lucent/log.h>
 
@@ -14,6 +13,7 @@ namespace {
 using guest::kDemoTypeLevel;
 using guest::kGamestate;
 using guest::kGamestateTitleScreen;
+using guest::kLevelTransHudActive;
 using guest::kLoadStage;
 using guest::kTitleModeDemo;
 using guest::kTitlescreenDemoType;
@@ -24,13 +24,10 @@ using guest::kTitleStageActive;
 // GS_LevelTransition, whose update is func_8002DF9C.
 constexpr std::uint32_t kStageLevelTransition = 1u;
 
-// GS_ExitLevel: func_8002C664 is the glide's whole terminal, so it is dispatched rather than copied.
+// GS_ExitLevel: func_8002C664 is the glide's whole terminal, so it is dispatched, not copied.
 constexpr std::uint32_t kStageExitLevel = 10u;
 constexpr std::uint32_t kReturnHome = 0x8002C664u;
 constexpr std::uint64_t kReturnHomeCycles = 2u << 20;
-
-// g_LevelTransHudActive: func_8002DA74 ends the tally by clearing it and nothing else.
-constexpr std::uint32_t kLevelTransHudActive = 0x800756B0u;
 
 // The TSD_Level flyby's terminal, `func_8004AC24(1); LoadLevel(1);` (0x80033158/0x80033160,
 // docs/issues/0129); TSD_DemoLevel and TSD_Cutscene end elsewhere and stay uncancellable.
@@ -96,7 +93,12 @@ void TransitionSkip::observe(Core &core) {
                  core.mem_r32(kLoadStage));
     return;
   case Cancellation::ReturnHomeSequence:
-    psx::cpu::dispatchGuestWithArgumentsToReturn(core, kReturnHome, {}, psx::cpu::ExecutionBudget::fromCycles(kReturnHomeCycles), "transition-return-home");
+    psx::cpu::dispatchGuestWithArgumentsToReturn(
+        core,
+        kReturnHome,
+        {},
+        psx::cpu::ExecutionBudget::fromCycles(kReturnHomeCycles),
+        "transition-return-home");
     ++cancellations_;
     lucent::info("transition",
                  "return-home glide cancelled ({}); guest 0x{:08X} left stage {} load stage {}",

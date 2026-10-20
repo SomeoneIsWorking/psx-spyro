@@ -13,10 +13,6 @@ from port import launcher  # noqa: E402
 from port.launch_environment import player_environment  # noqa: E402
 
 ROOT = provision_title.ROOT
-# Content identity hashes with OpenSSL.
-OPENSSL = launcher.Dependency("OpenSSL development files",
-                              launcher.install_commands("openssl-devel", "libssl-dev", "brew install openssl@3",
-                                                        "vcpkg install openssl"), pkg_config="openssl")
 
 
 def provision_titles(discdump: Path) -> dict[provision_title.ProvisionSpec, Path]:
@@ -37,7 +33,7 @@ def provision_titles(discdump: Path) -> dict[provision_title.ProvisionSpec, Path
 
 
 def launch(prepare_only: bool) -> None:
-    launcher.preflight((OPENSSL,))
+    launcher.preflight()
     discs = provision_titles(launcher.build_discdump(ROOT, os.environ))
     build = launcher.build_product(ROOT, "spyro_port", os.environ)
     if prepare_only:

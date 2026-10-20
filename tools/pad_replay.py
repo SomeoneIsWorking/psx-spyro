@@ -1,40 +1,8 @@
 #!/usr/bin/env python3
-"""pad_replay.py — replay a recorded `.pad` through the built product, headless, and say where it lands.
+"""Replay a recorded `.pad` through the built product, headless, and report the level it lands in.
 
-WHY A TOOL AND NOT A SCRIPT LINE. A `.pad` file is a deterministic input capture, so the run that
-replays one has exactly one thing going right: the presses come out of the file and nothing else
-touches the pad. That property is easy to lose. A driver in the loop, a card that differs from the
-one the capture was made on, or a card shared with the next run each produce a run that *looks*
-like a replay and answers a different screen. The first is what left this repository's only gameplay
-pad describing a memory-card prompt for its whole run (docs/issues/0116), and the file could not say
-so.
-
-WHAT THIS OWNS, and what it deliberately does not:
-
-  - THE CARD is private and is in the state the recording was made against. Every recording carries
-    the SHA-256 of its card image and the product refuses a different one by name, so a run on the
-    wrong card is a refusal, not a wrong answer. This tool supplies that card; it never re-checks
-    the digest itself, because the product already refuses and a second answer to the same question
-    is a second thing to be wrong.
-
-  - WHY `card=` IS NOT USED HERE, stated because it looks like an omission. drive.environment(card=)
-    runs blank_card_environment, which DELETES the card so the product formats a fresh one. A pad
-    leg is the one run whose start state is fixed by something outside itself: the recording's card
-    identity. Deleting it here would guarantee a refusal. So the card is a private image restored
-    from `--card-seed` — the isolation is the same private path, and the start state is the recorded
-    one. Spyro 2/3's title routes, which must merely repeat and not match a capture, keep using
-    drive.ROUTE_CARD and the blank-card path unchanged.
-
-  - THE PRODUCT is launched with its executable path and the disc argument, exactly as every other
-    maintainer tool here does. Zero-argument `spyro_port` is the player's title selector; a pad
-    recording belongs to the title it was captured on, so the capture names it.
-
-  - NOTHING DRIVES THE PAD. There is no tap, no press and no driver in this file. The only way a
-    button reaches the guest is through PSXPORT_PAD_REPLAY, and that is the claim the run makes.
-
-The report names the state it actually observed, and "arrived" means a level, not a gamestate: Spyro
-runs its boot prefix at gamestate 0, so a probe that only asks for gamestate 0 reports arrival at
-step 0 and describes a logo.
+The run uses a private card seeded from the recording's card image (the product refuses a card whose
+SHA-256 differs) and nothing but PSXPORT_PAD_REPLAY touches the pad.
 
     uv run --frozen python tools/pad_replay.py \\
         --pad replays/gameplay/artisans-arrival.pad \\
@@ -54,9 +22,7 @@ from title_states import GS_PLAYING
 
 ROOT = drive.ROOT
 
-# A pad leg's private card, seeded from the image the capture was made against. Never
-# scratch/saves/card.mcr: that is the shared card, and a run that writes it changes the next run's
-# input (docs/issues/0169).
+# A pad leg's private card, never the shared scratch/saves/card.mcr (docs/issues/0169).
 PAD_CARD = ROOT / "scratch" / "saves" / "pad_replay.mcr"
 
 
@@ -66,13 +32,7 @@ def card_digest(path: Path) -> str:
 
 
 def seed_card(card: Path, seed: Path | None) -> str:
-    """Put the card in the state the capture expects and return the digest it now has.
-
-    `--card-seed` is the copy of the card as it was at RECORDING time. Both legs start from it, so
-    the two runs differ only in what the pad file asks for. With no seed the existing private card
-    is used as it stands, and its digest is reported either way, because a run must be able to say
-    which card it was on.
-    """
+    """Copy `seed` (the card at recording time) over the private card and return its digest."""
     card.parent.mkdir(parents=True, exist_ok=True)
     if seed is not None:
         if not seed.is_file():
@@ -86,9 +46,7 @@ def seed_card(card: Path, seed: Path | None) -> str:
 
 
 def environment(settings: Path, card: Path, pad: Path, extra: dict[str, str]) -> dict[str, str]:
-    """The agent environment plus this leg's private card and the replay knob.
-
-    The card is set here rather than through `card=`, which deletes it: a pad leg starts on the recorded card."""
+    """The agent environment plus this leg's card and the replay knob; `card=` would delete the card."""
     env = drive.environment("spyro1", settings)
     env["PSXPORT_CARD"] = str(card)
     env["PSXPORT_PAD_REPLAY"] = str(pad)

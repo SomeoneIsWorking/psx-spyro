@@ -1,30 +1,12 @@
 #!/usr/bin/env python3
-"""title_route.py — drive Spyro 2 or Spyro 3 from the title screen into gameplay, and prove it moved.
+"""Drive Spyro 2 or Spyro 3 from the title screen into gameplay, then show the pad moves the player.
 
     uv run --frozen python tools/title_route.py --title spyro2
     uv run --frozen python tools/title_route.py --title spyro3 --shot-dir scratch/play
 
-WHY THIS EXISTS. `drive.py` reaches Spyro 1's gameplay from Spyro 1's own words. Spyro 2 and 3 have their
-own game-state word, their own title and their own player position (`title_profile.py`), and until now
-nobody had driven either past its title screen: the route below is the first, and it reads the guest's
-state to decide every press rather than counting frames, because a cutscene or a load that takes longer
-than a count turns a frame-counted route into a capture of the wrong screen.
-
-THE ROUTE, as observed on both titles. Wait for the title state; tap Start once; then, until the guest
-reports the playing state, alternate Cross and Start every PRESS_PERIOD steps. Cross confirms the menu's
-New Game, and either button skips the intro cutscenes (Start on Spyro 3, Cross on Spyro 2, which is why
-both are pressed). Nothing is written into guest memory: every transition is a pad edge.
-
-WHAT COUNTS AS ARRIVAL. The playing state is 0 on both titles, and 0 is also the boot state, so reaching
-"state 0" proves nothing by itself. Arrival is refused unless the route first saw the title state AND the
-loading state on the way, in that order.
-
-WHAT COUNTS AS PLAYING. Reaching the state is not the claim; MOVING is. After a settle, the tool reads the
-player's (x, y, z) triple and holds the title's walk button (a direction away from the first conversation),
-then reads it again: it must move horizontally by at least MIN_MOVE. It then lets the player come to rest,
-holds Cross and reads a third time: z must RISE, which separates the player from a camera that follows it and
-from terrain that merely slopes under a run. A run that does not move, or whose z does not respond to a jump,
-is refused by name. Shots of the settled and the moved frame are written when `--shot-dir` is given; open them.
+The route waits for the title state, taps Start, then alternates Cross and Start until the playing state;
+arrival counts only after the title and loading states were seen in that order. It then holds the walk
+button (the profile's follow triple must move by MIN_MOVE) and Cross (z must rise).
 """
 
 from __future__ import annotations
@@ -88,7 +70,7 @@ def _signed(word: int) -> int:
 
 
 def read_position(port: RoutePort, entry: TitleProfile) -> Position:
-    x, y, z = (_signed(port.words(address, 1)[0]) for address in entry.position_words())
+    x, y, z = (_signed(port.words(address, 1)[0]) for address in entry.follow_words())
     return x, y, z
 
 

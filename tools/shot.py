@@ -1,9 +1,5 @@
 #!/usr/bin/env python3
-"""shot.py — get a PNG of what the game actually drew, at a product step you choose.
-
-Wraps the REPL's full-VRAM dump (both framebuffers in one 1024x512 image) and crops the buffer that
-holds the frame; `PSXPORT_SHOT_AT` and `PSXPORT_GPU_DUMP` have both returned pictures that lie here
-(instruments I032, I033, I008). The position is a product step, the REPL's `run N` unit.
+"""Get a PNG of the guest framebuffer at a product step, cropped from the REPL's full-VRAM dump.
 
 Usage:
   shot.py 23250                        # -> scratch/screenshots/f23250.png (the framebuffer)

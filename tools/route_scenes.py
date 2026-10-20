@@ -1,42 +1,12 @@
 #!/usr/bin/env python3
-"""route_scenes.py — the four Spyro 1 scenes the reach corpus had no route for, and what proves each.
+"""Four Spyro 1 scenes driven from the guest's own words: a flight level, a boss, a death and the save.
 
-WHY THIS EXISTS. docs/issues/0147's corpus ran six routes, and every one of them stops in a
-homeworld or an ordinary level: none reaches a flight level, a boss, a death, or the in-game save.
-A scene the corpus never enters is a scene whose guest functions are never a candidate for a native
-override (0147's own reach census) and never gated by one, so the gap is not a coverage statistic
--- it decides what the project is allowed to own.
+Each scene refuses by name, with the words it read, when its target is not reached.
 
-Each scene here is a STATE, and each is reached the way a player reaches it: with pad edges taken
-from what the guest's own words say. Nothing writes guest memory. There is no level id write, no
-position write, and no health write anywhere in this file; the only writer is the product, reacting
-to `press`/`tap` and to the pad reading those produce.
-
-Every address below is derived from external/spyro-1 (the decompilation of the byte-identical
-SCUS_942.28) and the instruction that computes it is quoted with it, so a reader can re-derive the
-number instead of trusting it. Each scene REFUSES by name -- with the words it read -- when its
-target is not reached, so a run that failed to arrive is never reported as a scene.
-
-THE FOUR TARGETS, and the guest words each asserts on:
-
-  flight-level   Sunny Flight, level id 15. The guest's own g_IsFlightLevel (0x80075690) is the
-                 flag every consumer branches on -- draw.c:534 `if (g_IsFlightLevel == 0)` skips
-                 the HUD, update.c:177 skips HudTick -- so it, not the level id alone, is what
-                 says a flight level is running.
-  boss-level     Toasty, level id 14. Same entry route, different portal: the homeworld's portals
-                 are a table of destinations and each carries the level it leads to.
-  death-respawn  Spyro below the death plane. g_Spyro + 0x8 is m_Position.z; func_8004A200's
-                 `slti $v0,$v0,0x400` / `bnez $v0,.L8004A4D8` (0x8004A4F4, 0x8004A4F8) calls
-                 func_8002C85C, which sets GS_Respawn or GS_GameOver. The proof is the gamestate
-                 the product itself wrote, plus the life count it decremented.
-  save-fairy     The in-game save, which is the FAIRY, not the balloonist. MemCardWriteFile has
-                 exactly two callers in the whole image (asm grep over external/spyro-1/asm): the
-                 title screen and func_800314B4, the GS_Fairy update. The balloonist
-                 (GS_Balloonist, D_800777E8) is a ride across the homeworld and writes nothing --
-                 include/overlays/balloonist.inc.h has no card call in any of its eight states. The
-                 proof is g_FairyCutscene.m_MenuDialoguePage (0x80078D0C) reaching 4, which is the
-                 only value from which SaveCreate (0x800321F4) and MemCardWriteFile (0x80032230)
-                 are reached; 7 is the page the same block takes when the card refuses.
+  flight-level   Sunny Flight (level 15): g_IsFlightLevel set, then GS_Playing.
+  boss-level     Toasty (level 14): the guest's own g_LevelIndex, then GS_Playing.
+  death-respawn  the guest's own death (func_8002C85C sets GS_Respawn/GS_GameOver), then GS_Playing.
+  save-fairy     the fairy's card write (func_800314B4): pages 2 then 7 ("GAME SAVED").
 
 Usage:
     uv run --frozen python tools/route_scenes.py --list
@@ -56,83 +26,58 @@ import spyro1_steering
 from automation.process import ToolError  # noqa: E402  (path set by title_identity)
 from spyro1_steering import moby_class_targets
 
-# --- guest addresses, each with the instruction it comes from -------------------------------
-#
-# The shared ones are the shipping owner's, read through tools/guest_globals.py, so a driver and
-# the product cannot drift onto different memory. The ones only these scenes read are named here,
-# in the module that is their only reader, with the derivation that makes them checkable.
+# Addresses from external/spyro-1 (byte-identical SCUS_942.28).
 
-# g_IsFlightLevel (common.h). loaders.c and update.c branch on it to drop the walk HUD; it is the
-# flag that makes a flight level a flight level rather than an ordinary level with a new id.
+# g_IsFlightLevel (common.h).
 G_IS_FLIGHT_LEVEL = 0x80075690
-# g_SpyroLifeCount (common.h) and g_Gamestate, both from the shipping owner.
+# g_SpyroLifeCount (common.h).
 G_LIFE_COUNT = 0x8007582C
-# g_Spyro + 0x8. g_Spyro is the shipping owner's 0x80078A58; +0x8 is m_Position.z, the third word
-# of the Vector3D m_Position that starts the struct.
-G_SPYRO_X = 0x80078A58
-G_SPYRO_Y = 0x80078A58 + 0x04
-G_SPYRO_Z = 0x80078A58 + 0x08
-# g_Spyro + 0x80 is m_health: func_8004A4B0 `lw $v0,%lo(g_Spyro + 0x80)($v0)` then
-# `slti $v0,$v0,0x65`, and the fairy trigger refuses to open when it is not positive
-# (0x8007D7E8 `blez $v0`), so it is read here as corroboration, never as the death condition.
-G_SPYRO_HEALTH = 0x80078A58 + 0x80
-# g_Spyro + 0x78 is the body state func_8004A200 switches on (0x1D/0x1E/0x1F are the liquid states
-# whose +0x80 timer reaches 0x65/0x7D before func_8002C85C runs).
-G_SPYRO_STATE = 0x80078A58 + 0x78
-# g_FairyCutscene (fairy.h) starts at 0x80078D00 -- asm/data/game.bss.s places it immediately
-# after g_Spyro, which it also sizes: "Total size from 80078A58 to 80078D00".
+# g_Spyro.m_Position.
+G_SPYRO_X = guest_globals.kSpyro
+G_SPYRO_Y = guest_globals.kSpyro + 0x04
+G_SPYRO_Z = guest_globals.kSpyro + 0x08
+# g_Spyro.m_health (func_8004A4B0); corroboration only, never the death condition.
+G_SPYRO_HEALTH = guest_globals.kSpyro + 0x80
+# The body state func_8004A200 switches on; 0x1D..0x1F are the liquid states.
+G_SPYRO_STATE = guest_globals.kPlayerState
+# g_FairyCutscene (fairy.h), immediately after g_Spyro.
 G_FAIRY_STATE = 0x80078D00
-# +0x08 is BOTH the menu selection on page 0 and the memory-card machine's stage afterwards. The
-# guest proves it: the page-0 handler increments it and wraps at 3 (0x80031E74 / 0x80031E80) as the
-# option, and the page-2 handler loads it as $s1's base and stores 1..4 into it (0x800320C8 and
-# 0x800320F8 / 0x80032168 / 0x80032240) as the card stage. So it is only read as an option while the
-# page is 0, and only read as a stage after the page has left 0; measured, the very same word read
-# 4 on a run whose save then succeeded, which is the card machine four steps in and not a selection.
+# +0x08 is the menu option on page 0 and the card machine's stage after it (0x80031E74, 0x800320C8).
 G_FAIRY_OPTION = 0x80078D00 + 0x08   # m_MenuSelectedOption (0=SAVE, 1=RETRY, 2=CONTINUE) on page 0
 G_FAIRY_CARD_STAGE = 0x80078D00 + 0x08  # the card machine's stage on pages 1..7, the same word
 G_FAIRY_PAGE = 0x80078D00 + 0x0C     # m_MenuDialoguePage, the 0..7 page the update dispatches on
 G_FAIRY_HAS_CARD = 0x80078D00 + 0x14  # m_HasMemoryCard; 0 sends the menu to CONTINUE, not SAVE
 
-# Moby classes, from the level-10 overlay's own dispatcher. Both are read off the compare that
-# selects them, in asm/nonmatchings/overlays/level_10/func_level_10_8007D9C8.s.
-FAIRY_MOBY_CLASS = 110   # 0x8007DB54 `addiu $v0,$zero,0x6E` ; 0x8007DB58 `beq $v1,$v0` -> the
-                         # block that ends in `jal InitFairyCutscene` at 0x80080A1C.
-BALLOONIST_MOBY_CLASS = 187  # 0x8007DBAC `addiu $v0,$zero,0xBB` ; 0x8007DBB0 `beq $v1,$v0`.
+# Moby classes from the level-10 overlay's dispatcher, func_level_10_8007D9C8.
+FAIRY_MOBY_CLASS = 110   # 0x8007DB54; its block ends in `jal InitFairyCutscene` (0x80080A1C)
+BALLOONIST_MOBY_CLASS = 187  # 0x8007DBAC
 
-# common.h's Gamestate enum, the two values these scenes prove.
+# common.h's Gamestate values these scenes prove.
 GS_RESPAWN = 4
 GS_GAME_OVER = 5
 GS_FAIRY = 11
 # func_8004A4F4 `slti $v0,$v0,0x400`: below this Z the guest calls func_8002C85C.
 DEATH_PLANE_Z = 0x400
-# jtbl_80010E08 in func_800314B4 dispatches on m_MenuDialoguePage, one entry per page. Page 2
-# (.L800320C0) is the only page that reaches SaveCreate (0x800321F4) and MemCardWriteFile
-# (0x80032230); its handler is also the memory-card machine, which walks the card-stage word from 0
-# through 4 across a handful of fields. Page 7 (.L8003245C's jtbl entry) is the page that ends the
-# cutscene, and it is the SUCCESS page, not a refusal: the guest's own caption for it is the string
-# "GAME SAVED" at 0x80010CC4, which the guest's fairy menu lays out for page 7. Pages 3, 4, 5 and 6
-# are the failures -- "NO MEMORY CARD", "NO SAVE FILE", "SAVE ERROR" and "SAVE FAILED" -- and are the ones a refusal names.
+# func_800314B4's pages: 2 reaches SaveCreate and MemCardWriteFile, 7 is "GAME SAVED", 3..6 are failures.
 SAVE_PAGE_WRITE = 2
 SAVE_PAGE_SAVED = 7
 SAVE_PAGE_FAILED_FIRST = 3
 
-# Artisans' portals, by the level ids common.h's layout gives: g_LevelId/10-1 is the homeworld and
-# g_LevelId%10 the slot, where 0=home 1..3=levels 4=boss 5=flight. 14 is Toasty, 15 Sunny Flight
-# (src/strings.c g_LevelNames: "TOASTY" at index 4 and "SUNNY FLIGHT" at index 5).
+# g_LevelId/10-1 is the homeworld and g_LevelId%10 the slot (4 = boss, 5 = flight).
 BOSS_LEVEL_ID = 14
 FLIGHT_LEVEL_ID = 15
-# g_LevelIndex (common.h), which the guest computes from the level it loaded.
+# g_LevelIndex (common.h), the guest's (homeworld * 6) + slot (loaders.c:1398).
 G_LEVEL_INDEX = 0x80075964
-# Artisans is homeworld 0, so loaders.c:1399 makes the index the slot: 4 for the boss, 5 for the
-# flight level. Stated as the arithmetic rather than as a number so a reader can check it.
+# Artisans is homeworld 0, so the index is the slot.
+BOSS_LEVEL_SLOT = 14 % 10
+FLIGHT_LEVEL_SLOT = 15 % 10
 BOSS_LEVEL_SLOT = 14 % 10
 FLIGHT_LEVEL_SLOT = 15 % 10
 
 
 @dataclass(frozen=True)
 class Proof:
-    """What a scene proved, and what it cost. `words` are the guest words read at the moment of
-    proof, so a reader can check the claim against the product rather than against this file."""
+    """What a scene proved, the steps it spent and the guest words read at the proof."""
 
     scene: str
     target: str
@@ -152,12 +97,7 @@ class Proof:
 
 
 class ScenePort:
-    """The slice of the product a scene drives, plus the two readers every scene needs.
-
-    Wrapping rather than inheriting keeps the scenes testable against a fake port -- a scene that
-    only ever saw a real product could not have a negative case, and a negative case is the whole
-    point of refusing by name.
-    """
+    """The slice of the product a scene drives, plus the readers every scene needs."""
 
     def __init__(self, port, fields_at_entry: int):
         self._port = port
@@ -165,9 +105,7 @@ class ScenePort:
 
     @property
     def raw(self):
-        """The product object itself, for the walk stepper, which drives a REPL rather than a
-        scene. Public rather than a private attribute read from outside: a scene reaching into
-        another object's `_port` is a boundary the type system cannot police."""
+        """The product object itself, for the walk stepper."""
         return self._port
 
     @property
@@ -203,17 +141,9 @@ class ScenePort:
 def _walk_until(port: ScenePort, what: str, targets, predicate, description: str,
                 budget: int, arrived: int | None = 0, route: str | None = None,
                 from_player: bool = False) -> int:
-    """Walk to a place and keep going until `predicate` says the thing HAPPENED.
+    """Walk until `predicate` holds, following the recorded `route` first when this level has one.
 
-    `arrived=0` is the important part: a proximity radius would report a walk that stopped next to
-    a portal for a walk that entered one, which is the failure `Seeker` was given `stop` to avoid.
-
-    `route` names a recorded waypoint route (tools/routes) to follow first, for destinations a
-    straight line cannot reach. The level has to be one the route was recorded in; a level with no
-    recording for it keeps the plain seek, so the absence of a route is visible rather than faked.
-
-    `from_player` measures distances from Spyro, not from the trailing camera: a proximity trigger
-    (the fairy) is a distance from Spyro, and the camera sits about 3000 units behind him.
+    `arrived=0` keeps walking through a portal; `from_player` measures from Spyro instead of the camera.
     """
     if route is not None:
         recorded = repl_route.Route.find(port.word(guest_globals.kLevelId), route)
@@ -224,21 +154,7 @@ def _walk_until(port: ScenePort, what: str, targets, predicate, description: str
 
 
 def flight_level(port: ScenePort) -> Proof:
-    """Walk into Sunny Flight's portal and prove g_IsFlightLevel is set.
-
-    The portals are a table, not a guess: g_Portals (the shipping owner) holds up to six pointers
-    and each carries the level it leads to, so the route asks the level for its flight portal
-    rather than assuming one exists. A homeworld that does not have one is REFUSED with the level
-    ids it does have, which is a fact about the level and not a driver bug.
-
-    MEASURED 2026-10-01, still failing, and this is where: no route for `portal-15` is recorded in
-    tools/routes, so `Route.find` answers None and the scene falls back to the straight-line seeker,
-    which stalls 5570 view units from the portal to level 15 at (52656, 43245, 8865). The same
-    portal is where death-respawn drowns, so the direct line crosses the west pond. Reaching 3000
-    view units of that portal needs a route that goes around it, and the level-10 walkable graph
-    (scratch-only A* over the render mesh) reaches no closer than 6000 world units at any climb
-    bound tried. docs/issues/0170 carries the numbers and what would unblock it.
-    """
+    """Walk into Sunny Flight's portal and prove g_IsFlightLevel is set; docs/issues/0170 tracks the route."""
     portals = spyro1_steering.portal_targets(port.words, level=FLIGHT_LEVEL_ID)
     if not portals:
         available = [target.what for target in spyro1_steering.portal_targets(port.words)]
@@ -265,10 +181,7 @@ def flight_level(port: ScenePort) -> Proof:
             f"derivation of it for Artisans is {FLIGHT_LEVEL_SLOT} (loaders.c:1398), so the level "
             "index was not computed from the level that loaded"
         )
-    # Stop in PLAY, not at the flag. The flag is set while the level streams in, and the functions
-    # a flight level owns -- its overlay's update, its plane and its objectives -- run after the
-    # hand-off, so a route that stopped at the flag would report a flight level the corpus has
-    # measured almost nothing of.
+    # The flight level's own code runs after the hand-off, so wait for GS_Playing.
     if not _await(port, lambda: port.word(guest_globals.kGamestate) == 0,
                   "GS_Playing in the flight level", budget=2400):
         raise ToolError(
@@ -292,21 +205,7 @@ def flight_level(port: ScenePort) -> Proof:
 
 
 def boss_level(port: ScenePort) -> Proof:
-    """Walk into the boss portal and prove the guest loaded that level.
-
-    Toasty is a level, not a moby: `g_LevelId == 14` is what loaders.c keys the Toasty dialogue
-    on ("for artisans, check if the Toasty conditions have been met", g_LevelId == 10 is the home
-    world and props->m_CutsceneId == 1 is the boss). So the proof is the level id the product
-    itself loaded, plus the boss arena's own overlay being the resident code image.
-
-    MEASURED 2026-10-01, still failing, and this is where: the recorded `portal-14` route reaches
-    waypoint 66 of 74 and then stalls 258 view units short of waypoint 67, which is recorded at
-    (129225, 81975, z 7042) while the guest's own position word has Spyro at (128933, 80464, z 5090)
-    -- a terrace 1952 units above the ground he is standing on. The route crosses a ledge; the
-    walker is refusing to walk into a wall. Regenerating the route from the same mesh with a
-    clearance margin does reach every one of its own waypoints, so the last 2900 units are the
-    whole gap. docs/issues/0170 carries the numbers.
-    """
+    """Walk into the boss portal and prove the guest loaded Toasty; docs/issues/0170 tracks the route."""
     portals = spyro1_steering.portal_targets(port.words, level=BOSS_LEVEL_ID)
     if not portals:
         available = [target.what for target in spyro1_steering.portal_targets(port.words)]
@@ -325,10 +224,7 @@ def boss_level(port: ScenePort) -> Proof:
             f"entered level {BOSS_LEVEL_ID} but the guest never returned to GS_Playing "
             f"(gamestate {port.word(guest_globals.kGamestate)}) after {port.spent()} step(s)"
         )
-    # g_LevelIndex is the guest's OWN arithmetic on the level it just loaded, loaders.c:1398
-    # `g_Homeworld = (g_LevelId / 10) - 1` then `g_LevelIndex = (g_Homeworld * 6) + (g_LevelId % 10)`.
-    # Checking it is checking that the guest did that arithmetic and not that a word happens to
-    # read 14 -- two different claims, and only the first is about loading a level.
+    # The guest's own index arithmetic, not just the level id word.
     index = port.word(G_LEVEL_INDEX)
     if index != BOSS_LEVEL_SLOT:
         raise ToolError(
@@ -350,28 +246,12 @@ def boss_level(port: ScenePort) -> Proof:
     )
 
 
-# WHERE THE DEATH IS. Level 10's collision data has 279 triangles of special-surface type 0 at
-# z=5888 over x 56000..68000, y 36000..52000 (decoded from the terrain collision at g_Environment
-# + 0x2C: 12-byte triangles, flags byte per triangle, surface table type 0 = the damaging floor
-# func_8004DF.. applies as m_DamageFlags 0x400). That is the west pond, and walking into it kills
-# Spyro through the guest's own drowning. The previous route swept the eight compass sectors off the
-# spawn hill for 900 fields each and never reached it (the corpus ledger: "the guest never died",
-# 7,200 fields): a fixed bearing from the hub walks into a rim long before it walks into water. The
-# recorded "pond" route (tools/routes) crosses the plain to the pond's east shore and wades in; if
-# a level carries no such recording the walk falls back to the westernmost portal, whose approach
-# in this homeworld also crosses water. The walk ends on the guest's own decision, GS_Respawn or
-# GS_GameOver, wherever on the way it comes.
+# Level 10's west pond drowns Spyro; the recorded "pond" route wades in, else the walk heads west.
 DEATH_BUDGET = 12000
 
 
 def death_respawn(port: ScenePort) -> Proof:
-    """Walk toward the westernmost portal until the guest kills Spyro, then let the respawn finish.
-
-    The death is the guest's own: func_8004A4F4 `slti $v0,$v0,0x400` on m_Position.z branches to
-    0x8004A4D8 `jal func_8002C85C`, which decrements g_SpyroLifeCount and sets GS_Respawn (or
-    GS_GameOver when there is no life left). This route supplies no damage and no death: it only
-    keeps walking, and stops when the gamestate says the guest decided Spyro died.
-    """
+    """Walk west until the guest kills Spyro (func_8002C85C), then let the respawn finish."""
     lives_before = port.signed(G_LIFE_COUNT)
     portals = spyro1_steering.portal_targets(port.words)
     if not portals:
@@ -394,9 +274,7 @@ def death_respawn(port: ScenePort) -> Proof:
             f"the walk at {target.what} ended with g_Gamestate {state}, which is not the guest's "
             f"GS_Respawn ({GS_RESPAWN}) or GS_GameOver ({GS_GAME_OVER}): arriving is not dying"
         )
-    # Read health HERE, on the field the death was seen. The respawn restores it, so reading it
-    # after the wait would report a full bar for a route whose whole point is that the guest
-    # decided Spyro was finished.
+    # The respawn restores health, so read it on the death field.
     health = port.word(G_SPYRO_HEALTH)
     body_state = port.word(G_SPYRO_STATE)
     lowest = min(lowest, port.signed(G_SPYRO_Z))
@@ -406,8 +284,7 @@ def death_respawn(port: ScenePort) -> Proof:
 
 def _death_proof(port: ScenePort, sector: str, fields: int, lives_before: int,
                  lowest: int, state: int, health: int, body_state: int) -> Proof:
-    """A death is only proved once the guest has put Spyro back in the world, so this waits for
-    GS_Playing and reports the life count the guest decremented."""
+    """Wait for GS_Playing after the respawn and report the life count the guest decremented."""
     if not _await(port, lambda: port.word(guest_globals.kGamestate) == 0,
                   "GS_Playing after the respawn", budget=1800):
         raise ToolError(
@@ -435,31 +312,18 @@ def _death_proof(port: ScenePort, sector: str, fields: int, lives_before: int,
     )
 
 
-# The fairy's menu, read off func_800314B4 and driven as a closed loop over the guest's own words.
-# On page 0 the handler takes the guest pad word's 0x4000 bit to move m_MenuSelectedOption up and
-# 0x1000 to move it down (0x80031E40 `andi $v0,$v1,0x4000`, 0x80031E9C `andi $v0,$v1,0x1000`,
-# wrapping at 3), and 0x40 (0x80031F14 `andi $v0,$v1,0x40`) on option 0 is what sets
-# m_MenuDialoguePage to 2 (0x80031F60 `addiu $v0,$zero,2` -> 0x80031F68). Those are the standard
-# PSX pad bits, DOWN 0x4000, UP 0x1000 and CROSS 0x40; the port REPL's button names (repl.cpp
-# repl_btn) carry the byte-swapped masks, so the REPL's "down" is the guest's 0x4000. MEASURED, not
-# read off the table: "down" on option 0 left the option at 1, and the earlier names (SQUARE moves
-# it, DOWN confirms) were wrong. The handler ignores input until its own timer reaches 8
-# (0x80031EF4 `slti $v0,$v0,0x8`), which is why the loop waits on the guest and reads the option
-# back instead of pressing on a schedule.
+# func_800314B4 page 0: guest DOWN (0x4000) moves the option, CROSS (0x40) on option 0 opens page 2;
+# input is ignored until its timer reaches 8 (0x80031EF4).
 FAIRY_MENU_OPTION = 0
 # Counts are product steps, the REPL's `run N` unit, two fields each in gameplay.
 FAIRY_MENU_WATCH_STEPS = 30
 FAIRY_CARD_STEPS = 900
 FAIRY_MENU_STEPS = 24
-# The card machine's own steps, watched this finely because it finishes inside one menu step
-# (measured: page 0 -> 2 -> 7 across 26 fields, with the card stage climbing 0..4 every two or three
-# fields), so a sample coarser than one step walks over page 2 and cannot prove the write was entered.
+# The card machine runs page 0 -> 2 -> 7 in about 26 fields, so it is sampled every step.
 FAIRY_WATCH_STEPS = 1
 
 
-# The fairy's trigger radius is 0x400 world units and a view unit is a quarter of one, so 150 view
-# units (600 world) is well inside it. The stand is the guest's own idle wait, in steps; the fairy
-# wanders, so the approach is repeated against her current position.
+# The trigger radius is 0x400 world units (4 per view unit); she wanders, so the approach repeats.
 FAIRY_STAND_VIEW_DISTANCE = 150
 FAIRY_STAND_STEPS = 23
 FAIRY_APPROACH_ATTEMPTS = 30
@@ -467,14 +331,7 @@ FAIRY_APPROACH_STEPS = 450
 
 
 def _approach_fairy(port: ScenePort, opened, fairies) -> None:
-    """Get Spyro standing still inside the fairy's trigger, which is a moving target.
-
-    The fairy hovers and wanders (measured: 84992,52224,10087 then 85204,52498,9831 then
-    84799,51964,10041 over the same level visit), and the trigger needs OctDistance < 0x400 AND
-    |dz| < 0x200 against a Spyro in body state 0 or 0xD. So a walk to where she WAS parks Spyro out
-    of range. This follows her CURRENT position, stands still for a short guest wait, and repeats;
-    the guest's own gamestate is the only success. The recorded route gets Spyro to her first.
-    """
+    """Stand Spyro still inside the wandering fairy's trigger (OctDistance < 0x400, |dz| < 0x200)."""
     route = f"fairy-{FAIRY_MOBY_CLASS}"
     for attempt in range(FAIRY_APPROACH_ATTEMPTS):
         targets = moby_class_targets(port.words, FAIRY_MOBY_CLASS) or fairies
@@ -503,12 +360,7 @@ def _approach_fairy(port: ScenePort, opened, fairies) -> None:
 
 
 def save_fairy(port: ScenePort) -> Proof:
-    """Walk to the fairy, answer her save menu, and prove the guest issued the card write.
-
-    The trigger is proximity, not a button: 0x80080788 `slti $v0,$v0,0x400` after OctDistance
-    against g_Spyro, and 0x80080A1C `jal InitFairyCutscene`. So the route walks until the gamestate
-    changes, which is also why it refuses on a proximity radius alone.
-    """
+    """Walk into the fairy's proximity trigger (0x80080788), answer her menu, and prove the card write."""
     fairies = moby_class_targets(port.words, FAIRY_MOBY_CLASS)
     if not fairies:
         raise ToolError(
@@ -523,22 +375,9 @@ def save_fairy(port: ScenePort) -> Proof:
 
 
 def _answer_menu(port: ScenePort, has_card: int) -> tuple[int, int]:
-    """Put the fairy's menu on SAVE with the guest's own controls, and return the page and option
-    the guest was on when it took the choice.
+    """Put the fairy's menu on SAVE and take it; returns the page and option the guest took it on.
 
-    InitFairyCutscene already chooses SAVE when a card is present (init.c:401) and CONTINUE when
-    one is not, so on a card the menu is on SAVE before any input. Either way the option is READ
-    BACK and the button pressed is the one the handler gives that option, and the loop ends on the
-    page leaving 0 -- which is the guest saying it took the choice, not the driver assuming it did.
-
-    Two things the loop must not do, both measured. The option word must be re-checked against the
-    PAGE first, because from page 1 on that word is the card machine's stage: pressing DOWN to "fix"
-    a selection of 4 while the guest is already saving presses a button the guest's page does not
-    read. And the choice must be followed by FAIRY_WATCH_STEPS-sized runs rather than one long
-    run, because the guest ignores CROSS until its own m_AnimationTimer reaches 8 (0x80031EF4) and
-    the whole card machine then finishes inside one 30-step watch -- measured: page 0 -> 2 -> 7 in
-    26 fields, the stage word climbing 0..4 every two or three fields. A route that ran a coarse
-    step after pressing CROSS walked straight over page 2 and could not prove the write at all.
+    From page 1 on the option word is the card stage, so the page is checked first.
     """
     option = port.signed(G_FAIRY_OPTION)
     for step in range(FAIRY_MENU_STEPS):
@@ -568,18 +407,7 @@ def _answer_menu(port: ScenePort, has_card: int) -> tuple[int, int]:
 
 
 def _await_write(port: ScenePort, page_before: int, option: int, has_card: int) -> Proof:
-    """The proof, or a refusal that says which page the guest stopped on.
-
-    Page 2 is the only page whose handler reaches SaveCreate (0x800321F4) and MemCardWriteFile
-    (0x80032230), and page 7 is the page the guest ends the cutscene on, captioned "GAME SAVED"
-    (the string at 0x80010CC4, laid out for page 7 by the guest's fairy menu). So the
-    proof is the page SEQUENCE the guest walked -- it must contain 2 and end on 7 -- and not a
-    sample of the page alone, because the machine finishes inside one menu watch.
-
-    Every other page it can land on (3, 4, 5, 6) is a failure the guest words for itself: "NO
-    MEMORY CARD", "NO SAVE FILE", "SAVE ERROR", "SAVE FAILED". They are named, never folded into a
-    success.
-    """
+    """The proof that the page sequence entered 2 and ended on 7, or a refusal naming where it stopped."""
     seen: list[int] = []
     spent = 0
     while spent < FAIRY_CARD_STEPS:
@@ -634,8 +462,7 @@ def _await_write(port: ScenePort, page_before: int, option: int, has_card: int) 
 
 
 def _await(port: ScenePort, predicate: Callable[[], bool], what: str, budget: int) -> bool:
-    """Advance in small steps until `predicate` holds or the budget runs out. Never sleeps, never
-    guesses: a state that appears for one field is a state a once-per-call reader would miss."""
+    """Advance in small steps until `predicate` holds or the budget runs out."""
     spent = 0
     while spent < budget:
         if predicate():
@@ -664,11 +491,7 @@ SCENES = {
 
 
 def run_scene(name: str, port) -> Proof:
-    """Run one named scene against a live product and return what it proved.
-
-    The two scenes that need a place to walk to share one refusal, so a level that carries neither
-    the fairy nor the flight portal cannot be mistaken for a driver that cannot steer.
-    """
+    """Run one named scene against a live product and return what it proved."""
     if name not in SCENES:
         raise ToolError(f"unknown scene {name!r}; scenes: {', '.join(sorted(SCENES))}")
     return SCENES[name].run(ScenePort(port, port.frame))
