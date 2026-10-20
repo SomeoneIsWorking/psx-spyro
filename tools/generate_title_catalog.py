@@ -7,8 +7,9 @@ import argparse
 import pathlib
 
 import title_identity
+from automation.process import ToolError  # noqa: E402  (path set by title_identity)
 
-ROOT = pathlib.Path(__file__).resolve().parent.parent
+ROOT = title_identity.ROOT
 TITLE_ENUMS = (
     ("spyro1", "Spyro1"),
     ("spyro2", "Spyro2"),
@@ -18,7 +19,7 @@ TITLE_ENUMS = (
 
 def _cpp_string(value: object) -> str:
     if not isinstance(value, str):
-        raise title_identity.Refused(f"catalog string field has non-string value {value!r}")
+        raise ToolError(f"catalog string field has non-string value {value!r}")
     escaped = value.replace("\\", "\\\\").replace('"', '\\"')
     return f'"{escaped}"'
 
@@ -87,7 +88,7 @@ def main() -> int:
         text = render()
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(text, encoding="utf-8")
-    except (OSError, title_identity.Refused) as error:
+    except (OSError, ToolError) as error:
         parser.exit(2, f"REFUSED: {error}\n")
     return 0
 

@@ -92,13 +92,13 @@ S3 `SCUS_944.67`. `game/` and `titles/` are the include roots, so a header is in
 | `hud_anchor` | `titles/spyro{2,3}/render/hud_anchor.h` | The HUD widget drawers anchored per element class |
 | manifest | `titles/spyro{1,2,3}/executable.json` | Serial, hashes, labels, environment keys |
 
-### Build, tests, tools
+### Build and tools
 
 | owner | path | owns |
 |---|---|---|
 | build | `CMakeLists.txt` | `spyro_port` through `psxport_add_product`, the title catalog generation |
-| format | `tools/format.py` | clang-format over `game/` and `titles/` |
-| launch and provisioning | `run.sh`, `tools/run.py`, `tools/provision_title.py`, `tools/generate_title_catalog.py` | The zero-argument launch, title provisioning, the `external/psxport` fetch (`tools/run.py:sync_framework`) |
+| launch and provisioning | `run.sh`, `bootstrap.py`, `tools/run.py`, `tools/provision_title.py`, `tools/generate_title_catalog.py` | `bootstrap.py` fetches `external/psxport`; `tools/run.py` provisions, builds and execs through psxport `tools/port/launcher.py` |
+| guest facts for tools | `tools/guest_globals.py`, `tools/title_profile.py`, `tools/title_states.py` | Addresses read from the C++ headers, per-title words, the gamestate table |
 | agent drivers | `tools/drive.py`, `tools/boot_run.py`, `tools/title_route.py`, `tools/shot.py`, `tools/pad_replay.py`, `tools/oracle_*.py` | Headless routes, boot runs, captures, replays, oracle comparison |
 
 ## Where new work goes

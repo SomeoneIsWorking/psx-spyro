@@ -30,24 +30,19 @@ import sys
 import time
 from pathlib import Path
 
-TOOLS = Path(__file__).resolve().parent
-ROOT = TOOLS.parent
-sys.path.insert(0, str(TOOLS))
-sys.path.insert(0, str(ROOT / "external" / "psxport" / "tools"))
-
 import drive
 import guest_globals
 import title_prompts
-from dbgclient import (
-    LiveClient,
-)
+from automation.process import ToolError  # noqa: E402  (path set by title_identity)
+from dbgclient import LiveClient  # noqa: E402
+from title_states import TitleState
 
-G_LEVEL_TRANS_HUD = drive.G_LEVEL_TRANS_HUD
+ROOT = drive.ROOT
 OUT_DIR = ROOT / "scratch" / "live"
 OBSERVE_FRAMES = 20  # frames between decisions, as drive.py's Navigator uses
 
 
-def launch(executable: Path, binary: Path, disc: str | None, port: int, log: Path,
+def launch(executable: Path, binary: Path, port: int, log: Path,
            settings: Path | None = None) -> subprocess.Popen:
     """The product, headless and silent, with the live endpoint on its own port. PSXPORT_REPL is popped
     because nothing here speaks that protocol, and a product waiting for a prompt on stdin would never
@@ -59,7 +54,7 @@ def launch(executable: Path, binary: Path, disc: str | None, port: int, log: Pat
     not a patched default. Reading a boot log line to decide which configuration ran is not good enough
     either — the picture's mode can change after boot — so the caller asks the configuration owner over
     the endpoint afterwards."""
-    environment = drive.environment(disc, settings)
+    environment = drive.environment("spyro1", settings)
     environment.pop("PSXPORT_REPL", None)
     environment["PSXPORT_DEBUG_SERVER"] = str(port)
     environment["PSXPORT_LOG_FILE"] = str(log)
@@ -99,8 +94,8 @@ class Session:
     def screen(self) -> title_prompts.Screen:
         return title_prompts.Screen(
             gamestate=self.client.word(guest_globals.kGamestate),
-            title=drive.TitleState(*self.client.words(guest_globals.kTitlescreenState, 6)),
-            level_trans_hud=self.client.word(G_LEVEL_TRANS_HUD))
+            title=TitleState(*self.client.words(guest_globals.kTitlescreenState, 6)),
+            level_trans_hud=self.client.word(drive.G_LEVEL_TRANS_HUD))
 
     def answer(self, prompt: title_prompts.Prompt) -> bool:
         if prompt.refuse:
@@ -252,8 +247,7 @@ def report_run(client: LiveClient) -> None:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--executable", type=Path, default=Path("build/bin/spyro_port"))
-    parser.add_argument("--binary", type=Path, default=Path("scratch/assets/spyro1/SCUS_942.28"))
+    parser.add_argument("--executable", type=Path, default=drive.EXECUTABLE)
     parser.add_argument("--port", type=int, default=5971, help="live endpoint port (default 5971)")
     parser.add_argument("--hold", nargs="*", default=["left"], metavar="BUTTON",
                         help="buttons to hold once gameplay is reached (default: left)")
@@ -263,18 +257,13 @@ def main() -> int:
     parser.add_argument("--shot", type=Path, default=OUT_DIR / "gameplay.ppm")
     args = parser.parse_args()
 
-    disc = drive.disc_path()
-    if not disc:
-        print("REFUSED: no disc; set PSXPORT_SPYRO_DISC in the environment or .env", file=sys.stderr)
-        return 2
-    for path in (ROOT / args.executable, ROOT / args.binary):
-        if not path.is_file():
-            print(f"REFUSED: {path} is missing; build the product and provision the title first",
-                  file=sys.stderr)
-            return 2
-
     log = OUT_DIR / "live_play.log"
-    product = launch(ROOT / args.executable, ROOT / args.binary, disc, args.port, log)
+    try:
+        executable, image = drive.launch_inputs("spyro1", ROOT / args.executable)
+        product = launch(executable, image, args.port, log)
+    except (OSError, ToolError) as refusal:
+        print(f"REFUSED: {refusal}", file=sys.stderr)
+        return 2
     client = None
     try:
         client = connect(args.port, args.connect_timeout)

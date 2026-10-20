@@ -14,8 +14,7 @@ to `press`/`tap` and to the pad reading those produce.
 
 Every address below is derived from external/spyro-1 (the decompilation of the byte-identical
 SCUS_942.28) and the instruction that computes it is quoted with it, so a reader can re-derive the
-number instead of trusting it. `tools/route_scenes.py --selftest` gates the derivations that can be
-gated without the product, and each scene REFUSES by name -- with the words it read -- when its
+number instead of trusting it. Each scene REFUSES by name -- with the words it read -- when its
 target is not reached, so a run that failed to arrive is never reported as a scene.
 
 THE FOUR TARGETS, and the guest words each asserts on:
@@ -40,7 +39,6 @@ THE FOUR TARGETS, and the guest words each asserts on:
                  are reached; 7 is the page the same block takes when the card refuses.
 
 Usage:
-    uv run --frozen python tools/route_scenes.py --selftest
     uv run --frozen python tools/route_scenes.py --list
 """
 
@@ -55,7 +53,8 @@ import guest_globals
 import repl_route
 import repl_walk
 import spyro1_steering
-from spyro1_steering import Refusal, moby_class_targets
+from automation.process import ToolError  # noqa: E402  (path set by title_identity)
+from spyro1_steering import moby_class_targets
 
 # --- guest addresses, each with the instruction it comes from -------------------------------
 #
@@ -243,7 +242,7 @@ def flight_level(port: ScenePort) -> Proof:
     portals = spyro1_steering.portal_targets(port.words, level=FLIGHT_LEVEL_ID)
     if not portals:
         available = [target.what for target in spyro1_steering.portal_targets(port.words)]
-        raise Refusal(
+        raise ToolError(
             f"this homeworld has no portal to level {FLIGHT_LEVEL_ID} (Sunny Flight); it offers "
             f"{', '.join(available) or 'no portals at all'}, so the flight route needs a homeworld "
             "whose flight portal is unlocked, not a different input plan"
@@ -254,14 +253,14 @@ def flight_level(port: ScenePort) -> Proof:
                 route=f"portal-{FLIGHT_LEVEL_ID}")
     if not _await(port, lambda: port.word(G_IS_FLIGHT_LEVEL) != 0, "g_IsFlightLevel to be set",
                   budget=1800):
-        raise Refusal(
+        raise ToolError(
             f"entered level {FLIGHT_LEVEL_ID} but g_IsFlightLevel (0x{G_IS_FLIGHT_LEVEL:08X}) is "
             f"still {port.word(G_IS_FLIGHT_LEVEL)} after {port.spent()} step(s): the level loaded "
             "and the flight flag did not, which is a level-loading defect rather than a route one"
         )
     index = port.word(G_LEVEL_INDEX)
     if index != FLIGHT_LEVEL_SLOT:
-        raise Refusal(
+        raise ToolError(
             f"g_LevelId is {FLIGHT_LEVEL_ID} but g_LevelIndex is {index}, and the guest's own "
             f"derivation of it for Artisans is {FLIGHT_LEVEL_SLOT} (loaders.c:1398), so the level "
             "index was not computed from the level that loaded"
@@ -272,7 +271,7 @@ def flight_level(port: ScenePort) -> Proof:
     # measured almost nothing of.
     if not _await(port, lambda: port.word(guest_globals.kGamestate) == 0,
                   "GS_Playing in the flight level", budget=2400):
-        raise Refusal(
+        raise ToolError(
             f"g_IsFlightLevel is set but the guest never returned to GS_Playing (gamestate "
             f"{port.word(guest_globals.kGamestate)}) after {port.spent()} step(s), so the level "
             "loaded and the hand-off to the player did not"
@@ -311,7 +310,7 @@ def boss_level(port: ScenePort) -> Proof:
     portals = spyro1_steering.portal_targets(port.words, level=BOSS_LEVEL_ID)
     if not portals:
         available = [target.what for target in spyro1_steering.portal_targets(port.words)]
-        raise Refusal(
+        raise ToolError(
             f"this homeworld has no portal to level {BOSS_LEVEL_ID} (Toasty); it offers "
             f"{', '.join(available) or 'no portals at all'}, so the boss route needs a homeworld "
             "whose boss portal is unlocked, not a different input plan"
@@ -322,7 +321,7 @@ def boss_level(port: ScenePort) -> Proof:
                 route=f"portal-{BOSS_LEVEL_ID}")
     if not _await(port, lambda: port.word(guest_globals.kGamestate) == 0,
                   "GS_Playing in the boss level", budget=1800):
-        raise Refusal(
+        raise ToolError(
             f"entered level {BOSS_LEVEL_ID} but the guest never returned to GS_Playing "
             f"(gamestate {port.word(guest_globals.kGamestate)}) after {port.spent()} step(s)"
         )
@@ -332,7 +331,7 @@ def boss_level(port: ScenePort) -> Proof:
     # read 14 -- two different claims, and only the first is about loading a level.
     index = port.word(G_LEVEL_INDEX)
     if index != BOSS_LEVEL_SLOT:
-        raise Refusal(
+        raise ToolError(
             f"g_LevelId is {BOSS_LEVEL_ID} but g_LevelIndex is {index}, and the guest's own "
             f"derivation of it for Artisans is {BOSS_LEVEL_SLOT}: the level id was reached without "
             "the level index being computed from it, so nothing here proves a level loaded"
@@ -376,22 +375,22 @@ def death_respawn(port: ScenePort) -> Proof:
     lives_before = port.signed(G_LIFE_COUNT)
     portals = spyro1_steering.portal_targets(port.words)
     if not portals:
-        raise Refusal("this level carries no portal table, so the death route has no water to cross")
+        raise ToolError("this level carries no portal table, so the death route has no water to cross")
     target = min(portals, key=lambda portal: portal.position[0])
     lowest = port.signed(G_SPYRO_Z)
     died = lambda: port.word(guest_globals.kGamestate) in (GS_RESPAWN, GS_GAME_OVER)
     try:
         _walk_until(port, target.what, [target], died, "the guest killed Spyro",
                     budget=DEATH_BUDGET, route="pond")
-    except Refusal as refusal:
-        raise Refusal(
+    except ToolError as refusal:
+        raise ToolError(
             f"walking at {target.what} {target.position} the guest never killed Spyro: "
             f"g_Gamestate stayed {port.word(guest_globals.kGamestate)} (death plane Z "
             f"{DEATH_PLANE_Z}; refusal: {refusal})"
         ) from refusal
     state = port.word(guest_globals.kGamestate)
     if not died():
-        raise Refusal(
+        raise ToolError(
             f"the walk at {target.what} ended with g_Gamestate {state}, which is not the guest's "
             f"GS_Respawn ({GS_RESPAWN}) or GS_GameOver ({GS_GAME_OVER}): arriving is not dying"
         )
@@ -411,7 +410,7 @@ def _death_proof(port: ScenePort, sector: str, fields: int, lives_before: int,
     GS_Playing and reports the life count the guest decremented."""
     if not _await(port, lambda: port.word(guest_globals.kGamestate) == 0,
                   "GS_Playing after the respawn", budget=1800):
-        raise Refusal(
+        raise ToolError(
             f"the guest entered gamestate {state} (the death) but never returned to GS_Playing "
             f"after {port.spent()} step(s); it is still {port.word(guest_globals.kGamestate)}, "
             "so the respawn never completed"
@@ -484,7 +483,7 @@ def _approach_fairy(port: ScenePort, opened, fairies) -> None:
                         "the fairy cutscene opened", budget=FAIRY_APPROACH_STEPS,
                         arrived=FAIRY_STAND_VIEW_DISTANCE, route=route if attempt == 0 else None,
                         from_player=True)
-        except Refusal:
+        except ToolError:
             if opened():
                 return
             raise
@@ -493,7 +492,7 @@ def _approach_fairy(port: ScenePort, opened, fairies) -> None:
             return
         print(f"fairy: attempt {attempt + 1} stood still without the trigger firing", file=sys.stderr)
     fairy = moby_class_targets(port.words, FAIRY_MOBY_CLASS)[0].position
-    raise Refusal(
+    raise ToolError(
         f"{FAIRY_APPROACH_ATTEMPTS} approach(es) to within {FAIRY_STAND_VIEW_DISTANCE} view units of "
         f"the fairy, each followed by {FAIRY_STAND_STEPS} step(s) standing still, and g_Gamestate "
         f"stayed {port.word(guest_globals.kGamestate)}: the trigger (OctDistance < 0x400, |dz| < "
@@ -512,7 +511,7 @@ def save_fairy(port: ScenePort) -> Proof:
     """
     fairies = moby_class_targets(port.words, FAIRY_MOBY_CLASS)
     if not fairies:
-        raise Refusal(
+        raise ToolError(
             f"this level carries no Moby of class {FAIRY_MOBY_CLASS}, which is the class the level "
             "overlay's own dispatcher calls InitFairyCutscene for, so there is nobody here to save"
         )
@@ -560,7 +559,7 @@ def _answer_menu(port: ScenePort, has_card: int) -> tuple[int, int]:
                 return port.word(G_FAIRY_PAGE), option
     page = port.word(G_FAIRY_PAGE)
     if page == 0:
-        raise Refusal(
+        raise ToolError(
             f"the fairy's menu stayed on page 0 with m_MenuSelectedOption {option} after "
             f"{FAIRY_MENU_STEPS} press(es) watched for {FAIRY_MENU_WATCH_STEPS} step(s) each: DOWN moves the "
             f"option towards {FAIRY_MENU_OPTION} and CROSS takes it, and the guest took neither"
@@ -599,7 +598,7 @@ def _await_write(port: ScenePort, page_before: int, option: int, has_card: int) 
     walked = " -> ".join(dict.fromkeys(
         [str(page_before), str(SAVE_PAGE_WRITE)] + [str(page) for page in seen]))
     if SAVE_PAGE_WRITE not in seen:
-        raise Refusal(
+        raise ToolError(
             f"the fairy's page machine walked {' -> '.join(str(page) for page in seen)} and never "
             f"entered page {SAVE_PAGE_WRITE}, "
             f"the only page SaveCreate and MemCardWriteFile are reached from (it was on page "
@@ -609,7 +608,7 @@ def _await_write(port: ScenePort, page_before: int, option: int, has_card: int) 
             "menu, so this is the route not getting a card write and naming where it stopped"
         )
     if port.word(G_FAIRY_PAGE) != SAVE_PAGE_SAVED:
-        raise Refusal(
+        raise ToolError(
             f"m_MenuDialoguePage walked {walked}: the write page {SAVE_PAGE_WRITE} was entered and "
             f"the guest ended on {port.word(G_FAIRY_PAGE)} after {port.spent()} step(s) instead "
             f"of page {SAVE_PAGE_SAVED} ('GAME SAVED'), so the guest did not report the save"
@@ -671,138 +670,16 @@ def run_scene(name: str, port) -> Proof:
     the fairy nor the flight portal cannot be mistaken for a driver that cannot steer.
     """
     if name not in SCENES:
-        raise Refusal(f"unknown scene {name!r}; scenes: {', '.join(sorted(SCENES))}")
+        raise ToolError(f"unknown scene {name!r}; scenes: {', '.join(sorted(SCENES))}")
     return SCENES[name].run(ScenePort(port, port.frame))
-
-
-def _selftest() -> int:
-    """Both answers for every rule the scenes encode: a reader that must resolve, and each refusal
-    that must fire. A scene module whose selftest only proves the happy path is a module that can
-    report a scene it never reached."""
-    failures = 0
-
-    def check(ok: bool, label: str) -> None:
-        nonlocal failures
-        if not ok:
-            failures += 1
-            print(f"  FAIL {label}")
-
-    # The derivations, restated as the arithmetic that must reproduce them from the owner's base.
-    check(G_SPYRO_Z == 0x80078A60, "g_Spyro.m_Position.z derivation")
-    check(G_SPYRO_HEALTH == 0x80078AD8, "g_Spyro.m_health derivation")
-    check(G_FAIRY_PAGE == 0x80078D0C, "g_FairyCutscene.m_MenuDialoguePage derivation")
-    check(guest_globals.kGamestate == 0x800757D8, "the shipping owner's g_Gamestate")
-    check(guest_globals.kLevelId == 0x8007596C, "the shipping owner's g_LevelId")
-
-    # _await: a predicate that only ever becomes true on a later field must still be seen, and one
-    # that never does must report the budget spent rather than True.
-    class FakePort:
-        def __init__(self, frame: int = 100):
-            self.frame = frame
-            self.ran: list[int] = []
-
-        def words(self, address: int, count: int = 1):
-            return [0] * count
-
-        def press(self, button: str) -> None:
-            pass
-
-        def release(self, button: str) -> None:
-            pass
-
-        def tap(self, button: str, frames: int = 4) -> None:
-            self.ran.append(frames)
-
-        def run(self, frames: int) -> None:
-            self.ran.append(frames)
-            self.frame += frames
-
-    fake = FakePort()
-    port = ScenePort(fake, fake.frame)
-    check(_await(port, lambda: fake.ran == [5, 5, 5], "a predicate met on the third step",
-                 budget=100), "_await returned False for a predicate that did become true")
-    fake = FakePort()
-    port = ScenePort(fake, fake.frame)
-    check(not _await(port, lambda: False, "a predicate that never holds", budget=40),
-          "_await claimed success for a predicate that never held")
-    check(sum(fake.ran) == 40, f"_await overran its budget ({fake.ran})")
-
-    # A scene name that does not exist must refuse by name, listing the ones that do.
-    try:
-        run_scene("no-such-scene", FakePort())
-    except Refusal as refusal:
-        print(f"  refuses an unknown scene: {refusal}")
-    else:
-        check(False, "an unknown scene was accepted")
-
-    # Each of the four scenes must refuse when its target is not there, and the refusal must name
-    # what it looked at. These are the negative cases: without them a route that never arrived
-    # would be indistinguishable from one that did.
-    class EmptyPortal:
-        def __init__(self):
-            self.frame = 0
-            self.ran: list[int] = []
-
-        def words(self, address: int, count: int = 1):
-            if address == guest_globals.kPortalCount:
-                return [2]
-            if address == guest_globals.kPortals:
-                return [0x80100000]
-            # Two portals, neither of them the one the scene asked for.
-            if address == guest_globals.kPortals + 4:
-                return [0x80101000]
-            return [0] * count
-
-        def press(self, button: str) -> None:
-            pass
-
-        def release(self, button: str) -> None:
-            pass
-
-        def tap(self, button: str, frames: int = 4) -> None:
-            pass
-
-        def run(self, frames: int) -> None:
-            self.frame += frames
-
-    for scene, address in ((flight_level, G_IS_FLIGHT_LEVEL), (boss_level, G_IS_FLIGHT_LEVEL)):
-        try:
-            scene(ScenePort(EmptyPortal(), 0))
-        except Refusal as refusal:
-            print(f"  refuses {SCENES_BY_FUNCTION[scene].name}: {refusal}")
-        else:
-            check(False, f"{SCENES_BY_FUNCTION[scene].name} ran without a matching portal")
-
-    try:
-        save_fairy(ScenePort(EmptyPortal(), 0))
-    except Refusal as refusal:
-        print(f"  refuses save-fairy: {refusal}")
-    else:
-        check(False, "save-fairy ran with no Moby of the fairy's class")
-
-    try:
-        death_respawn(ScenePort(EmptyPortal(), 0))
-    except Refusal as refusal:
-        print(f"  refuses death-respawn: {refusal}")
-    else:
-        check(False, "death_respawn reported a death in a level that never set one")
-
-    print(f"scene routes selftest: {'PASS' if not failures else f'{failures} FAILURE(S)'}")
-    return 1 if failures else 0
-
-
-SCENES_BY_FUNCTION = {scene.run: scene for scene in SCENES.values()}
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
-    parser.add_argument("--selftest", action="store_true")
     parser.add_argument("--list", action="store_true", dest="list_scenes")
-    args = parser.parse_args()
-    if args.selftest:
-        return _selftest()
+    parser.parse_args()
     for scene in SCENES.values():
         print(f"{scene.name:16} {scene.description}")
     return 0

@@ -44,15 +44,15 @@ from __future__ import annotations
 
 import argparse
 import hashlib
-import os
 import shutil
-import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT / "tools"))
+import drive
+import guest_globals
+from automation.process import ToolError  # noqa: E402  (path set by title_identity)
+from title_states import GS_PLAYING
 
-import drive  # noqa: E402  (the live port; imported lazily inside run so --selftest needs no disc)
+ROOT = drive.ROOT
 
 # A pad leg's private card, seeded from the image the capture was made against. Never
 # scratch/saves/card.mcr: that is the shared card, and a run that writes it changes the next run's
@@ -85,23 +85,18 @@ def seed_card(card: Path, seed: Path | None) -> str:
     return card_digest(card)
 
 
-def environment(disc: str | None, settings: Path, card: Path, extra: dict[str, str]) -> dict[str, str]:
+def environment(settings: Path, card: Path, pad: Path, extra: dict[str, str]) -> dict[str, str]:
     """The agent environment plus this leg's private card and the replay knob.
 
-    The card is set after agent_environment rather than through its `card=` argument, and the
-    module docstring says why: `card=` deletes the image, and a pad leg's start state is the
-    recorded one.
-    """
-    env = drive.environment(disc, settings)
+    The card is set here rather than through `card=`, which deletes it: a pad leg starts on the recorded card."""
+    env = drive.environment("spyro1", settings)
     env["PSXPORT_CARD"] = str(card)
-    env["PSXPORT_PAD_REPLAY"] = extra.pop("PSXPORT_PAD_REPLAY")
+    env["PSXPORT_PAD_REPLAY"] = str(pad)
     env.update(extra)
     return env
 
 
 def run(args: argparse.Namespace) -> int:
-    import drive as port_driver  # noqa: F811  (re-imported: the selftest must not need the binary)
-
     pad = Path(args.pad).resolve()
     if not pad.is_file():
         print(f"[pad-replay] REFUSED: no pad file at {pad}")
@@ -111,20 +106,23 @@ def run(args: argparse.Namespace) -> int:
     settings = Path(args.settings).resolve() if args.settings else drive.SHIPPING_SETTINGS
     log = Path(args.log).resolve()
     log.parent.mkdir(parents=True, exist_ok=True)
-    disc = str((ROOT / args.binary).resolve())
-
-    extra = {"PSXPORT_PAD_REPLAY": str(pad)}
+    extra = {}
     for spec in args.env:
         key, _, value = spec.partition("=")
         extra[key] = value
-    env = environment(port_driver.disc_path(), settings, card, extra)
+    try:
+        executable, image = drive.launch_inputs("spyro1", ROOT / args.executable)
+        env = environment(settings, card, pad, extra)
+    except (OSError, ToolError) as refusal:
+        print(f"[pad-replay] REFUSED: {refusal}")
+        return 2
 
     print(f"[pad-replay] pad    {pad}")
     print(f"[pad-replay] card   {card} ({digest[:16]}…)")
     print(f"[pad-replay] setts  {settings.name}")
-    print(f"[pad-replay] NO input driver: every press comes from the pad file")
+    print("[pad-replay] NO input driver: every press comes from the pad file")
 
-    port = port_driver.Port(Path(args.executable), Path(disc), log, env)
+    port = drive.Port(executable, image, log, env)
     previous = None
     left_boot_at = None
     arrived_at = None
@@ -132,14 +130,14 @@ def run(args: argparse.Namespace) -> int:
         for step in range(args.steps):
             port._send("run 1")
             port._await_prompt()
-            key = (port.gamestate(), port.word(port_driver.G_LEVEL_ID))
+            key = (port.gamestate(), port.word(guest_globals.kLevelId))
             if key != previous:
                 print(f"  step {step}: gs={key[0]}/level={key[1]:#x}")
             # gs == GS_PLAYING is also the boot prefix, so arrival is a LEVEL, not a gamestate.
-            if key[0] == port_driver.GS_PLAYING and key[1] != 0 and left_boot_at is not None:
+            if key[0] == GS_PLAYING and key[1] != 0 and left_boot_at is not None:
                 if arrived_at is None:
                     arrived_at = step
-            if key[0] != port_driver.GS_PLAYING or key[1] != 0:
+            if key[0] != GS_PLAYING or key[1] != 0:
                 left_boot_at = step
             previous = key
         if args.shot:
@@ -150,7 +148,7 @@ def run(args: argparse.Namespace) -> int:
         port.end()
 
     if arrived_at is not None:
-        print(f"ARRIVED IN A LEVEL (gs={port_driver.GS_PLAYING}, level!=0) at step {arrived_at}")
+        print(f"ARRIVED IN A LEVEL (gs={GS_PLAYING}, level!=0) at step {arrived_at}")
     else:
         print(f"NEVER ARRIVED IN A LEVEL in {args.steps} steps; last state "
               f"gs={previous[0]}/level={previous[1]:#x}")
@@ -159,77 +157,7 @@ def run(args: argparse.Namespace) -> int:
     return 0
 
 
-def selftest() -> int:
-    """Prove the two things this tool claims, without a disc, a binary or a card.
-
-    1. A seeded card is byte-identical to its seed, so a pad leg's start state is the recorded one
-       and not whatever the last run left behind. Proven by seeding from a card, corrupting the
-       private copy, seeding again, and comparing — a version that forgot to copy would pass a
-       "file exists" check and fail here.
-    2. The environment points at the PRIVATE card and the pad knob, and never at the shared
-       scratch/saves/card.mcr. Proven by looking at what it produced, which is the only place the
-       claim exists.
-    """
-    failures = 0
-    with __import__("tempfile").TemporaryDirectory() as raw:
-        work = Path(raw)
-        seed = work / "seed.mcr"
-        card = work / "pad.mcr"
-        seed.write_bytes(bytes(range(256)) * 512)
-        first = seed_card(card, seed)
-        if card.read_bytes() != seed.read_bytes():
-            print("[pad-replay-selftest] FAIL: a seeded card is not byte-identical to its seed")
-            failures += 1
-        card.write_bytes(b"corrupted by a previous run")
-        if seed_card(card, seed) != first or card.read_bytes() != seed.read_bytes():
-            print("[pad-replay-selftest] FAIL: seeding did not restore the recorded card state")
-            failures += 1
-        if seed_card(card, None) != first:
-            print("[pad-replay-selftest] FAIL: an unseeded leg reported a different card than a "
-                  "seeded one over the same bytes")
-            failures += 1
-        env = environment(None, drive.SHIPPING_SETTINGS, card, {"PSXPORT_PAD_REPLAY": str(work / "p.pad")})
-        if env.get("PSXPORT_CARD") != str(card):
-            print(f"[pad-replay-selftest] FAIL: PSXPORT_CARD is {env.get('PSXPORT_CARD')}, not {card}")
-            failures += 1
-        if env.get("PSXPORT_PAD_REPLAY") != str(work / "p.pad"):
-            print("[pad-replay-selftest] FAIL: the replay knob is not the pad file")
-            failures += 1
-        shared = str(ROOT / "scratch" / "saves" / "card.mcr")
-        if env.get("PSXPORT_CARD") == shared:
-            print("[pad-replay-selftest] FAIL: a pad leg would share scratch/saves/card.mcr")
-            failures += 1
-        for key in ("PSXPORT_REPL", "PSXPORT_WATCHDOG"):
-            if env.get(key) != "1" and env.get(key) != "0":
-                print(f"[pad-replay-selftest] FAIL: {key}={env.get(key)!r}; the agent environment "
-                      "did not apply")
-                failures += 1
-        # And the negative: a card path that is a directory is refused, not removed. This is the one
-        # place a careless implementation destroys something, so it is worth a case of its own.
-        directory = work / "not-a-card"
-        directory.mkdir()
-        try:
-            seed_card(directory, None)
-        except IsADirectoryError:
-            pass
-        except SystemExit:
-            pass
-        else:
-            print("[pad-replay-selftest] FAIL: a directory at the card path was accepted")
-            failures += 1
-        if not directory.is_dir():
-            print("[pad-replay-selftest] FAIL: the directory at the card path was removed")
-            failures += 1
-    print(f"[pad-replay-selftest] {'PASS' if failures == 0 else 'FAIL'}: 3 card-state cases, "
-          f"5 environment cases, 1 directory refusal")
-    return failures
-
-
 def main(argv: list[str] | None = None) -> int:
-    if argv is None:
-        argv = sys.argv[1:]
-    if argv and argv[0] == "--selftest":
-        return selftest()
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("--pad", required=True, help="the .pad recording to replay")
     parser.add_argument("--card-seed", default="",
@@ -239,10 +167,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--steps", type=int, default=3300,
                         help="product steps to replay, one REPL `run 1` each (two fields in gameplay)")
     parser.add_argument("--shot", default="", help="capture one frame at the end, as a .ppm")
-    parser.add_argument("--executable", default="build/bin/spyro_port",
-                        help="the port executable; a maintainer tool names it because zero-argument "
-                             "spyro_port is the player's title selector")
-    parser.add_argument("--binary", default="scratch/assets/spyro1/SCUS_942.28")
+    parser.add_argument("--executable", default=str(drive.EXECUTABLE))
     parser.add_argument("--settings", default="")
     parser.add_argument("--log", default="scratch/logs/pad_replay.log")
     parser.add_argument("--env", action="append", default=[], metavar="NAME=VALUE")

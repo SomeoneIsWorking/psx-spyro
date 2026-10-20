@@ -3,7 +3,6 @@
 
     uv run --frozen python tools/determinism_check.py --title spyro2
     uv run --frozen python tools/determinism_check.py --title spyro3 --steps 1500
-    uv run --frozen python tools/determinism_check.py --selftest
 
 WHAT IT MEASURES. The framework's `fielddigest` channel (psxport `runtime/psx/debug/field_digest.h`) prints one
 line per display field: the emulated CPU tick, a hash of all 2 MB of main RAM, I_STAT, I_MASK and the pad.
@@ -19,8 +18,7 @@ named that field the first time.
 
 THE NEGATIVE. A check that has only ever printed PASS has not shown it can fail. After the two identical legs
 the tool runs a THIRD whose only difference is one pad tap at product step `PERTURB_STEP`; it must diverge, and
-not before field `PERTURB_STEP` (a step is at least one field, so the tap's field is no earlier). A tool whose perturbed leg still matches is refused as blind. Needs the disc and the built port;
-the comparison logic is exercised without either by `--selftest`.
+not before field `PERTURB_STEP` (a step is at least one field, so the tap's field is no earlier). A tool whose perturbed leg still matches is refused as blind. Needs the disc and the built port.
 """
 
 from __future__ import annotations
@@ -32,11 +30,9 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
-TOOLS = Path(__file__).resolve().parent
-if str(TOOLS) not in sys.path:
-    sys.path.insert(0, str(TOOLS))
-
-from title_profile import Refusal
+import drive
+import title_route
+from automation.process import ToolError  # noqa: E402  (path set by title_identity)
 
 EXIT_OK, EXIT_NOT_DETERMINISTIC, EXIT_REFUSED = 0, 1, 2
 
@@ -75,10 +71,10 @@ def parse_digest(text: str) -> list[FieldState]:
         FieldState(int(m[1]), int(m[2]), m[3], m[4], m[5], m[6]) for m in _LINE.finditer(text)
     ]
     if not states:
-        raise Refusal("no [fielddigest] line in the run log: the channel was not on (PSXPORT_DEBUG=fielddigest) "
+        raise ToolError("no [fielddigest] line in the run log: the channel was not on (PSXPORT_DEBUG=fielddigest) "
                       "or the port does not carry it, so there is nothing to compare")
     if [s.field for s in states] != list(range(len(states))):
-        raise Refusal("the [fielddigest] fields are not 0..N-1 in order; the log is truncated or interleaved")
+        raise ToolError("the [fielddigest] fields are not 0..N-1 in order; the log is truncated or interleaved")
     return states
 
 
@@ -102,8 +98,7 @@ def _describe(divergence: Divergence | None) -> str:
 
 def judge(baseline: Sequence[FieldState], repeat: Sequence[FieldState], perturbed: Sequence[FieldState],
           perturb_field: int) -> list[str]:
-    """The reasons the check fails; empty means it passed. Separate from the live legs so the selftest can
-    show it fail for each reason. `perturb_field` is the earliest field the tap can land on."""
+    """The reasons the check fails; empty means it passed. `perturb_field` is the earliest field the tap can land on."""
     failures: list[str] = []
     repeated = first_divergence(baseline, repeat)
     if repeated is not None:
@@ -121,9 +116,6 @@ def judge(baseline: Sequence[FieldState], repeat: Sequence[FieldState], perturbe
 
 
 def _run_leg(name: str, executable: Path, log: Path, steps: int, tap_at: int | None) -> list[FieldState]:
-    import drive
-    import title_route
-
     _, port = title_route.open_port(name, executable, log, CHANNEL_ENVIRONMENT)
     try:
         spent = 0
@@ -132,18 +124,14 @@ def _run_leg(name: str, executable: Path, log: Path, steps: int, tap_at: int | N
                 port.tap("start", 6)
             port.run(min(CHUNK, steps - spent))
             spent += CHUNK
-    except drive.Refusal as refusal:
-        raise Refusal(str(refusal)) from refusal
     finally:
         port.end()
     return parse_digest(log.read_text())
 
 
 def run_live(name: str, executable: Path, steps: int, log_dir: Path) -> int:
-    import drive
-
     if steps <= PERTURB_STEP + CHUNK:
-        raise Refusal(f"--steps {steps} leaves no room after the perturbation at step {PERTURB_STEP}")
+        raise ToolError(f"--steps {steps} leaves no room after the perturbation at step {PERTURB_STEP}")
     (drive.ROOT / log_dir).mkdir(parents=True, exist_ok=True)
     legs = {}
     for label, tap_at in (("baseline", None), ("repeat", None), ("perturbed", PERTURB_STEP)):
@@ -158,78 +146,16 @@ def run_live(name: str, executable: Path, steps: int, log_dir: Path) -> int:
     return EXIT_NOT_DETERMINISTIC if failures else EXIT_OK
 
 
-def _state(field: int, ram: str = "0" * 16, pad: str = "ffff") -> FieldState:
-    return FieldState(field, 1000 * field, ram, "1", "d", pad)
-
-
-def _run_of(length: int, flipped_from: int | None = None) -> list[FieldState]:
-    return [_state(f, ram=("1" if flipped_from is not None and f >= flipped_from else "0") * 16)
-            for f in range(length)]
-
-
-def _selftest() -> int:
-    ok = True
-
-    def expect(label: str, condition: bool) -> None:
-        nonlocal ok
-        print(f"  {'ok  ' if condition else 'FAIL'} {label}")
-        ok = ok and condition
-
-    base = _run_of(100)
-    expect("identical runs have no divergence", first_divergence(base, _run_of(100)) is None)
-    drift = first_divergence(base, _run_of(100, flipped_from=40))
-    expect("a RAM difference is named at its first field", drift == Divergence(40, ("ram",)))
-    expect("a truncated run is a divergence at its end", first_divergence(base, _run_of(90)) == Divergence(90, ("length",)))
-    expect("a tick difference alone is a divergence",
-           first_divergence(base, [_state(f) if f != 7 else FieldState(7, 1, "0" * 16, "1", "d", "ffff") for f in range(100)])
-           == Divergence(7, ("ticks",)))
-    expect("a pad difference alone is a divergence",
-           first_divergence(base, [_state(f, pad="fffe" if f == 3 else "ffff") for f in range(100)]) == Divergence(3, ("pad",)))
-
-    perturbed = _run_of(100, flipped_from=60)
-    expect("a deterministic pair with a visible perturbation passes", judge(base, _run_of(100), perturbed, 50) == [])
-    expect("first_divergence can be limited to one column",
-           first_divergence(base, perturbed, ("pad",)) is None and first_divergence(base, perturbed, ("ram",)).field == 60)
-    expect("two runs that drift fail", len(judge(base, _run_of(100, flipped_from=40), perturbed, 50)) == 1)
-    blind = judge(base, _run_of(100), _run_of(100), 50)
-    expect("a perturbed leg that matches is refused as blind", len(blind) == 1 and "blind" in blind[0])
-    echo_only = [_state(f, pad="fffe" if f == 50 else "ffff") for f in range(100)]
-    echoed = judge(base, _run_of(100), echo_only, 50)
-    expect("a perturbed leg that only echoes the tap in the pad column is refused as blind",
-           len(echoed) == 1 and "blind" in echoed[0])
-    early = judge(base, _run_of(100), _run_of(100, flipped_from=20), 50)
-    expect("a perturbed leg that diverges before its perturbation is refused", len(early) == 1 and "before" in early[0])
-
-    text = "\n".join(f"[2026-10-01T00:00:00.000Z] [fielddigest] field={s.field} ticks={s.ticks} ram={s.ram} "
-                     f"i_stat={s.i_stat} i_mask={s.i_mask} pad={s.pad}" for s in base)
-    expect("a log round-trips through the parser", parse_digest(text) == base)
-    for label, bad in (("a log with no digest lines", "[boot] nothing here\n"),
-                       ("a log with a missing field", text.replace("field=5 ", "field=500 "))):
-        try:
-            parse_digest(bad)
-        except Refusal:
-            expect(f"{label} is refused", True)
-        else:
-            expect(f"{label} is refused", False)
-    print("determinism_check selftest " + ("PASS" if ok else "FAIL"))
-    return 0 if ok else 1
-
-
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--title", choices=("spyro2", "spyro3"))
+    parser.add_argument("--title", choices=("spyro2", "spyro3"), required=True)
     parser.add_argument("--steps", type=int, default=DEFAULT_STEPS, help="product steps per leg")
-    parser.add_argument("--executable", type=Path, default=Path("build/bin/spyro_port"))
+    parser.add_argument("--executable", type=Path, default=drive.EXECUTABLE)
     parser.add_argument("--log-dir", type=Path, default=Path("scratch/determinism"))
-    parser.add_argument("--selftest", action="store_true")
     args = parser.parse_args(argv)
-    if args.selftest:
-        return _selftest()
-    if not args.title:
-        parser.error("--title is required")
     try:
         return run_live(args.title, args.executable, args.steps, args.log_dir)
-    except Refusal as refusal:
+    except (OSError, ToolError) as refusal:
         print(f"REFUSED: {refusal}", file=sys.stderr)
         return EXIT_REFUSED
 

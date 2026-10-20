@@ -3,7 +3,6 @@
 
     uv run --frozen python tools/title_route.py --title spyro2
     uv run --frozen python tools/title_route.py --title spyro3 --shot-dir scratch/play
-    uv run --frozen python tools/title_route.py --selftest
 
 WHY THIS EXISTS. `drive.py` reaches Spyro 1's gameplay from Spyro 1's own words. Spyro 2 and 3 have their
 own game-state word, their own title and their own player position (`title_profile.py`), and until now
@@ -32,16 +31,14 @@ from __future__ import annotations
 
 import argparse
 import sys
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Protocol
 
-TOOLS = Path(__file__).resolve().parent
-if str(TOOLS) not in sys.path:
-    sys.path.insert(0, str(TOOLS))
-
-from title_profile import LevelFacts, Refusal, TitleProfile, profile
+import drive
+from automation.process import ToolError  # noqa: E402  (path set by title_identity)
+from title_profile import LevelFacts, TitleProfile, profile
 
 EXIT_OK, EXIT_NOT_PLAYING, EXIT_REFUSED = 0, 1, 2
 
@@ -58,7 +55,7 @@ MIN_MOVE = 100  # world units; 20 steps of walking moved Spyro 3's y by 1201
 
 
 class RoutePort(Protocol):
-    """The subset of `drive.Port` the route uses, so a scripted port can stand in for the live one."""
+    """The subset of `drive.Port` the route uses."""
 
     def run(self, frames: int) -> int: ...
     def gamestate(self) -> int: ...
@@ -114,7 +111,7 @@ def read_level(port: RoutePort, facts: LevelFacts) -> LevelIdentity:
     pointer = port.words(facts.name_pointer_address(homeworld, level), 1)[0]
     raw = b"".join(word.to_bytes(4, "little") for word in port.words(pointer, NAME_WORDS)).split(b"\0")[0]
     if not raw or not all(0x20 <= byte < 0x7F for byte in raw):
-        raise Refusal(
+        raise ToolError(
             f"level words (homeworld {homeworld}, level {level}, id {level_id}) name a pointer {pointer:#010x} "
             f"that does not hold a printable name: {raw!r}"
         )
@@ -140,7 +137,7 @@ def reach_playing(port: RoutePort, entry: TitleProfile, evidence: Evidence) -> i
     while _advance(port, evidence) != entry.state_title:
         steps += STEP
         if steps >= TITLE_BUDGET:
-            raise Refusal(
+            raise ToolError(
                 f"{entry.label}: no title screen (state {entry.state_title}) within {TITLE_BUDGET} steps; "
                 f"states seen {evidence.states_seen}"
             )
@@ -154,7 +151,7 @@ def reach_playing(port: RoutePort, entry: TitleProfile, evidence: Evidence) -> i
             port.tap(("cross", "start")[presses % 2], 6)
             presses += 1
         if spent >= ROUTE_BUDGET:
-            raise Refusal(
+            raise ToolError(
                 f"{entry.label}: gameplay (state {entry.state_playing}) not reached within {ROUTE_BUDGET} "
                 f"steps of the title; states seen {evidence.states_seen}"
             )
@@ -167,7 +164,7 @@ def _hold(port: RoutePort, button: str, frames: int) -> None:
 
 
 def prove_movement(port: RoutePort, entry: TitleProfile, evidence: Evidence, shot_dir: Path | None) -> None:
-    """Settle, then show the position responding to the pad. Raises Refusal when it does not."""
+    """Settle, then show the position responding to the pad. Raises ToolError when it does not."""
     port.run(SETTLE)
     evidence.settled = read_position(port, entry)
     if entry.level is not None:
@@ -179,7 +176,7 @@ def prove_movement(port: RoutePort, entry: TitleProfile, evidence: Evidence, sho
     if shot_dir is not None:
         port.shot(str(shot_dir / "moved.ppm"))
     if evidence.moved() < MIN_MOVE:
-        raise Refusal(
+        raise ToolError(
             f"{entry.label}: {entry.walk_button} for {HOLD_WALK} steps moved the position by {evidence.moved()} (< {MIN_MOVE}): "
             f"{evidence.settled} -> {evidence.after_up}; this word is not the player or the player did not move"
         )
@@ -188,7 +185,7 @@ def prove_movement(port: RoutePort, entry: TitleProfile, evidence: Evidence, sho
     _hold(port, "cross", HOLD_JUMP)
     evidence.after_jump = read_position(port, entry)
     if evidence.after_jump[2] <= evidence.rested[2]:
-        raise Refusal(
+        raise ToolError(
             f"{entry.label}: a jump left z at {evidence.after_jump[2]} from rest at {evidence.rested[2]}; "
             "the third word did not rise, so it is not the player's height"
         )
@@ -222,175 +219,37 @@ def report(entry: TitleProfile, evidence: Evidence) -> str:
 
 def open_port(
     name: str, executable: Path, log: Path, extra_environment: Mapping[str, str] | None = None
-) -> tuple[TitleProfile, "drive.Port"]:
-    """Launch the built port headless on `name`'s disc. Shared by every live route (title_conversation.py)
-    and by determinism_check.py, which adds the per-field digest channel through `extra_environment`."""
-    import drive  # the live port; imported here so the selftest needs no binary and no disc
-
+) -> tuple[TitleProfile, drive.Port]:
+    """Launch the built port headless on `name`'s disc, on a blank route card."""
     entry = profile(name)
-    disc = drive.disc_path(entry.disc_variable)
-    if not executable.is_file():
-        raise Refusal(f"the built port is missing: {executable} - build target spyro_port first")
-    image = drive.ROOT / entry.image
-    if not image.is_file():
-        raise Refusal(f"{entry.label} is not provisioned: {image} is missing - run tools/provision_title.py")
-    if not disc:
-        raise Refusal(f"no disc for {entry.label}: set {entry.disc_variable} (environment or .env)")
-    env = drive.environment(None, card=drive.ROUTE_CARD)
-    env[entry.disc_variable] = disc
+    executable, image = drive.launch_inputs(name, executable)
+    env = drive.environment(name, card=drive.ROUTE_CARD)
     env.update(extra_environment or {})
     return entry, drive.Port(executable, image, log, env, gamestate_address=entry.gamestate_word)
 
 
 def run_live(name: str, executable: Path, log: Path, shot_dir: Path | None) -> int:
-    import drive
-
     entry, port = open_port(name, executable, log)
     if shot_dir is not None:
         (drive.ROOT / shot_dir).mkdir(parents=True, exist_ok=True)
     try:
         evidence = play(port, entry, shot_dir)
-    except drive.Refusal as refusal:
-        raise Refusal(str(refusal)) from refusal
     finally:
         port.end()
     print(report(entry, evidence))
     return EXIT_OK
 
 
-class _Scripted:
-    """A port whose game state follows a script, for the selftest. Before Start is tapped it shows state 0
-    (boot) and then the title (unless `has_title` is false); after it, `script` maps fields since Start to
-    the state that begins there. `walks` says whether Up moves y, `jumps` whether Cross moves z."""
-
-    BOOT_FIELDS = 100
-
-    def __init__(
-        self, script: Sequence[tuple[int, int]], *, has_title: bool = True, walks: bool = True, jumps: bool = True
-    ) -> None:
-        self.script, self.has_title, self.walks, self.jumps = script, has_title, walks, jumps
-        self.field = 0
-        self.started_at: int | None = None
-        self.held: set[str] = set()
-        self.pos = [1000, 2000, 3000]
-
-    def run(self, frames: int) -> int:
-        self.field += frames
-        if "up" in self.held and self.walks:
-            self.pos[1] += 30 * frames
-        if "cross" in self.held and self.jumps:
-            self.pos[2] += 25 * frames
-        return self.field
-
-    def gamestate(self) -> int:
-        if self.started_at is None:
-            return 11 if self.has_title and self.field >= self.BOOT_FIELDS else 0
-        state = 11
-        for begins, value in self.script:
-            if self.field - self.started_at >= begins:
-                state = value
-        return state
-
-    def tap(self, button: str, frames: int = 4) -> None:
-        if button == "start" and self.started_at is None:
-            self.started_at = self.field
-
-    def press(self, button: str) -> None:
-        self.held.add(button)
-
-    def release(self, button: str) -> None:
-        self.held.discard(button)
-
-    def words(self, address: int, count: int = 1) -> list[int]:
-        return [self.pos[(address - 0x80000100) // 4] & 0xFFFFFFFF]
-
-    def shot(self, path: str) -> None:
-        pass
-
-
-class _Memory:
-    """Guest words by address, for the level-identity selftest."""
-
-    def __init__(self, words: dict[int, int]) -> None:
-        self._words = words
-
-    def words(self, address: int, count: int = 1) -> list[int]:
-        return [self._words.get(address + 4 * i, 0) for i in range(count)]
-
-
-def _selftest_level() -> bool:
-    facts = profile("spyro2").level
-    assert facts is not None
-    pointer = facts.name_pointer_address(0, 1)
-    named = _Memory({
-        facts.homeworld_word: 0, facts.level_word: 1, facts.level_id_word: 11,
-        pointer: 0x80066EA0, 0x80066EA0: int.from_bytes(b"Glim", "little"), 0x80066EA4: int.from_bytes(b"mer\0", "little"),
-    })
-    identity = read_level(named, facts)
-    if (identity.name, identity.level_id) != ("Glimmer", 11):
-        print(f"SELFTEST FAILED: level read {identity}", file=sys.stderr)
-        return False
-    unnamed = _Memory({facts.homeworld_word: 0, facts.level_word: 1, facts.level_id_word: 11, pointer: 0x80066EA0})
-    try:
-        read_level(unnamed, facts)
-    except Refusal as refusal:
-        print(f"  refuses a level pointer to no name: {refusal}")
-        return True
-    print("SELFTEST FAILED: an empty name was accepted", file=sys.stderr)
-    return False
-
-
-def _selftest() -> int:
-    entry = profile("spyro3")
-    entry = TitleProfile(entry.label, entry.slug, 0x80000000, 11, 5, 0, 0x80000100, "up")
-    route = ((0, 11), (500, 5), (800, 6), (1100, 5), (1400, 0))
-
-    def attempt(label: str, scripted: _Scripted, expect: str | None) -> bool:
-        try:
-            result = play(scripted, entry, Path("shots"))
-        except Refusal as refusal:
-            if expect is not None and expect in str(refusal):
-                print(f"  refuses {label}: {refusal}")
-                return True
-            print(f"SELFTEST FAILED: {label} refused for the wrong reason: {refusal}", file=sys.stderr)
-            return False
-        if expect is not None:
-            print(f"SELFTEST FAILED: {label} was accepted", file=sys.stderr)
-            return False
-        assert result.moved() >= MIN_MOVE and result.after_jump[2] > result.rested[2]
-        assert result.states_seen[:3] == [0, 11, 5], result.states_seen
-        print(f"  accepts {label}: {report(entry, result).splitlines()[0]}")
-        return True
-
-    cases = (
-        attempt("a title that loads and plays", _Scripted(route), None),
-        attempt("a title that never leaves the title screen", _Scripted(((0, 11),)), "not reached"),
-        attempt("a boot that never shows a title", _Scripted(route, has_title=False), "no title screen"),
-        attempt("a title that skips loading", _Scripted(((0, 11), (300, 0))), "not reached"),
-        attempt("a position that does not respond to Up", _Scripted(route, walks=False), "moved the position by 0"),
-        attempt("a height that does not respond to a jump", _Scripted(route, jumps=False), "did not rise"),
-    )
-    if not all(cases) or not _selftest_level():
-        return 1
-    print("title_route selftest PASS")
-    return 0
-
-
-def main(argv: Sequence[str] | None = None, *, live: Callable[..., int] = run_live) -> int:
+def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--title", choices=("spyro2", "spyro3"))
-    parser.add_argument("--executable", type=Path, default=Path("build/bin/spyro_port"))
+    parser.add_argument("--title", choices=("spyro2", "spyro3"), required=True)
+    parser.add_argument("--executable", type=Path, default=drive.EXECUTABLE)
     parser.add_argument("--log", type=Path, default=Path("scratch/play/title_route.log"))
     parser.add_argument("--shot-dir", type=Path, default=None, help="write settled.ppm and moved.ppm here")
-    parser.add_argument("--selftest", action="store_true")
     args = parser.parse_args(argv)
-    if args.selftest:
-        return _selftest()
-    if not args.title:
-        parser.error("--title is required")
     try:
-        return live(args.title, args.executable, args.log, args.shot_dir)
-    except Refusal as refusal:
+        return run_live(args.title, args.executable, args.log, args.shot_dir)
+    except (OSError, ToolError) as refusal:
         print(f"REFUSED: {refusal}", file=sys.stderr)
         return EXIT_REFUSED
 

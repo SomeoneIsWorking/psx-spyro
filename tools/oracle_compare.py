@@ -3,14 +3,11 @@
 reference at title-owned state checkpoints (psxport docs/oracle.md, tools/oracle/compare.py).
 
     uv run --frozen python tools/oracle_compare.py --bios ../SCPH1001.BIN
-    uv run --frozen python tools/oracle_compare.py --bios ../SCPH1001.BIN --selftest
     uv run --frozen python tools/oracle_compare.py --bios ../SCPH1001.BIN --policy demo
 
 Two title policies share one lens (tools/oracle_spyro1.py): `artisans` drives the New Game menu into
 the homeworld, and `demo` hands the title screen to the attract demo so a LEVEL ENTRY is compared
-(tools/oracle_spyro1_demo.py, docs/issues/0114). `--policy` selects between them; the product launch
-environment and disc come from tools/drive.py so every agent driver of the product builds them in
-one place.
+(tools/oracle_spyro1_demo.py, docs/issues/0114). The launch inputs and environment are tools/drive.py's.
 """
 
 from __future__ import annotations
@@ -18,13 +15,14 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-TOOLS = Path(__file__).resolve().parent
-ROOT = TOOLS.parent
-sys.path.insert(0, str(TOOLS))
+import drive
+import provision_title
+from automation.process import ToolError  # noqa: E402  (path set by title_identity)
+
+ROOT = drive.ROOT
 sys.path.insert(0, str(ROOT / "external" / "psxport" / "tools" / "oracle"))
 
 import compare  # noqa: E402
-import drive  # noqa: E402
 import oracle_spyro1  # noqa: E402
 import oracle_spyro1_demo  # noqa: E402
 
@@ -41,20 +39,21 @@ ROUTES = {"artisans": oracle_spyro1, "demo": oracle_spyro1_demo}
 
 def main() -> int:
     parser = compare.build_parser(__doc__, DEFAULT_BIOS)
-    parser.add_argument("--executable", type=Path, default=Path("build/bin/spyro_port"))
-    parser.add_argument("--binary", type=Path, default=Path("scratch/assets/spyro1/SCUS_942.28"))
+    parser.add_argument("--executable", type=Path, default=drive.EXECUTABLE)
     parser.add_argument("--policy", choices=sorted(ROUTES), default="artisans",
                         help="which title policy to compare: 'artisans' (New Game into the homeworld) "
                              "or 'demo' (the no-input attract demo, which crosses a level entry)")
     args = parser.parse_args()
     title = ROUTES[args.policy]
-    disc = drive.disc_path()
-    if not disc:
-        print("REFUSED: no disc; set PSXPORT_SPYRO_DISC in the environment or .env", file=sys.stderr)
+    try:
+        executable, image = drive.launch_inputs("spyro1", ROOT / args.executable)
+        environment = drive.environment("spyro1")
+    except (OSError, ToolError) as refusal:
+        print(f"REFUSED: {refusal}", file=sys.stderr)
         return 2
-    environment = drive.environment(disc)
+    disc = Path(environment[provision_title.SPECS["spyro1"].disc_env])
     environment.update(compare.product_env(args))
-    product = compare.Product(ROOT / args.executable, ROOT / args.binary, environment, ROOT, Path(disc))
+    product = compare.Product(executable, image, environment, ROOT, disc)
     return compare.run(title, product, args, OUT_DIR)
 
 

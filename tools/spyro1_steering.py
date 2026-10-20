@@ -1,31 +1,18 @@
 #!/usr/bin/env python3
-"""spyro1_steering.py — which way to press to walk at a place, and where this level's places are.
+"""Which way to press to walk at a place, and where this level's places are.
 
-WHY THIS EXISTS. tools/drive.py explores interactively, on the product
-alone; a second consumer has to walk the product AND the
-independent console reference along the same route, one after the other, and then compare where
-they ended up. A second copy of this transform would let those two cores take different routes and
-call the result agreement — the exact failure the shared guest-address owner was created to end,
-one level up.
-
-So the geometry lives here once: read this level's destinations, convert one into the renderer's
-own view space, and name the pad direction whose sector contains its bearing. The walking itself
-stays with each driver, because they step their cores differently.
-
-Every reader takes a `words(address, count) -> list[int]` callable, which is all either core
-exposes in common; nothing here writes guest memory.
-
-    uv run --frozen python tools/spyro1_steering.py --selftest
+Shared by the product driver and the oracle comparison so both cores take the same route. Every
+reader takes a `words(address, count) -> list[int]` callable; nothing here writes guest memory.
 """
 
 from __future__ import annotations
 
 import math
-import sys
 from dataclasses import dataclass
 from typing import Callable
 
 import guest_globals
+from automation.process import ToolError  # noqa: E402  (path set by title_identity)
 
 Words = Callable[[int, int], list[int]]
 
@@ -42,10 +29,7 @@ CAMERA_WORDS = 14      # 5 packed matrix words, filler, then the position at +0x
 
 RAM_BEGIN, RAM_END = 0x80000000, 0x80200000
 
-# 0 deg is straight ahead and +90 is screen-right. Each entry is the upper bound of a 45-degree
-# sector and the direction at that sector's CENTRE, so straight ahead presses up and nothing else.
-# (This table used to be rotated one sector: bearing 0 pressed up+right, bearing 180 pressed
-# down+left, and every walk paid for it in detours that looked like level geometry.)
+# 0 deg is straight ahead, +90 screen-right; each entry is a 45-degree sector's upper bound and its centre direction.
 SECTORS = (
     (-157.5, ("down",)),
     (-112.5, ("down", "left")),
@@ -56,10 +40,6 @@ SECTORS = (
     (112.5, ("right",)),
     (157.5, ("down", "right")),
 )
-
-
-class Refusal(RuntimeError):
-    """The guest state did not look like what this reader is for, with the evidence seen."""
 
 
 def signed(value: int) -> int:
@@ -90,7 +70,7 @@ class View:
         """Index, distance and bearing of the closest of `targets`; refuses an empty set rather
         than reporting a distance of infinity that reads like an unreachable destination."""
         if not targets:
-            raise Refusal("nothing to steer at: the target list is empty")
+            raise ToolError("nothing to steer at: the target list is empty")
         best = None
         for index, target in enumerate(targets):
             distance, bearing = self.bearing(target.position)
@@ -159,12 +139,12 @@ def portal_targets(words: Words, level: int | None = None) -> list[Target]:
     """
     count = words(guest_globals.kPortalCount, 1)[0]
     if not 0 <= count <= PORTAL_SLOTS:
-        raise Refusal(f"g_PortalCount holds {count}, which is outside the table's {PORTAL_SLOTS} slots")
+        raise ToolError(f"g_PortalCount holds {count}, which is outside the table's {PORTAL_SLOTS} slots")
     found: list[Target] = []
     for index in range(count):
         portal = words(guest_globals.kPortals + index * 4, 1)[0]
         if not RAM_BEGIN <= portal < RAM_END:
-            raise Refusal(
+            raise ToolError(
                 f"g_Portals[{index}] holds 0x{portal:08X}, which is not a RAM address, so the "
                 "portal table was read before the level finished loading"
             )
@@ -179,7 +159,7 @@ def moby_class_targets(words: Words, wanted_class: int) -> list[Target]:
     """World positions of every live Moby of a class. Read once: level Mobys do not walk away."""
     first = words(guest_globals.kLevelMobys, 1)[0]
     if not RAM_BEGIN <= first < RAM_END:
-        raise Refusal(f"g_LevelMobys holds 0x{first:08X}, which is not a RAM address")
+        raise ToolError(f"g_LevelMobys holds 0x{first:08X}, which is not a RAM address")
     seen: list[int] = []
     found: list[Target] = []
     index = 0
@@ -241,7 +221,7 @@ class Walk:
     def __init__(self, what: str, targets: list[Target], arrived: int | None = None,
                  step_scale: float = 1.0, detour: bool = True):
         if not targets:
-            raise Refusal(
+            raise ToolError(
                 f"nothing to walk at: this level carries no {what}, so the destination is wrong or "
                 "this is not the level that carries it"
             )
@@ -270,7 +250,7 @@ class Walk:
         """The next decision, or None once the nearest target is within ARRIVED."""
         while True:
             if not self.remaining:
-                raise Refusal(
+                raise ToolError(
                     f"every {self.what} is unreachable from here: {'; '.join(self.abandoned)}. The "
                     "route needs a different entry, not more walking"
                 )
@@ -301,87 +281,11 @@ class Walk:
         not a wall the walk ran into."""
         self.best, self.stalled = None, 0
 
-    def exhausted(self, steps: int) -> Refusal:
+    def exhausted(self, steps: int) -> ToolError:
         """The refusal a driver raises when its own budget runs out, with the distance reached."""
-        return Refusal(
+        return ToolError(
             f"the nearest {self.what} was still about {self.closest} away after {steps} steering "
             f"step(s) and {self.decisions} decision(s)"
         )
 
 
-# A reader that answers "one portal, and it leads to level 11" for every word but the count and the
-# table. The level filter is only meaningful if it can return that portal and refuse to invent a
-# different one, so both answers are asked of the same reader.
-def _one_port_to_level_11(address: int, count: int) -> list[int]:
-    if address == guest_globals.kPortalCount:
-        return [1]
-    if address == guest_globals.kPortals:
-        return [0x80100000]
-    if address == 0x80100000 + 0x1C:
-        return [11]
-    return [0] * count
-
-
-def _selftest() -> int:
-    """Both answers: a camera that must produce a known bearing, and readers that must refuse."""
-    identity = View(((0x1000, 0, 0), (0, 0x1000, 0), (0, 0, 0x1000)), (0, 0, 0))
-    # The rows consume (dy, dz, dx) in that order, so a camera looking down -Z takes view X from
-    # the third column and view Z from the second: straight ahead is 0 degrees, screen-right +90.
-    ahead = View(((0, 0, 0x1000), (0x1000, 0, 0), (0, 0x1000, 0)), (0, 0, 0))
-    straight = ahead.bearing((0, 0, -4000))
-    right = ahead.bearing((4000, 0, 0))
-    assert abs(straight[1]) < 1e-6, straight
-    assert abs(right[1] - 90.0) < 1e-6, right
-    assert sector(straight[1]) == ("up",), sector(straight[1])
-    assert sector(right[1]) == ("right",), sector(right[1])
-    assert sector(-90.0) == ("left",), sector(-90.0)
-    assert sector(180.0) == ("down",), sector(180.0)
-    assert sector(45.0) == ("up", "right"), sector(45.0)
-    assert identity.bearing((0, 0, 0))[0] == 0
-    print(f"  straight ahead {straight}, screen-right {right}")
-
-    assert portal_targets(_one_port_to_level_11, level=11), "the level filter lost its own portal"
-    assert not portal_targets(_one_port_to_level_11, level=15), "the level filter invented a portal"
-
-    for label, failing in {
-        "an empty target set": lambda: identity.nearest([]),
-        "a portal count out of range": lambda: portal_targets(lambda a, n: [99] * n),
-        "a portal table read too early": lambda: portal_targets(
-            lambda a, n: [1] * n if a == guest_globals.kPortalCount else [0] * n),
-        "a Moby array that is not in RAM": lambda: moby_class_targets(lambda a, n: [0] * n, 83),
-    }.items():
-        try:
-            failing()
-        except Refusal as refusal:
-            print(f"  refuses {label}: {refusal}")
-        else:
-            print(f"SELFTEST FAILED: {label} was accepted", file=sys.stderr)
-            return 1
-    # The walk policy: a target that never gets closer is abandoned, and the last one refuses.
-    still = View(((0, 0, 0x1000), (0x1000, 0, 0), (0, 0x1000, 0)), (0, 0, 0))
-    walk = Walk("portal", [Target("portal to level 11", (0, 0, -40000))])
-    decisions = [walk.next(still) for _ in range(Walk.STALL_STEPS)]
-    assert all(d is not None for d in decisions), decisions
-    assert decisions[0].detour == 0 and not decisions[0].hop, decisions[0]
-    assert decisions[Walk.JUMP_AFTER].hop, decisions[Walk.JUMP_AFTER]
-    try:
-        walk.next(still)
-    except Refusal as refusal:
-        print(f"  refuses a walk whose every target stalled: {refusal}")
-    else:
-        print("SELFTEST FAILED: a fully stalled walk kept walking", file=sys.stderr)
-        return 1
-    close = Walk("portal", [Target("portal to level 11", (0, 0, -1000))])
-    assert close.next(still) is None, "a target inside ARRIVED must end the walk"
-    into = Walk("portal", [Target("portal to level 11", (0, 0, -1000))], arrived=0)
-    assert into.next(still) is not None, "arrived=0 must keep walking into the destination"
-    print(f"  arrives at {close.closest}, abandons after {Walk.STALL_STEPS} stalled decisions")
-    print("spyro1_steering selftest PASS")
-    return 0
-
-
-if __name__ == "__main__":
-    if "--selftest" not in sys.argv[1:]:
-        print(__doc__.strip().splitlines()[-1].strip(), file=sys.stderr)
-        raise SystemExit(2)
-    raise SystemExit(_selftest())

@@ -7,14 +7,14 @@ import argparse
 import hashlib
 import json
 import pathlib
-import struct
+import sys
 from dataclasses import dataclass
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT / "external" / "psxport" / "tools"))
 
-
-class Refused(Exception):
-    """The input cannot support an executable-identity claim."""
+from automation.process import ToolError  # noqa: E402
+from formats import psx_exe  # noqa: E402
 
 
 @dataclass(frozen=True)
@@ -34,11 +34,11 @@ class ExecutableIdentity:
 
 def _hex(value: object, field: str) -> int:
     if not isinstance(value, str):
-        raise Refused(f"manifest field {field} must be a hexadecimal string")
+        raise ToolError(f"manifest field {field} must be a hexadecimal string")
     try:
         return int(value, 16)
     except ValueError as error:
-        raise Refused(f"manifest field {field} is not hexadecimal: {value!r}") from error
+        raise ToolError(f"manifest field {field} is not hexadecimal: {value!r}") from error
 
 
 def load_manifest(slug: str, *, root: pathlib.Path = ROOT) -> dict[str, object]:
@@ -46,7 +46,7 @@ def load_manifest(slug: str, *, root: pathlib.Path = ROOT) -> dict[str, object]:
     try:
         manifest = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as error:
-        raise Refused(f"cannot read manifest {path}: {error}") from error
+        raise ToolError(f"cannot read manifest {path}: {error}") from error
     required = {
         "title",
         "region",
@@ -62,7 +62,7 @@ def load_manifest(slug: str, *, root: pathlib.Path = ROOT) -> dict[str, object]:
     }
     missing = sorted(required - manifest.keys())
     if missing:
-        raise Refused(f"manifest {path} is missing {', '.join(missing)}")
+        raise ToolError(f"manifest {path} is missing {', '.join(missing)}")
     return manifest
 
 
@@ -70,13 +70,13 @@ def expected(manifest: dict[str, object]) -> dict[str, object]:
     header = manifest["header"]
     markers = manifest["region_markers"]
     if not isinstance(header, dict):
-        raise Refused("manifest field header must be an object")
+        raise ToolError("manifest field header must be an object")
     if (
         not isinstance(markers, list)
         or not markers
         or not all(isinstance(marker, str) for marker in markers)
     ):
-        raise Refused("manifest field region_markers must be a non-empty string list")
+        raise ToolError("manifest field region_markers must be a non-empty string list")
     return {
         "name": manifest["executable"],
         "size": manifest["file_size"],
@@ -96,13 +96,17 @@ def measure(path: pathlib.Path, markers: tuple[str, ...]) -> ExecutableIdentity:
     try:
         data = path.read_bytes()
     except OSError as error:
-        raise Refused(f"cannot read executable {path}: {error}") from error
-    if len(data) < 0x800 or data[:8] != b"PS-X EXE":
-        raise Refused(f"{path} is not a valid PS-X EXE")
-    entry, gp, text_address, text_size = struct.unpack_from("<4I", data, 0x10)
-    stack_address, stack_offset = struct.unpack_from("<2I", data, 0x30)
+        raise ToolError(f"cannot read executable {path}: {error}") from error
+    if len(data) < psx_exe.TEXT_FILE_OFFSET:
+        raise ToolError(f"{path} is shorter than a PS-X EXE header")
+    try:
+        header = psx_exe.parse_header(data, len(data), path)
+    except ValueError as error:
+        raise ToolError(str(error)) from error
+    entry, gp, text_address, text_size = header.entry, header.gp, header.load, header.text_size
+    stack_address, stack_offset = header.sp_base, header.sp_off
     if text_size == 0 or not text_address <= entry < text_address + text_size:
-        raise Refused(
+        raise ToolError(
             f"invalid PS-X EXE range: entry=0x{entry:08X}, "
             f"text=[0x{text_address:08X},0x{text_address + text_size:08X})"
         )
@@ -152,7 +156,7 @@ def main() -> int:
     args = parser.parse_args()
     try:
         return 1 if check(load_manifest(args.title), args.exe) else 0
-    except Refused as error:
+    except ToolError as error:
         print(f"REFUSED: {error}")
         return 2
 
