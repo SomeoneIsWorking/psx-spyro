@@ -19,9 +19,7 @@ using spyro1::guest::kLoadStage;
 using spyro1::guest::kPad;
 using spyro1::guest::kStateSwitch;
 
-// Every guest global below is a lui plus an immediate the body at 0x8002E12C itself executes, so
-// an address audit decodes each one and refuses the module if any of them is a
-// hand-typed address the retail code never builds.
+// Guest globals, each a lui+immediate the body at 0x8002E12C builds.
 constexpr std::uint32_t kIsFlightLevel = 0x80075690u;
 constexpr std::uint32_t kNoButtonTicks = 0x8007568Cu;
 constexpr std::uint32_t kHudSteadyTicks[] = {
@@ -38,9 +36,7 @@ constexpr std::uint32_t kSoundVolumeScale = 0x80076228u;
 constexpr std::uint32_t kSoundVolumeOut = 0x8007622Cu;
 constexpr std::uint32_t kMusicVolumeSetting = 0x80075748u;
 constexpr std::uint32_t kMusicVolume = 0x80076224u;
-// The music-volume row hands SpuSetCommonAttr the attribute block 0x31C below the volume word: the
-// body forms 0x80076224 in a register and then takes its address with `addiu $a0,$v0,-0x31C`, so
-// the block is named the way the body derives it.
+// The body derives the attribute block with `addiu $a0,$v0,-0x31C` from the volume word.
 constexpr std::uint32_t kSpuCommonAttr = kMusicVolume - 0x31Cu;
 constexpr std::uint32_t kMusicVolumeLeft = 0x80075F18u;
 constexpr std::uint32_t kMusicVolumeRight = 0x80075F1Au;
@@ -60,9 +56,7 @@ constexpr std::uint32_t kExitLevelFlag = 0x80075900u;
 constexpr std::uint32_t kHeadLookTarget = 0x80078BFCu;
 constexpr std::uint32_t kHeadLookField = 0x80078BECu;
 
-// The guest callees the body calls, each named by the `jal` at the call site the comment gives. A
-// callee is the 26-bit field of that instruction rather than a `lui`+immediate pair, and
-// an address audit re-derives it from the `jal` itself.
+// Guest callees, each named by its `jal` site.
 constexpr std::uint32_t kHudTick = 0x80054988u;            // `jal` at 0x8002E148
 constexpr std::uint32_t kSpecularUpdate = 0x80058CC0u;     // `jal` at 0x8002E18C
 constexpr std::uint32_t kPlaySound = 0x80055A78u;          // `jal` at 0x8002E1F4 and every menu row
@@ -81,8 +75,7 @@ constexpr std::uint32_t kResumeFromPause = 0x8002C534u;       // `jal` at 0x8002
 constexpr std::uint32_t kExitLevel = 0x8002C618u;             // `jal` at 0x8002EB0C
 constexpr std::uint32_t kCdMix = 0x80063FF0u;                 // `jal` at 0x8002E778
 
-// The pad word this body reads is the title's own bit layout, not the console's: Select is 0x100
-// and Up is 0x1000, which is where the two orders differ.
+// The title's own pad layout, not the console's: Select is 0x100 and Up is 0x1000.
 constexpr std::uint32_t kPadTriangle = 0x10u;
 constexpr std::uint32_t kPadCross = 0x40u;
 constexpr std::uint32_t kPadSelect = 0x100u;
@@ -120,19 +113,15 @@ constexpr std::uint32_t kPassiveCamera = 2u;
 constexpr std::uint32_t kActiveCamera = 0x52u;
 constexpr std::uint32_t kExitToTitleState = 7u;
 
-// The body runs in a 0x30 frame it opens and closes itself, so the RECT it hands to ClearImage and
-// the timeout it hands to CDLoadSync on the stack both sit below the caller's sp.
+// The body's own 0x30 frame holds the ClearImage RECT and the CDLoadSync stack argument.
 constexpr std::uint32_t kFrameBytes = 0x30u;
 constexpr std::uint32_t kStackArgumentOffset = 0x10u;
 constexpr std::uint32_t kRectOffset = 0x18u;
 
-// The one override this module installs, and so the owner every guest call below names: the
-// dispatcher reports it as the native caller when a guest callee fails.
+// Names this override as the native caller of every guest call below.
 constexpr std::string_view kOverrideName = "update_pause_menu_input";
 
-// The body's one menu-sound call, always with a1 and a3 the two null pointers and a2 = 0x10, and
-// always with the four argument registers mirrored into the file because the next guest call in the
-// body reads the leftovers of this one.
+// The next guest call reads this call's argument registers, so they are mirrored into the file.
 void playMenuSound(Core *c, std::uint32_t soundId) {
   c->r[4] = soundId;
   c->r[5] = 0u;
@@ -145,9 +134,7 @@ std::uint32_t menuSoundId(Core *c, std::uint32_t offset) {
   return c->mem_r8(c->mem_r32(kSpu) + offset);
 }
 
-// `mult $a0,$v0` with $v0 = 0x66666667 and the four instructions around `mfhi` are the body's
-// signed divide by ten. The $v0 it leaves is the dividend's sign term, which every caller here
-// overwrites before it can be observed, so only the quotient travels back.
+// The body's signed divide by ten (`mult` by 0x66666667); its $v0 is always overwritten.
 std::int32_t divideByTen(std::int32_t dividend) {
   const std::int64_t product =
       static_cast<std::int64_t>(dividend) * static_cast<std::int32_t>(kMagicDivideByTen);
@@ -157,8 +144,7 @@ std::int32_t divideByTen(std::int32_t dividend) {
   return static_cast<std::int32_t>(shifted - sign);
 }
 
-// The sound-volume row ends with the same shape for `/ 0x3FFF`: `sll $a0,$v1,12 ; mult $a0,$a1 ;
-// mfhi $t0 ; addu $v0,$t0,$a0 ; sra $v0,13 ; sra $a0,31 ; subu $v0,$v0,$a0`.
+// The sound-volume row's same-shape divide by 0x3FFF.
 std::uint32_t divideByVolumeScale(std::uint32_t scaled) {
   const std::int64_t product = static_cast<std::int64_t>(static_cast<std::int32_t>(scaled)) *
                                static_cast<std::int32_t>(kMagicDivideByVolume);
@@ -167,15 +153,7 @@ std::uint32_t divideByVolumeScale(std::uint32_t scaled) {
   return static_cast<std::uint32_t>(quotient) - (scaled >> 31);
 }
 
-// ── 0x8002E12C — the pause menu's per-field input tick: the HUD's steady-tick decay, the no-button
-//     counter and the specular pass, then the pad handling for the main screen, the options screen
-//     and the quit confirmation, and the exit-level route out of the last one.
-// It is void, but it leaves $v0 and $v1 on every one of its thirty-odd exits and the differential
-// compares both, so each exit below writes the pair the guest does — including the exits that hand
-// back a value no caller can read, such as the five-field input gate leaving $v0 = 1 and the arms
-// that leave a *tested* word in $v0 because a delay slot had already overwritten it, and the main
-// screen's "no button" exit whose $v1 is whatever the cursor navigation last left rather than the
-// row the screen shows. The pad word is read once: no callee here writes it.
+// 0x8002E12C: void, but every exit leaves the guest's $v0/$v1 pair.
 void updatePauseMenuInput(Core *c) {
   if (c->mem_r32(kIsFlightLevel) == 0u) {
     psx::cpu::callGuestNow(*c, kOverrideName, kHudTick, c->r[4], c->r[5], c->r[6], c->r[7]);
@@ -186,8 +164,7 @@ void updatePauseMenuInput(Core *c) {
   c->mem_w32(kNoButtonTicks, c->mem_r32(kNoButtonTicks) + 1u);
   psx::cpu::callGuestNow(*c, kOverrideName, kSpecularUpdate, 3u, c->r[5], c->r[6], c->r[7]);
 
-  // The menu ignores the pad for the first fields of a level so a button held on entry cannot open
-  // it. The gate is signed and leaves its own result in $v0.
+  // Signed gate over the first fields of a level; its result stays in $v0.
   c->r[2] = static_cast<std::int32_t>(c->mem_r32(kFramesSinceStart)) <
                     static_cast<std::int32_t>(kInputArmFrames)
                 ? 1u
@@ -232,8 +209,7 @@ void updatePauseMenuInput(Core *c) {
       return;
     }
 
-    // Quit confirmed: silence the audio, wipe the framebuffer, load the title-screen overlay and
-    // hand the machine over to it. That load blocks in a guest poll loop on the load-stage word.
+    // Quit confirmed: the title-screen overlay load blocks in a guest poll on the load-stage word.
     psx::cpu::callGuestNow(*c, kOverrideName, kKillSoundsAndMusic, 0u, c->r[5], c->r[6], c->r[7]);
     playMenuSound(c, menuSoundId(c, kMenuCursorSoundOffset));
     psx::cpu::callGuestNow(*c, kOverrideName, kSpuUpdate, c->r[4], c->r[5], c->r[6], c->r[7]);

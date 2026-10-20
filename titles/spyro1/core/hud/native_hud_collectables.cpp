@@ -13,9 +13,7 @@ using spyro1::guest::kCosTable;
 using spyro1::guest::kDeltaTime;
 using spyro1::guest::kSinTable;
 
-// g_Hud and the five collectible machines packed at its head. The guest reaches every machine's
-// sub-state byte and counter through a negative offset from that machine's own state byte, so the
-// offsets below are the guest's own field offsets from g_Hud.
+// g_Hud and its five machines; sub-states and counters sit at negative offsets from each state.
 constexpr std::uint32_t kHud = 0x80077FA8u;
 constexpr std::uint32_t kGemDisplay = kHud + 0x00u;
 constexpr std::uint32_t kDragonDisplay = kHud + 0x01u;
@@ -40,9 +38,7 @@ constexpr std::uint32_t kKeyFlag = kHud + 0x34u;
 constexpr std::uint32_t kLifeOrbCount = kHud + 0x38u;
 constexpr std::uint32_t kSparkTimer = kHud + 0x3Cu;
 constexpr std::uint32_t kEggPhase = kHud + 0x40u;
-// The life rectangles start twelve entries into the sprite array, which is the 0x60 the guest's own
-// rectangle base carries: it addresses them off a `lui 0x8008` with a 0x60 offset and a -0x7BF4
-// displacement, and 0x80080000 - 0x7BF4 + 0x60 is this address, not the array's own base.
+// Life rectangles start twelve entries in: `lui 0x8008` - 0x7BF4 + 0x60.
 constexpr std::uint32_t kSpriteRect = kHud + 0x4C4u;
 // The guest forms the rectangle's source table as the orb count's own address plus 0x388.
 constexpr std::uint32_t kSpriteValues = kLifeOrbCount + 0x388u;
@@ -67,30 +63,21 @@ constexpr std::uint32_t kTailCounter = 0x800783FDu;
 constexpr std::uint32_t kTailCosine = 0x800783F8u;
 constexpr std::uint32_t kTailSine = 0x800783F9u;
 
-// The sub-state every machine parks on before it steps to the next state, the twenty-tick settle
-// the gem, dragon, life, egg and key machines count, the -0x28 a counter starts at when its target
-// is already met, and the reciprocal the egg phase's modulo nine is computed with.
+// Parked sub-state, the twenty-tick settle, the -0x28 met-target start and the mod-nine reciprocal.
 constexpr std::uint32_t kSubStateDone = 0x0Du;
 constexpr std::uint32_t kSettleTicks = 0x14u;
 constexpr std::uint32_t kRestartCounter = 0xFFFFFFD8u;
-// 0x80054C68 `lh $v1,-0xbc8($at)` on the level-indexed halfword table, the count the gem
-// tally has to land on exactly before the display parks on 4.
+// 0x80054C68 `lh $v1,-0xbc8($at)`: the level's gem target the tally must match.
 constexpr std::uint32_t kGemCollectTarget = 0x8006F438u;
 constexpr std::uint32_t kModuloNine = 0x38E38E39u;
 
-// The guest helpers the body still reaches. Each is a `jal` operand of the body rather than an
-// address it assembles from a lui, so the address audit re-derives it from that `jal`
-// itself.
+// Guest helpers, each a `jal` operand of the body.
 constexpr std::uint32_t kPlayId = 0x80054400u;
 constexpr std::uint32_t kFadeId = 0x8005445Cu;
 constexpr std::uint32_t kSetSubState = 0x800544A8u;
 constexpr std::uint32_t kStepCounter = 0x800542E4u;
 
-// The `jal` each nested call stands for (issue 0150): the callee runs with the `$ra` that `jal`
-// leaves, and a call-site audit re-derives every site and its callee from the
-// executable. Several machines share one `jal`: the gem machine's playing and fading states both
-// reach 0x80054D1C, the dragon's reach 0x80054E98, the life's 0x8005517C, the egg's fades
-// 0x800554A8 and the key's 0x80055704, each through a `j` with the arguments already set.
+// The `jal` each nested call stands for; several machines share one through a `j`.
 constexpr std::uint32_t kGemPlayJal = 0x80054D1Cu;
 constexpr std::uint32_t kDragonPlayJal = 0x80054E98u;
 constexpr std::uint32_t kLifePlayJal = 0x8005517Cu;
@@ -107,9 +94,7 @@ constexpr std::uint32_t kKeyRuntimeReturn = 0x80055610u;
 constexpr std::uint32_t kFrameBytes = 0x38u;
 constexpr std::uint32_t kRuntimeBlockOffset = 0x10u;
 
-// The guest registers this body carries across its own call sites: $a3, which the delta-time global
-// supplies until a callee leaves something else there, and $s0..$s2, which the retail epilogue
-// reloads from the stack, so their entry values are what the differential compares.
+// $a3 and $s0..$s2 carried across the body's call sites; the epilogue reloads $s0..$s2.
 struct Hud {
   Core *c;
   std::uint32_t a3;
@@ -118,17 +103,14 @@ struct Hud {
   std::uint32_t s2;
 };
 
-// A callee reading $s0..$s2 sees exactly what the retail body left there, so they are installed
-// before each call. The callee's own $v0/$v1 come back in c->r[2]/c->r[3], and every path out of a
-// call reaches the body's tail, which recomputes both before the epilogue.
+// Callees see the body's $s0..$s2, so they are installed before each call.
 void installSavedRegisters(const Hud &hud) {
   hud.c->r[16] = hud.s0;
   hud.c->r[17] = hud.s1;
   hud.c->r[18] = hud.s2;
 }
 
-// $a3 is caller-saved and only some call sites set it, so a call that passes it through hands the
-// NEXT such call whatever the previous callee left in it, not the delta time it entered with.
+// $a3 is caller-saved, so a pass-through call hands on whatever the previous callee left.
 void takeLeftoverArgument(Hud &hud) {
   hud.a3 = hud.c->r[7];
 }
@@ -138,9 +120,7 @@ std::uint32_t levelGemCount(const Hud &hud) {
   return hud.c->mem_r32(kLevelGemCount + 4u * hud.c->mem_r32(kLevelIndex));
 }
 
-// The 14-entry id tables the machines step, sign-extended by the guest's `lh`. The sub-state that
-// selects the entry is the one BEFORE the step: a machine's playing path stores sub + 1 and looks
-// the id up with the sub it already had, so the id and the store disagree by one on every frame.
+// Ids are looked up with the sub-state before the step, so id and store differ by one.
 std::uint32_t sparkId(Core *c, std::uint32_t sub) {
   return static_cast<std::uint32_t>(c->mem_r16s(kSparkIds + sub * 2u));
 }
@@ -149,12 +129,7 @@ std::uint32_t fadeId(Core *c, std::uint32_t sub) {
   return static_cast<std::uint32_t>(c->mem_r16s(kFadeIds + sub * 2u));
 }
 
-// 0x80054988 — the head of the HUD tick: the egg phase steps one modulo nine by the 0x38E38E39
-// reciprocal (a SIGNED 32x32 `mult`, so the high word is the signed one and the sign correction
-// comes off $a0's own top bit), and the spark timer counts down by the frame delta while the two
-// bytes it feeds come off the cosine table. The shade byte is the table value shifted left 16 and
-// back right 25, an ARITHMETIC shift, so a value above 0x7FFF wraps into a negative byte rather
-// than keeping its top bits.
+// 0x80054988: signed `mult` by 0x38E38E39 for the mod nine; the shade byte is an arithmetic shift.
 void stepSparkTimerAndEggPhase(Hud &hud) {
   Core *c = hud.c;
   const std::uint32_t phase = c->mem_r32(kEggPhase) + 1u;
@@ -173,31 +148,7 @@ void stepSparkTimerAndEggPhase(Hud &hud) {
             static_cast<std::uint8_t>(static_cast<std::int32_t>(cosine << 16) >> 25));
 }
 
-// 0x80054988's gem machine is a five-arm dispatcher at 0x80054A30 reached by FOUR chained
-// compares, not a switch:
-//
-//   0x80054A30  bnez $v1, 0x80054A6C      display 0 arms, anything else leaves
-//   0x80054A6C  bne  $v1, $v0(=1) -> 0x80054AF0
-//   0x80054AF0  bne  $v1, $v0(=2) -> 0x80054CA4
-//   0x80054CA4  bne  $v1, $v0(=3) -> 0x80054D2C
-//   0x80054D2C  (falls through)          display 4 and every value above it
-//
-// so 1 plays, 2 is the twenty-tick settle, 3 is the tally arm and 4 counts the frame delta.
-//
-// A NOTE ON THE CENSUS THAT SAID THIS BLOCK WAS DEAD, because it was believed once here. The
-// branch-target scan (`scratch/branch_scan.py`, 103,936 text words, 12,726 branch and jump words)
-// reported 0 references to 0x80054AF0, 0x80054B4C and 0x80054BB0, and the whole settle arm was
-// deleted on that evidence. The scan had TWO defects, and both made its answer a uniform zero,
-// which is the shape a real absence also has:
-//   1. it read the target out of bits 25..0 for EVERY branch, but only `j`/`jal` carry a 26-bit
-//      page-relative target; `beq`/`bne`/`slti`/`bgtz` carry a 16-bit SIGNED word offset in their
-//      low half, so the scan was effectively counting `j`/`jal` only;
-//   2. it looked for REGIMM at opcode 0, where opcode 0 is SPECIAL (`sll`, `jr`, `break`) and
-//      REGIMM — `bltz`/`bgez` — is opcode 1, so no `bltz`/`bgez` was in the census at all.
-// Fixed, the same scan reports 0x80054AF0 referenced by 1 (0x80054A6C), 0x80054B4C by 2
-// (0x80054B18, 0x80054B28) and 0x80054BB0 by 2 (0x80054B80, 0x80054B98), which is the arm
-// 0x80054A6C's own `bne`. The scan's answer was checked against the disassembly at a dozen sites
-// after the fix and agrees with it every time; see `docs/issues/0147`.
+// 0x80054A30: four chained compares; 1 plays, 2 settles (0x80054AF0 via 0x80054A6C), 3 tallies, 4+ counts.
 void stepGemDisplay(Hud &hud) {
   Core *c = hud.c;
   const std::uint32_t state = c->mem_r8(kGemDisplay);
@@ -219,9 +170,7 @@ void stepGemDisplay(Hud &hud) {
       }
       return;
     }
-    // `0x80054A84 bne $a1,$v0,0x80054AD0` carries `addiu $v0,$v1,1` in its delay slot, and a delay
-    // slot runs on the taken path too — so the store at 0x80054AD4 is sub+1, not the 0x0D that
-    // 0x80054A7C formed. The id lookup that follows indexes the sub this frame read.
+    // 0x80054A84's delay slot makes the store at 0x80054AD4 sub+1.
     c->mem_w8(kGemSubState, sub + 1u);
     installSavedRegisters(hud);
     psx::cpu::callGuestNow(*c,
@@ -235,9 +184,7 @@ void stepGemDisplay(Hud &hud) {
     return;
   }
   if (state == 2u) {
-    // The settle. Both entry conditions are the guest's own: the tally must have caught up with
-    // the level's gem count AND the sub-state must be back at zero, and either one failing sends
-    // the machine to the catch-up side rather than out of the switch.
+    // Settle needs the tally at the level count and the sub-state at zero.
     if (c->mem_r32(kTally) == levelGemCount(hud) && c->mem_r8(kGemSubState) == 0u) {
       const std::uint32_t stepped = c->mem_r32(kGemCounter) + 1u;
       c->mem_w32(kGemCounter, stepped);
@@ -248,23 +195,17 @@ void stepGemDisplay(Hud &hud) {
       c->mem_w8(kGemSubState, kSubStateDone);
       return;
     }
-    // The catch-up, at 0x80054B4C. It rewinds the sub-state by one of two strides, steps the
-    // tally and then RESETS it, which is what makes this the arm that writes kGemCounter to zero
-    // on a path the attract route really takes.
+    // Catch-up at 0x80054B4C: the arm that resets kGemCounter.
     c->mem_w32(kGemCounter, 0u);
     const std::uint32_t sub = c->mem_r8(kGemSubState);
-    // `0x80054B7C slti $v0,$v0,3 ; bnez $v0,0x80054BB0` takes the NARROW rewind when the signed
-    // difference is BELOW three, so the wide one needs a difference of three or more AND a
-    // sub-state whose low five bits are clear (`andi $v0,$v1,0x1f ; bnez` at 0x80054B94): a
-    // sub-state of 0x20 satisfies that test. Either failing gives the narrow one.
+    // 0x80054B7C: wide rewind needs a difference >= 3 and the sub-state's low five bits clear.
     if (static_cast<std::int32_t>(levelGemCount(hud) - c->mem_r32(kTally)) >= 3 &&
         (sub & 0x1Fu) == 0u) {
       c->mem_w8(kGemSubState, sub - 0x20u);
     } else {
       c->mem_w8(kGemSubState, sub - 0x10u);
     }
-    // `0x80054BD0 ..BD4` leaves $s0 on the tally's address for the rest of the body, and 0x80054BDC
-    // zeroes $a3 for the first call only; the second receives whatever the first left there.
+    // $s0 stays on the tally; 0x80054BDC zeroes $a3 for the first call only.
     hud.s0 = kTally;
     hud.a3 = 0u;
     installSavedRegisters(hud);
@@ -284,11 +225,7 @@ void stepGemDisplay(Hud &hud) {
                                c->mem_r8(kGemSubState),
                                hud.a3);
     takeLeftoverArgument(hud);
-    // 0x80054BF8. The tally steps by the distance still to cover: a difference of 0xC9 or more
-    // adds eight (the `addiu $v0,$a0,8` in the `j 0x80054C4C` delay slot), from 0x15 up adds one,
-    // and below that it adds one only while the sub-state is parked on 0xC0 and is left alone
-    // otherwise — `0x80054C34 addiu $v0,$zero,0xC0` is the `beqz`'s delay slot and only feeds the
-    // compare, so 0xC0 is never stored.
+    // 0x80054BF8: step 8 from 0xC9, 1 from 0x15, else 1 only while parked on 0xC0 (never stored).
     const std::uint32_t have = c->mem_r32(kTally);
     const std::int32_t difference = static_cast<std::int32_t>(levelGemCount(hud) - have);
     if (difference >= 0xC9) {
@@ -296,8 +233,7 @@ void stepGemDisplay(Hud &hud) {
     } else if (difference >= 0x15 || c->mem_r8(kGemSubState) == 0xC0u) {
       c->mem_w32(kTally, have + 1u);
     }
-    // 0x80054C50: the level's own halfword target, and only an exact match with the tally AND a
-    // sub-state of zero parks the display on 4.
+    // 0x80054C50: only an exact match with sub-state zero parks the display on 4.
     const std::uint32_t target =
         static_cast<std::uint32_t>(c->mem_r16s(kGemCollectTarget + 2u * c->mem_r32(kLevelIndex)));
     if (c->mem_r32(kTally) == target && c->mem_r8(kGemSubState) == 0u) {
@@ -306,9 +242,7 @@ void stepGemDisplay(Hud &hud) {
     return;
   }
   if (state == 3u) {
-    // 0x80054CAC. A tally that is still short sends the machine back to arming; a tally that has
-    // caught up with the sub-state at zero parks it on zero, and anything else plays the FADE
-    // table's entry for the sub it already holds.
+    // 0x80054CAC: short re-arms, caught up parks on zero, else plays the fade entry.
     if (c->mem_r32(kTally) != levelGemCount(hud)) {
       c->mem_w8(kGemDisplay, 1u);
       return;
@@ -318,8 +252,7 @@ void stepGemDisplay(Hud &hud) {
       c->mem_w8(kGemDisplay, 0u);
       return;
     }
-    // `0x80054CEC bnez $v0,0x80054CFC` carries `addiu $v0,$v0,-1`, so the byte stored back at
-    // 0x80054D04 and the index the lookup forms at 0x80054D08 are both sub-1.
+    // 0x80054CEC's delay slot makes both the stored byte and the lookup index sub-1.
     c->mem_w8(kGemSubState, sub - 1u);
     installSavedRegisters(hud);
     psx::cpu::callGuestNow(*c,
@@ -333,8 +266,7 @@ void stepGemDisplay(Hud &hud) {
     return;
   }
   if (state == 4u) {
-    // 0x80054D2C. `slti $v0,$v0,0xf0` is a SIGNED compare on the summed counter, so a counter that
-    // wrapped past 0x7FFFFFFF is negative and does not park the display.
+    // 0x80054D2C: signed compare, so a wrapped counter does not park.
     const std::uint32_t counter = c->mem_r32(kGemCounter) + hud.a3;
     c->mem_w32(kGemCounter, counter);
     if (static_cast<std::int32_t>(counter) >= 0xF0) {
@@ -343,14 +275,10 @@ void stepGemDisplay(Hud &hud) {
     }
     return;
   }
-  // 0x80054D2C opens with `bne $v1,$v0(4),0x80054D5C` and no delay-slot work, so every display
-  // value above four leaves the machine untouched. A fifth state is not a fifth arm.
+  // Display values above four leave the machine untouched.
 }
 
-// 0x80054D5C — the dragon machine, behind a byte counter that steps eight per update and takes its
-// shade off the same cosine table. It runs the gem machine's four states without a tally, and
-// unlike the gem machine its state 2 settle parks the sub-state on the done value rather than on
-// zero.
+// 0x80054D5C: the dragon machine; its settle parks on the done sub-state, not zero.
 void stepDragonDisplay(Hud &hud) {
   Core *c = hud.c;
   const std::uint32_t stamp = c->mem_r8(kStampCounter) + 8u;
@@ -408,9 +336,7 @@ void stepDragonDisplay(Hud &hud) {
   takeLeftoverArgument(hud);
 }
 
-// 0x80054F90 — the life machine's catch-up: the sub-state steps down by 0x10, the guest's step
-// helper takes the index plus one and its setter the sub-state, and the index itself advances only
-// once the sub-state has reached 0xC0. The counter is cleared on the way in, whatever the path.
+// 0x80054F90: the index advances only once the sub-state reaches 0xC0.
 void stepLifeIndex(Hud &hud) {
   Core *c = hud.c;
   hud.a3 = 0u;
@@ -438,10 +364,7 @@ void stepLifeIndex(Hud &hud) {
   }
 }
 
-// 0x80054EA0 — the life machine. It republishes the spark timer as a HUD byte and then runs the
-// same four states as the gem machine, but gated on the life index against the wait counter and the
-// orb count against the wait timer rather than on a tally. State 2's orb-count arm is the one that
-// skips the counter step entirely, and it does so by latching the orb count to the wait timer.
+// 0x80054EA0: the life machine; state 2's orb-count arm latches the count to the wait timer.
 void stepLifeDisplay(Hud &hud) {
   Core *c = hud.c;
   c->mem_w8(kLifeLevelByte, static_cast<std::uint8_t>(c->mem_r32(kSparkTimer)));
@@ -523,14 +446,7 @@ void stepLifeDisplay(Hud &hud) {
   takeLeftoverArgument(hud);
 }
 
-// 0x80055184 — the life machine's sprite rectangles. One 8-byte rectangle per orb, laid out from an
-// interleaved byte pair and ONE PAIR OF WORDS THE BODY READS ONCE: `0x8005519C addiu $a3,$v1,0x388`
-// forms the word pointer and nothing in the loop advances it — only $a0 (the destination, +8) and
-// $a1 (the byte index, +2) move. So every orb takes its x and y from the same two words and only
-// its own byte pair differs; indexing the words by the orb number as well would give every orb past
-// the first a position retail never computes. The two attribute halfwords are fixed at 8. The loop
-// is a do-while with a SIGNED compare against the orb count, so a count too large to represent
-// positively ends it on the first pass that overflows the signed compare.
+// 0x80055184: the word pointer (0x8005519C) never advances, so every orb reads the same x/y words.
 void rebuildLifeOrbRects(Hud &hud) {
   Core *c = hud.c;
   const std::int32_t count = static_cast<std::int32_t>(c->mem_r32(kLifeOrbCount));
@@ -551,12 +467,7 @@ void rebuildLifeOrbRects(Hud &hud) {
   }
 }
 
-// 0x800553AC — the one call in the body that goes through a pointer the level loaded rather than a
-// fixed address. It takes a mode, a tag, a pointer to a three-word block and a zero; the block's
-// first word is the count scaled by 324 less 2500, its second is 0x3F0 and its third is 0x1000,
-// which is stored in the `jalr`'s delay slot and so is in place BEFORE the callee runs and is never
-// written again. The block lives in the body's own frame, so the call runs with $sp lowered (the
-// caller has done that for the whole body) and returns to the `jalr`'s pc + 8.
+// 0x800553AC: call through the level's pointer; the 0x1000 word is stored in the `jalr` delay slot.
 void callRuntimeWithCount(Hud &hud) {
   Core *c = hud.c;
   const std::uint32_t block = c->r[29] + kRuntimeBlockOffset;
@@ -570,12 +481,7 @@ void callRuntimeWithCount(Hud &hud) {
   takeLeftoverArgument(hud);
 }
 
-// 0x8005533C — the egg machine's counting state. With the count behind the level target its whole
-// decision is on the counter WORD, compared signed: a counter of exactly one runs the runtime call,
-// a counter below nine — every negative one included, `slti $v0,$v0,9` at 0x800553A8 — just steps
-// it, and anything else steps the COUNT and clears the counter. With the count already at the level
-// target the machine instead counts twenty ticks, and with the key flag set it clears the counter
-// and steps it straight to one.
+// 0x8005533C: the counter word compares signed (`slti $v0,$v0,9` at 0x800553A8).
 void stepEggCount(Hud &hud) {
   Core *c = hud.c;
   if (c->mem_r32(kEggCount) == c->mem_r32(kLevelTarget)) {
@@ -606,10 +512,7 @@ void stepEggCount(Hud &hud) {
   c->mem_w32(kEggCounter, c->mem_r32(kEggCounter) + 1u);
 }
 
-// 0x80055228 — the egg machine. Its state 2 is the one that calls through the runtime entry the
-// level loaded rather than a fixed address, so it is split out above; the rest is the gem machine's
-// four states gated on the egg count against the level target and the key flag, and its playing
-// paths negate the id they pass, which is the one thing none of the other four machines does.
+// 0x80055228: the egg machine; its playing paths negate the id.
 void stepEggDisplay(Hud &hud) {
   Core *c = hud.c;
   const std::uint32_t state = c->mem_r8(kEggDisplay);
@@ -670,16 +573,9 @@ void stepEggDisplay(Hud &hud) {
   takeLeftoverArgument(hud);
 }
 
-// 0x800555DC — the six runtime calls: one per target, the addresses a SIXTEEN-MEGABYTE step apart
-// from 0x00600000 with a fixed 0x8080 added to each, every one taking the same argument table.
-// BOTH immediates are `lui`s and both were read an order of magnitude too small: `0x800555E4 lui
-// $s0,0x600` is 0x00600000, not 0x00060000, and `0x80055610 lui $v0,0x100` is 0x01000000, not
-// 0x00100000 — so the six arguments are 0x00608080 apart, not 0x0008080 apart. The loop counters
-// live in $s0..$s2, which the body's epilogue restores, so they are restored here too.
+// 0x800555DC: six calls, $s0 from `lui 0x600` stepping by `lui 0x100`; $s0..$s2 restored.
 void stepRuntimeTargets(Hud &hud) {
   Core *c = hud.c;
-  // `0x800555E4 lui $s0,0x600` is 0x00600000, and `0x80055610 lui $v0,0x100` is 0x01000000 — the
-  // step is a `lui` of its own, not a scaled `ori` of a smaller immediate.
   hud.s1 = 0u;
   hud.s2 = 0x8080u;
   hud.s0 = 0x00600000u;
@@ -700,11 +596,7 @@ void stepRuntimeTargets(Hud &hud) {
   } while (static_cast<std::int32_t>(hud.s1) < 6);
 }
 
-// 0x800555AC — the key machine's counting state, in the halves the guest splits it into. A settled
-// counter parks the display on 3 with the done sub-state; a counter that has run twelve ticks
-// without the index catching up stamps the tail counter with 0x40, latches the total and steps on;
-// and a zero counter runs the six runtime calls. Either way the counter is stepped once on the way
-// out, so the latched arm lands on one rather than on zero.
+// 0x800555AC: the counter is stepped once on the way out, so the latched arm lands on one.
 void stepKeyCounter(Hud &hud, std::uint32_t total) {
   Core *c = hud.c;
   if (c->mem_r32(kKeyIndex) == total) {
@@ -731,9 +623,7 @@ void stepKeyCounter(Hud &hud, std::uint32_t total) {
   c->mem_w32(kKeyCounter, c->mem_r32(kKeyCounter) + 1u);
 }
 
-// 0x800554B0 — the key machine, the last of the five. It latches the treasure total into the key
-// index unless that total is 1, and then runs the same four states as the dragon machine with its
-// own counter, ids and targets, negating the ids it plays.
+// 0x800554B0: the key machine; the total latches into the index unless it is 1.
 void stepKeyDisplay(Hud &hud) {
   Core *c = hud.c;
   const std::uint32_t total = c->mem_r32(kTreasureTotal);
@@ -799,11 +689,7 @@ void stepKeyDisplay(Hud &hud) {
   takeLeftoverArgument(hud);
 }
 
-// 0x8005570C — the tail every path in the body reaches, so it alone decides the registers the
-// caller sees: v0 is one while the wait timer is under twenty and twenty lower than it otherwise,
-// and v1 is the timer word either way. A byte counter steps four and takes a cosine and a sine
-// shade off the two tables first, and the counter that guards the timer is capped at 99 on the way
-// past.
+// 0x8005570C: the shared tail that sets the caller-visible v0/v1; the guard counter caps at 99.
 void advanceFrameStamp(Hud &hud) {
   Core *c = hud.c;
   const std::uint32_t stamp = c->mem_r8(kTailCounter) + 4u;
@@ -826,10 +712,7 @@ void advanceFrameStamp(Hud &hud) {
   c->r[2] = timer - 0x14u;
 }
 
-// 0x80054988 — the HUD tick: the egg phase and the spark timer, then the gem, dragon, life, egg and
-// key machines in the order the body runs them, with the life machine's sprite rectangles between
-// the life and egg machines. The saved registers are restored here because the retail epilogue
-// restores them from its own frame.
+// 0x80054988: the HUD tick; saved registers restored as the retail epilogue does.
 void updateHudCollectables(Core *c) {
   const spyro::PreservedReturnAddress returnAddress(*c);
   const spyro::GuestFrameScope frame(*c, c->r[29] - kFrameBytes);

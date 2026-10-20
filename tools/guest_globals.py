@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """guest_globals.py — the Spyro 1 guest addresses, read from the C++ owner rather than restated.
 
-WHY THIS EXISTS. `titles/spyro1/core/guest_globals.h` names each shared retail global once for the shipping
+WHY THIS EXISTS. `game/core/guest_globals.h` names each shared retail global once for the shipping
 product. The agent drivers in this directory need the same numbers, and a hand-written second copy
 is exactly how a shipping owner and the oracle that checks it end up reading different memory — the
 failure that header was created to end. Eighteen files spelled g_Camera before it existed; a Python
@@ -24,14 +24,13 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-HEADERS = tuple(ROOT / "titles" / "spyro1" / "core" / name for name in ("guest_gp.h", "guest_globals.h"))
+HEADERS = (ROOT / "game" / "core" / "guest_gp.h", ROOT / "game" / "core" / "guest_globals.h")
 
 # `[inline] constexpr [std::]uint32_t kName = <initialiser>;`, which is the only form the owner uses.
 DEFINITION = re.compile(
     r"^\s*(?:inline\s+)?constexpr\s+(?:std::)?uint32_t\s+(?P<name>k[A-Za-z0-9_]+)\s*=\s*(?P<value>[^;]+);"
 )
 HEX = re.compile(r"^0[xX][0-9a-fA-F]+[uU]?$")
-DECIMAL = re.compile(r"^[0-9]+[uU]?$")
 SUM = re.compile(r"^(?P<base>k[A-Za-z0-9_]+)\s*\+\s*(?P<offset>0[xX][0-9a-fA-F]+[uU]?)$")
 
 
@@ -42,8 +41,6 @@ class Refusal(RuntimeError):
 def _term(text: str, known: dict[str, int], where: str) -> int:
     if HEX.match(text):
         return int(text.rstrip("uU"), 16)
-    if DECIMAL.match(text):
-        return int(text.rstrip("uU"))
     match = SUM.match(text)
     if match and match.group("base") in known:
         return known[match.group("base")] + int(match.group("offset").rstrip("uU"), 16)

@@ -21,10 +21,7 @@ constexpr std::uint32_t kStopMobySounds = 0x800562A4u; // `jal` at 0x8003856C
 // Start one sound, 3D (flag 8) or 2D, on a named channel.
 constexpr std::uint32_t kPlaySound = 0x80055A78u; // `jal` at 0x8003859C
 
-// The `lbu 4(v0)` one level above the model's sound table: the class is a SIGNED halfword, so a
-// negative one indexes downwards, and the entry itself is taken from the model's table plus the
-// sound index. Both the channel-present and channel-absent paths re-run these four instructions,
-// the second one after the stop call, so the class is read again rather than carried over.
+// The class is a signed halfword, re-read on both paths after the stop call.
 struct MobySound {
   std::uint32_t moby;
   std::uint32_t index;
@@ -36,11 +33,7 @@ std::uint32_t mobySoundReference(Core *c, MobySound sound) {
   return c->mem_r8(soundTable + sound.index + kSoundReferenceByte);
 }
 
-// ── 0x8003851C — play one of a moby model's sounds positionally, on a caller-named channel.
-//     With a channel nothing else happens; without one the moby's own sounds are stopped FIRST and
-//     the play goes to its own channel at +0x54. Both paths end in the same `jal`, so v0 and v1 are
-//     whatever it leaves — the body writes neither register itself, and the "with a channel" path
-//     never ran the stop call whose v1 would otherwise still be there.
+// 0x8003851C: without a channel the moby's sounds stop first and it plays on its own +0x54.
 void playMobySound(Core *c) {
   const std::uint32_t moby = c->r[4];
   const std::uint32_t soundIndex = c->r[5];
