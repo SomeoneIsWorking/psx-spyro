@@ -15,3 +15,12 @@ USER, 2026-10-20: "title select is bad (ires, speed, size)".
 Both fixes and the launcher's fullscreen default (`tools/run.py`) are uncommitted as of this issue.
 Close this only after they land and the selector is checked in a real window at the player's display
 resolution.
+
+## Not integrated
+USER, 2026-10-20: "title select currently is an external thing, which is obvious like it's not part of
+the game, RmlUi doesn't work there for example. It should be more integrated into the engine".
+
+The selector is a host layer drawn outside a game session (`psx::host::PickerSession` and
+`PickerComposite`), so the in-game RmlUi menu, settings and input are absent there. The fix is that the
+selector becomes a screen of the product, presented through the same path as a game frame: the same
+present path, overlay, menu and input owners, with the panels as that screen's content.
