@@ -1,6 +1,6 @@
 # 0197: title select is low-resolution, slow and wrongly sized
 
-Status: fixed headless; the real-window check at the player's display resolution is still owed
+Status: fixed headless; the real-window check (menu over the selector, real-time pacing, the player's display resolution) is still owed
 
 ## Observed
 USER, 2026-10-20: "title select is bad (ires, speed, size)".
@@ -41,14 +41,28 @@ running panel was read back off the GPU every 15 presents to keep a retained cop
 - Input goes through `host_input.h` buttons: D-pad Left/Right step the selection (they were wired to the
   L2/R2 bits, so L2/R2 moved it before). `picker shot` is gone; `pshot` captures the selector.
 
+## Behaviour that changes on purpose
+- D-pad Left/Right move the selection; L2/R2 no longer do.
+- `picker shot` is removed; `pshot` captures the selector.
+- The selected panel shows its live presents, fades included, instead of the last lit frame.
+- A paused panel is drawn 1:1, centred and cut by the seams, so it shows a centre slice of a wider picture.
+- Each panel shows the title's own black border rows as bands about 24 px tall at its top and bottom;
+  the deleted content measure used to crop them, and nothing is cropped now.
+- The fps60 menu row is hidden on the selector (the host Game declares no interpolation).
+- `select left|right` replies `ok: step left|right` instead of `ok: panel N (slug)`.
+
 ## Proof
 Headless (`PSXPORT_VK_HEADLESS=1` read from `/proc/<pid>/environ`), `scratch/b3/selector.py`, shipping
-settings, captures in `scratch/b3/run/`:
+settings, captures in `scratch/b3/run/`; rerun on the committed source after the review fixes in
+`scratch/b3-fix/run/` (paced selector 1, 2, 0, 2, l2/r2 no change, `select right|left` 0, 2, `pick spyro2`
+boots; Spyro 1/2/3 `warp 10` gameplay in `gameplay-montage.png`):
 - `selector-fast-0.png`: three slanted panels, each title's own picture at its own size, selected Spyro 1
   in colour, the others grey and dimmed, gold seams.
 - `tap right` x3, `tap left`: `selected panel 1`, `2`, `0`, `2`; `tap l2`, `tap r2`: no selection change;
   `select right` / `select left`: `0`, `2`.
-- `menu on`: shown over the selector; `menu nav down`, `menu nav enter`: handled, the dump reads
+- `menu on`: replies `menu: shown`, but no capture shows it: RmlUi is drawn only onto the swapchain and
+  `pshot` reads the present image, so the menu over the selector still needs the real-window check.
+  `menu nav down`, `menu nav enter`: handled, the dump reads
   `Internal Resolution = X2` (was `Vanilla`), and the running panel's picture shows the finer raster
   (`selector-fast-after-menu.png`).
 - `pick spyro2`: `spyro2 confirmed at panel 1`, its boot prefix returns and its title frame is captured.
