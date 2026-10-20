@@ -14,7 +14,7 @@ updated: 2026-10-03
 over the three catalog titles. An entry is enabled only when `scratch/assets/<slug>/<serial>` exists and
 authenticates through `selectExecutableFile`; a disabled entry shows why (`Not provisioned`,
 `Identity mismatch ...`). Pad/keyboard (Left/Right, Cross/Start) and the control channel
-(`picker`, `pick <slug>`, `select <slug>|left|right`, `picker shot <path>`) choose; a running title
+(`picker`, `pick <slug>`, `select <slug>|left|right`; `pshot <path>` captures the selector) choose; a running title
 returns through the ESC menu row "Return to Title Selection" or the control command `session return`;
 both only record a request in `SessionControl`, and the host ends the session by destroying its `Game`.
 Nothing is written into guest state.
@@ -39,7 +39,7 @@ showing THAT title's own attract demo from its own live session.
   appears before the others catch up). Every other session is paused: it holds the frame it last
   presented and does not step, so it cannot be fast-forwarded later.
 - **Boot on first need.** A session is booted the first time it is needed, so a panel with no picture is
-  genuinely empty rather than a placeholder; `hasPicture()` is what the compositor asks.
+  genuinely empty rather than a placeholder; `PanelSessions::panelReady` is the one visibility test.
 - **Widths animate.** `PickerLayout` holds a per-panel share and walks it toward the target (selected
   ~50%, others ~25%, normalized so the panels always tile the surface). Panels are PARALLELOGRAMS: the
   slant is applied about each panel's own centre, so panel i's right edge and panel i+1's left edge are
@@ -58,8 +58,7 @@ showing THAT title's own attract demo from its own live session.
   confirm press is delivered to that guest as a real pad press (`pressOnce`), so the demo leaves for its
   title screen the way it does on the disc. `session return` and the ESC row still work, and returning
   rebuilds the picker from a fresh probe.
-- **Headless.** `picker shot <path>` writes the COMPOSITED frame (no single session's present shot can
-  see a frame the host assembled from three). `tools/picker_look.py` drives and captures it.
+- **Headless.** `pshot <path>` on the selector's endpoint writes the selector's own present image (issue 0197).
 
 ### Framework changes this required (psxport)
 

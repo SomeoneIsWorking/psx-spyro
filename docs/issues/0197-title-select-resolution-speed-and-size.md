@@ -1,6 +1,6 @@
 # 0197: title select is low-resolution, slow and wrongly sized
 
-Status: open
+Status: fixed headless; the real-window check at the player's display resolution is still owed
 
 ## Observed
 USER, 2026-10-20: "title select is bad (ires, speed, size)".
@@ -12,9 +12,7 @@ USER, 2026-10-20: "title select is bad (ires, speed, size)".
 - The record raster's CPU cost scales with ires (psxport 0161 and the ires work that follows it), so
   three panels at a high internal resolution cost three times that.
 
-Both fixes and the launcher's fullscreen default (`tools/run.py`) are uncommitted as of this issue.
-Close this only after they land and the selector is checked in a real window at the player's display
-resolution.
+Close this only after the selector is checked in a real window at the player's display resolution.
 
 ## Not integrated
 USER, 2026-10-20: "title select currently is an external thing, which is obvious like it's not part of
@@ -24,3 +22,35 @@ The selector is a host layer drawn outside a game session (`psx::host::PickerSes
 `PickerComposite`), so the in-game RmlUi menu, settings and input are absent there. The fix is that the
 selector becomes a screen of the product, presented through the same path as a game frame: the same
 present path, overlay, menu and input owners, with the panels as that screen's content.
+
+## Cause
+`psx/host/picker_session.cpp:PickerSession` drew the selector with its own pass (`PickerComposite` over
+`PaneCompositor`) straight into the window, outside the host Game's present, so the overlay, the RmlUi
+menu and host input never ran there. That pass cover-cropped and magnified each panel's picture, and the
+running panel was read back off the GPU every 15 presents to keep a retained copy.
+
+## Fix (psxport consolidation B3)
+- The selector is the host Game's screen: `PickerPanes` lists the panes, `DisplayPresenter::buildPanes`
+  draws them into the host's present image (`RenderState::buildPanes`) and `show()` presents it with the
+  overlay. `PickerComposite`, `PaneCompositor` and the logo magnification are deleted.
+- Each panel presents at its settled cover size (`PickerLayout::imageSize`) and is drawn 1:1, centred and
+  cut by the seams; nothing is cropped to fit or magnified.
+- A panel is read back only while it boots and once when it is deselected; the selected panel shows its
+  live presents.
+- A menu setting reaches the running panel through `Mods::reload`.
+- Input goes through `host_input.h` buttons: D-pad Left/Right step the selection (they were wired to the
+  L2/R2 bits, so L2/R2 moved it before). `picker shot` is gone; `pshot` captures the selector.
+
+## Proof
+Headless (`PSXPORT_VK_HEADLESS=1` read from `/proc/<pid>/environ`), `scratch/b3/selector.py`, shipping
+settings, captures in `scratch/b3/run/`:
+- `selector-fast-0.png`: three slanted panels, each title's own picture at its own size, selected Spyro 1
+  in colour, the others grey and dimmed, gold seams.
+- `tap right` x3, `tap left`: `selected panel 1`, `2`, `0`, `2`; `tap l2`, `tap r2`: no selection change;
+  `select right` / `select left`: `0`, `2`.
+- `menu on`: shown over the selector; `menu nav down`, `menu nav enter`: handled, the dump reads
+  `Internal Resolution = X2` (was `Vanilla`), and the running panel's picture shows the finer raster
+  (`selector-fast-after-menu.png`).
+- `pick spyro2`: `spyro2 confirmed at panel 1`, its boot prefix returns and its title frame is captured.
+- Paced run (`--paced`): 1437 pacing calls in 24 s settled, 59.9 Hz; every gap over 30 ms is a `pshot`
+  PNG write; a selection change resumes the new panel's pacer with no gap.
