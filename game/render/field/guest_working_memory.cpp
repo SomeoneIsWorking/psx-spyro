@@ -20,11 +20,11 @@ constexpr const char *kChannel = "guestmem";
 } // namespace
 
 void HostMemory::map(std::uint32_t guestBase, std::uint32_t bytes) {
-  place(GuestRange{.base = canonicalAddress(guestBase), .bytes = bytes}, Seed::Guest);
+  place(GuestRange{.base = psx::kseg0Address(guestBase), .bytes = bytes}, Seed::Guest);
 }
 
 void HostMemory::mapEmpty(std::uint32_t guestBase, std::uint32_t bytes) {
-  place(GuestRange{.base = canonicalAddress(guestBase), .bytes = bytes}, Seed::Zero);
+  place(GuestRange{.base = psx::kseg0Address(guestBase), .bytes = bytes}, Seed::Zero);
 }
 
 void HostMemory::place(GuestRange range, Seed seed) {
@@ -121,12 +121,12 @@ void HostMemory::noteLevelRead(std::uint32_t address) const {
 
 void HostMemory::overlay(std::span<const LevelWord> words) {
   for (const LevelWord &word : words) {
-    overlay_[canonicalAddress(word.address)] = word.value;
+    overlay_[psx::kseg0Address(word.address)] = word.value;
   }
 }
 
 const std::uint32_t *HostMemory::overlaid(std::uint32_t guestAddress) const {
-  const std::uint32_t address = canonicalAddress(guestAddress);
+  const std::uint32_t address = psx::kseg0Address(guestAddress);
   const auto found = overlay_.find(address & ~3u);
   return found == overlay_.end() ? nullptr : &found->second;
 }
@@ -150,7 +150,7 @@ const HostMemory::Segment *HostMemory::find(std::uint32_t address) const {
 }
 
 const std::uint8_t *HostMemory::byteAt(std::uint32_t guestAddress) const {
-  const std::uint32_t address = canonicalAddress(guestAddress);
+  const std::uint32_t address = psx::kseg0Address(guestAddress);
   const Segment *segment = find(address);
   return segment == nullptr ? nullptr : segment->bytes.data() + (address - segment->base);
 }
@@ -162,7 +162,7 @@ std::uint8_t *HostMemory::byteAt(std::uint32_t guestAddress) {
 void HostMemory::store(std::uint32_t address, const void *bytes, std::uint32_t count) {
   std::uint8_t *at = byteAt(address);
   if (at == nullptr) {
-    refuseWrite(canonicalAddress(address), count);
+    refuseWrite(psx::kseg0Address(address), count);
     return;
   }
   std::memcpy(at, bytes, count);
@@ -186,7 +186,7 @@ void HostMemory::refuseWrite(std::uint32_t address, std::uint32_t bytes) const {
 }
 
 std::uint32_t HostMemory::r32(std::uint32_t guestAddress) const {
-  const std::uint32_t address = canonicalAddress(guestAddress);
+  const std::uint32_t address = psx::kseg0Address(guestAddress);
   const std::uint8_t *at = byteAt(address);
   if (at == nullptr) {
     if (guestReads_ == 0) {
@@ -208,7 +208,7 @@ std::uint32_t HostMemory::r32(std::uint32_t guestAddress) const {
 }
 
 std::uint16_t HostMemory::r16(std::uint32_t guestAddress) const {
-  const std::uint32_t address = canonicalAddress(guestAddress);
+  const std::uint32_t address = psx::kseg0Address(guestAddress);
   const std::uint8_t *at = byteAt(address);
   if (at == nullptr) {
     ++guestReads_;
@@ -224,7 +224,7 @@ std::uint16_t HostMemory::r16(std::uint32_t guestAddress) const {
 }
 
 std::uint8_t HostMemory::r8(std::uint32_t guestAddress) const {
-  const std::uint32_t address = canonicalAddress(guestAddress);
+  const std::uint32_t address = psx::kseg0Address(guestAddress);
   const std::uint8_t *at = byteAt(address);
   if (at == nullptr) {
     ++guestReads_;

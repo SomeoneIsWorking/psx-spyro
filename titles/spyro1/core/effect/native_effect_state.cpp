@@ -1,4 +1,6 @@
 #include "spyro1/core/effect/native_effect_state.h"
+#include "spyro1/core/guest_functions.h"
+#include "spyro1/core/guest_globals.h"
 
 #include "spyro1/core/effect/shadow_block.h"
 
@@ -9,6 +11,15 @@
 
 namespace spyro1::native {
 namespace {
+
+using spyro1::guest::kCopy3;
+using spyro1::guest::kFill;
+using spyro1::guest::kRand;
+using spyro1::guest::kVadd;
+using spyro1::guest::kZero3;
+
+using spyro1::guest::kLoadStage;
+using spyro1::guest::kPad;
 
 // Every guest call these two bodies make is spelled at its own call site and passes $a0..$a3
 // exactly as the guest left them, so a call that sets no argument of its own forwards the register
@@ -71,8 +82,6 @@ constexpr std::uint32_t kShadowNearBand = 0x80u;
 constexpr std::int32_t kShadowDropRange = 0x365;
 constexpr std::int32_t kShadowLiftScale = 194;
 
-constexpr std::uint32_t kPadDown = 0x80077378u;   // g_Pad, m_Down
-constexpr std::uint32_t kLoadStage = 0x80075864u; // g_LoadStage
 constexpr std::uint32_t kEmitterFunction = 0x800758E4u;
 constexpr std::uint32_t kLevelIndex = 0x80075964u; // g_LevelIndex
 constexpr std::uint32_t kCameraType = 0x80076E28u; // g_Camera + 0x58
@@ -102,12 +111,7 @@ constexpr std::uint32_t kSurfaceProbeReturn = kUpdateGroundShadow + 0x174u;
 // field of that instruction rather than a `lui`+immediate pair, and the address audit
 // re-derives it from the `jal` itself. The first seven are owned natively already; the two that
 // are not are reached only through this gate.
-constexpr std::uint32_t kVecNull = 0x800176F0u;
-constexpr std::uint32_t kFill = 0x80016914u;
-constexpr std::uint32_t kRand = 0x8006272Cu;
 constexpr std::uint32_t kRotate = 0x80017048u; // VecRotateByMatrix
-constexpr std::uint32_t kVecAdd = 0x80017758u;
-constexpr std::uint32_t kVecCopy = 0x80017700u;
 constexpr std::uint32_t kRotateLast = 0x800170C0u;   // VecRotateByLastMatrix
 constexpr std::uint32_t kSurfaceProbe = 0x8004D5ECu; // func_8004D5EC
 constexpr std::uint32_t kSmoothHeadLook = 0x80049880u;
@@ -116,7 +120,7 @@ constexpr std::uint32_t kSmoothHeadLook = 0x80049880u;
 // the `$ra` that `jal` leaves, and a call-site audit re-derives every site and its
 // callee from the executable. Two of the callees are reached from more than one site, one per arm.
 constexpr std::uint32_t kVecNullBlockedJal = 0x80049A08u;
-constexpr std::uint32_t kVecNullJal = 0x80049DBCu; // the arm, the reset and the mode-2 arm share it
+constexpr std::uint32_t kZero3Jal = 0x80049DBCu; // the arm, the reset and the mode-2 arm share it
 constexpr std::uint32_t kRandArmJal = 0x80049AD0u;
 constexpr std::uint32_t kRandRefreshJal = 0x80049CDCu;
 constexpr std::uint32_t kFillArmJal = 0x80049B18u;
@@ -151,16 +155,16 @@ void armFlameBurst(Core *c) {
   c->mem_w8(kFlameActive, 1);
   c->mem_w8(kFlameState, 0);
   c->mem_w8(kFlameSelect, 1);
-  spyro::callGuestJumpedFrom(
-      *c, kFlameBurst, {.jal = kRandArmJal, .target = kRand}, c->r[4], c->r[5], c->r[6], c->r[7]);
+  psx::cpu::callGuestNow(
+      *c, kFlameBurst, psx::cpu::GuestCallSite::fromJal(kRandArmJal, kRand), c->r[4], c->r[5], c->r[6], c->r[7]);
   const std::uint32_t fairyKiss = c->mem_r32(kFairyKissTimer);
   c->mem_w8(kFlameVariant, static_cast<std::uint8_t>(c->r[2] & 1u));
   c->mem_w32(kFlameSuper, fairyKiss != 0u ? 1u : 0u);
   c->r[4] = kFlameLengths;
   c->r[5] = 0;
   c->r[6] = 8;
-  spyro::callGuestJumpedFrom(
-      *c, kFlameBurst, {.jal = kFillArmJal, .target = kFill}, c->r[4], c->r[5], c->r[6], c->r[7]);
+  psx::cpu::callGuestNow(
+      *c, kFlameBurst, psx::cpu::GuestCallSite::fromJal(kFillArmJal, kFill), c->r[4], c->r[5], c->r[6], c->r[7]);
 }
 
 // The restart at 0x80049C94..0x80049D2C, on tick 0x2C: rewind the tick count, publish the head
@@ -173,9 +177,9 @@ void refreshFlameBurst(Core *c) {
   c->mem_w8(kFlameActive, 1);
   c->mem_w8(kFlameState, 0);
   c->mem_w8(kFlameSelect, 1);
-  spyro::callGuestJumpedFrom(*c,
+  psx::cpu::callGuestNow(*c,
                              kFlameBurst,
-                             {.jal = kRandRefreshJal, .target = kRand},
+                             psx::cpu::GuestCallSite::fromJal(kRandRefreshJal, kRand),
                              c->r[4],
                              c->r[5],
                              c->r[6],
@@ -186,9 +190,9 @@ void refreshFlameBurst(Core *c) {
   c->r[4] = kFlameLengths;
   c->r[5] = 0;
   c->r[6] = 8;
-  spyro::callGuestJumpedFrom(*c,
+  psx::cpu::callGuestNow(*c,
                              kFlameBurst,
-                             {.jal = kFillRefreshJal, .target = kFill},
+                             psx::cpu::GuestCallSite::fromJal(kFillRefreshJal, kFill),
                              c->r[4],
                              c->r[5],
                              c->r[6],
@@ -204,16 +208,16 @@ void resetFlameBurst(Core *c) {
   c->r[4] = kFlameLengths;
   c->r[6] = 8;
   c->mem_w8(kFlameActive, 0);
-  spyro::callGuestJumpedFrom(
-      *c, kFlameBurst, {.jal = kFillResetJal, .target = kFill}, c->r[4], c->r[5], c->r[6], c->r[7]);
+  psx::cpu::callGuestNow(
+      *c, kFlameBurst, psx::cpu::GuestCallSite::fromJal(kFillResetJal, kFill), c->r[4], c->r[5], c->r[6], c->r[7]);
   const std::uint32_t slot = c->mem_r8(kAnimationSlot);
   c->mem_w32(kSpyroBurstMode, 0);
   c->mem_w32(kSpyroBurstTicks, 0u - 1u);
   c->mem_w32(kSpyroHeadAnimationSpeed, c->mem_r8(kAnimationDetails + slot * 4u));
   c->r[4] = kSpyroHeadLookTarget;
-  spyro::callGuestJumpedFrom(*c,
+  psx::cpu::callGuestNow(*c,
                              kFlameBurst,
-                             {.jal = kVecNullJal, .target = kVecNull},
+                             psx::cpu::GuestCallSite::fromJal(kZero3Jal, kZero3),
                              c->r[4],
                              c->r[5],
                              c->r[6],
@@ -238,9 +242,9 @@ void placeFlameBurstEmitters(Core *c, std::uint32_t frame) {
     c->r[5] = offset;
     c->r[6] = frame + 0x10u;
     const EmitterPlacementSites &sites = kEmitterPlacements[round];
-    spyro::callGuestJumpedFrom(*c,
+    psx::cpu::callGuestNow(*c,
                                kFlameBurst,
-                               {.jal = sites.rotate, .target = kRotate},
+                               psx::cpu::GuestCallSite::fromJal(sites.rotate, kRotate),
                                c->r[4],
                                c->r[5],
                                c->r[6],
@@ -248,14 +252,14 @@ void placeFlameBurstEmitters(Core *c, std::uint32_t frame) {
     c->r[4] = frame + 0x10u;
     c->r[5] = frame + 0x10u;
     c->r[6] = kSpyroPosition;
-    spyro::callGuestJumpedFrom(
-        *c, kFlameBurst, {.jal = sites.add, .target = kVecAdd}, c->r[4], c->r[5], c->r[6], c->r[7]);
+    psx::cpu::callGuestNow(
+        *c, kFlameBurst, psx::cpu::GuestCallSite::fromJal(sites.add, kVadd), c->r[4], c->r[5], c->r[6], c->r[7]);
     c->r[4] = offset + 0x18u;
     c->r[16] = frame + 0x20u;
     c->r[5] = c->r[16];
-    spyro::callGuestJumpedFrom(*c,
+    psx::cpu::callGuestNow(*c,
                                kFlameBurst,
-                               {.jal = sites.rotateLast, .target = kRotateLast},
+                               psx::cpu::GuestCallSite::fromJal(sites.rotateLast, kRotateLast),
                                c->r[4],
                                c->r[5],
                                c->r[6],
@@ -296,7 +300,7 @@ void runFlameBurst(Core *c, std::uint32_t frame) {
     }
   }
   const std::int32_t now = static_cast<std::int32_t>(c->mem_r32(kSpyroBurstTicks));
-  if ((c->mem_r32(kPadDown) & kBurstPadBit) != 0u && now >= kBurstRefreshTicks) {
+  if ((c->mem_r32(kPad) & kBurstPadBit) != 0u && now >= kBurstRefreshTicks) {
     refreshFlameBurst(c);
     return;
   }
@@ -329,9 +333,9 @@ void updateFlameBurst(Core *c) {
   if (c->mem_r8(kFlameBlockedInAnimation + defaultAnimation) != 0u) {
     c->mem_w32(kSpyroBurstMode, 0);
     c->r[4] = kSpyroHeadLookTarget;
-    spyro::callGuestJumpedFrom(*c,
+    psx::cpu::callGuestNow(*c,
                                kFlameBurst,
-                               {.jal = kVecNullBlockedJal, .target = kVecNull},
+                               psx::cpu::GuestCallSite::fromJal(kVecNullBlockedJal, kZero3),
                                c->r[4],
                                c->r[5],
                                c->r[6],
@@ -339,7 +343,7 @@ void updateFlameBurst(Core *c) {
   } else {
     c->r[17] = kSpyroBurstMode;
     if (mode == 0u) {
-      const std::uint32_t held = c->mem_r32(kPadDown);
+      const std::uint32_t held = c->mem_r32(kPad);
       c->r[4] = kFlameSelect;
       // 0x80049A58 `sb $zero, ($a0)` is the DELAY SLOT of 0x80049A54 `beqz $v0, 0x80049DC4`, and a
       // delay slot runs whether the branch is taken or not, so the clear happens on BOTH paths
@@ -351,9 +355,9 @@ void updateFlameBurst(Core *c) {
         c->r[16] = 1;
         armFlameBurst(c);
         c->r[4] = kSpyroHeadLookTarget;
-        spyro::callGuestJumpedFrom(*c,
+        psx::cpu::callGuestNow(*c,
                                    kFlameBurst,
-                                   {.jal = kVecNullJal, .target = kVecNull},
+                                   psx::cpu::GuestCallSite::fromJal(kZero3Jal, kZero3),
                                    c->r[4],
                                    c->r[5],
                                    c->r[6],
@@ -366,9 +370,9 @@ void updateFlameBurst(Core *c) {
       // derived from the mode: the `lui $v1,0x8000` in the delay slot of the `j` at 0x80049A38
       // overwrites the mode in $v1 before the `ori` at 0x80049DA8 makes the constant.
       c->r[4] = kSpyroHeadLookTarget;
-      spyro::callGuestJumpedFrom(*c,
+      psx::cpu::callGuestNow(*c,
                                  kFlameBurst,
-                                 {.jal = kVecNullJal, .target = kVecNull},
+                                 psx::cpu::GuestCallSite::fromJal(kZero3Jal, kZero3),
                                  c->r[4],
                                  c->r[5],
                                  c->r[6],
@@ -378,9 +382,9 @@ void updateFlameBurst(Core *c) {
     c->r[2] = c->mem_r32(kSpyroBurstTicks) + 1u;
     c->mem_w32(kSpyroBurstTicks, c->r[2]);
   }
-  spyro::callGuestJumpedFrom(*c,
+  psx::cpu::callGuestNow(*c,
                              kFlameBurst,
-                             {.jal = kSmoothHeadLookJal, .target = kSmoothHeadLook},
+                             psx::cpu::GuestCallSite::fromJal(kSmoothHeadLookJal, kSmoothHeadLook),
                              c->r[4],
                              c->r[5],
                              c->r[6],
@@ -425,10 +429,10 @@ void updateGroundShadow(Core *c) {
   c->r[4] = frame + 0x10u;
   c->r[5] = frame + 0x10u;
   c->r[6] = kSpyroPosition;
-  psx::cpu::callGuestNow(*c, kGroundShadow, kVecAdd, c->r[4], c->r[5], c->r[6], c->r[7]);
+  psx::cpu::callGuestNow(*c, kGroundShadow, kVadd, c->r[4], c->r[5], c->r[6], c->r[7]);
   c->r[4] = shadow_block::kAnchor;
   c->r[5] = frame + 0x10u;
-  psx::cpu::callGuestNow(*c, kGroundShadow, kVecCopy, c->r[4], c->r[5], c->r[6], c->r[7]);
+  psx::cpu::callGuestNow(*c, kGroundShadow, kCopy3, c->r[4], c->r[5], c->r[6], c->r[7]);
   if (c->mem_r8(kSpyroSortingDepth) < kShadowBlendLimit) {
     c->mem_w8(kSpyroSortingDepth, 5);
   }
@@ -457,7 +461,7 @@ void updateGroundShadow(Core *c) {
     c->r[4] = frame + 0x10u;
     c->r[5] = frame + 0x10u;
     c->r[6] = kSpyroPosition;
-    psx::cpu::callGuestNow(*c, kGroundShadow, kVecAdd, c->r[4], c->r[5], c->r[6], c->r[7]);
+    psx::cpu::callGuestNow(*c, kGroundShadow, kVadd, c->r[4], c->r[5], c->r[6], c->r[7]);
     c->r[4] = frame + 0x10u;
     c->r[5] = 0x400u;
     const std::uint32_t anchorZ = c->mem_r32(frame + 0x18u);

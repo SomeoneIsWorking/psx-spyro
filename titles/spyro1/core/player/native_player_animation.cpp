@@ -1,6 +1,6 @@
 #include "spyro1/core/player/native_player_animation.h"
 
-#include "core/guest_globals.h"
+#include "spyro1/core/guest_globals.h"
 #include "core/native_execution.h"
 #include "guest_call.h"
 
@@ -10,7 +10,7 @@ namespace spyro1::native {
 
 namespace {
 
-using spyro::guest::kPlayerState;
+using spyro1::guest::kPlayerState;
 
 constexpr std::uint32_t kBodyAnimation = 0x80078A70u;          // g_Spyro.m_bodyAnimation (u8)
 constexpr std::uint32_t kNextBodyAnimation = 0x80078A71u;      // g_Spyro.m_nextBodyAnimation (u8)

@@ -4,16 +4,18 @@
 
 class Core;
 
-namespace spyro1 {
+namespace spyro {
+class FieldOwner;
+}
 
-class FieldScheduler;
+namespace spyro1 {
 
 // GamestateDraw 0x8001ED5C, run to its return. Its display tail waits on VSync(0) until two fields
 // have passed since the last frame, then PutDispEnv, PutDrawEnv and DrawOTag; each wait is one
 // unpresented field here, and the caller presents the frame after the return.
 class FrameDraw {
 public:
-  void run(Core &core, FieldScheduler &fields);
+  void run(Core &core, spyro::FieldOwner &fields);
 
 private:
   psx::cpu::ResumableGuestCall call_;

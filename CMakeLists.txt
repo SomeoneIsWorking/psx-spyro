@@ -34,7 +34,6 @@ if(NOT TARGET zstd::libzstd_shared)
   set_target_properties(zstd::libzstd_shared PROPERTIES IMPORTED_LOCATION "${ZSTD_LIBRARY}")
 endif()
 find_package(Threads REQUIRED)
-find_package(OpenSSL REQUIRED COMPONENTS Crypto)
 
 add_subdirectory(${PSXPORT_DIR}/vendor/beetle-psx/deps/libchdr
                  ${CMAKE_BINARY_DIR}/libchdr_build EXCLUDE_FROM_ALL)
@@ -57,21 +56,12 @@ add_custom_target(spyro_title_catalog DEPENDS ${SPYRO_CATALOG_HEADER})
 
 set(SPYRO_RUNTIME_SOURCES
   game/core/archive_transfer.cpp
-  game/core/content_identity.cpp
-  game/core/cd_queue.cpp
   game/core/boot_prefix_frame_driver.cpp
+  game/core/boot_prefix_runtime.cpp
   game/core/field_owner.cpp
   game/core/frame_cut.cpp
-  game/core/guest_execution.cpp
-  game/core/native_angle.cpp
   game/core/guest_magnitude.cpp
-  game/core/native_gte.cpp
-  game/core/native_leaf.cpp
-  game/core/native_rand.cpp
-  game/core/native_util.cpp
-  game/core/native_vec.cpp
   game/core/session.cpp
-  game/core/gate_debug.cpp
   game/core/debug/warp.cpp
   game/core/runtime.cpp
   game/core/title_runtime_registry.cpp
@@ -82,18 +72,25 @@ set(SPYRO_RUNTIME_SOURCES
   game/render/terrain/terrain_state_producer.cpp
   game/render/hud/ui_anchor.cpp
   titles/spyro1/core/frame/boot_sequence.cpp
-  titles/spyro1/core/runtime/field_scheduler.cpp
+  titles/spyro1/core/frame/skip_map.cpp
   titles/spyro1/core/frame/frame_draw.cpp
   titles/spyro1/core/frame/frame_driver.cpp
   titles/spyro1/core/frame/ordering_table.cpp
   titles/spyro1/core/input/input_phase.cpp
-  titles/spyro1/core/execution/handoff_store_observer.cpp
-  titles/spyro1/core/frame/stage_update_observer.cpp
   titles/spyro1/core/frame/transition_skip.cpp
   titles/spyro1/core/runtime/runtime.cpp
+  titles/spyro1/core/debug/gate_debug.cpp
+  titles/spyro1/core/execution/cd_queue.cpp
+  titles/spyro1/core/execution/native_angle.cpp
+  titles/spyro1/core/execution/native_gte.cpp
+  titles/spyro1/core/execution/native_leaf.cpp
+  titles/spyro1/core/execution/native_rand.cpp
+  titles/spyro1/core/execution/native_util.cpp
+  titles/spyro1/core/execution/native_vec.cpp
   titles/spyro1/core/debug/warp.cpp
   titles/spyro1/core/audio/native_sound_position.cpp
   titles/spyro1/core/audio/native_audio_key_state.cpp
+  titles/spyro1/core/audio/spu_library.cpp
   titles/spyro1/core/camera/native_camera.cpp
   titles/spyro1/core/moby/native_collision_shade.cpp
   titles/spyro1/core/player/native_cutscene.cpp
@@ -107,7 +104,8 @@ set(SPYRO_RUNTIME_SOURCES
   titles/spyro1/core/moby/native_moby_allocator.cpp
   titles/spyro1/core/moby/native_moby_collision.cpp
   titles/spyro1/core/execution/native_level_initialization.cpp
-  titles/spyro1/core/moby/native_moby_helpers.cpp
+  titles/spyro1/core/moby/native_moby_animation.cpp
+  titles/spyro1/core/audio/native_moby_sound.cpp
   titles/spyro1/core/moby/native_moby_lists.cpp
   titles/spyro1/core/moby/native_moby_transform.cpp
   titles/spyro1/core/effect/native_particle_alloc.cpp
@@ -192,12 +190,11 @@ target_include_directories(spyro_runtime PUBLIC
   game
   titles
   ${CMAKE_BINARY_DIR}/generated)
-target_link_libraries(spyro_runtime PUBLIC psxport OpenSSL::Crypto)
+target_link_libraries(spyro_runtime PUBLIC psxport)
 
 psxport_add_product(spyro_port
   CATALOG spyro::createCatalog
   HEADER core/title_runtime_registry.h
-  SOURCES game/core/world_guest_execution.cpp
   LIBRARIES spyro_runtime)
 add_dependencies(spyro_port gen_gpu_shaders)
 set_target_properties(spyro_port PROPERTIES

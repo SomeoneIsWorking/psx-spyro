@@ -17,10 +17,7 @@ constexpr std::array<std::uint32_t, 4> kQuadX = {0x08, 0x10, 0x18, 0x20};
 void texturedQuad(Core *core) {
   const std::uint32_t packet = core->mem_r32(terrain::kRenderGlobals.primitiveCursor);
   const std::uint32_t returnAddress = core->r[31];
-  if (!psx::cpu::completeOrPropagate(
-          *core,
-          psx::cpu::callOriginal(
-              *core, kTexturedQuad, psx::cpu::ExecutionBudget::currentTurn(*core)))) {
+  if (!psx::cpu::callOriginalOrPropagate(*core, kTexturedQuad)) {
     return;
   }
   const std::optional<spyro::ui_anchor::Anchor> anchor = quadAnchor(returnAddress);

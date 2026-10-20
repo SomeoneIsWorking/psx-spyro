@@ -1,11 +1,14 @@
 #include "spyro1/core/moby/native_moby_allocator.h"
 
 #include "core/native_execution.h"
+#include "spyro1/core/guest_globals.h"
 
 #include <cstdint>
 
 namespace spyro1::native {
 namespace {
+
+using spyro1::guest::kMobyCollisionChain;
 
 // g_DynMobyCount (moby.h:507), bumped once per call before either pool is touched.
 constexpr std::uint32_t kDynMobyCount = 0x800756A4u;
@@ -87,9 +90,102 @@ void allocateDynamicMoby(Core *c) {
   c->r[5] = static_cast<std::uint32_t>(propsLink);
 }
 
+
+// The first dynamic moby; one below it is only marked.
+constexpr std::uint32_t kDynMobys = 0x80075890u;
+constexpr std::uint32_t kMobyChainLink = 0x04u;
+constexpr std::uint32_t kMobyCollisionRegion = 0x34u;
+// The dead-moby marks, sign-extended as the body holds them; `sb` keeps the low byte.
+constexpr std::uint32_t kMarkBelowPool = 0xFFFFFFFDu;
+constexpr std::uint32_t kMarkReleased = 0xFFFFFFFEu;
+constexpr std::uint32_t kMarkRunBoundary = 0xFFFFFFFFu;
+
+// ── 0x80052568 — release one moby, the counterpart of the allocator at 0x800524C4. A non-negative
+//     m_CollisionRegion unlinks the moby from that region's chain; a moby below the dynamic pool is
+//     only marked -3 and returns, v1 untouched. Otherwise the count drops and the free list is
+//     reopened at the moby: its own mark becomes -2, or, when the node above it already carries
+//     the -1 run boundary, the run of -2 below it is walked and the top of that run marked -1
+//     instead, extending the run. Every mark test is a sign-extended byte read in a delay slot that
+//     also steps the walk, so v1 is -2 or -1 at each store. g_MobyAllocPtr rolls back to whichever
+//     node was marked, and the 0x18-byte entries behind m_Props — each mark its last byte — repeat
+//     the whole thing against g_PropsAllocPtr, walking up where the pool walk walks down. v0 exits
+//     holding g_PropsAllocPtr's own address and v1 the signed difference that cursor tested.
+void releaseMoby(Core *c) {
+  const std::uint32_t moby = c->r[4];
+  const std::uint32_t region = static_cast<std::uint32_t>(c->mem_r16s(moby + kMobyCollisionRegion));
+  if (static_cast<std::int32_t>(region) >= 0) {
+    std::uint32_t slot = c->mem_r32(kMobyCollisionChain) + (region << 2);
+    while (c->mem_r32(slot) != moby) {
+      slot = c->mem_r32(slot) + 4u;
+    }
+    c->mem_w32(slot, c->mem_r32(moby + kMobyChainLink));
+  }
+
+  c->r[2] = kMarkBelowPool;
+  if (static_cast<std::int32_t>(c->mem_r32(kDynMobys) - moby) > 0) {
+    c->mem_w8(moby + kMobyLinkByte, static_cast<std::uint8_t>(kMarkBelowPool));
+    return;
+  }
+  c->r[2] = c->mem_r32(kDynMobyCount) - 1u;
+  c->mem_w32(kDynMobyCount, c->r[2]);
+
+  std::uint32_t pool = moby;
+  c->r[2] = static_cast<std::uint32_t>(c->mem_r8s(moby + kMobySlotStride + kMobyLinkByte));
+  c->r[3] = kMarkReleased;
+  if (c->r[2] != kMarkRunBoundary) {
+    c->mem_w8(pool + kMobyLinkByte, c->r[3]);
+  } else {
+    pool = moby - kMobySlotStride;
+    for (;;) {
+      c->r[2] = static_cast<std::uint32_t>(c->mem_r8s(pool + kMobyLinkByte));
+      c->r[3] = kMarkReleased;
+      pool -= kMobySlotStride;
+      if (c->r[2] != kMarkReleased) {
+        break;
+      }
+    }
+    pool += kMobySlotStride;
+    pool += kMobySlotStride;
+    c->r[3] = kMarkRunBoundary;
+    c->mem_w8(pool + kMobyLinkByte, c->r[3]);
+  }
+  c->r[3] = c->mem_r32(kMobyAllocCursor);
+  if (static_cast<std::int32_t>(c->r[3] - pool) >= 0) {
+    c->mem_w32(kMobyAllocCursor, pool);
+  }
+
+  const std::uint32_t props = c->mem_r32(moby);
+  std::uint32_t entry = props + kPropsStride;
+  c->r[2] = static_cast<std::uint32_t>(c->mem_r8s(props - 1u));
+  c->r[3] = kMarkReleased;
+  if (c->r[2] != kMarkRunBoundary) {
+    c->mem_w8(entry - 1u, c->r[3]);
+  } else {
+    entry += kPropsStride;
+    for (;;) {
+      c->r[2] = static_cast<std::uint32_t>(c->mem_r8s(entry - 1u));
+      c->r[3] = kMarkReleased;
+      entry += kPropsStride;
+      if (c->r[2] != kMarkReleased) {
+        break;
+      }
+    }
+    entry -= kPropsStride;
+    entry -= kPropsStride;
+    c->r[3] = kMarkRunBoundary;
+    c->mem_w8(entry - 1u, c->r[3]);
+  }
+  c->r[2] = kPropsAllocCursor;
+  c->r[3] = c->mem_r32(kPropsAllocCursor) - entry;
+  if (static_cast<std::int32_t>(c->r[3]) <= 0) {
+    c->mem_w32(kPropsAllocCursor, entry);
+  }
+}
+
 } // namespace
 
 void registerMobyAllocatorOverrides(Core &core) {
+  psx::cpu::installNativeOverride(core, 0x80052568u, "release_moby", releaseMoby);
   psx::cpu::installNativeOverride(core, 0x800524C4u, "allocate_dynamic_moby", allocateDynamicMoby);
 }
 

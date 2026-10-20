@@ -3,7 +3,6 @@
 #include <chrono>
 
 #include <cstdint>
-#include <string_view>
 
 class Core;
 class Game;
@@ -26,9 +25,6 @@ struct FieldOwnerFacts {
   // copy, so a title that reads it sees delivered fields.
   std::uint32_t fieldCounter = 0;
   std::uint32_t rootHandlerSlot = 0;
-  // The guest IRQ stack the vblank callbacks run on.
-  std::uint32_t handlerStackTop = 0;
-  std::uint32_t handlerStackBytes = 0;
 };
 
 // The shared owner runs every title-neutral effect of a field, then asks the title to observe it.
@@ -57,16 +53,12 @@ private:
   std::uint32_t fields_ = 0;
 };
 
-// The one definition of "a display field happened": sample the pad, advance the
-// display clock, run the guest vblank callbacks, advance the field counter, let the title observe,
-// snapshot, cross the presentation fence when visible, service audio, release the host-turn token.
+// The one definition of "a display field happened"; everything title-neutral a field does.
 class FieldOwner {
 public:
   // A title with nothing to observe per field passes no observer.
   FieldOwner(Game &game, FieldOwnerFacts facts, FieldObserver *observer = nullptr);
 
-  // Publication reaches the shared context, so it is an explicit call rather than constructor
-  // work that makes every owner's member order a hidden precondition.
   void publish();
 
   bool deliver(FieldRequest request);
@@ -83,9 +75,7 @@ public:
   }
 
   std::int32_t counter() const;
-  std::string_view activeDeliverySite() const;
   void armHostClock();
-  void observeVblankCallback(std::uint32_t function);
 
   // Whether the Start/Cross edge that ends a presentation-only hold is down now.
   bool presentationSkipPressed() const;
@@ -98,22 +88,12 @@ public:
     return presents_;
   }
 
-  std::uint64_t paces() const {
-    return paces_;
-  }
-
-  const FieldOwnerFacts &facts() const {
-    return facts_;
-  }
-
   // The host-turn entry point: one more physical field, never a second presentation fence.
   static void hostTurnThunk(Core *core);
 
 private:
-  // True while a guest root owns its counter, including an IRQ deferred by masking or critical
-  // state. Returns whether the guest root ticked the counter itself.
+  // Whether a guest root owns the field counter, including while its IRQ is deferred.
   bool dispatchCallbacks();
-  void armHandlerStack(Core &core);
   void reportField(const FieldRequest &request);
   // The fields a paced present waits out: every one delivered since the previous paced present.
   int takePacedFields(bool pace);
@@ -123,8 +103,6 @@ private:
   FieldObserver *observer_;
   FieldCadence cadence_{};
   bool inField_ = false;
-  const char *activeDeliverySite_ = nullptr;
-  bool handlerStackArmed_ = false;
   bool hostClockArmed_ = false;
   std::uint64_t refused_ = 0;
   std::uint64_t fields_ = 0;
@@ -132,16 +110,8 @@ private:
   std::uint64_t fieldsSincePace_ = 0;
   std::uint64_t presents_ = 0;
 
-  std::uint32_t callbackFallback_ = 0;
-  std::uint16_t previousButtons_ = 0xFFFFu;
-  // Wall-clock epoch of this owner; a `pace` report needs milliseconds since the run began, and
-  // two titles in one process would otherwise print each other's elapsed time.
+  // Per owner, so two titles in one process do not share an elapsed time.
   std::chrono::steady_clock::time_point epoch_ = std::chrono::steady_clock::now();
 };
-
-// The process-lifetime field owner of the selected title, published by its frame driver. A host
-// turn can arrive before the driver exists, so this refuses by name instead of guessing.
-FieldOwner &fieldOwner(Core &core);
-const FieldOwner &fieldOwner(const Core &core);
 
 } // namespace spyro

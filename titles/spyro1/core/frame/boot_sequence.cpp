@@ -1,9 +1,12 @@
 #include "spyro1/core/frame/boot_sequence.h"
-#include "core/guest_globals.h"
+#include "spyro1/core/guest_functions.h"
+#include "spyro1/core/guest_globals.h"
 
 #include "core.h"
 #include "guest_call.h"
-#include "spyro1/core/runtime/field_scheduler.h"
+#include "core/field_owner.h"
+#include "spyro1/core/frame/guest_update_budget.h"
+#include "spyro1/core/frame/skip_map.h"
 
 #include <cstdlib>
 #include <lucent/log.h>
@@ -11,12 +14,14 @@
 namespace spyro1 {
 namespace {
 
+using spyro1::guest::kCopyWords;
+using spyro1::guest::kFill;
+
 constexpr std::uint32_t kBootStackBytes = 72u;
 constexpr std::uint32_t kRect24 = 24u;
 constexpr std::uint32_t kRect32 = 32u;
 constexpr std::uint32_t kLogoBytes = 0x5A000u;
 constexpr std::uint32_t kLogoHoldFields = 0xD2u;
-constexpr std::uint64_t kBootCallBudgetCycles = 33'868'800ull * 4ull;
 
 void call(Core &core,
           std::uint32_t address,
@@ -28,7 +33,7 @@ void call(Core &core,
       core,
       address,
       std::array<std::uint32_t, 4>{a0, a1, a2, a3},
-      psx::cpu::ExecutionBudget::fromCycles(kBootCallBudgetCycles),
+      psx::cpu::ExecutionBudget::fromCycles(kGuestUpdateCycles),
       "boot-native");
 }
 
@@ -46,7 +51,7 @@ void writeRect(Core &core,
 
 } // namespace
 
-BootSequence::BootSequence(FieldScheduler &fields) : fields_(fields) {}
+BootSequence::BootSequence(spyro::FieldOwner &fields, SkipMap &skipMap) : fields_(fields), skipMap_(skipMap) {}
 
 void BootSequence::initialize(Core &core) {
   if (initialized_) {
@@ -56,7 +61,7 @@ void BootSequence::initialize(Core &core) {
   initialized_ = true;
   originalStack_ = core.r[29];
   core.r[29] -= kBootStackBytes;
-  fields_.bootSequenceBegin();
+  skipMap_.bootSequenceBegin();
 
   call(core, 0x800122A8u);
   call(core, 0x80012460u);
@@ -73,7 +78,7 @@ void BootSequence::initialize(Core &core) {
   call(core, 0x8005F6C8u, 0u);
   core.mem_w8(0x80076F4Du, 1u);
   core.mem_w8(0x80076FD1u, 1u);
-  call(core, 0x80016914u, core.mem_r32(0x800785D8u), 0u, kLogoBytes);
+  call(core, kFill, core.mem_r32(0x800785D8u), 0u, kLogoBytes);
   lucent::info(
       "boot-native", "native boot 0x800127C0/0x8001286C initialized at field {}", firstHoldStart_);
 }
@@ -84,7 +89,7 @@ bool BootSequence::complete() const {
 
 void BootSequence::deliverField(Core &core, const char *site) {
   if (!fields_.deliver({.site = site, .present = true, .pace = true})) {
-    lucent::error("boot-native", "field scheduler refused boot field at {}", site);
+    lucent::error("boot-native", "field owner refused boot field at {}", site);
     std::abort();
   }
 }
@@ -111,7 +116,7 @@ void BootSequence::loadAssets(Core &core) {
        core.mem_r32(0x800113A0u),
        0x800u,
        core.mem_r32(0x8007A6E8u));
-  call(core, 0x80016958u, 0x80076C00u, core.mem_r32(0x800113A0u), 0x1D0u);
+  call(core, kCopyWords, 0x80076C00u, core.mem_r32(0x800113A0u), 0x1D0u);
   assetBase_ = 0x801C0000u - core.mem_r32(0x800755A4u);
   call(core,
        0x80016500u,
@@ -155,31 +160,28 @@ void BootSequence::finalize(Core &core) {
   call(core, 0x8002D338u);
   core.mem_w32(0x80075918u, 0xFu);
   call(core, 0x8002D170u);
-  core.mem_w32(spyro::guest::kDeltaTime, 2u);
-  core.mem_w32(spyro::guest::kUnprocessedFrames, 0u);
+  core.mem_w32(spyro1::guest::kDeltaTime, 2u);
+  core.mem_w32(spyro1::guest::kUnprocessedFrames, 0u);
   core.mem_w32(0x800785CCu, 0x8000u);
-  fields_.bootSequenceEnd();
+  skipMap_.bootSequenceEnd();
   core.r[29] = originalStack_;
   fields_.armHostClock();
   lucent::info("boot-native", "native boot reached the gameplay frame boundary");
 }
 
 void BootSequence::leaveFirstPresentationHold(Core &core) {
-  // This is the same cleanup and fade route the natural hold expiry takes. The hold starts only
-  // after the synchronous boot assets have loaded, so a Start/Cross edge cannot bypass loading.
-  call(core, 0x80016914u, core.mem_r32(0x800785D8u), 0u, kLogoBytes);
+  // The natural expiry's route; the hold starts after the boot assets load, so no press skips loading.
+  call(core, kFill, core.mem_r32(0x800785D8u), 0u, kLogoBytes);
   phase_ = Phase::FadeFirstOut;
 }
 
 void BootSequence::leaveSecondPresentationHold() {
-  // The second hold begins only after the binary's phase-3-to-10 loader has completed. Its normal
-  // exit goes directly to the existing fade-out state.
+  // The second hold starts after the stage 3->10 loader completes.
   phase_ = Phase::FadeSecondOut;
 }
 
 void BootSequence::observePress() {
-  // The last two fades and the finalisation are past every hold, so a press there has nothing left
-  // to end and is not carried.
+  // Past every hold, a press has nothing left to end.
   if (phase_ == Phase::FadeSecondOut || phase_ == Phase::Finalize || phase_ == Phase::Complete) {
     return;
   }
@@ -192,13 +194,10 @@ bool BootSequence::step(Core &core) {
     std::abort();
   }
 
-  // Every step follows exactly one delivered field, so the edge is read once per field here and the
-  // hold phases consume the latch rather than re-reading the live edge.
+  // One step per delivered field, so the edge is read once per field.
   observePress();
 
-  // A FrameDriver step is one presented product frame. The retail boot has zero-field transition
-  // work between its visible fields (asset loads and final setup); fold those transitions into the
-  // adjacent step instead of returning them as fake frames or inventing an extra presentation.
+  // Zero-field transitions fold into the adjacent step rather than becoming frames of their own.
   for (;;) {
     switch (phase_) {
     case Phase::FadeFirstIn:
@@ -232,7 +231,7 @@ bool BootSequence::step(Core &core) {
       if (++iteration_ == 8) {
         iteration_ = 0;
         secondHoldStart_ = static_cast<std::uint32_t>(fields_.counter());
-        call(core, 0x80016914u, logoDestination_, 0u, kLogoBytes);
+        call(core, kFill, logoDestination_, 0u, kLogoBytes);
         phase_ = Phase::FadeSecondIn;
       }
       return false;
@@ -240,14 +239,14 @@ bool BootSequence::step(Core &core) {
       drawLogoField(core, logoSource_, logoDestination_, -0xE0 + iteration_ * 0x20);
       if (++iteration_ == 8) {
         iteration_ = 0;
-        core.mem_w32(spyro::guest::kLoadStage, 3u);
+        core.mem_w32(spyro1::guest::kLoadStage, 3u);
         core.mem_w32(0x8007566Cu, 0u);
         phase_ = Phase::AdvanceLoadState;
       }
       return false;
     case Phase::AdvanceLoadState:
       call(core, 0x80014564u);
-      if (core.mem_r32(spyro::guest::kLoadStage) < 10u) {
+      if (core.mem_r32(spyro1::guest::kLoadStage) < 10u) {
         deliverField(core, "boot-load-state");
         return false;
       }

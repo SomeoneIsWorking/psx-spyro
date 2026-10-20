@@ -1,4 +1,4 @@
-#include "spyro1/core/audio/native_spu_registers.h"
+#include "spyro1/core/audio/spu_library.h"
 
 #include "core/native_execution.h"
 
@@ -7,15 +7,6 @@
 namespace spyro1::native {
 namespace {
 
-// D_80073554: the base the guest indexes the SPU register file from. The retail data image
-// initialises it to 0x1F801C00 — voice 0's left volume — and the library never rewrites it, so the
-// halfword index a caller passes selects a register out of the I/O map rather than out of main RAM.
-constexpr std::uint32_t kSpuRegisterFile = 0x80073554u;
-// D_8007357C: the register-field scale, 3 in the shipped data image. The library takes an 8-bit
-// guest quantity and stores the 5-bit field the hardware register holds, and its reader
-// (0x8005C62C) scales back the other way with `sllv`, so this word is the only scale the body
-// needs.
-constexpr std::uint32_t kSpuRegisterFieldShift = 0x8007357Cu;
 // `srlv` uses the low five bits of its shift register and ignores the rest.
 constexpr std::uint32_t kShiftCountMask = 0x1Fu;
 
@@ -32,12 +23,12 @@ void spuWriteRegisterHalfword(Core *c) {
   const std::uint32_t index = c->r[4];
   const std::uint32_t value = c->r[5];
   const bool scaleToField = c->r[6] != 0u;
-  const std::uint32_t base = c->mem_r32(kSpuRegisterFile);
+  const std::uint32_t base = c->mem_r32(libspu::kSpuRegisterBase);
   const std::uint32_t address = base + (index << 1);
   std::uint32_t stored = value;
   std::uint32_t exitV1 = base;
   if (scaleToField) {
-    stored = value >> (c->mem_r32(kSpuRegisterFieldShift) & kShiftCountMask);
+    stored = value >> (c->mem_r32(libspu::kSpuFieldShift) & kShiftCountMask);
     exitV1 = stored;
   }
   c->r[2] = address;

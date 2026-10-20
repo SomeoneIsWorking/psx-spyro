@@ -1,7 +1,7 @@
 #include "spyro1/render/sprite_queue.h"
 
 #include "core.h"
-#include "core/guest_globals.h"
+#include "spyro1/core/guest_globals.h"
 #include "gte_registers.h"
 #include "lucent/log.h"
 #include "render/field/guest_moby_rotation.h"
@@ -221,7 +221,7 @@ std::optional<SpriteQueue::Centre> SpriteQueue::placeInWorld(const Placement &pl
   if (frustum::outsideHorizontal(view, kMargins, view_.slope)) {
     return std::nullopt;
   }
-  mesh_ = memory_.r32(spyro::guest::kModelSoundTables + meshIndex * 4);
+  mesh_ = memory_.r32(spyro1::guest::kModels + meshIndex * 4);
   // 80022C38: the record is written to the cursor whenever the flag is set; only a near one
   // keeps it.
   if (asSigned(shadowFlag) < 0) {
@@ -278,7 +278,7 @@ SpriteQueue::Centre SpriteQueue::placeOnScreen(const Placement &placement, std::
   edge_ = 0;
   const std::uint32_t meshIndex = memory_.r16(record + moby::kMesh);
   angles_ = memory_.r32(record + moby::kRotation);
-  mesh_ = memory_.r32(spyro::guest::kModelSoundTables + meshIndex * 4);
+  mesh_ = memory_.r32(spyro1::guest::kModels + meshIndex * 4);
   rotation_ = kScreenRotation;
   for (std::uint32_t i = 0; i < gte::kRotationWords; ++i) {
     core_.gte().writeControl(gte::kRotation + i, rotation_[i]);

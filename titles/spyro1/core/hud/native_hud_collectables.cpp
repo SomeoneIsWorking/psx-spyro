@@ -1,4 +1,5 @@
 #include "spyro1/core/hud/native_hud_collectables.h"
+#include "spyro1/core/guest_globals.h"
 
 #include "core/native_execution.h"
 #include "guest_call.h"
@@ -7,6 +8,10 @@
 
 namespace spyro1::native {
 namespace {
+
+using spyro1::guest::kCosTable;
+using spyro1::guest::kDeltaTime;
+using spyro1::guest::kSinTable;
 
 // g_Hud and the five collectible machines packed at its head. The guest reaches every machine's
 // sub-state byte and counter through a negative offset from that machine's own state byte, so the
@@ -42,7 +47,6 @@ constexpr std::uint32_t kSpriteRect = kHud + 0x4C4u;
 // The guest forms the rectangle's source table as the orb count's own address plus 0x388.
 constexpr std::uint32_t kSpriteValues = kLifeOrbCount + 0x388u;
 
-constexpr std::uint32_t kDeltaTime = 0x800756CCu;
 constexpr std::uint32_t kLevelIndex = 0x80075964u;
 constexpr std::uint32_t kLevelGemCount = 0x80077420u;
 constexpr std::uint32_t kLevelTarget = 0x80075810u;
@@ -50,8 +54,6 @@ constexpr std::uint32_t kTreasureTotal = 0x80075830u;
 constexpr std::uint32_t kWaitCounter = 0x8007582Cu;
 constexpr std::uint32_t kWaitTimer = 0x800758E8u;
 constexpr std::uint32_t kRuntimeEntry = 0x800758E4u;
-constexpr std::uint32_t kCosine = 0x8006CC78u;
-constexpr std::uint32_t kSine = 0x8006CBF8u;
 constexpr std::uint32_t kSparkIds = 0x8006E77Cu;
 constexpr std::uint32_t kFadeIds = 0x8006E798u;
 constexpr std::uint32_t kSpriteValueBytes = 0x8006E7B4u;
@@ -165,7 +167,7 @@ void stepSparkTimerAndEggPhase(Hud &hud) {
   const std::int32_t high = static_cast<std::int32_t>(c->hi);
   const std::int32_t quotient = (high >> 1) - (static_cast<std::int32_t>(phase) >> 31);
   c->mem_w32(kEggPhase, phase - static_cast<std::uint32_t>(quotient) * 9u);
-  const std::uint32_t cosine = c->mem_r16(kCosine + timer * 2u);
+  const std::uint32_t cosine = c->mem_r16(kCosTable + timer * 2u);
   c->mem_w8(kSparkTimerByte, static_cast<std::uint8_t>(timer));
   c->mem_w8(kSparkShadeByte,
             static_cast<std::uint8_t>(static_cast<std::int32_t>(cosine << 16) >> 25));
@@ -222,9 +224,9 @@ void stepGemDisplay(Hud &hud) {
     // 0x80054A7C formed. The id lookup that follows indexes the sub this frame read.
     c->mem_w8(kGemSubState, sub + 1u);
     installSavedRegisters(hud);
-    spyro::callGuestJumpedFrom(*c,
+    psx::cpu::callGuestNow(*c,
                                "update_hud_collectables",
-                               {.jal = kGemPlayJal, .target = kPlayId},
+                               psx::cpu::GuestCallSite::fromJal(kGemPlayJal, kPlayId),
                                0u,
                                5u,
                                sparkId(c, sub),
@@ -266,17 +268,17 @@ void stepGemDisplay(Hud &hud) {
     hud.s0 = kTally;
     hud.a3 = 0u;
     installSavedRegisters(hud);
-    spyro::callGuestJumpedFrom(*c,
+    psx::cpu::callGuestNow(*c,
                                "update_hud_collectables",
-                               {.jal = kGemStepJal, .target = kStepCounter},
+                               psx::cpu::GuestCallSite::fromJal(kGemStepJal, kStepCounter),
                                0u,
                                4u,
                                c->mem_r32(kTally) + 1u,
                                hud.a3);
     takeLeftoverArgument(hud);
-    spyro::callGuestJumpedFrom(*c,
+    psx::cpu::callGuestNow(*c,
                                "update_hud_collectables",
-                               {.jal = kGemSetJal, .target = kSetSubState},
+                               psx::cpu::GuestCallSite::fromJal(kGemSetJal, kSetSubState),
                                0u,
                                4u,
                                c->mem_r8(kGemSubState),
@@ -320,9 +322,9 @@ void stepGemDisplay(Hud &hud) {
     // 0x80054D04 and the index the lookup forms at 0x80054D08 are both sub-1.
     c->mem_w8(kGemSubState, sub - 1u);
     installSavedRegisters(hud);
-    spyro::callGuestJumpedFrom(*c,
+    psx::cpu::callGuestNow(*c,
                                "update_hud_collectables",
-                               {.jal = kGemPlayJal, .target = kPlayId},
+                               psx::cpu::GuestCallSite::fromJal(kGemPlayJal, kPlayId),
                                0u,
                                5u,
                                fadeId(c, sub - 1u),
@@ -354,7 +356,7 @@ void stepDragonDisplay(Hud &hud) {
   const std::uint32_t stamp = c->mem_r8(kStampCounter) + 8u;
   c->mem_w8(kStampCounter, static_cast<std::uint8_t>(stamp));
   c->mem_w8(kStampShade,
-            static_cast<std::uint8_t>(c->mem_r16(kCosine + (stamp & 0xFFu) * 2u) >> 8));
+            static_cast<std::uint8_t>(c->mem_r16(kCosTable + (stamp & 0xFFu) * 2u) >> 8));
   const std::uint32_t state = c->mem_r8(kDragonDisplay);
   if (state == 1u) {
     const std::uint32_t sub = c->mem_r8(kDragonSubState);
@@ -366,9 +368,9 @@ void stepDragonDisplay(Hud &hud) {
     }
     c->mem_w8(kDragonSubState, sub + 1u);
     installSavedRegisters(hud);
-    spyro::callGuestJumpedFrom(*c,
+    psx::cpu::callGuestNow(*c,
                                "update_hud_collectables",
-                               {.jal = kDragonPlayJal, .target = kPlayId},
+                               psx::cpu::GuestCallSite::fromJal(kDragonPlayJal, kPlayId),
                                5u,
                                3u,
                                sparkId(c, sub),
@@ -396,9 +398,9 @@ void stepDragonDisplay(Hud &hud) {
   }
   c->mem_w8(kDragonSubState, sub - 1u);
   installSavedRegisters(hud);
-  spyro::callGuestJumpedFrom(*c,
+  psx::cpu::callGuestNow(*c,
                              "update_hud_collectables",
-                             {.jal = kDragonPlayJal, .target = kPlayId},
+                             psx::cpu::GuestCallSite::fromJal(kDragonPlayJal, kPlayId),
                              5u,
                              3u,
                              fadeId(c, sub - 1u),
@@ -415,17 +417,17 @@ void stepLifeIndex(Hud &hud) {
   c->mem_w32(kLifeCounter, 0u);
   c->mem_w8(kLifeSubState, c->mem_r8(kLifeSubState) - 0x10u);
   installSavedRegisters(hud);
-  spyro::callGuestJumpedFrom(*c,
+  psx::cpu::callGuestNow(*c,
                              "update_hud_collectables",
-                             {.jal = kLifeStepJal, .target = kStepCounter},
+                             psx::cpu::GuestCallSite::fromJal(kLifeStepJal, kStepCounter),
                              8u,
                              2u,
                              c->mem_r32(kLifeIndex) + 1u,
                              hud.a3);
   takeLeftoverArgument(hud);
-  spyro::callGuestJumpedFrom(*c,
+  psx::cpu::callGuestNow(*c,
                              "update_hud_collectables",
-                             {.jal = kLifeSetJal, .target = kSetSubState},
+                             psx::cpu::GuestCallSite::fromJal(kLifeSetJal, kSetSubState),
                              8u,
                              2u,
                              c->mem_r8(kLifeSubState),
@@ -466,9 +468,9 @@ void stepLifeDisplay(Hud &hud) {
     }
     c->mem_w8(kLifeSubState, sub + 1u);
     installSavedRegisters(hud);
-    spyro::callGuestJumpedFrom(*c,
+    psx::cpu::callGuestNow(*c,
                                "update_hud_collectables",
-                               {.jal = kLifePlayJal, .target = kPlayId},
+                               psx::cpu::GuestCallSite::fromJal(kLifePlayJal, kPlayId),
                                8u,
                                3u,
                                sparkId(c, sub),
@@ -511,9 +513,9 @@ void stepLifeDisplay(Hud &hud) {
   }
   c->mem_w8(kLifeSubState, sub - 1u);
   installSavedRegisters(hud);
-  spyro::callGuestJumpedFrom(*c,
+  psx::cpu::callGuestNow(*c,
                              "update_hud_collectables",
-                             {.jal = kLifePlayJal, .target = kPlayId},
+                             psx::cpu::GuestCallSite::fromJal(kLifePlayJal, kPlayId),
                              8u,
                              3u,
                              fadeId(c, sub - 1u),
@@ -630,9 +632,9 @@ void stepEggDisplay(Hud &hud) {
     }
     c->mem_w8(kEggSubState, sub + 1u);
     installSavedRegisters(hud);
-    spyro::callGuestJumpedFrom(*c,
+    psx::cpu::callGuestNow(*c,
                                "update_hud_collectables",
-                               {.jal = kEggFadeJal, .target = kFadeId},
+                               psx::cpu::GuestCallSite::fromJal(kEggFadeJal, kFadeId),
                                0u,
                                0xCu,
                                0u - sparkId(c, sub),
@@ -658,9 +660,9 @@ void stepEggDisplay(Hud &hud) {
   }
   c->mem_w8(kEggSubState, sub - 1u);
   installSavedRegisters(hud);
-  spyro::callGuestJumpedFrom(*c,
+  psx::cpu::callGuestNow(*c,
                              "update_hud_collectables",
-                             {.jal = kEggFadeJal, .target = kFadeId},
+                             psx::cpu::GuestCallSite::fromJal(kEggFadeJal, kFadeId),
                              0u,
                              0xCu,
                              0u - fadeId(c, sub - 1u),
@@ -758,9 +760,9 @@ void stepKeyDisplay(Hud &hud) {
     }
     c->mem_w8(kKeySubState, sub + 1u);
     installSavedRegisters(hud);
-    spyro::callGuestJumpedFrom(*c,
+    psx::cpu::callGuestNow(*c,
                                "update_hud_collectables",
-                               {.jal = kKeyPlayJal, .target = kPlayId},
+                               psx::cpu::GuestCallSite::fromJal(kKeyPlayJal, kPlayId),
                                0xBu,
                                1u,
                                0u - sparkId(c, sub),
@@ -787,9 +789,9 @@ void stepKeyDisplay(Hud &hud) {
   }
   c->mem_w8(kKeySubState, sub - 1u);
   installSavedRegisters(hud);
-  spyro::callGuestJumpedFrom(*c,
+  psx::cpu::callGuestNow(*c,
                              "update_hud_collectables",
-                             {.jal = kKeyPlayJal, .target = kPlayId},
+                             psx::cpu::GuestCallSite::fromJal(kKeyPlayJal, kPlayId),
                              0xBu,
                              1u,
                              0u - fadeId(c, sub - 1u),
@@ -807,8 +809,8 @@ void advanceFrameStamp(Hud &hud) {
   const std::uint32_t stamp = c->mem_r8(kTailCounter) + 4u;
   c->mem_w8(kTailCounter, static_cast<std::uint8_t>(stamp));
   const std::uint32_t index = (stamp & 0xFFu) * 2u;
-  c->mem_w8(kTailCosine, static_cast<std::uint8_t>(c->mem_r16(kCosine + index) >> 7));
-  c->mem_w8(kTailSine, static_cast<std::uint8_t>(c->mem_r16(kSine + index) >> 7));
+  c->mem_w8(kTailCosine, static_cast<std::uint8_t>(c->mem_r16(kCosTable + index) >> 7));
+  c->mem_w8(kTailSine, static_cast<std::uint8_t>(c->mem_r16(kSinTable + index) >> 7));
   const std::uint32_t timer = c->mem_r32(kWaitTimer);
   c->r[3] = timer;
   if (static_cast<std::int32_t>(timer) < 0x14) {

@@ -1,6 +1,6 @@
 #include "spyro1/core/moby/native_moby_collision.h"
 
-#include "core/guest_globals.h"
+#include "spyro1/core/guest_globals.h"
 #include "core/native_execution.h"
 #include "game.h"
 
@@ -11,11 +11,12 @@
 namespace spyro1::native {
 namespace {
 
-// kModelSoundTables is the shape table the moby shape walks (`lui 0x8007 ; addiu 0x6378`);
+// kModels is the shape table the moby shape walks (`lui 0x8007 ; addiu 0x6378`);
 // kRegisterSpillArea is the save area this body and func_8004AE38 spill their callee-saved
 // registers into.
-using spyro::guest::kModelSoundTables;
-using spyro::guest::kRegisterSpillArea;
+using spyro1::guest::kModels;
+using spyro1::guest::kMobyCollisionChain;
+using spyro1::guest::kRegisterSpillArea;
 
 // The GTE register numbers this body touches, from external/spyro-1's own asm/c2regs.inc.
 constexpr std::uint32_t kGteVxy0 = 0u;
@@ -45,7 +46,6 @@ constexpr std::uint32_t kGteGpf = 0x4B90003Du;
 
 // g_MobyCollisionChain: the cell table the candidate list indexes with the position's 13-bit cell
 // coordinates (`lui 0x8007 ; addiu 0x5778`).
-constexpr std::uint32_t kMobyCollisionChain = 0x80075778u;
 // The candidate list the body assembles in scratch expansion RAM before walking it.
 constexpr std::uint32_t kCandidateList = 0x1F800000u;
 // The cell-edge bit that decides whether the neighbouring cells join the candidate list, and the
@@ -242,7 +242,7 @@ ShapeOutcome testMobyShape(Core *c, const Walker &w, const ShapeCursor &at, cons
   c->gte().writeControl(kGteTransX, 0u);
   c->gte().writeControl(kGteTransY, 0u);
   c->gte().writeControl(kGteTransZ, 0u);
-  const std::uint32_t model = c->mem_r32(kModelSoundTables + (c->mem_r16(record + 0x36u) * 4u));
+  const std::uint32_t model = c->mem_r32(kModels + (c->mem_r16(record + 0x36u) * 4u));
   const std::uint32_t shapes = model + (c->mem_r8(record + 0x3Cu) * 4u);
   const std::uint32_t node = c->mem_r32(shapes + 0x38u);
   const std::uint32_t bounds = node + (c->mem_r8(record + 0x3Eu) * 8u);
@@ -335,7 +335,7 @@ void resolveOutOfShape(Walker &w, std::uint32_t record, const ShapeOutcome &outc
                                                  (0x18 - static_cast<std::uint32_t>(leading)))
                     : quotient << (static_cast<std::uint32_t>(below) & 31u);
       const std::uint32_t entry =
-          c->mem_r16s(spyro::guest::kMagnitudeTable + ((tableOffset - 0x40u) << 1));
+          c->mem_r16s(spyro1::guest::kMagnitudeTable + ((tableOffset - 0x40u) << 1));
       reach = (entry << (static_cast<std::uint32_t>(halfShift) & 31u)) >> 12;
     }
     target = reach + 1u;
@@ -607,9 +607,37 @@ void mobyCollisionWalk(Core *c) {
   c->r[3] = w.v1;
 }
 
+
+// The moby fields this body touches, at the offsets the measured MOBY_FIELDS list records for
+// asm/42CC4.s. The two flag bytes are cleared here but are named by
+// nothing this repository has measured — that list names +0x40 and +0x42 and stops there — so they
+// carry their offset instead of a field name this port has not established.
+constexpr std::uint32_t kMobyCollisionGroup = 0x08u;
+constexpr std::uint32_t kMobyCollisionRegion = 0x34u;
+constexpr std::uint32_t kMobyFlagByteAt41 = 0x41u;
+constexpr std::uint32_t kMobyFlagByteAt4B = 0x4bu;
+constexpr std::uint32_t kNoCollisionRegion = 0xffffu;
+
+// ── 0x800529CC — put a moby in the "collides with nothing yet" state: the collision group word at
+//     +0x08 to zero, the collision region halfword at +0x34 to 0xFFFF, and the flag bytes at +0x41
+//     and +0x4B cleared. Both callers run it on a moby that has just been allocated and before its
+//     spawn position is copied in — the `jal` at 0x80054658, whose delay slot `move $a0,$s3` is
+//     what supplies the moby, and the `jal` at 0x800141B4 — so a0 is the only input. The halfword
+//     store is the `jr $ra` delay slot and its value is the `addi $at,$zero,-1` before it, so $at
+//     exits holding 0xFFFFFFFF; v0 and v1 are never written and carry in from the caller.
+void clearMobyCollisionState(Core *c) {
+  const std::uint32_t moby = c->r[4];
+  c->mem_w8(moby + kMobyFlagByteAt4B, 0);
+  c->mem_w8(moby + kMobyFlagByteAt41, 0);
+  c->mem_w32(moby + kMobyCollisionGroup, 0);
+  c->r[1] = 0xffffffffu; // at — the immediate the delay slot's halfword store consumes
+  c->mem_w16(moby + kMobyCollisionRegion, static_cast<std::uint16_t>(kNoCollisionRegion));
+}
+
 } // namespace
 
 void registerMobyCollisionOverrides(Core &core) {
+  psx::cpu::installNativeOverride(core, 0x800529CCu, "clear_moby_collision_state", clearMobyCollisionState);
   psx::cpu::installNativeOverride(core, 0x8004E3C8u, "moby_collision_walk", mobyCollisionWalk);
 }
 

@@ -1,4 +1,5 @@
 #include "spyro1/core/effect/native_particle_alloc.h"
+#include "spyro1/core/guest_functions.h"
 
 #include "core/native_execution.h"
 
@@ -7,6 +8,8 @@
 namespace spyro1::native {
 
 namespace {
+
+using spyro1::guest::kRand;
 
 constexpr std::uint32_t kParticlePool = 0x80075824u;
 constexpr std::uint32_t kPoolCursor = 0x80075738u;
@@ -21,8 +24,7 @@ constexpr std::uint32_t kGroupFirstSlot = 0x44u;
 constexpr std::uint32_t kUnsetExtent = 0x7F7F7F7Fu;
 // Sony's rand(), the standard LCG game/core/native_rand.cpp owns, reached by the `jal` at
 // 0x80053598 in the full-allocation arm.
-constexpr std::uint32_t kSonyRand = 0x8006272Cu;
-constexpr std::uint32_t kSonyRandJal = 0x80053598u;
+constexpr std::uint32_t kRandJal = 0x80053598u;
 
 // 0x80053570 — stamp a0's low byte as the type of the next free slot in the 256-slot particle pool
 // and leave g_ParticleAllocPtr on it. Two things are not what the shape suggests. The scan's
@@ -42,9 +44,9 @@ void allocateParticleSlot(Core *c) {
   c->r[2] = cursor;
   c->r[1] = kPoolCursor;
   if (cursor == limit) {
-    spyro::callGuestJumpedFrom(*c,
+    psx::cpu::callGuestNow(*c,
                                "allocate_particle_slot",
-                               {.jal = kSonyRandJal, .target = kSonyRand},
+                               psx::cpu::GuestCallSite::fromJal(kRandJal, kRand),
                                kind,
                                limit,
                                kind);

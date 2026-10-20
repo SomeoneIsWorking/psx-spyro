@@ -211,3 +211,9 @@ The record/replay session is inert with no record or replay path configured
 The two title routes were re-measured on the blank `drive.ROUTE_CARD` after this change, and both
 match what docs/issues/0169 recorded for a blank card (3340 and 4890), which is the point: the pad
 work moved nothing in the routes that carry no recording.
+
+## Why the key is gamestate and level only (moved from `input_phase.h`)
+
+The key packs `g_Gamestate` with `g_LevelId`. A finer key would separate the title-screen menu's
+screens, but `g_TitlescreenState` carries two free-running tick counters beside its mode and state,
+and a key that includes a counter re-keys every frame.

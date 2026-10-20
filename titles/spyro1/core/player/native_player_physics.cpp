@@ -1,6 +1,7 @@
 #include "spyro1/core/player/native_player_physics.h"
+#include "spyro1/core/guest_functions.h"
 
-#include "core/guest_globals.h"
+#include "spyro1/core/guest_globals.h"
 #include "core/native_execution.h"
 #include "guest_call.h"
 
@@ -10,11 +11,18 @@ namespace spyro1::native {
 
 namespace {
 
-using spyro::guest::kCosTable;
-using spyro::guest::kPlayerControlFlags;
-using spyro::guest::kPlayerState;
-using spyro::guest::kSinTable;
-using spyro::guest::kSpyro;
+using spyro1::guest::kCopy3;
+using spyro1::guest::kVadd;
+using spyro1::guest::kVsra;
+using spyro1::guest::kZero3;
+
+using spyro1::guest::kCosTable;
+using spyro1::guest::kDeltaTime;
+using spyro1::guest::kPad;
+using spyro1::guest::kPlayerControlFlags;
+using spyro1::guest::kPlayerState;
+using spyro1::guest::kSinTable;
+using spyro1::guest::kSpyro;
 
 // g_Spyro's own fields this module reads and writes: the previous position, the physics velocity
 // and the two acceleration axes, plus the three 12-bit rotation channels the level entry packs.
@@ -50,15 +58,10 @@ constexpr std::uint32_t kProbeAngleStep = 0x40u;
 constexpr std::uint32_t kNearProbeDepth = 0xFFFFFEDCu; // addiu v0, zero, -0x124
 constexpr std::uint32_t kFarProbeDepth = 0xFFFFFE5Cu;  // addiu v0, zero, -0x1A4
 
-// What the level entry writes outside g_Spyro: one flag it clears, the pair of object-list heads it
-// resets twice, the object count its three passes iterate, the state words it primes, and the word
-// immediately after m_State that it arms. The count and the flag are displacements off the `lui
-// 0x8007` word the body loads them through, so they are written as that word plus the offset.
+// What the level entry writes outside g_Spyro; its passes iterate g_DeltaTime times.
 constexpr std::uint32_t kLui7Word = 0x80070000u;
 constexpr std::uint32_t kLevelEntryFlag = kLui7Word + 0x5944u;   // 0x80075944
-constexpr std::uint32_t kObjectListA = kLui7Word + 0x7378u;      // 0x80077378
 constexpr std::uint32_t kObjectListB = kLui7Word + 0x76D8u;      // 0x800776D8
-constexpr std::uint32_t kLevelObjectCount = kLui7Word + 0x56CCu; // 0x800756CC
 constexpr std::uint32_t kPlayerStateSecondary = kPlayerState + 4u;
 constexpr std::uint32_t kPlayerStatePrimed = kSpyro + 0x1F0u;
 constexpr std::uint32_t kStateAfterLevelEntry = 15u;
@@ -69,10 +72,6 @@ constexpr std::uint32_t kVectorFillWords = 6u;
 // is a code address, so it is the 26-bit field of that instruction rather than a `lui`+immediate
 // pair, and an address audit re-derives it from the `jal` itself. The targets are named
 // for the role each plays in the body that calls it.
-constexpr std::uint32_t kAddVectors = 0x80017758u; // `jal` at 0x8003E99C, 0x8003E9AC and 0x8004A8C8
-constexpr std::uint32_t kCopyVector = 0x80017700u; // `jal` at 0x8004A8B8
-constexpr std::uint32_t kFillVector = 0x800176C8u; // `jal` at 0x8004A8A8
-constexpr std::uint32_t kClearVector = 0x800176F0u;      // `jal` at 0x8004A860
 constexpr std::uint32_t kMatrixFromAngles = 0x80016D2Cu; // `jal` at 0x8004A9A8 and 0x8004A9BC
 constexpr std::uint32_t kMultiplyMatrices = 0x800623D8u; // `jal` at 0x8004A9CC
 constexpr std::uint32_t kSegmentHitsWorld = 0x8004AE38u; // `jal` at 0x8003E9C0
@@ -215,8 +214,8 @@ void steerTowardSupportedGround(Core *c) {
     c->mem_w32(far + 0u, x);
     c->mem_w32(far + 4u, y);
     c->mem_w32(far + 8u, kFarProbeDepth);
-    psx::cpu::callGuestNow(*c, kSteerOwner, kAddVectors, near, near, kSpyro, c->r[7]);
-    psx::cpu::callGuestNow(*c, kSteerOwner, kAddVectors, far, far, kSpyro, c->r[7]);
+    psx::cpu::callGuestNow(*c, kSteerOwner, kVadd, near, near, kSpyro, c->r[7]);
+    psx::cpu::callGuestNow(*c, kSteerOwner, kVadd, far, far, kSpyro, c->r[7]);
     setSegmentCallRegisters(*c,
                             SegmentCallRegisters{kProbeAngle + probe * kProbeAngleStep,
                                                  probe,
@@ -267,7 +266,7 @@ void steerTowardSupportedGround(Core *c) {
 void initialiseLevelState(Core *c) {
   c->mem_w8(kLevelEntryFlag, 0u);
   psx::cpu::callGuestNow(
-      *c, kLevelEntryOwner, kResetObjectLists, kObjectListA, kObjectListB, c->r[6], c->r[7]);
+      *c, kLevelEntryOwner, kResetObjectLists, kPad, kObjectListB, c->r[6], c->r[7]);
 
   if (c->mem_r32(kPlayerState) != kStateAfterLevelEntry) {
     psx::cpu::callGuestNow(
@@ -280,26 +279,26 @@ void initialiseLevelState(Core *c) {
   }
 
   psx::cpu::callGuestNow(
-      *c, kLevelEntryOwner, kClearVector, kPlayerVelocity, c->r[5], c->r[6], c->r[7]);
+      *c, kLevelEntryOwner, kZero3, kPlayerVelocity, c->r[5], c->r[6], c->r[7]);
 
-  for (std::uint32_t object = 0; object < c->mem_r32(kLevelObjectCount); ++object) {
+  for (std::uint32_t object = 0; object < c->mem_r32(kDeltaTime); ++object) {
     psx::cpu::callGuestNow(
         *c, kLevelEntryOwner, kInitLevelObject, object, c->r[5], c->r[6], c->r[7]);
   }
 
   psx::cpu::callGuestNow(
-      *c, kLevelEntryOwner, kFillVector, kPlayerVelocity, kVectorFillWords, c->r[6], c->r[7]);
+      *c, kLevelEntryOwner, kVsra, kPlayerVelocity, kVectorFillWords, c->r[6], c->r[7]);
   psx::cpu::callGuestNow(
-      *c, kLevelEntryOwner, kCopyVector, kPlayerPreviousPosition, kSpyro, c->r[6], c->r[7]);
+      *c, kLevelEntryOwner, kCopy3, kPlayerPreviousPosition, kSpyro, c->r[6], c->r[7]);
   psx::cpu::callGuestNow(
-      *c, kLevelEntryOwner, kAddVectors, kSpyro, kSpyro, kPlayerVelocity, c->r[7]);
+      *c, kLevelEntryOwner, kVadd, kSpyro, kSpyro, kPlayerVelocity, c->r[7]);
 
-  for (std::uint32_t object = 0; object < c->mem_r32(kLevelObjectCount); ++object) {
+  for (std::uint32_t object = 0; object < c->mem_r32(kDeltaTime); ++object) {
     psx::cpu::callGuestNow(
         *c, kLevelEntryOwner, kResetObjectState, c->r[4], c->r[5], c->r[6], c->r[7]);
   }
 
-  for (std::uint32_t object = 0; object < c->mem_r32(kLevelObjectCount); ++object) {
+  for (std::uint32_t object = 0; object < c->mem_r32(kDeltaTime); ++object) {
     psx::cpu::callGuestNow(
         *c, kLevelEntryOwner, kResetObjectMotion, c->r[4], c->r[5], c->r[6], c->r[7]);
     psx::cpu::callGuestNow(
@@ -346,7 +345,7 @@ void initialiseLevelState(Core *c) {
 
   c->mem_w32(kPlayerControlFlags, 0u);
   psx::cpu::callGuestNow(
-      *c, kLevelEntryOwner, kResetObjectLists, kObjectListB, kObjectListA, c->r[6], c->r[7]);
+      *c, kLevelEntryOwner, kResetObjectLists, kObjectListB, kPad, c->r[6], c->r[7]);
 }
 
 } // namespace

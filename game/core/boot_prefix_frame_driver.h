@@ -19,7 +19,6 @@ inline constexpr std::uint64_t kDefaultBootStepLimit = 480;
 
 // Titles whose retail executable IS their boot; each address is measured from that executable.
 struct BootPrefixFacts {
-  const char *titleName = "";
   const char *callName = "";
   std::uint32_t bootPrefix = 0;
   std::uint32_t frameUpdate = 0;
@@ -44,26 +43,6 @@ public:
   // True once the retail boot prefix (logos, publisher cards, loading) has returned.
   [[nodiscard]] bool pastBootPrefix() const override {
     return phase_ == Phase::MainLoop;
-  }
-
-  [[nodiscard]] bool bootComplete() const {
-    return phase_ == Phase::MainLoop;
-  }
-
-  [[nodiscard]] bool bootStalled() const {
-    return bootStalled_;
-  }
-
-  [[nodiscard]] FieldOwner &fields() {
-    return fields_;
-  }
-
-  [[nodiscard]] const FieldOwner &fields() const {
-    return fields_;
-  }
-
-  [[nodiscard]] const BootPrefixFacts &facts() const {
-    return facts_;
   }
 
   [[nodiscard]] const FrameCut &cut() const {
@@ -113,7 +92,5 @@ private:
   std::uint64_t callTurns_ = 0;
   std::uint64_t callCycles_ = 0;
 };
-
-BootPrefixFrameDriver &bootPrefixFrameDriver(Core &core);
 
 } // namespace spyro

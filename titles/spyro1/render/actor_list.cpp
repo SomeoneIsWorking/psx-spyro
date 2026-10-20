@@ -1,7 +1,7 @@
 #include "spyro1/render/actor_list.h"
 
 #include "core.h"
-#include "core/guest_globals.h"
+#include "spyro1/core/guest_globals.h"
 #include "gte_registers.h"
 #include "native_dispatch.h"
 #include "render/field/guest_moby_frustum.h"
@@ -135,7 +135,7 @@ void ListBuilder::visit(std::uint32_t record) {
     return;
   }
 
-  const std::uint32_t mesh = memory_.r32(spyro::guest::kModelSoundTables +
+  const std::uint32_t mesh = memory_.r32(spyro1::guest::kModels +
                                          std::uint32_t{memory_.r16(record + moby::kMesh)} * 4);
   const std::uint32_t frames = memory_.r32(record + moby::kFrames);
   const std::uint32_t frame0 = frame(mesh, frames & 0xFFu);

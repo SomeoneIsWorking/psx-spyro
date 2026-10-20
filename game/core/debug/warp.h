@@ -1,5 +1,7 @@
 #pragma once
 
+#include "command_args.h"
+
 #include <cstdint>
 #include <optional>
 #include <string>
@@ -21,7 +23,7 @@ public:
   Warp &operator=(Warp &&) = delete;
 
   // Parses one `warp <level>` line and arms it; the returned text answers the client.
-  std::string arm(const char *line);
+  std::string arm(const psx::debug::CommandArgs &args);
   // At a frame boundary: starts the armed level once the title screen is idle.
   void applyArmed(Core &core, std::uint32_t frame);
 

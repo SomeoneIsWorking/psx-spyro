@@ -1,4 +1,6 @@
 #include "spyro1/core/execution/native_level_initialization.h"
+#include "spyro1/core/guest_functions.h"
+#include "spyro1/core/guest_globals.h"
 
 #include "core/native_execution.h"
 #include "guest_call.h"
@@ -9,32 +11,22 @@
 namespace spyro1::native {
 namespace {
 
-// Every guest global below is a lui plus an immediate the body at 0x8001277C itself executes, so
-// an address audit decodes each one and refuses the module if any of them is a
-// hand-typed address the retail code never builds.
-constexpr std::uint32_t kLevelId = 0x8007596Cu;
+using spyro1::guest::kInitNewGameState;
+using spyro1::guest::kLevelId;
+
 constexpr std::uint32_t kActEnabled = 0x800757A4u;
 constexpr std::uint32_t kCameraMode = 0x80075914u;
-
-// The guest callee the body calls, named by the `jal` at the call site the comment gives. A callee
-// is the 26-bit field of that instruction rather than a `lui`+immediate pair, and
-// an address audit re-derives it from the `jal` itself.
 constexpr std::uint32_t kResetSavedState = 0x80012604u; // `jal` at 0x800127A8
 
 constexpr std::uint32_t kArtisansLevelId = 0xAu;
 constexpr std::uint32_t kActuatorsOn = 1u;
 constexpr std::uint32_t kPassiveCameraMode = 0x52u;
 
-constexpr std::string_view kOverrideName = "initialise_artisans_level";
+constexpr std::string_view kOverrideName = "init_new_game_state";
 
-// ── 0x8001277C — the Artisan's-level entry: mark level 10 resident, arm the actuators and put the
-//     camera in passive mode, then hand off to the saved-state reset. The three stores go through
-//     the same `lui $at, 0x8007` base the body reloads before each one, so each address is that
-//     base plus its own positive immediate. v0 exits holding the camera mode unless the reset
-//     returns a value of its own, because the body's last write before the call is the `addiu
-//     $v0, $zero, 0x52` the camera-mode store consumes; a0-a3 are passed on as the caller left
-//     them because the body sets up no arguments for the reset.
-void initializeArtisansLevel(Core *c) {
+// Level 10, actuators on, passive camera, then the saved-state reset with the caller's a0-a3; v0
+// leaves holding the camera mode unless the reset returns one.
+void initNewGameState(Core *c) {
   c->mem_w32(kLevelId, kArtisansLevelId);
   c->mem_w32(kActEnabled, kActuatorsOn);
   c->mem_w32(kCameraMode, kPassiveCameraMode);
@@ -45,8 +37,7 @@ void initializeArtisansLevel(Core *c) {
 } // namespace
 
 void registerLevelInitializationOverrides(Core &core) {
-  psx::cpu::installNativeOverride(
-      core, 0x8001277Cu, "initialise_artisans_level", initializeArtisansLevel);
+  psx::cpu::installNativeOverride(core, kInitNewGameState, kOverrideName, initNewGameState);
 }
 
 } // namespace spyro1::native

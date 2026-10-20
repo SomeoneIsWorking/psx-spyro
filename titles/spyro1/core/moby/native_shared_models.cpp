@@ -1,4 +1,6 @@
 #include "spyro1/core/moby/native_shared_models.h"
+#include "spyro1/core/guest_functions.h"
+#include "spyro1/core/guest_globals.h"
 
 #include "core/native_execution.h"
 #include "guest_call.h"
@@ -7,6 +9,10 @@
 
 namespace spyro1::native {
 namespace {
+
+using spyro1::guest::kCopyWords;
+
+using spyro1::guest::kModels;
 
 // g_WadHeader.m_PETE.m_Length and .m_Offset (external/spyro-1/include/wad.h), g_CdState.m_WadSector
 // (cd.h) and _stacksize: each is the `lui` plus immediate pair the retail body builds.
@@ -17,7 +23,6 @@ constexpr std::uint32_t kStackSize = 0x800755A4u;
 // g_Buffers.m_SharedAnimations (buffers.h, the tenth word of the struct) and g_Models[MODEL_COUNT]
 // (moby.h), the two globals the body publishes into.
 constexpr std::uint32_t kSharedAnimations = 0x800785FCu;
-constexpr std::uint32_t kModels = 0x80076378u;
 // The `lui $s1, 0x8020` every pointer is counted down from, and the offset the model block starts
 // at inside the PETE image — the shared animations are relocated to [peteData + 0x800).
 constexpr std::uint32_t kRamTop = 0x80200000u;
@@ -27,7 +32,6 @@ constexpr std::uint32_t kModelCount = 64u;
 
 // The guest helpers the body calls, each the target of a `jal` inside it.
 constexpr std::uint32_t kCdLoadSync = 0x80016500u;             // `jal` at 0x8005B83C
-constexpr std::uint32_t kMemcpy = 0x80016958u;                 // `jal` at 0x8005B868
 constexpr std::uint32_t kPatchMobyModelPointers = 0x800133E0u; // `jal` at 0x8005B890
 constexpr std::uint32_t kAllocateBuffers = 0x8005B6F8u;        // `jal` at 0x8005B8B8
 
@@ -85,7 +89,7 @@ void loadSharedModels(Core *c) {
   const std::uint32_t shared = kRamTop - stackSize - dataSize;
   c->mem_w32(kSharedAnimations, shared);
   psx::cpu::callGuestNow(
-      *c, kLoadSharedModels, kMemcpy, shared, peteData + kModelBlockBase, dataSize);
+      *c, kLoadSharedModels, kCopyWords, shared, peteData + kModelBlockBase, dataSize);
 
   std::uint32_t table = peteData;
   std::uint32_t registered = 0;

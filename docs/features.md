@@ -24,7 +24,7 @@ Title hops only. Each row is where a Spyro title joins a psxport feature hop (`p
 |---|---|---|---|
 | 1 | S1 | psxport F-TURN.2 | `titles/spyro1/core/frame/frame_driver.cpp:spyro1::FrameDriver::stepFrame` — boot sequence, then the retail update, the draw and one present |
 | 2 | S1 | psxport F-TURN.2 | `titles/spyro1/core/frame/frame_draw.cpp:FrameDraw::run` — GamestateDraw `0x8001ED5C` to its return; each `VSync(0)` of its tail is one field |
-| 3 | S1 | psxport F-TURN.2 | `titles/spyro1/core/runtime/field_scheduler.cpp:FieldScheduler::presentFrame` — the drawn frame crosses the fence once |
+| 3 | S1 | psxport F-TURN.2 | `game/core/field_owner.cpp:FieldOwner::presentFrame` — the drawn frame crosses the fence once |
 | 4 | S2, S3 | psxport F-TURN.2 | `game/core/boot_prefix_frame_driver.cpp:BootPrefixFrameDriver::stepFrame` — the retail boot prefix across steps, then update and draw, one presented field per step |
 | 5 | all | title | `game/core/field_owner.cpp:FieldOwner::deliver` — the one delivery sequence of a display field |
 | 6 | all | psxport F-TURN.4 | `game/core/runtime.cpp:spyro::Runtime::reportRun` — depth coverage and the producer census |
@@ -101,4 +101,3 @@ S1's portal bodies and remaining effects have no producer yet; their in-betweens
 |---|---|---|---|
 | 1 | S1 | psxport F-DEBUG.1 | `titles/spyro1/core/runtime/runtime.cpp:spyro1::Runtime::titleCommand` — `gate_debug::command`: `gates`, `gate-teleport` |
 | 2 | S1/S2/S3 | title | `game/core/runtime.cpp:spyro::Runtime::titleCommand` — `warp <level-id>` arms `game/core/debug/warp.cpp:spyro::Warp`; the S1 `FrameDriver` and S2/S3 `BootPrefixFrameDriver` apply it before the update once the title screen is idle, through `titles/spyro1/core/debug/warp.cpp`, `titles/spyro{2,3}/core/warp.cpp` |
-| 3 | S1 | title | `s1/frame/stage_update_observer.cpp:StageUpdateObserver`, `s1/execution/handoff_store_observer.cpp:HandoffStoreObserver` — opt-in samples on the `stage-observe` and `handoff-store` channels |

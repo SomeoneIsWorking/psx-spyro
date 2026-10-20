@@ -1,4 +1,5 @@
 #include "spyro1/core/moby/native_level_globals_table.h"
+#include "spyro1/core/guest_globals.h"
 
 #include "core/native_execution.h"
 
@@ -7,6 +8,8 @@
 
 namespace spyro1::native {
 namespace {
+
+using spyro1::guest::kLevelId;
 
 // ── 0x8005A470 — the per-level globals fixup. It runs once per level entry, after that level's
 //     overlay has been DMA'd into RAM, and points the engine's per-level globals at the overlay's
@@ -29,7 +32,6 @@ namespace {
 // v0 carries the head of the bank out: the epilogue reloads g_pDrawBufA, so a level that installs
 // anything publishes the value it just wrote and an unassigned level republishes whatever the
 // previous one left. v1 carries the level id, and $at the epilogue's lui, 0x80080000.
-constexpr std::uint32_t kActiveLevelId = 0x8007596Cu; // g_nActiveLevelId
 constexpr std::uint32_t kDrawBufferA = 0x800785D8u;   // g_pDrawBufA, the head of the bank
 constexpr std::uint32_t kDrawBufferB = 0x800785DCu;   // g_pDrawBufB, where the head is republished
 
@@ -310,7 +312,7 @@ constexpr LevelHandlerSet kHandlerSets[kHandlerSetCount] = {
 };
 
 void applyPerLevelGlobalsTable(Core *c) {
-  const std::uint32_t level = c->mem_r32(kActiveLevelId);
+  const std::uint32_t level = c->mem_r32(kLevelId);
   if (level < kLevelCount) {
     const LevelHandlerSet &set = kHandlerSets[kLevelHandlerSet[level]];
     for (std::size_t index = 0; index < set.primaryCount; ++index) {

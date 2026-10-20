@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/debug/warp.h"
+#include "core/session.h"
 #include "core/title_logo_facts.h"
 #include "game_runtime.h"
 #include "guest_widescreen_projection.h"
@@ -11,13 +12,9 @@
 
 namespace spyro {
 
-enum class Title : std::uint8_t { Spyro1, Spyro2, Spyro3 };
-
 // The behaviour Spyro 1/2/3 share; each serial's runtime derives from it.
 class Runtime : public psx::game::GameRuntime {
 public:
-  Title title() const;
-
   // Where the title's own logo lands in VRAM and how it is encoded; the base has none.
   virtual const TitleLogoFacts &logoFacts() const;
 
@@ -29,18 +26,20 @@ public:
   // The player's aspect; the canvas holds the margins and each title widens its own culls.
   const GuestWidescreenProjection *guestWidescreenProjection() const final;
   void reportRun(Core &core) const final;
+  bool interpolates() const final;
   // `warp <level>`, armed on the session's warp.
   bool
   titleCommand(Core &core, const psx::game::TitleCommandLine &input, std::FILE *reply) override;
 
 protected:
-  explicit Runtime(Title title);
+  Runtime() = default;
 
   // The title's warp: its level ids, idle title screen and level-start owner.
   virtual std::unique_ptr<Warp> createWarp() const = 0;
+  // The title's own per-Core state; none by default.
+  virtual std::unique_ptr<TitleState> createTitleState() const;
 
 private:
-  Title title_;
   GuestWidescreenProjection aspectPolicy_;
 };
 

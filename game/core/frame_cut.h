@@ -21,7 +21,7 @@ class Core;
 
 namespace spyro {
 
-// The camera controller's mode machine words.
+// The camera controller's mode machine: the guest word addresses in the facts, their values when sampled.
 struct CameraMachineWords {
   std::uint32_t mode = 0;
   std::uint32_t subState = 0;
@@ -55,19 +55,14 @@ private:
     bool operator==(const SceneIdentity &) const = default;
   };
 
-  struct CameraMachine {
-    std::uint32_t mode = 0;
-    std::uint32_t subState = 0;
-  };
-
   // Whether the camera controller placed the camera between two samples of its mode machine.
-  [[nodiscard]] static bool cameraPlaced(const CameraMachine &before, const CameraMachine &after);
+  [[nodiscard]] static bool cameraPlaced(const CameraMachineWords &before, const CameraMachineWords &after);
 
   FrameCutFacts facts_;
   std::optional<SceneIdentity> walked_; // the last table walked this step
   std::optional<SceneIdentity> sealed_; // the last table a sealed record holds
-  CameraMachine walkedCamera_;
-  CameraMachine sealedCamera_;
+  CameraMachineWords walkedCamera_;
+  CameraMachineWords sealedCamera_;
   bool cut_ = true;
 };
 

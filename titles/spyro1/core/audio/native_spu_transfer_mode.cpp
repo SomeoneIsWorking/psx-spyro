@@ -1,4 +1,4 @@
-#include "spyro1/core/audio/native_spu_transfer_mode.h"
+#include "spyro1/core/audio/spu_library.h"
 
 #include "core.h"
 #include "core/native_execution.h"

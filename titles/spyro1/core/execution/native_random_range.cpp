@@ -1,4 +1,5 @@
 #include "spyro1/core/execution/native_random_range.h"
+#include "spyro1/core/guest_functions.h"
 
 #include "core.h"
 #include "core/native_execution.h"
@@ -11,11 +12,12 @@ namespace spyro1::native {
 
 namespace {
 
+using spyro1::guest::kRand;
+
 // Sony's rand(), the standard LCG game/core/native_rand.cpp replaces with its verified body, and
 // the draw this override takes its value from. Its `jal` at 0x80037EB4 is the only call in the
 // body, and its own sole `lui` builds the divide-overflow guard's 0x80000000, so the address comes
 // from that `jal` and from nowhere else in the code.
-constexpr std::uint32_t kSonyRand = 0x8006272Cu;
 
 // ── 0x80037EA0 — one draw from the inclusive range [a0, a1]: a0 + rand() % (a1 - a0 + 1).
 //     jal 0x8006272C with a0 and a1 untouched, so the range words are what rand() sees.
@@ -29,7 +31,7 @@ constexpr std::uint32_t kSonyRand = 0x8006272Cu;
 void randomInRange(Core *c) {
   const std::uint32_t low = c->r[4];
   const std::uint32_t count = c->r[5] - low + 1u;
-  psx::cpu::callGuestNow(*c, "random_in_range", kSonyRand, low, c->r[5]);
+  psx::cpu::callGuestNow(*c, "random_in_range", kRand, low, c->r[5]);
   const std::int32_t draw = static_cast<std::int32_t>(c->r[2]);
   if (count == 0u || (count == 0xFFFFFFFFu && draw == std::numeric_limits<std::int32_t>::min())) {
     return;

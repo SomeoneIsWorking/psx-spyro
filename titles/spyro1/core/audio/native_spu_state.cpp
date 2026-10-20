@@ -1,4 +1,4 @@
-#include "spyro1/core/audio/native_spu_state.h"
+#include "spyro1/core/audio/spu_library.h"
 
 #include "core.h"
 #include "core/native_execution.h"
@@ -8,10 +8,6 @@
 namespace spyro1::native {
 namespace {
 
-// The pointer the SCE library keeps to its own state structure. The body builds the address itself
-// — `lui $a0,0x8007` then `lw $a0,0x3568($a0)` — so the address audit re-derives this
-// constant from those two instructions and refuses the module if it is not what retail computes.
-constexpr std::uint32_t kSpuStatePointer = 0x80073568u;
 // The word is rebuilt from two masks, so each is a constant of its own: the `lui $v1,0xF0FF` plus
 // the `ori $v1,$v1,0xFFFF` is one mask written across two instructions, and the `lui $v1,0x2000`
 // is the other. Neither is a guest address, so neither is checked against the image.
@@ -29,7 +25,7 @@ constexpr std::uint32_t kForcedStateBit = 0x20000000u;
 // the stored word; neither is reachable by the caller, and both are part of the contract this body
 // keeps.
 void forceSpuStateControlWord(Core *c) {
-  const std::uint32_t state = c->mem_r32(kSpuStatePointer);
+  const std::uint32_t state = c->mem_r32(libspu::kSpuStatePointer);
   c->r[4] = state;
   c->r[2] = c->mem_r32(state);
   c->r[3] = kPreservedStateBits;

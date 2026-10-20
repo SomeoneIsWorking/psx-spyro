@@ -51,9 +51,7 @@ template <const EngineRenderFacts &facts> void flatten(Core *core) {
   if (std::ranges::find(facts.unbinnedFlattens, core->r[31]) == facts.unbinnedFlattens.end()) {
     depth_bins::assignBins(*core, depth_bins::publishedBins(*core, facts.globals));
   }
-  (void)psx::cpu::completeOrPropagate(
-      *core,
-      psx::cpu::callOriginal(*core, facts.flatten, psx::cpu::ExecutionBudget::currentTurn(*core)));
+  (void)psx::cpu::callOriginalOrPropagate(*core, facts.flatten);
 }
 
 } // namespace engine_render

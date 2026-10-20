@@ -1,12 +1,8 @@
 #include "spyro3/core/runtime.h"
 
 #include "core.h"
-#include "core/boot_prefix_frame_driver.h"
-#include "crt0_boot.h"
 #include "game.h"
-#include "guest_code_module.h"
 #include "spyro3/core/boot_facts.h"
-#include "spyro3/core/logo_facts.h"
 #include "spyro3/core/warp.h"
 #include "spyro3/render/hud_anchor.h"
 #include "spyro3/render/render_facts.h"
@@ -16,14 +12,6 @@
 
 namespace spyro3 {
 namespace {
-
-// MEASURED from SCUS_944.67 with external/psxport/tools/disasm.py over a RAM image built the
-// PS-X EXE way (`file[0x800] -> t_addr 0x80010000`, the only mapping under which `0x8001xxxx` holds
-// code). Every address below is quoted with the instruction bytes that give it its meaning, so a
-// reader can re-derive it instead of trusting the table. The Spyro 2 runtime in
-// `titles/spyro2/core/runtime.cpp` is the structural twin of this one because both images
-// link the same SCEI libraries -- but each address here was located in THIS image's bytes, and the
-// one place the twins disagree is called out below.
 
 // The PS-X EXE header, from the identity manifest and confirmed by the crt0 that consumes it:
 //   0x10 entry 0x80059444   0x18 t_addr 0x80010000   0x1C t_size 0x0005C800
@@ -38,18 +26,7 @@ namespace {
 // to the guest.
 constexpr psx::hle::StockLibgte::Entries kLibgte{.setGeomOffset = 0x8005D35Cu};
 
-constexpr psx::game::Crt0Image kCrt0{
-    .bss = {0x8006C4F4u, 0x800742D0u},
-    .stackTopWordAddress = 0x8006C3E4u,
-    .stackReserveWordAddress = 0x8006C3E0u,
-    .heapBase = 0x800742D0u,
-    .heapSizeStoreAddress = 0x80069F04u,
-    .heapBaseStoreAddress = 0x80069F00u,
-    .globalPointer = 0x8006C3B0u,
-    .libcInitEntry = 0x8005F63Cu,
-    .crt0Entry = 0x80059444u,
-    .stackBias = {.declared = true, .bytes = -8},
-};
+constexpr psx::game::Crt0Image kCrt0{.entry = 0x80059444u};
 
 // libetc VSync. 36 `jal` sites reach it in the resident text, and its own body is the double
 // buffered field wait:
@@ -113,18 +90,13 @@ constexpr psx::cd::GuestInterruptLibcd::Completion kCdCompletion{.status = 2, .p
 } // namespace
 
 Runtime::Runtime()
-    : spyro::Runtime(spyro::Title::Spyro3),
+    : spyro::BootPrefixRuntime(kCrt0, kBootPrefixFacts),
       vsync_({.entry = kVSync, .queryCounter = kVSyncQueryCounter}),
       libcd_({.read = kCdRead, .command = kCdCommand, .sync = kCdSync},
              {},
              kCdReadyCallbackPointer,
              kCdCompletion),
       libgte_(kLibgte) {}
-
-void Runtime::startProgram(Core &core) {
-  psx::game::Crt0Boot{kCrt0}.run(core);
-  spyro::bootPrefixFrameDriver(core).initialize();
-}
 
 void Runtime::registerOverrides(Game &game) {
   vsync_.bind(game);
@@ -140,26 +112,8 @@ void Runtime::registerOverrides(Game &game) {
       "moby visibility walk, the terrain drawer, the flatten and the HUD anchor");
 }
 
-std::unique_ptr<psx::game::FrameDriver> Runtime::createFrameDriver(Game &game) {
-  return std::make_unique<spyro::BootPrefixFrameDriver>(game, kBootPrefixFacts);
-}
-
-void Runtime::stockCdReadLanded(Core &core, const psx::cd::StockReadLanding &landing) {
-  // The loader streams its code modules through the stock read and then calls into them.
-  psx::code_module::publishStockReadLanding(core, landing);
-}
-
-bool Runtime::interpolates() const {
-  return true;
-}
-
-bool Runtime::sealedFrameIsCut(Core &core) const {
-  // A session's first record, sealed before its driver exists, is a cut.
-  return core.game->frameDriver == nullptr || spyro::bootPrefixFrameDriver(core).cut().isCut();
-}
-
-const spyro::TitleLogoFacts &Runtime::logoFacts() const {
-  return kLogoFacts;
+std::unique_ptr<spyro::TitleState> Runtime::createTitleState() const {
+  return std::make_unique<hud_anchor::DrawState>();
 }
 
 std::unique_ptr<spyro::Warp> Runtime::createWarp() const {

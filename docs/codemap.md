@@ -16,18 +16,14 @@ S3 `SCUS_944.67`. `game/` and `titles/` are the include roots, so a header is in
 | `spyro::Runtime` | `game/core/runtime.h` | The `GameRuntime` base the three titles share: session, state producers, presentation pacing, the widescreen projection policy, panel logo, run report |
 | `spyro::Session`, `session` | `game/core/session.h` | Per-Game title state: archive transfer, field owner, HUD draw context, terrain visibility and budget, state producers |
 | `FieldOwner`, `FieldObserver` | `game/core/field_owner.h` | The one delivery sequence of a display field: pad, clock, VBlank root, observers, snapshot, fence, audio, host turn |
+| `BootPrefixRuntime` | `game/core/boot_prefix_runtime.h` | S2/S3's shared `Runtime` body: crt0, stock bindings, the boot-prefix driver, cut and warp |
 | `BootPrefixFrameDriver`, `BootPrefixFacts` | `game/core/boot_prefix_frame_driver.h` | S2/S3's `FrameDriver`: the retail boot prefix as a resumable call, then update and draw, one presented field per step; owns the title's `FrameCut` |
 | `FrameCut`, `FrameCutFacts` | `game/core/frame_cut.h` | Whether a sealed record is a cut: game state, level, or (S2/S3) a camera placement inside a scene; sampled by each frame driver |
-| `GuestExecution`, `WorldGuestExecution`, `GuestFrameScope` | `game/core/guest_execution.h`, `game/core/world_guest_execution.h`, `game/core/native_execution.h` | Root guest continuation across budget yields, resumed retail world work, the `$ra` of a nested guest call |
+| `GuestFrameScope`, `PreservedReturnAddress` | `game/core/native_execution.h` | The `$ra` of a nested guest call |
 | `ArchiveTransfer`, `archive_transfer::decide` | `game/core/archive_transfer.h`, `game/core/archive_transfer_contract.h` | Bounded atomic WAD transfer with per-Core completion; the refusal decision |
-| `registerCdQueue` | `game/core/cd_queue.cpp` | S1's cooperative CD loader leaves and the completion delivery |
-| `sha256` | `game/core/content_identity.h` | WAD content identity |
-| `registerNative*` | `game/core/native_{leaf,vec,gte,angle,rand,util}.cpp`, `game/core/native_owners.h` | Image-scoped native leaves, one installer per decomp source file |
 | `guest_magnitude` | `game/core/guest_magnitude.h` | The normalise tail libgte's leaves and the collision shade share |
 | `extractPanelLogo`, `TitleLogoFacts` | `game/core/title_logo.h`, `game/core/title_logo_facts.h` | A title's wordmark read out of the GPU device's VRAM for its picker panel |
-| `gate_debug` | `game/core/gate_debug.h` | The `gates` and `gate-teleport` control commands |
 | `spyro::Warp` | `game/core/debug/warp.h` | The `warp <level-id>` control command: parses and arms it, applies it at a frame boundary once the title screen is idle; titles subclass it with their level ids and title-screen route |
-| guest facts | `game/core/guest_globals.h`, `guest_gp.h`, `vblank_irq.h`, `memcard_*.h`, `spu_*.h`, `text_sprites.h`, `actor_mesh_scratch.h` | Guest globals, the pending-VBlank test, memory-card plans, SPU init and upload, glyph vocabulary, mesh scratch layout |
 
 ### Shared render — `game/render/`
 
@@ -48,19 +44,23 @@ S3 `SCUS_944.67`. `game/` and `titles/` are the include roots, so a header is in
 | `depth_bins` | `game/render/terrain/guest_depth_bins.h` | The flatten's bin layout; `publishedBins` reads it, `assignBins` gives each linked packet its ordering-table slot |
 | `EngineRenderFacts`, `registerEngineRenderOverrides` | `game/render/engine_render_overrides.h` | S2/S3's shared render overrides (terrain producer, moby walk, flatten) bound to one image's facts |
 | `guest_camera` | `game/render/terrain/guest_camera_builder.h` | The camera builders' shared tables and packing (`Builder`), S2/S3's composition (`EngineBuilder`), re-run for an in-between |
-| `ui_anchor`, `hud_draw_context` | `game/render/hud/` | The one horizontal anchoring rule for screen-space UI over the latched plan, and the widget-in-progress seam |
+| `ui_anchor` | `game/render/hud/ui_anchor.h` | The one horizontal anchoring rule for screen-space UI over the latched plan |
 
 ### Spyro 1 — `titles/spyro1/core/` (`spyro1`, leaves in `spyro1::native`)
 
 | owner | path | owns |
 |---|---|---|
 | `spyro1::Runtime` | `titles/spyro1/core/runtime/runtime.h` | Crt0 image, stock library bindings (libgte's projection leaves included), native leaves, pad delivery, Record capabilities, cut, title command, input phase |
-| `FieldScheduler` | `titles/spyro1/core/runtime/field_scheduler.h` | S1's `FieldObserver`: the boot window, the skip map, `presentFrame` |
+| `SkipMap` | `titles/spyro1/core/frame/skip_map.h` | S1's `FieldObserver`: the boot window and the skip map over `FieldOwner` |
+| guest facts | `titles/spyro1/core/guest_globals.h`, `guest_gp.h`, `guest_functions.h` | One name per guest global and per callee entry, settled against the decomp |
+| `registerNative*` | `titles/spyro1/core/execution/native_{leaf,vec,gte,angle,rand,util}.cpp`, `native_owners.h` | Image-scoped native leaves, one installer per decomp source file |
+| `registerCdQueue` | `titles/spyro1/core/execution/cd_queue.cpp` | The cooperative CD loader leaves and the completion delivery |
+| `spu_library` | `titles/spyro1/core/audio/spu_library.h` | The one libspu owner the native SPU leaves call |
+| `gate_debug` | `titles/spyro1/core/debug/gate_debug.h` | The `gates` and `gate-teleport` control commands |
 | `spyro1::FrameDriver` | `titles/spyro1/core/frame/frame_driver.h` | One step: boot sequence, the retail update, `FrameDraw`, the cut sample, one present |
 | `FrameDraw` | `titles/spyro1/core/frame/frame_draw.h` | GamestateDraw `0x8001ED5C` to its return; each `VSync(0)` of its tail delivered as a field |
 | `BootSequence`, `TransitionSkip`, `PressLatch` | `titles/spyro1/core/frame/boot_sequence.h`, `titles/spyro1/core/frame/transition_skip.h`, `titles/spyro1/core/frame/press_latch.h` | The native boot and its logo holds; a presentation-only transition cancelled through its own terminal transition |
 | `OrderingTable` | `titles/spyro1/core/frame/ordering_table.h` | LinkOTPrimitives `0x80016784`: the depth bins (table 0) and overlay pair (table 1), each linked packet's slot |
-| `StageUpdateObserver`, `HandoffStoreObserver` | `titles/spyro1/core/frame/stage_update_observer.h`, `titles/spyro1/core/execution/handoff_store_observer.h` | Opt-in read-only samples after the update and at the New Game handoff |
 | `ScreenOverlays`, `FullscreenTint`, `CinematicLetterbox` | `titles/spyro1/core/hud/screen_overlays.h` | `0x800190D4` and `0x80018F30` as state producers |
 | `spyro1::terrain::TerrainImage`, `CameraBuilder` | `titles/spyro1/render/terrain_image.h` | RenderWorldChunks `0x800258F0` as a `TerrainImage` and its producer; the camera builder `0x80033C50` |
 | S1 terrain passes | `titles/spyro1/render/terrain_{sectors,far,detail,coarse,fine,split}.cpp`, `titles/spyro1/render/terrain_facts.h` | The sector loop (sectors widened; marks and animation on retail's sphere), far, detail, coarse and fine split passes; the words and tables they read |
@@ -87,7 +87,6 @@ S3 `SCUS_944.67`. `game/` and `titles/` are the include roots, so a header is in
 |---|---|---|
 | `spyro2::Runtime`, `spyro3::Runtime` | `titles/spyro{2,3}/core/runtime.h` | Crt0 image, stock libraries (libgte's projection leaves included) and `GuestInterruptLibcd`, boot-prefix driver, module landing, packet pool (S2), cut, logo |
 | boot facts | `titles/spyro{2,3}/core/boot_facts.h` | The boot prefix, update/draw pair, field-owner and cut words, with the bytes that give each address |
-| logo facts | `titles/spyro{2,3}/core/logo_facts.h` | Where the wordmark would land |
 | `spyro2::Warp`, `spyro3::Warp` | `titles/spyro{2,3}/core/warp.h` | Each title's warp route: its title screen's own Start teardown with the level id set |
 | render facts | `titles/spyro{2,3}/render/render_facts.h` | Each image's `EngineRenderFacts`: the moby walk, terrain drawer and flatten |
 | `hud_anchor` | `titles/spyro{2,3}/render/hud_anchor.h` | The HUD widget drawers anchored per element class |

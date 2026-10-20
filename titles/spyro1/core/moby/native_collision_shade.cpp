@@ -8,7 +8,7 @@
 #include "spyro1/core/moby/native_collision_shade.h"
 
 #include "core.h"
-#include "core/guest_globals.h"
+#include "spyro1/core/guest_globals.h"
 #include "core/guest_magnitude.h"
 #include "core/native_execution.h"
 
@@ -17,7 +17,7 @@
 namespace spyro1::native {
 namespace {
 
-using spyro::guest::kMagnitudeTable;
+using spyro1::guest::kMagnitudeTable;
 
 // g_CollisionNormal (game.bss.s:87) — the three words the raycast leaves the surface normal in,
 // read here as x/y/z. g_CollisionPoint's third word is the only part of the hit point the body
@@ -100,18 +100,6 @@ std::uint32_t quadrantSum(Core *c, std::uint32_t reference, std::uint32_t compon
 // azimuth divides x by z. Their quotients are the two channels, negated and taken to 63, and their
 // order matters because the SECOND divide is the one whose quotient and remainder the body leaves
 // behind.
-//
-// MEASURED, and the coverage is narrower than the call count suggests. On artisans-walk the
-// differential samples 1042 of 1042 calls and every one matches — but the word this body writes is
-// a LATCH, so 106 of those calls find it already positive, take the early exit and republish it
-// unchanged, and only 936 reach the arithmetic. An instrumented build counting arms reported
-// 936/0/0/0 for the elevation quantiser and 936/0/0/0 for the azimuth one, and portal-level added
-// 1978 more, all arm 1. So the other three arms of each quantiser, and the zero-magnitude tail, are
-// unexercised and follow the retail disassembly alone. That is a property of the corpus rather than
-// of the run length: arm 1 is what a normal at least as horizontal as vertical produces, and no
-// route here hits a wall or a ceiling. The instrument does report this class of difference —
-// poisoning the 0x3F channel mask to 0x3E is caught on 455 of those 1042 calls, first at call 8 —
-// so the unexercised arms are unchecked rather than quietly different.
 void packCollisionShadeWord(Core *c) {
   const std::uint32_t normalX = c->mem_r32(kCollisionNormal + 0u);
   const std::uint32_t normalY = c->mem_r32(kCollisionNormal + 4u);

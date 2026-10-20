@@ -42,8 +42,7 @@ psx::present::DrawPrimitive quad(const std::array<std::uint32_t, 5> &words) {
 }
 
 void runOriginal(Core &core, std::uint32_t entry) {
-  (void)psx::cpu::completeOrPropagate(
-      core, psx::cpu::callOriginal(core, entry, psx::cpu::ExecutionBudget::currentTurn(core)));
+  (void)psx::cpu::callOriginalOrPropagate(core, entry);
 }
 
 void tintOverride(Core *core) {

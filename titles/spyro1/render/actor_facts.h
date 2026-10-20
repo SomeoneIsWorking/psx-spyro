@@ -9,7 +9,7 @@
 namespace spyro1::actors {
 
 // The register save area, packet cursor, ordering table and camera words are the terrain drawer's
-// (terrain::kRenderGlobals); the mesh table is spyro::guest::kModelSoundTables.
+// (terrain::kRenderGlobals); the mesh table is spyro1::guest::kModels.
 
 // The 0x2A00-byte work block every pass shares with the terrain drawer's scratch: the actor
 // pointer list, the local depth bins, the draw list, the secondary list, the sprite queue and the
@@ -91,7 +91,7 @@ inline constexpr std::uint32_t kDrawn = 0x51;
 inline constexpr std::uint32_t kTint = 0x57;
 } // namespace moby
 
-// A mesh (spyro::guest::kModelSoundTables entry): its frame pointers from +0x38, each frame's
+// A mesh (spyro1::guest::kModels entry): its frame pointers from +0x38, each frame's
 // radius byte at +7.
 namespace mesh {
 inline constexpr std::uint32_t kFrames = 0x38;
@@ -100,7 +100,7 @@ inline constexpr std::uint32_t kDepthShift = 0x0B;
 inline constexpr std::uint32_t kVertexSteps = 0x24;
 } // namespace mesh
 
-// A sprite-queue mesh (spyro::guest::kModelSoundTables entry): one frame, no animation.
+// A sprite-queue mesh (spyro1::guest::kModels entry): one frame, no animation.
 namespace queued_mesh {
 inline constexpr std::uint32_t kVertexCount = 0x00; // signed byte
 inline constexpr std::uint32_t kPolygonCount = 0x01;

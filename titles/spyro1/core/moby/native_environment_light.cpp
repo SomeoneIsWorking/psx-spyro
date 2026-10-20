@@ -1,4 +1,5 @@
 #include "spyro1/core/moby/native_environment_light.h"
+#include "spyro1/core/guest_globals.h"
 
 #include "core/native_execution.h"
 #include "render/field/guest_word.h"
@@ -9,10 +10,11 @@
 namespace spyro1::native {
 namespace {
 
+using spyro1::guest::kEnvironment;
+
 using spyro::guest_word::sra;
 
 constexpr std::uint32_t kNodeLists = 0x80078560u;
-constexpr std::uint32_t kMobyTable = 0x800785A8u;
 constexpr std::uint32_t kNarrowRecords = 0x800785C0u;
 constexpr std::uint32_t kWideRecords = 0x800785C4u;
 // g_Environment + 0x2C, the TerrainCollision pointer, and the vertex block its +0x10 holds. BOTH
@@ -369,7 +371,7 @@ void tagNodeMoby(Core *c, const ListNode &at, const MobyTag &tag, Tail &tail) {
   c->mem_w8(node + 3u, static_cast<std::uint8_t>(chain.exitValue));
   c->mem_w8(node + 2u, static_cast<std::uint8_t>(chain.next));
   const std::uint32_t index = c->mem_r16(node + 4u);
-  tail.v0 = c->mem_r32(kMobyTable) + (index << 2);
+  tail.v0 = c->mem_r32(kEnvironment) + (index << 2);
   const std::uint32_t moby = c->mem_r32(tail.v0);
   c->mem_w8(moby + tag.field, static_cast<std::uint8_t>(tag.counter));
 }

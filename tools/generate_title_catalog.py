@@ -57,7 +57,7 @@ def render(*, root: pathlib.Path = ROOT) -> str:
             "// Do not edit: change the measured manifest and rebuild.",
             "#pragma once",
             "",
-            '#include "core/runtime.h"',
+            '#include "core/title_runtime_registry.h"',
             '#include "title_catalog.h"',
             "",
             "#include <array>",

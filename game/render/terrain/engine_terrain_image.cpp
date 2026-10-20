@@ -57,10 +57,10 @@ void EngineTerrainImage::drawPasses(TerrainFrame &frame) const {
     // field is handed the sectors its visibility was decided for, not asked again.
     {
       spyro::PreservedReturnAddress returnAddress(core);
-      spyro::callGuestJumpedFrom(
+      psx::cpu::callGuestNow(
           core,
           facts_.overrideName,
-          {.jal = facts_.visibilityCallSite, .target = facts_.sectorVisibility},
+          psx::cpu::GuestCallSite::fromJal(facts_.visibilityCallSite, facts_.sectorVisibility),
           0u);
     }
     core.mem_w32(facts_.visibleSectorCount, core.r[2]);

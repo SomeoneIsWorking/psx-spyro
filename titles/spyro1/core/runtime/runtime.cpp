@@ -1,21 +1,14 @@
 #include "spyro1/core/runtime/runtime.h"
 
 #include "core.h"
-#include "core/gate_debug.h"
-#include "core/native_owners.h"
+#include "spyro1/core/debug/gate_debug.h"
+#include "spyro1/core/execution/native_owners.h"
 #include "crt0_boot.h"
 #include "game.h"
 #include "platform_hle.h"
-#include "spyro1/core/audio/native_audio_key_state.h"
+#include "spyro1/core/audio/native_moby_sound.h"
 #include "spyro1/core/audio/native_sound_position.h"
-#include "spyro1/core/audio/native_spu_callbacks.h"
-#include "spyro1/core/audio/native_spu_common_attr.h"
-#include "spyro1/core/audio/native_spu_key_status.h"
-#include "spyro1/core/audio/native_spu_registers.h"
-#include "spyro1/core/audio/native_spu_state.h"
-#include "spyro1/core/audio/native_spu_transfer_mode.h"
-#include "spyro1/core/audio/native_spu_voice_attributes.h"
-#include "spyro1/core/audio/native_spu_voice_pitch.h"
+#include "spyro1/core/audio/spu_library.h"
 #include "spyro1/core/camera/native_camera.h"
 #include "spyro1/core/debug/warp.h"
 #include "spyro1/core/effect/native_effect_state.h"
@@ -38,7 +31,7 @@
 #include "spyro1/core/moby/native_level_globals_table.h"
 #include "spyro1/core/moby/native_moby_allocator.h"
 #include "spyro1/core/moby/native_moby_collision.h"
-#include "spyro1/core/moby/native_moby_helpers.h"
+#include "spyro1/core/moby/native_moby_animation.h"
 #include "spyro1/core/moby/native_moby_lists.h"
 #include "spyro1/core/moby/native_moby_transform.h"
 #include "spyro1/core/moby/native_shaded_moby_queue.h"
@@ -61,18 +54,7 @@
 namespace spyro1 {
 namespace {
 
-constexpr psx::game::Crt0Image kCrt0{
-    .bss = {0x80075640u, 0x8007AA38u},
-    .stackTopWordAddress = 0x800755A8u,
-    .stackReserveWordAddress = 0x800755A4u,
-    .heapBase = 0x8007AA38u,
-    .heapSizeStoreAddress = 0x800730C4u,
-    .heapBaseStoreAddress = 0x800730C0u,
-    .globalPointer = 0x80075264u,
-    .libcInitEntry = 0x8005DB14u,
-    .crt0Entry = 0x8005B8E0u,
-    .stackBias = {.declared = true, .bytes = -8},
-};
+constexpr psx::game::Crt0Image kCrt0{.entry = 0x8005B8E0u};
 
 // VSync's negative-argument path reads D_800749E0 (asm/psyq.s:2646-2649), the vblank counter this
 // title's field clock advances.
@@ -119,13 +101,12 @@ constexpr psx::gpu::GuestPacketPoolWindows kPacketPool{
 } // namespace
 
 Runtime::Runtime()
-    : spyro::Runtime(spyro::Title::Spyro1),
-      vsync_({.entry = kVSync, .queryCounter = kVSyncQueryCounter}), libgpu_(kLibgpu),
+    : vsync_({.entry = kVSync, .queryCounter = kVSyncQueryCounter}), libgpu_(kLibgpu),
       libgte_(kLibgte), libcd_(kLibcd, kCdWorkArea, 0), pad_(kPadBuffers) {}
 
 void Runtime::startProgram(Core &core) {
   psx::game::Crt0Boot{kCrt0}.run(core);
-  frameDriver(core).initialize(core);
+  core.game->frameDriverAs<FrameDriver>().initialize(core);
 }
 
 void Runtime::registerOverrides(Game &game) {
@@ -135,14 +116,14 @@ void Runtime::registerOverrides(Game &game) {
   libcd_.bind(game);
   game.platform_hle.bindStock(kCdDataSync, PlatformHle::completeImmediately);
   game.platform_hle.bindStock(kCdInitHandshake, PlatformHle::completeImmediately);
-  spyro::registerCdQueue(game.core);
-  spyro::registerNativeRand(game.core);
-  spyro::registerNativeLeaves(game.core);
-  spyro::registerNativeVec(game.core);
-  spyro::registerNativeGte(game.core);
-  spyro::registerNativeAngle(game.core);
-  spyro::registerNativeUtil(game.core);
-  native::registerAudioKeyStateOverrides(game.core);
+  spyro1::registerCdQueue(game.core);
+  spyro1::registerNativeRand(game.core);
+  spyro1::registerNativeLeaves(game.core);
+  spyro1::registerNativeVec(game.core);
+  spyro1::registerNativeGte(game.core);
+  spyro1::registerNativeAngle(game.core);
+  spyro1::registerNativeUtil(game.core);
+  native::registerSpuLibraryOverrides(game.core);
   native::registerCameraOverrides(game.core);
   native::registerCollisionShadeOverrides(game.core);
   native::registerCutsceneOverrides(game.core);
@@ -156,7 +137,8 @@ void Runtime::registerOverrides(Game &game) {
   native::registerMobyAllocatorOverrides(game.core);
   native::registerMobyCollisionOverrides(game.core);
   native::registerLevelInitializationOverrides(game.core);
-  native::registerMobyHelperOverrides(game.core);
+  native::registerMobyAnimationOverrides(game.core);
+  native::registerMobySoundOverrides(game.core);
   native::registerMobyListOverrides(game.core);
   native::registerMobyTransformOverrides(game.core);
   native::registerParticleAllocOverrides(game.core);
@@ -168,14 +150,6 @@ void Runtime::registerOverrides(Game &game) {
   native::registerShadedMobyQueueOverrides(game.core);
   native::registerSharedModelOverrides(game.core);
   native::registerSoundPositionOverrides(game.core);
-  native::registerSpuRegisterOverrides(game.core);
-  native::registerSpuVoicePitchOverrides(game.core);
-  native::registerSpuStateOverrides(game.core);
-  native::registerSpuCallbackOverrides(game.core);
-  native::registerSpuVoiceAttributeOverrides(game.core);
-  native::registerSpuKeyStatusOverrides(game.core);
-  native::registerSpuTransferModeOverrides(game.core);
-  native::registerSpuCommonAttrOverrides(game.core);
   OrderingTable::registerOverrides(game.core);
   ScreenOverlays::registerOverrides(game.core);
   spyro1::terrain::registerOverrides(game.core);
@@ -192,8 +166,7 @@ void Runtime::registerOverrides(Game &game) {
 }
 
 std::unique_ptr<psx::game::FrameDriver> Runtime::createFrameDriver(Game &game) {
-  return std::make_unique<FrameDriver>(
-      game, lucent::channel_on("stage-observe"), lucent::channel_on("handoff-store"));
+  return std::make_unique<FrameDriver>(game);
 }
 
 void Runtime::deliverPad(Core &core, const psx::input::PadDelivery &delivery) {
@@ -204,17 +177,13 @@ std::optional<psx::gpu::PacketPoolExtent> Runtime::packetPool(Core &core) const 
   return kPacketPool.extent(core);
 }
 
-bool Runtime::interpolates() const {
-  return true;
-}
-
 bool Runtime::guestPictureIsNativeWidth(const Game &game) const {
-  return game.frameDriver == nullptr || !frameDriver(game.core).bootComplete();
+  return game.frameDriver == nullptr || !game.frameDriverAs<FrameDriver>().pastBootPrefix();
 }
 
 bool Runtime::sealedFrameIsCut(Core &core) const {
   // A session's first record, sealed before its driver exists, is a cut.
-  return core.game->frameDriver == nullptr || frameDriver(core).cut().isCut();
+  return core.game->frameDriver == nullptr || core.game->frameDriverAs<FrameDriver>().cut().isCut();
 }
 
 const spyro::TitleLogoFacts &Runtime::logoFacts() const {
@@ -223,7 +192,7 @@ const spyro::TitleLogoFacts &Runtime::logoFacts() const {
 
 bool Runtime::titleCommand(Core &core, const psx::game::TitleCommandLine &input, std::FILE *reply) {
   return spyro::Runtime::titleCommand(core, input, reply) ||
-         spyro::gate_debug::command(core, input, reply);
+         spyro1::gate_debug::command(core, input, reply);
 }
 
 std::uint64_t Runtime::inputPhase(Core &core) const {

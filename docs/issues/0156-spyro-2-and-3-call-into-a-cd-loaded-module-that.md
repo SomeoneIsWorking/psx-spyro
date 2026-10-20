@@ -104,3 +104,15 @@ bytes: LBA 676, 932, 966).
   and one SHA-256 over its bytes (the largest measured landing is 372 sectors).
 - The pin: `psxport.pin` names a framework commit that exists only in the local psxport repository until the
   framework branch is pushed.
+
+## Boot-prefix bounds (moved from the titles' `boot_facts.h`)
+
+- Spyro 2 (2026-10-01): with the loaded module published as an image, the boot prefix returns after
+  133 fields in 43 steps, inside the shared defaults. The first field bound, 64, was a guess made
+  while the boot stopped at the module load and ended a healthy boot mid-fade. Over the first 30
+  boot fields every field is a guest display wait and the step count (27) stays below the field
+  count, which a starved host clock would not produce.
+- Spyro 3 (2026-10-01): with the modules published and each stock CdRead paced by the drive's seek
+  and sector time, the boot prefix returns after 887 fields in 669 steps (546 fields in 336 steps
+  with instant reads), so the shared 480-step bound does not hold. Its bound is 1024 steps, the
+  measured 669 plus half; the 887 fields stay under the shared 1024-field bound.

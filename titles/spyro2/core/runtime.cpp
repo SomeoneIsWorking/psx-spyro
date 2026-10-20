@@ -1,13 +1,8 @@
 #include "spyro2/core/runtime.h"
 
 #include "core.h"
-#include "core/boot_prefix_frame_driver.h"
-#include "core/native_owners.h"
-#include "crt0_boot.h"
 #include "game.h"
-#include "guest_code_module.h"
 #include "spyro2/core/boot_facts.h"
-#include "spyro2/core/logo_facts.h"
 #include "spyro2/core/warp.h"
 #include "spyro2/render/hud_anchor.h"
 #include "spyro2/render/render_facts.h"
@@ -18,23 +13,12 @@
 namespace spyro2 {
 namespace {
 
-// MEASURED from SCUS_944.25 with external/psxport/tools/disasm.py over a RAM image built the
-// PS-X EXE way (file[0x800] -> t_addr 0x80010000). Each address is quoted with the bytes that
-// give it its meaning, so a reader can re-derive it instead of trusting the table.
-
 // libetc VSync. 37 `jal` sites reach it in the resident text, and its own body is the double
 // buffered field wait: 0x80058EDC reads the two counter words through 0x80066450/0x80066454,
 // spins until they differ, and returns the delta for a negative argument.
 constexpr std::uint32_t kVSync = 0x80058EDCu;
 
-// The word SCUS_944.25's VSync returns for a negative argument: the guest's own vblank count, not a
-// hardware register. The negative path (0x80058F34 `bgez $a0` not taken) falls to
-//   80058F3C  lui $v0,0x8006 ; 80058F40  lw $v0,0x6618($v0)
-// and that word is zeroed at 0x8005AC58 and incremented by the libetc vblank callback at
-//   8005ACB0  addiu $v0,$v0,1 ; 8005ACB8  sw $v0,0x6618($at)
-// The title's frame limiter (draw 0x80015900..0x80015990) compares it against its own saved last
-// value, so answering from the 16-bit HBlank timer 0x1F801110 made `now - last < 2` hold for
-// thousands of steps after the timer wrapped. See docs/issues/0160.
+// A negative VSync returns this guest vblank count (lw at 0x80058F40, ++ at 0x8005ACB0); docs/issues/0160.
 constexpr std::uint32_t kVSyncQueryCounter = 0x80066618u;
 
 // libcd's low-level command worker. 0x80058858 indexes a per-command table at 0x800663C8 with the
@@ -42,11 +26,8 @@ constexpr std::uint32_t kVSyncQueryCounter = 0x80066618u;
 // cleared at 0x80066700 around the wait: CdCommand(com, parm, result).
 constexpr std::uint32_t kCdCommand = 0x80058858u;
 
-// libcd CdControlB(com, param, result) at 0x80058994: it sends the command through the controller
-// leaf 0x8005CB80 and then waits in CD_sync (0x8005C900) on the guest's own interrupt-set status
-// byte 0x800669DC to reach Complete. The game calls it for the XA Setmode 0xC8 at 0x800131B0. With
-// CdRead and CdCommand native nothing ever raises that byte, so the retail body runs out its
-// 0x3C0 vblank deadline ("CD timeout", 0x8005C9CC) before every such call. See docs/issues/0161.
+// CdControlB(com, param, result): its CD_sync wait on 0x800669DC never completes once CdRead and
+// CdCommand are native, so it is native too (docs/issues/0161).
 constexpr std::uint32_t kCdControlB = 0x80058994u;
 
 // libcd's synchronisation wait. 0x80058810 is called with a0=1 and polled until it returns 2
@@ -58,18 +39,14 @@ constexpr std::uint32_t kCdSync = 0x80058810u;
 // the command owner: CdRead.
 constexpr std::uint32_t kCdRead = 0x80058108u;
 
-// libcd's initialisation, CdInit at 0x800582B8 (called by the CD bootstrap leaf 0x80011B3C), is NOT
-// bound: the retail body runs through Lightrec and registers libcd's interrupt handler and its
-// callback table itself, the same way Spyro 3's does. See docs/issues/0159.
+// CdInit 0x800582B8 stays retail: it registers libcd's interrupt handler itself (docs/issues/0159).
 
 // The guest word libcd's CdReadyCallback writes. 0x800582A4 is `*(0x800663B8) = a0` returning the
 // previous value, and the CD bootstrap leaf 0x80011B68 calls it with the image's own per-sector
 // callback 0x8001379C.
 constexpr std::uint32_t kCdReadyCallbackPointer = 0x800663B8u;
 
-// libgpu's DrawSync, and the two leaves of its measured timeout. The display bootstrap leaf
-// 0x80011BBC calls 0x8005574C, 0x8005557C and 0x800556F0 in sequence after its VSync, and the
-// old finite bootstrap named the DrawSync timeout globals 0x80066354/0x80066358 in this image.
+// libgpu DrawSync's timeout: its deadline and poll-count words and the arm and check leaves.
 constexpr std::uint32_t kGpuTimeoutDeadline = 0x80066354u;
 constexpr std::uint32_t kGpuTimeoutPollCount = 0x80066358u;
 constexpr std::uint32_t kGpuTimeoutArm = 0x80057B20u;
@@ -89,18 +66,7 @@ constexpr psx::gpu::GuestPacketPoolWindows kPacketPool{
 constexpr psx::hle::StockLibgte::Entries kLibgte{.setGeomOffset = 0x80057AF8u,
                                                  .setGeomScreen = 0x80057AE8u};
 
-constexpr psx::game::Crt0Image kCrt0{
-    .bss = {0x80066ED8u, 0x8006D264u},
-    .stackTopWordAddress = 0x80066D3Cu,
-    .stackReserveWordAddress = 0x80066D38u,
-    .heapBase = 0x8006D264u,
-    .heapSizeStoreAddress = 0x8006509Cu,
-    .heapBaseStoreAddress = 0x80065098u,
-    .globalPointer = 0x80066D38u,
-    .libcInitEntry = 0x8005ABD8u,
-    .crt0Entry = 0x8005478Cu,
-    .stackBias = {.declared = true, .bytes = -8},
-};
+constexpr psx::game::Crt0Image kCrt0{.entry = 0x8005478Cu};
 
 // The loader's ready callback (0x8001379C) ends a read on `$a0 & 0xFF == 2` and otherwise chains
 // the next one-sector read from inside the callback.
@@ -109,7 +75,7 @@ constexpr psx::cd::GuestInterruptLibcd::Completion kCdCompletion{.status = 2, .p
 } // namespace
 
 Runtime::Runtime()
-    : spyro::Runtime(spyro::Title::Spyro2),
+    : spyro::BootPrefixRuntime(kCrt0, kBootPrefixFacts),
       vsync_({.entry = kVSync, .queryCounter = kVSyncQueryCounter}),
       libgpu_({.timeoutArm = kGpuTimeoutArm,
                .timeoutCheck = kGpuTimeoutCheck,
@@ -121,11 +87,6 @@ Runtime::Runtime()
           kCdReadyCallbackPointer,
           kCdCompletion),
       libgte_(kLibgte) {}
-
-void Runtime::startProgram(Core &core) {
-  psx::game::Crt0Boot{kCrt0}.run(core);
-  spyro::bootPrefixFrameDriver(core).initialize();
-}
 
 void Runtime::registerOverrides(Game &game) {
   vsync_.bind(game);
@@ -141,30 +102,8 @@ void Runtime::registerOverrides(Game &game) {
       "visibility walk, the terrain drawer, the flatten and the HUD anchor");
 }
 
-std::unique_ptr<psx::game::FrameDriver> Runtime::createFrameDriver(Game &game) {
-  return std::make_unique<spyro::BootPrefixFrameDriver>(game, kBootPrefixFacts);
-}
-
-void Runtime::stockCdReadLanded(Core &core, const psx::cd::StockReadLanding &landing) {
-  // The loader streams its code modules through the stock read and then calls into them.
-  psx::code_module::publishStockReadLanding(core, landing);
-}
-
 std::optional<psx::gpu::PacketPoolExtent> Runtime::packetPool(Core &core) const {
   return kPacketPool.extent(core);
-}
-
-bool Runtime::interpolates() const {
-  return true;
-}
-
-bool Runtime::sealedFrameIsCut(Core &core) const {
-  // A session's first record, sealed before its driver exists, is a cut.
-  return core.game->frameDriver == nullptr || spyro::bootPrefixFrameDriver(core).cut().isCut();
-}
-
-const spyro::TitleLogoFacts &Runtime::logoFacts() const {
-  return kLogoFacts;
 }
 
 std::unique_ptr<spyro::Warp> Runtime::createWarp() const {
