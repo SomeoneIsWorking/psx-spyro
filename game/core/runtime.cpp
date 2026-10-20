@@ -49,7 +49,7 @@ bool Runtime::interpolates() const {
   return true;
 }
 
-const GuestWidescreenProjection *Runtime::guestWidescreenProjection() const {
+const psx::present::GuestWidescreenProjection *Runtime::guestWidescreenProjection() const {
   return &aspectPolicy_;
 }
 

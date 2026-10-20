@@ -1,11 +1,21 @@
 # 0200: dithering is on
 
-Status: open
+Status: fixed
 
 ## Requested
 USER, 2026-10-20: "Remove dithering".
 
-The record raster applies gpu.c's 4x4 ordered dither (`shaders_gpu/record.frag`). The product does not
-dither: shaded and blended primitives keep full colour precision in the host picture. The guest GPU
-device keeps its own dither bit as guest state; only the host picture changes. Owned by psxport's record
-raster. Prove it with a Spyro 1 sky-gradient screenshot taken before and after.
+## Cause
+psxport's record raster applied gpu.c's 4x4 ordered dither in `shaders_gpu/record.frag`, so shaded and
+blended primitives in the host picture carried the dither pattern.
+
+## Fix
+`record.frag` no longer dithers: shaded and blended primitives keep full colour precision in the host
+picture. The guest GPU device keeps its own dither bit and VRAM as guest state, so `recordcheck`
+mismatches dithered draws by design (psxport `docs/presentation.md`).
+
+## Proof
+Spyro 1 `warp 10`, 16:9, one frame read both ways (`scratch/b1/s1_dither/`): over the sky
+(240x38 pixels) the device's VRAM changes colour between horizontal neighbours on 64.3% of pixels
+with a visible checker (`device_sky.png`); the presented record picture changes on 14.4% and is a
+smooth gradient (`record_sky.png`).

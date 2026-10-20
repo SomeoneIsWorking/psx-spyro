@@ -5,7 +5,7 @@
 namespace spyro {
 
 guest_moby_frustum::HorizontalSlope presentedSlope(const Core &core) {
-  const GuestProjectionPlan &plan = core.game->guestDisplay.plan();
+  const psx::present::GuestProjectionPlan &plan = core.game->guestDisplay.plan();
   if (!plan.widescreen()) {
     return guest_moby_frustum::kRetailSlope;
   }
@@ -14,7 +14,7 @@ guest_moby_frustum::HorizontalSlope presentedSlope(const Core &core) {
 }
 
 int presentedMargin(const Core &core) {
-  const GuestProjectionPlan &plan = core.game->guestDisplay.plan();
+  const psx::present::GuestProjectionPlan &plan = core.game->guestDisplay.plan();
   return plan.widescreen() ? plan.projectionHorizontalMargin : 0;
 }
 
