@@ -87,7 +87,7 @@ authenticated executable / resident WAD image
 `game/` owns what the three titles share: the runtime base, field delivery, the boot-prefix driver,
 CD/archive, widescreen, and the shared terrain drawer and its producer. `titles/<title>/` owns
 executable identity and title-local lifecycle and overrides. `external/psxport/` owns the
-title-neutral executor and PSX services. `docs/codemap.md` lists every owner.
+title-neutral executor and PSX services. `docs/codemap.md` maps each module to the concepts it owns.
 
 See [`docs/project-goals.md`](docs/project-goals.md) for durable outcomes,
 [`docs/project-state.md`](docs/project-state.md) for factual coverage,
