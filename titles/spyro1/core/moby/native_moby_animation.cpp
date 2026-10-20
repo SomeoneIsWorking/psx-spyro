@@ -20,9 +20,7 @@ constexpr std::uint32_t kLagFourFields = 4u;
 // The frame an animation reaches from frame a1 by a2, with a3 the wrap threshold; a leaf.
 constexpr std::uint32_t kAdvanceAnimationFrame = 0x800179F0u; // `jal` at 0x80038F70 and 0x80038F94
 
-// ── kAdvanceAnimationFrame's caller half: ask for the new frame, then store the byte
-//     it returns. The frame argument is the same word in both halves, and the fourth argument is
-//     that word halved (`sra 1` then +1), which is arithmetic, so it rounds towards minus infinity.
+// The fourth argument is the frame word `sra 1` + 1, rounding towards minus infinity.
 void setMobyAnimationFrame(Core *c,
                            const std::uint32_t animation,
                            const std::uint32_t moby,
@@ -38,14 +36,7 @@ void setMobyAnimationFrame(Core *c,
   c->mem_w8(moby + kMobyAnimationFrame, static_cast<std::uint8_t>(c->r[2]));
 }
 
-// ── 0x80038EE0 — advance a moby's animation frame, stretched by the frame-lag global, and report
-//     whether the animation has run past its length. Lag 3 scales the step by 1.5 and lag 4 by 2,
-//     anything else leaves it alone; a signed `slt` then clamps the step down to the length
-//     guest kAngDiff8 reports, and a second one against the caller's limit
-//     decides the exit value: 1 when the length is BELOW the limit, 0 when it has reached it. The
-//     fifth argument arrives on the stack at entry sp+0x10 and only decides whether the wrap is
-//     stored, so v0 is 1 either way on the short arm. v1 holds the lag global, set after the length
-//     call and then overwritten by the frame call wherever that one runs.
+// 0x80038EE0: lag 3 scales the step by 1.5 and lag 4 by 2; the stack argument gates the wrap.
 void advanceMobyAnimation(Core *c) {
   const std::uint32_t moby = c->r[4];
   const std::uint32_t animation = c->r[5];

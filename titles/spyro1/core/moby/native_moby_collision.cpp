@@ -11,9 +11,7 @@
 namespace spyro1::native {
 namespace {
 
-// kModels is the shape table the moby shape walks (`lui 0x8007 ; addiu 0x6378`);
-// kRegisterSpillArea is the save area this body and func_8004AE38 spill their callee-saved
-// registers into.
+// Shape table (`lui 0x8007 ; addiu 0x6378`) and the shared callee-saved spill area.
 using spyro1::guest::kModels;
 using spyro1::guest::kMobyCollisionChain;
 using spyro1::guest::kRegisterSpillArea;
@@ -44,24 +42,15 @@ constexpr std::uint32_t kGteSqr = 0x4AA00428u;
 constexpr std::uint32_t kGteRtps = 0x4A180001u;
 constexpr std::uint32_t kGteGpf = 0x4B90003Du;
 
-// g_MobyCollisionChain: the cell table the candidate list indexes with the position's 13-bit cell
-// coordinates (`lui 0x8007 ; addiu 0x5778`).
-// The candidate list the body assembles in scratch expansion RAM before walking it.
+// g_MobyCollisionChain cell table (`lui 0x8007 ; addiu 0x5778`) and the scratch candidate list.
 constexpr std::uint32_t kCandidateList = 0x1F800000u;
-// The cell-edge bit that decides whether the neighbouring cells join the candidate list, and the
-// bounds that turn a wrapping neighbour into the -1 which drops it.
+// Cell-edge bit and the bounds that turn a wrapping neighbour into -1.
 constexpr std::uint32_t kCellEdge = 0x1000u;
 constexpr std::uint32_t kCellColumnLimit = 0x20u;
 constexpr std::uint32_t kCellRowStride = 0x20u;
 constexpr std::uint32_t kCellRowLimit = 0x400u;
 
-// The shape types the dispatch reaches, from the computed jump at 0x8004E5B0, which lands at
-// 0x8004E5B8 + ((word & 0xFF00) >> 5) — eight bytes per type byte. Bytes 0..3 are the four `j`
-// trampolines the compiler laid down, one per case, and bytes 4, 0x16, 0x2C and 0x4F are the four
-// case bodies that same table indexes into directly. The four trampolines are NOT interchangeable
-// with each other: byte 1 is the slab case, not the point case, however neatly the four sit side by
-// side. Any other byte lands the jump inside a case, which is unreachable guest state rather than a
-// behaviour to reproduce, so the walk ends the record's shape list instead.
+// Shape types reached by the computed jump at 0x8004E5B0; byte 1 is the slab case.
 constexpr std::uint32_t kShapePointJump = 0x0000u;
 constexpr std::uint32_t kShapePoint = 0x0400u;
 constexpr std::uint32_t kShapeSlabJump = 0x0100u;
@@ -71,8 +60,7 @@ constexpr std::uint32_t kShapeBox = 0x2C00u;
 constexpr std::uint32_t kShapeMobyJump = 0x0300u;
 constexpr std::uint32_t kShapeMoby = 0x4F00u;
 
-// What the body carries through the walk: the position it resolves, the value $v1 leaves holding,
-// and the two result registers the epilogue chooses between.
+// Walk state: the position, $v1, and the two result registers the epilogue picks between.
 struct Walker {
   Core *c = nullptr;
   std::uint32_t pos = 0u;       // $a0, and $gp for the resolved-position store
@@ -96,16 +84,14 @@ struct Offset {
   std::uint32_t z;
 };
 
-// The bounding-sphere separation, live across the whole shape loop exactly as the guest holds it in
-// $a2/$a3/$t1 after its SQR.
+// Bounding-sphere separation, held in $a2/$a3/$t1 across the shape loop.
 struct Separation {
   std::uint32_t mac1;
   std::uint32_t mac2;
   std::uint32_t squared;
 };
 
-// What one shape's test produced. A miss takes the next shape; a hit carries the four values the
-// resolve loop starts from, plus where the next shape record begins.
+// One shape's test result; a hit carries the resolve loop's start values and the next record.
 struct ShapeOutcome {
   bool hit = false;
   std::uint32_t shape = 0u;
@@ -133,9 +119,7 @@ bool isNegative(std::uint32_t value) {
   return (value & 0x80000000u) != 0u;
 }
 
-// `mult`'s low word, with the 64-bit product left in hi/lo the way the guest leaves it. MIPS `mult`
-// is a SIGNED multiply, so the high word has to come from the signed product; the low words agree
-// either way, which is how a body can get the value right and the register state wrong.
+// Signed `mult`: hi/lo keep the signed 64-bit product.
 std::uint32_t multiplyLow(Core *c, std::uint32_t a, std::uint32_t b) {
   const std::int64_t product = static_cast<std::int64_t>(static_cast<std::int32_t>(a)) *
                                static_cast<std::int64_t>(static_cast<std::int32_t>(b));
@@ -144,8 +128,7 @@ std::uint32_t multiplyLow(Core *c, std::uint32_t a, std::uint32_t b) {
   return c->lo;
 }
 
-// The point shape at 0x8004E5D8: the shape word's high half is a y extent, added to the caller's
-// radius and squared, and the whole separation has to be inside it. 8-byte shape records.
+// Point shape at 0x8004E5D8, 8-byte records.
 ShapeOutcome testPointShape(
     Core *c, const Walker &w, const ShapeCursor &at, const Separation &sep, const Offset &off) {
   const std::uint32_t shape = at.shape;
@@ -163,8 +146,7 @@ ShapeOutcome testPointShape(
   return outcome;
 }
 
-// The slab shape at 0x8004E668: the same y extent, plus a second shape word whose high half is a z
-// extent measured against the record's own separation. 12-byte shape records.
+// Slab shape at 0x8004E668, 12-byte records.
 ShapeOutcome testSlabShape(
     Core *c, const Walker &w, const ShapeCursor &at, const Separation &sep, const Offset &off) {
   const std::uint32_t shape = at.shape;
@@ -186,8 +168,7 @@ ShapeOutcome testSlabShape(
   return outcome;
 }
 
-// The box shape at 0x8004E718: the y slab first, then the record's own later words, chosen by the
-// sign of the shifted y extent, decide which x and z extents apply. 20-byte shape records.
+// Box shape at 0x8004E718, 20-byte records.
 ShapeOutcome testBoxShape(
     Core *c, const Walker &w, const ShapeCursor &at, const Separation &sep, const Offset &off) {
   std::uint32_t shape = at.shape;
@@ -207,9 +188,7 @@ ShapeOutcome testBoxShape(
       (static_cast<std::uint32_t>(static_cast<std::int32_t>(packed) >> 16)) + off.z;
   const std::uint32_t xExtent =
       static_cast<std::uint32_t>(static_cast<std::int32_t>(packed << 16) >> 16) + off.z;
-  // Inside the z band the y extent square is the step and the normal is zero. Outside it the
-  // `bltz`'s delay slot picks which of the record's later words is the y one: 4 selects the word
-  // before the x extent, and a negative extent keeps its own value.
+  // The `bltz` delay slot picks which later record word is the y extent.
   if (!isNegative(yExtent | (0u - xExtent))) {
     outcome.hit = true;
     outcome.step = step;
@@ -229,9 +208,7 @@ ShapeOutcome testBoxShape(
   return outcome;
 }
 
-// The moby shape at 0x8004E830: the record's own transform goes into the GTE, one of the model's
-// vertices is projected with RTPS, and the separation in that projected frame is squared against
-// the y extent. 12-byte shape records.
+// Moby shape at 0x8004E830: RTPS one model vertex, 12-byte records.
 ShapeOutcome testMobyShape(Core *c, const Walker &w, const ShapeCursor &at, const Offset &off) {
   const auto [record, shape, word] = at;
   c->gte().writeControl(kGteRot11Rot12, c->mem_r32(record + 0x20u));
@@ -247,8 +224,7 @@ ShapeOutcome testMobyShape(Core *c, const Walker &w, const ShapeCursor &at, cons
   const std::uint32_t node = c->mem_r32(shapes + 0x38u);
   const std::uint32_t bounds = node + (c->mem_r8(record + 0x3Eu) * 8u);
   const std::uint32_t shift = c->mem_r8(node + 0x5u) & 31u;
-  // The vertex index is bit 31 of the word: a 21-bit unsigned value shifted up one bit, or the
-  // 16-bit index from the shape record added to it.
+  // Bit 31 selects a 21-bit index shifted up one, or the record's 16-bit index added.
   const std::uint32_t index = c->mem_r16(shape) * 4u;
   const std::uint32_t packed =
       c->mem_r32(((((c->mem_r32(bounds + 0x24u) << 11) >> 11) | 0x80000000u) + index));
@@ -261,9 +237,7 @@ ShapeOutcome testMobyShape(Core *c, const Walker &w, const ShapeCursor &at, cons
   c->gte().writeData(kGteVz0, y);
   c->gte().writeData(kGteVxy0, (x << 16) + z);
   c->gte().execute(kGteRtps);
-  // RTPS leaves IR1..IR3 alone, so these three reads are still the separation the record started
-  // with: the guest's mtc2 pair wrote the record's own position here, and this arithmetic is what
-  // its three `mfc2`s recover.
+  // RTPS leaves IR1..IR3 alone, so they still hold the starting separation.
   const std::uint32_t normalX = c->gte().readData(kGteIr3) + off.x;
   const std::uint32_t normalY = off.y - c->gte().readData(kGteIr1);
   const std::uint32_t normalZ = off.z - c->gte().readData(kGteIr2);
@@ -286,9 +260,7 @@ ShapeOutcome testMobyShape(Core *c, const Walker &w, const ShapeCursor &at, cons
   return outcome;
 }
 
-// The resolve loop at 0x8004E9D8: step out of the shape along the GTE direction of the current
-// separation — the step itself normalised through the LZ pair and the magnitude table — until a
-// step no longer fits inside the separation, then write the accumulated position back through $gp.
+// Resolve loop at 0x8004E9D8.
 void resolveOutOfShape(Walker &w, std::uint32_t record, const ShapeOutcome &outcome) {
   Core *const c = w.c;
   const std::uint32_t step = outcome.step;
@@ -298,8 +270,7 @@ void resolveOutOfShape(Walker &w, std::uint32_t record, const ShapeOutcome &outc
   for (;;) {
     w.resolved = record; // s1, rewritten on every pass
     c->gte().writeData(kGteLzcs, step);
-    // The `bgtz`'s delay slot runs either way, so the exponent is the same on both arms and the two
-    // arms after it are the only writers of the fallback denominator and of $a1.
+    // The `bgtz` delay slot sets the exponent on both arms.
     const std::int32_t exponent = static_cast<std::int32_t>(c->gte().readData(kGteLzcr)) - 2;
     if (static_cast<std::int32_t>(target) <= 0) {
       target = 1u;
@@ -321,11 +292,7 @@ void resolveOutOfShape(Walker &w, std::uint32_t record, const ShapeOutcome &outc
     c->gte().writeData(kGteLzcs, quotient);
     std::uint32_t reach = quotient;
     if (quotient != 0u) {
-      // `addi $t0, $zero, -2 ; and $t0, $a2, $t0` keeps LZCR's sign bit, and `addi $a3, $zero, 0x1F
-      // ; sub $a3, $a3, $t0 ; sra $a3, $a3, 1` is an ARITHMETIC halving: a negative LZCR -- which
-      // is what a negative quotient's LZCS produces -- gives -1, and the table entry is then
-      // shifted left by all but its low bit. A logical halving here would hand back a shift count
-      // near 2^31 and write the far vertex somewhere the guest never puts it.
+      // Arithmetic halving of LZCR: a negative quotient gives -1.
       const std::int32_t leading =
           static_cast<std::int32_t>(c->gte().readData(kGteLzcr) & 0xFFFFFFFEu);
       const std::int32_t halfShift = (0x1F - leading) >> 1;
@@ -375,10 +342,7 @@ void resolveOutOfShape(Walker &w, std::uint32_t record, const ShapeOutcome &outc
   }
 }
 
-// The hit tail every shape shares (0x8004E5F8, 0x8004E6A4, 0x8004E7BC, 0x8004E95C): OR the caller's
-// flag word into the record unless the shape word's bit 2 forbids it, OR the shape word into the
-// damage word when the caller passed one, then take the next shape (bit 1 of the shape word, or bit
-// 1 of the argument mask), resolve the first hit only (bit 0 of the argument mask), or finish.
+// Shared hit tail (0x8004E5F8, 0x8004E6A4, 0x8004E7BC, 0x8004E95C).
 Step shapeTail(Walker &w, const ShapeCursor &at, const ShapeOutcome &outcome) {
   const auto [record, shape, word] = at;
   Core *const c = w.c;
@@ -402,9 +366,7 @@ Step shapeTail(Walker &w, const ShapeCursor &at, const ShapeOutcome &outcome) {
   return Step::kDone;
 }
 
-// One record at 0x8004E52C: the bounding-sphere reject, then the shape loop, then whatever the hit
-// tail asks for. $v1 holds the record's x separation from the `sub` onwards, which is what the
-// epilogue hands back when the shape list runs out.
+// One record at 0x8004E52C; $v1 holds the x separation from the `sub` on.
 Step walkRecord(Walker &w, std::uint32_t record) {
   Core *const c = w.c;
   Offset off{};
@@ -430,8 +392,7 @@ Step walkRecord(Walker &w, std::uint32_t record) {
     return Step::kNextRecord; // `bgez`: outside the bounding sphere
   }
   for (std::uint32_t word = 0u;;) {
-    // The shape list ends on bit 0 of the word just read, and the `bnez`'s delay slot has already
-    // loaded the next word by the time that test runs.
+    // The `bnez` delay slot has already loaded the next word.
     if ((word & 1u) != 0u) {
       return Step::kNextRecord;
     }
@@ -472,15 +433,7 @@ Step walkRecord(Walker &w, std::uint32_t record) {
   }
 }
 
-// The candidate list at 0x8004E494: the cell the position falls in, plus the cell before it and the
-// cell after it — or just the cell after, when the position sits on the cell's high edge — each an
-// entry of g_MobyCollisionChain, zero-terminated. A neighbour that would wrap out of the table
-// becomes -1 and the `bltz` tests drop it, which is also what the first cell's predecessor is.
-//
-// The neighbour is the cell BEFORE by default, not zero: the `beqz` that skips the "on an edge"
-// arm has `addi a1, v1, -1` in its delay slot, and a delay slot runs whether or not the branch is
-// taken. Reading that arm as leaving the `andi` result in place drops the predecessor cell, which
-// the differential reported on call 1 as a list nine words (36 bytes) out.
+// Candidate list at 0x8004E494; the `beqz` delay slot makes the predecessor cell the default.
 void buildCandidateList(Walker &w) {
   Core *const c = w.c;
   const std::uint32_t base = c->mem_r32(kMobyCollisionChain);
@@ -519,26 +472,7 @@ void buildCandidateList(Walker &w) {
   w.v1 = column; // $v1, which an empty candidate list leaves as the return value's companion
 }
 
-// ── 0x8004E3C8 — the moby collision walk. $a0 is the position to resolve, $a1 the caller's radius,
-//     $a2 the word hit flags are ORed into (0 when the caller passed none), $a3 the flag word ORed
-//     into every record that hits, and the 5th/6th arguments at entry sp+0x10 and sp+0x14 are the
-//     moby to skip and a bitmask whose bit 0 resolves the FIRST hitting shape only and whose bit 1
-//     keeps scanning past a hit.
-//
-// It builds a candidate list in scratch expansion RAM from the position's 13-bit cell coordinates,
-// walks every record in those cells, rejects each on its bounding sphere, then tests the record's
-// shape records — dispatched through a computed jump on bits 8..15 of the shape word — and resolves
-// the position out of whatever shape hit.
-//
-// v0 is that choice on EVERY exit: the epilogue's `beqz` delay slot writes $s2 and the instruction
-// after it overwrites it with $s1 only when bit 0 of the mask is clear. v1 ends up holding the cell
-// column when no record was ever reached, the last record's x separation when the shape list ran
-// out, and whatever the resolve loop last computed when it ran.
-//
-// The prologue's spill to the shared save area at 0x80077DD8 IS reproduced, and it is not a no-op:
-// the epilogue reloads the very same twelve words, so the area holds THIS call's registers once the
-// call returns rather than the previous call's. Leaving that to the caller's leftovers was the
-// first thing this override got wrong, and the differential caught it on call 1 of 231.
+// 0x8004E3C8: the spill to 0x80077DD8 is reproduced because the epilogue reloads it.
 void mobyCollisionWalk(Core *c) {
   const std::uint32_t spilled[12] = {c->r[16],
                                      c->r[17],
@@ -583,8 +517,7 @@ void mobyCollisionWalk(Core *c) {
     record -= 4u; // the `beqz`'s delay slot
     for (;;) {
       record = c->mem_r32(record + 4u);
-      // The chain's `beqz` delay slot reads this even when the chain has just ended, so an
-      // exhausted chain leaves v1 holding the scratchpad word at 0xC.
+      // The `beqz` delay slot reads scratchpad word 0xC even on an exhausted chain.
       w.v1 = c->mem_r32(record + 0xCu);
       if (record == 0u) {
         break;
@@ -599,32 +532,20 @@ void mobyCollisionWalk(Core *c) {
       }
     }
   }
-  // 0x8004EB5C `beqz $at, 0x8004EB68` with `addi $v0,$s2,0` in its DELAY SLOT, so the $s2 value is
-  // installed when the bit is CLEAR; 0x8004EB64 `addi $v0,$s1,0` runs only when it is set. The
-  // select is the other way round from what it looks like, and inverting it swaps the returned
-  // record on every call where the two differ.
+  // 0x8004EB5C: $s2 is installed in the delay slot when the bit is clear; $s1 only when set.
   c->r[2] = (w.flags & 1u) == 0u ? w.firstHit : w.resolved;
   c->r[3] = w.v1;
 }
 
 
-// The moby fields this body touches, at the offsets the measured MOBY_FIELDS list records for
-// asm/42CC4.s. The two flag bytes are cleared here but are named by
-// nothing this repository has measured — that list names +0x40 and +0x42 and stops there — so they
-// carry their offset instead of a field name this port has not established.
+// Moby fields; the two cleared flag bytes have no established name.
 constexpr std::uint32_t kMobyCollisionGroup = 0x08u;
 constexpr std::uint32_t kMobyCollisionRegion = 0x34u;
 constexpr std::uint32_t kMobyFlagByteAt41 = 0x41u;
 constexpr std::uint32_t kMobyFlagByteAt4B = 0x4bu;
 constexpr std::uint32_t kNoCollisionRegion = 0xffffu;
 
-// ── 0x800529CC — put a moby in the "collides with nothing yet" state: the collision group word at
-//     +0x08 to zero, the collision region halfword at +0x34 to 0xFFFF, and the flag bytes at +0x41
-//     and +0x4B cleared. Both callers run it on a moby that has just been allocated and before its
-//     spawn position is copied in — the `jal` at 0x80054658, whose delay slot `move $a0,$s3` is
-//     what supplies the moby, and the `jal` at 0x800141B4 — so a0 is the only input. The halfword
-//     store is the `jr $ra` delay slot and its value is the `addi $at,$zero,-1` before it, so $at
-//     exits holding 0xFFFFFFFF; v0 and v1 are never written and carry in from the caller.
+// 0x800529CC: $at exits as 0xFFFFFFFF from the delay-slot halfword store.
 void clearMobyCollisionState(Core *c) {
   const std::uint32_t moby = c->r[4];
   c->mem_w8(moby + kMobyFlagByteAt4B, 0);

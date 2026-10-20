@@ -16,9 +16,7 @@ using spyro1::guest::kMobyCollisionChain;
 using spyro1::guest::kModels;
 using spyro1::guest::kSinTable;
 
-// The Moby's own fields. +0x36 is the model class the model table is indexed by, +0x38 that model's
-// per-class list array, and +0x3C/+0x3E the low and high byte of the animation word that pick one
-// 8-byte entry in one of those lists.
+// Moby fields: +0x36 model class, +0x38 per-class lists, +0x3C/+0x3E the animation entry bytes.
 constexpr std::uint32_t kBucketLink = 0x04u;
 constexpr std::uint32_t kPositionRow = 0x08u;
 constexpr std::uint32_t kRotationWords = 0x0Cu;
@@ -31,75 +29,45 @@ constexpr std::uint32_t kAnimationHighByte = 0x3Eu;
 constexpr std::uint32_t kEntryFlag = 0x41u;
 constexpr std::uint32_t kPackedAngles = 0x44u;
 
-// One g_Models entry: its +0x14 word is the row table this body reads a row of as the moby's
-// position, and the chain head that decides whether the moby joins a bucket at all. The row read is
-// the same +0x14 word plus bits 19..23 of the entry's row selector, which select one of eight rows.
+// g_Models entry: +0x14 is the row table; bits 19..23 of the row selector pick one of eight rows.
 constexpr std::uint32_t kModelRowTable = 0x14u;
 constexpr std::uint32_t kRowSelectorMask = 0x1Cu;
 constexpr std::uint32_t kRowSelectorShift = 19u;
-// One 8-byte entry of a per-class list: a flag byte at the head of the list itself, and the row
-// selector in the entry the two animation bytes pick (`sll 3`, the entry stride).
+// Per-class list: flag byte at the head; entries are 8 bytes (`sll 3`).
 constexpr std::uint32_t kListEntryFlag = 0x0Cu;
 constexpr std::uint32_t kEntryRow = 0x24u;
 
 // g_MobyCollisionChain: a head per bucket, the bucket index kept in the moby at +0x34.
 constexpr std::uint32_t kNoBucket = 0xFFFFu;
-// The bucket index is two packed words of rotation, each shifted down 13 bits, and a non-negative
-// chain head adds a half turn.
+// Bucket index: two rotation words shifted down 13; a non-negative chain head adds a half turn.
 constexpr std::uint32_t kRotationShift = 13u;
 constexpr std::uint32_t kBucketHalfTurn = 0x400u;
 
-// The three angles packed into the word at +0x44, as halfword offsets into the sin and cos tables:
-// the first from bits 15..23 (already an even halfword count), the second from byte 1 and the third
-// from byte 0, each of those doubled.
+// Angles at +0x44 as halfword table offsets: bits 15..23, then byte 1 and byte 0 doubled.
 constexpr std::uint32_t kFirstAngleShift = 15u;
 constexpr std::uint32_t kFirstAngleMask = 0x1FEu;
 constexpr std::uint32_t kSecondAngleMask = 0xFF00u;
 constexpr std::uint32_t kThirdAngleMask = 0xFFu;
 
-// The one GTE command the body runs, six times: MVMVA with sf=12, matrix 0, vector 0, the
-// translation pair cv=3 and lm=0. The matrix starts as 1.0 on the diagonal in the GTE's 16.12
-// fixed point, the identity each angle's rotation is composed onto.
+// MVMVA sf=12, mx=0, v=0, cv=3, lm=0, run six times over an identity 4.12 matrix.
 constexpr std::uint32_t kMultiplyVector = 0x4A486012u;
 constexpr std::uint32_t kUnitDiagonal = 0x1000u;
-// The two data registers the MVMVA reads VX0 from (the decomp's C2_VXY0 and C2_VZ0), and the three
-// the body reads each result back from: DR9..DR11 are IR1..IR3.
+// VXY0/VZ0 inputs; DR9..DR11 are IR1..IR3.
 constexpr std::uint32_t kGteVectorXY0 = 0u;
 constexpr std::uint32_t kGteVectorZ0 = 1u;
 constexpr std::uint32_t kGteIrX = 9u;
 constexpr std::uint32_t kGteIrY = 10u;
 constexpr std::uint32_t kGteIrZ = 11u;
-// Each angle contributes a NEW 16.16 half to a matrix word and keeps the half the angle before it
-// left there, so the five words are assembled from the three angles' partial products.
+// Each angle replaces one 16-bit half of a matrix word and keeps the other.
 constexpr std::uint32_t kHighHalf = 0xFFFF0000u;
 constexpr std::uint32_t kLowHalf = 0xFFFFu;
 
-// The body's `mtc2 ..., C2_VZ0` writes land in DR1, and this is the ONE register where the
-// executor's MTC2 and Gte::writeData disagree on what is left behind: the backend stores the
-// source register's full 32 bits, while GTE_WriteDR narrows DR1 to a sign-extended halfword. The
-// GTE reads DR1 as a halfword either way, so the matrix is identical and only the register the
-// differential compares differs: a 0x0000F000 from the guest against a 0xFFFFF000 from the port.
-// Writing the bank directly is what reproduces it.
+// Bank written directly: the guest MTC2 keeps all 32 bits of DR1; writeData narrows it.
 void writeVectorZ0(Core *c, std::uint32_t value) {
   c->gte().registers().REG[kGteVectorZ0] = value;
 }
 
-// 0x800526A8 — re-derive one moby's world transform. The model table its class selects names the
-// row this moby takes (one +0x14 word of that model, read twice: plain, and again through the
-// rotation bits of its animation entry's row selector) and the chain head that decides whether it
-// joins a collision-chain bucket at all — an index built from two packed rotation words, under
-// which it files itself at the head. The three angles packed at +0x44 then rebuild the 3x3
-// orientation matrix at +0x20, each running the GTE twice: once over the sin/cos pair the angle
-// indexes, and once over that pair turned back through the matrix built so far.
-//
-// NON-OBVIOUS PARTS. The +0x34 halfword is set to -1 in the `beqz`'s DELAY SLOT, so it is written
-// on both arms and the index store is the only thing that follows a non-zero head; the bucket
-// lookup uses the UNTRUNCATED index while the moby keeps only its low half. An angle's first MVMVA
-// takes the sin/cos pair one way round and its second the OTHER way round with the sin half
-// negated, and the first two angles pack the two halves the other way round again — the matrix's
-// halves are assembled from those partial products, not recomputed. The THIRD angle writes no
-// control register at all: its four words go straight to the moby. v0 exits as the sin table and v1
-// as the cos table, the last thing the body writes to either.
+// 0x800526A8: +0x34 is stored in the `beqz` delay slot; the bucket lookup uses the full index.
 void rebuildMobyTransform(Core *c) {
   const std::uint32_t moby = c->r[4];
   const std::uint32_t model = c->mem_r32(kModels + (c->mem_r16(moby + kModelClass) << 2));
@@ -152,7 +120,7 @@ void rebuildMobyTransform(Core *c) {
     c->gte().writeData(kGteVectorXY0, x);
     writeVectorZ0(c, y);
     c->gte().execute(kMultiplyVector);
-    // The two halves go back the OTHER way round: the Y half negated, the X half as it is.
+    // The halves go back swapped: Y negated, X as is.
     const std::uint32_t mirrored = (0u - y) & kLowHalf;
     const std::uint32_t firstX = c->gte().readData(kGteIrX);
     const std::uint32_t firstY = c->gte().readData(kGteIrY);
@@ -238,13 +206,7 @@ void rebuildMobyTransform(Core *c) {
 }
 
 
-// ── 0x80037F90 — count a moby timer down by the frame delta global: a0 is the timer, a1 its width
-//     in bytes (4, 2 or 1), and each width is one copy of load, `slt` the signed 32-bit delta
-//     against the timer, then either zero the timer and return 2, return 1 because it was already
-//     zero, or subtract the delta and return 0. v1 exits holding the loaded timer — sign-extended
-//     for `lh`, zero-extended for `lbu` — and it is filled from a2 in a branch delay slot, so it is
-//     set on both arms. A width that is none of the three jumps straight out with v0 = 1 and v1
-//     untouched, which is the value the decomp's missing return actually produces.
+// 0x80037F90: v1 is filled from a2 in a delay slot; an unknown width returns 1 with v1 untouched.
 
 void tickMobyTimer(Core *c) {
   const std::uint32_t timerAddr = c->r[4];
@@ -311,12 +273,7 @@ constexpr std::uint32_t kZeroedWordFields[] = {0x18u, 0x1cu};
 constexpr std::uint32_t kZeroedByteFields[] = {
     0x3cu, 0x3du, 0x3eu, 0x40u, 0x44u, 0x45u, 0x46u, 0x48u, 0x49u, 0x57u};
 
-// Resets the moby at $a0 to its spawn defaults: 20 byte stores, 3 word stores and 1 halfword
-// store, with no branch and no load. Retail body at 0x8003A720. Its last word store sits in the
-// $jr $ra delay slot, so the specular/metal colour word is written on the same path as the rest.
-// The function is void in the source sense but still clobbers the two registers the differential
-// compares: $v0 leaves holding 0x7F, the sound-channel byte stored last, and $v1 holding 0xFF,
-// the unset index value it reuses for the pod, sector and drop stores.
+// 0x8003A720: void, but leaves v0 = 0x7F and v1 = 0xFF from its last stores.
 void resetMobyDefaults(Core *c) {
   const std::uint32_t moby = c->r[4];
 
@@ -348,23 +305,11 @@ constexpr std::uint32_t kMobyPositionZ = 0x14u;
 constexpr std::uint32_t kGroundProbeHeight = 0x5dcu;
 constexpr std::uint32_t kGroundProbeRadius = 0x1000u;
 constexpr std::uint32_t kGroundProbeFrame = 0x18u;
-// The highest world or actor triangle below a point; it snapshots its caller's s0..s7, gp, sp, fp
-// and ra into 0x3C017DD8, so the caller's sp, ra and s0 are behaviour.
+// Snapshots its caller's s0..s7, gp, sp, fp and ra into 0x3C017DD8.
 constexpr std::uint32_t kFindGroundHeightBelow = 0x8004D5ECu;       // `jal` at 0x80038360
 constexpr std::uint32_t kFindGroundHeightBelowReturn = 0x80038368u; // the `jal`'s own pc + 8
 
-// ── 0x80038340 — the ground height under a moby, asked for from 1500 units above it.
-//     a0 = &moby->m_Position, a1 = 4096. The z bump is STORED before the query runs — the store is
-//     the `jal`'s delay slot — and the z the restore leaves is what v1 exits holding, reloaded from
-//     memory rather than from the pre-call word, so a query that moved z is reflected. v0 is the
-//     query's own return, which the body never touches again.
-//     The frame, s0 and ra are behaviour, not bookkeeping: the query records its CALLER's s0..s7,
-//     gp, sp, fp and ra into RAM at 0x3C017DD8 before it reads a0/a1, so an override that entered
-//     it with the host's sp and ra wrote words nobody else writes. The body therefore stands up
-//     retail's 0x18-byte frame, s0 = the moby, and ra = the instruction after the `jal` for the
-//     duration of the call. The frame's own two stores are inside the 8 KiB of dead stack the
-//     differential ignores, and the callee reads the caller's registers rather than the caller's
-//     frame, so they are not reproduced.
+// 0x80038340: z bump stored in the `jal` delay slot; runs in retail's 0x18 frame, s0 and ra set.
 void mobyGroundHeight(Core *c) {
   const std::uint32_t moby = c->r[4];
   const std::uint32_t callerSp = c->r[29];
@@ -384,10 +329,7 @@ void mobyGroundHeight(Core *c) {
   c->r[3] = restored;
 }
 
-// ── 0x80037E98 — the moby interpolation check, whose retail body is EMPTY: `jr $ra` at 0x80037E98
-//     and a `nop` in its delay slot, and no third instruction anywhere in the function. It writes
-//     no register and no memory, so v0 and v1 carry in whatever the caller left and the moby
-//     pointer it is handed is never read.
+// 0x80037E98: retail body is `jr $ra ; nop`.
 void mobyInterpolationCheck(Core *) {}
 
 } // namespace

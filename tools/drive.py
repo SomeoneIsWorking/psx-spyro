@@ -77,7 +77,7 @@ ROUTE_CARD = ROOT / "scratch" / "saves" / "route.mcr"
 # stays inside its own file.
 SCENE_CARD = ROOT / "scratch" / "saves" / "scene.mcr"
 
-# Guest addresses. The shared ones come from the shipping owner, titles/spyro1/core/guest_globals.h, through
+# Guest addresses. The shared ones come from the shipping owner, game/core/guest_globals.h, through
 # tools/guest_globals.py, so this driver and the product cannot read different memory. The two
 # level-transition words below are read here and nowhere else, so they stay with their only reader.
 G_GAMESTATE = guest_globals.kGamestate
