@@ -133,8 +133,7 @@ not touch `g_LevelTransTicks`, the gem array, the load stage, or the gamestate, 
 re-run the tally update, so no simulation is fast-forwarded and no I/O is bypassed. The former host
 shortcut, which wrote the timer as well as the flag, stays removed.
 
-`classify()` is pure and covered by `tests/test_transition_skip.cpp`, including the two negatives
-that matter: Start during play is the pause button and Start in the pause menu is confirm, and
+`classify()` is pure and has two negatives that matter: Start during play is the pause button and Start in the pause menu is confirm, and
 neither reads as a cancellation.
 
 NOT YET LIVE-VERIFIED. `GS_LevelTransition` is only entered by portal traversal and by
@@ -142,7 +141,7 @@ NOT YET LIVE-VERIFIED. `GS_LevelTransition` is only entered by portal traversal 
 sub-level, not in a homeworld. Both routes therefore sit behind the portal blocker below, so
 `tools/drive.py --skip-transitions` reaches gameplay without the state ever occurring: a driven run
 with the flag on and one with it off both reach `GS_Playing` at frame 6361 and log no cancellation.
-The mechanism is proven by unit test only until a portal can be traversed.
+The mechanism is unproven in a running product until a portal can be traversed.
 
 ## The level flyby ("THE ADVENTURE BEGINS...")
 
@@ -193,9 +192,6 @@ this is the same move.
 The cancellation itself is two scoped dispatches of the guest's own calls, `0x8004AC24(1)` then
 `0x80015370(1)`, on the `func_8002C664` precedent — no global is hand-copied.
 
-`tests/test_transition_skip.cpp` covers the load gate, the two unrecovered demo paths, and the
-titlescreen menu (the same gamestate, where Start is the menu's own confirm). Both new discriminators
-were checked by removing the thing they test and watching them fail, not by reading them.
 
 ## Transition screens still without a recovered cancellation
 

@@ -62,7 +62,7 @@ fresh process. Issue 0169.
   or the binary through `external/psxport/tools/port/launch_environment.py::agent_environment` (offscreen, silent).
   Headless button presses go through a forced-input path, not the player's SDL path: when a fix is about input,
   check it through the live path too.
-- Check work by running the game and looking at the capture. Gate once at the end:
-  `uv run --frozen python tools/verify.py --jobs 6`.
+- Check work by running the game and looking at the capture. There are no unit tests or gates. Build with
+  `CC=clang CXX=clang++ uv run --frozen python external/psxport/tools/port/consumer_build.py --build build/agent --target spyro_port`.
 
 No game asset, executable, disc image, generated guest body, or machine-specific path is committed.

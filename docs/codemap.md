@@ -97,9 +97,8 @@ S3 `SCUS_944.67`. `game/` and `titles/` are the include roots, so a header is in
 
 | owner | path | owns |
 |---|---|---|
-| build | `CMakeLists.txt` | `spyro_port` through `psxport_add_product`, the title catalog generation, tests, policy gate |
-| tests | `tests/` | Unit tests through shipping seams; `test_game.h` and `booted_title.h` (a title admitted through the shipping path), `record_frames.h` and `terrain_record_scene.h` (Record producer scenes), `record_wide_plan.h` (the 16:9 Record plan), `tests/spyro1/record_scene.h` (a Spyro 1 field drawn, flattened and walked) |
-| verify | `tools/verify.py`, `tools/format.py`, `tools/policy/` | The gate: build, tests, clang-format, clang-tidy, ownership policy |
+| build | `CMakeLists.txt` | `spyro_port` through `psxport_add_product`, the title catalog generation |
+| format | `tools/format.py` | clang-format over `game/` and `titles/` |
 | launch and provisioning | `run.sh`, `tools/run.py`, `tools/provision_title.py`, `tools/generate_title_catalog.py` | The zero-argument launch, title provisioning, the `external/psxport` fetch (`tools/run.py:sync_framework`) |
 | agent drivers | `tools/drive.py`, `tools/boot_run.py`, `tools/title_route.py`, `tools/shot.py`, `tools/pad_replay.py`, `tools/oracle_*.py` | Headless routes, boot runs, captures, replays, oracle comparison |
 

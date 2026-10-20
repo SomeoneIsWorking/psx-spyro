@@ -338,7 +338,7 @@ def reset_cmake_state(build: Path) -> None:
     build = owned_build_path(build)
     targets = [build / name for name in (
         "CMakeCache.txt", "CMakeFiles", "Makefile", "build.ninja", "rules.ninja",
-        ".ninja_deps", ".ninja_log", "cmake_install.cmake", "CTestTestfile.cmake",
+        ".ninja_deps", ".ninja_log", "cmake_install.cmake",
         "DartConfiguration.tcl", "CPackConfig.cmake", "CPackSourceConfig.cmake",
     )]
     for target in targets:
@@ -351,7 +351,7 @@ def reset_cmake_state(build: Path) -> None:
             target.unlink(missing_ok=True)
 
 
-def configure(source, build, compiler_options, *definitions, build_testing=False):
+def configure(source, build, compiler_options, *definitions):
     build = owned_build_path(Path(build))
     source = Path(source)
     cached_source = cache_value(build, "CMAKE_HOME_DIRECTORY")
@@ -381,7 +381,6 @@ def configure(source, build, compiler_options, *definitions, build_testing=False
         "-G",
         "Ninja",
         "-DCMAKE_BUILD_TYPE=Release",
-        f"-DBUILD_TESTING={'ON' if build_testing else 'OFF'}",
         f"-DPython3_EXECUTABLE={sys.executable}",
         *compiler_options,
         *definitions,

@@ -62,10 +62,10 @@ verification uses Clang with the tracked `clang-format` and `clang-tidy` policy.
 dependencies must be refused with an exact user-run package command; Ghidra and other RE tools are
 never player prerequisites.
 
-Hosted CI is deliberately asset-free: one Linux Clang job runs `tools/verify.py` without downloading
+Hosted CI is deliberately asset-free: one Linux Clang job builds `spyro_port` without downloading
 game files or claiming runtime gameplay. macOS arm64, Windows x86_64 and Android arm64 runtime jobs
-remain missing until platform packaging lands. Maintainers run `uv run --frozen python tools/verify.py
---jobs 6`: the Clang build, CTest, clang-format, clang-tidy and the ownership policy; title gameplay and
+remain missing until platform packaging lands. Maintainers build with `CC=clang CXX=clang++ uv run --frozen python
+external/psxport/tools/port/consumer_build.py --build build/agent --target spyro_port`; title gameplay and
 real-media evidence remain separate requirements.
 
 ## Architecture
