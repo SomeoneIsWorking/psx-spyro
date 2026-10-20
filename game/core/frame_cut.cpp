@@ -17,7 +17,7 @@ inline constexpr std::uint32_t kSubStateFlag = 0x80;
 
 } // namespace
 
-bool FrameCut::cameraPlaced(const CameraMachine &before, const CameraMachine &after) {
+bool FrameCut::cameraPlaced(const CameraMachineWords &before, const CameraMachineWords &after) {
   if (before.mode != after.mode || before.subState == after.subState) {
     return false;
   }
@@ -39,7 +39,7 @@ void FrameCut::onFrameDrawn(Core &core) {
       .levelId = core.mem_r32(facts_.levelId),
   };
   if (facts_.camera) {
-    walkedCamera_ = CameraMachine{
+    walkedCamera_ = CameraMachineWords{
         .mode = core.mem_r32(facts_.camera->mode),
         .subState = core.mem_r32(facts_.camera->subState),
     };

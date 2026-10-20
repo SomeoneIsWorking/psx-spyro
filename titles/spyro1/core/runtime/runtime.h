@@ -21,7 +21,6 @@ public:
   void deliverPad(Core &core, const psx::input::PadDelivery &delivery) override;
 
   std::optional<psx::gpu::PacketPoolExtent> packetPool(Core &core) const override;
-  bool interpolates() const override;
   // The boot logos are uploads at the native width; no widening applies to them.
   bool guestPictureIsNativeWidth(const Game &game) const override;
   bool sealedFrameIsCut(Core &core) const override;

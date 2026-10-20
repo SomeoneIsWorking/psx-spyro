@@ -6,11 +6,14 @@
 #include "spyro3/core/runtime.h"
 #include "title_catalog.h"
 
+#include <cstdint>
 #include <filesystem>
 #include <memory>
 #include <span>
 
 namespace spyro {
+
+enum class Title : std::uint8_t { Spyro1, Spyro2, Spyro3 };
 
 // Spyro 1/2/3 as the multi-title host's catalog: entry i of the generated identities is title i.
 class Catalog final : public psx::host::TitleCatalog {

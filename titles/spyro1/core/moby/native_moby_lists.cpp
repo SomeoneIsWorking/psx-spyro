@@ -1,6 +1,6 @@
 #include "spyro1/core/moby/native_moby_lists.h"
 
-#include "core/guest_globals.h"
+#include "spyro1/core/guest_globals.h"
 #include "core/native_execution.h"
 #include "guest_call.h"
 
@@ -9,9 +9,9 @@
 namespace spyro1::native {
 namespace {
 
-using spyro::guest::kLevelMobys;
-using spyro::guest::kModelSoundTables;
-using spyro::guest::kRegisterSpillArea;
+using spyro1::guest::kLevelMobys;
+using spyro1::guest::kModels;
+using spyro1::guest::kRegisterSpillArea;
 
 constexpr std::uint32_t kRenderQueue = 0x8006FCF4u;
 constexpr std::uint32_t kSignedQueue = kRenderQueue + 0x2200u;
@@ -139,7 +139,7 @@ void updateMobyAnimationSounds(Core *c) {
       c->mem_w8(kStagedScale, 0u);
       c->mem_w8(kStagedSound, static_cast<std::uint8_t>(nextSound));
       c->mem_w8(kStagedFrame, static_cast<std::uint8_t>(frameCount));
-      model = c->mem_r32(kModelSoundTables + c->mem_r16(moby + kMobyClass) * 4u);
+      model = c->mem_r32(kModels + c->mem_r16(moby + kMobyClass) * 4u);
       sequence = c->mem_r32(model + nextSound * 4u + kSequenceTable);
       const std::uint32_t next = frameCount + 1u;
       c->mem_w8(kStagedFrameCount, static_cast<std::uint8_t>(next));
@@ -163,7 +163,7 @@ void updateMobyAnimationSounds(Core *c) {
       }
       c->mem_w8(kStagedScale, static_cast<std::uint8_t>(scale & 0x3Fu));
       c->mem_w8(kStagedFrame, static_cast<std::uint8_t>(frameCount));
-      model = c->mem_r32(kModelSoundTables + c->mem_r16(moby + kMobyClass) * 4u);
+      model = c->mem_r32(kModels + c->mem_r16(moby + kMobyClass) * 4u);
       sequence = c->mem_r32(model + nextSound * 4u + kSequenceTable);
       const std::uint32_t next = frameCount + 1u;
       v0 |= 1u;

@@ -37,7 +37,7 @@
 // collectable count lands at x -111 instead of -25 and is drawn off the left edge, so the number is
 // not on screen at all; the egg's icon lands at 595 instead of 468 and is jammed against the right
 // edge, which reads as the icon and the count having swapped sides. The value emitter therefore
-// opens a scope of its own (`hud_draw_context::Draw::insideValue`) and the icon emitter leaves
+// opens a scope of its own (`DrawState::insideValue`) and the icon emitter leaves
 // alone any call made inside it.
 //
 // WHERE IT IS APPLIED: at the emitters' X ARGUMENT, in a register, before any packet exists. No
@@ -46,6 +46,7 @@
 // exactly.
 #pragma once
 
+#include "core/session.h"
 #include "render/hud/ui_anchor.h"
 
 #include <cstdint>
@@ -80,6 +81,40 @@ constexpr std::optional<spyro::ui_anchor::Anchor> counterAnchor(std::uint32_t el
     return std::nullopt;
   }
 }
+
+// The widget whose drawer is running, carried down to the emitters it calls; zero is none.
+class DrawState final : public spyro::TitleState {
+public:
+  void begin(std::uint32_t widgetElement) {
+    element_ = widgetElement;
+  }
+
+  void end() {
+    element_ = 0;
+    inValue_ = false;
+  }
+
+  [[nodiscard]] std::uint32_t current() const {
+    return element_;
+  }
+
+  void beginValue() {
+    inValue_ = true;
+  }
+
+  void endValue() {
+    inValue_ = false;
+  }
+
+  // Between the value emitter's entry and return, where its digit glyphs reach the icon emitter.
+  [[nodiscard]] bool insideValue() const {
+    return inValue_;
+  }
+
+private:
+  std::uint32_t element_ = 0;
+  bool inValue_ = false;
+};
 
 // Install the drawer and emitter overrides for this Core's resident SCUS_944.67 image.
 void registerOverrides(Core &core);

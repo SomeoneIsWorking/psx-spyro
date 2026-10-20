@@ -29,9 +29,7 @@ void counterDrawer(Core *core) {
                   spyro::ui_anchor::correctionAndReport(
                       {.name = "hud-counter", .index = core->r[4]}, *anchor, frame(*core)));
   }
-  (void)psx::cpu::completeOrPropagate(
-      *core,
-      psx::cpu::callOriginal(*core, kCounterDrawer, psx::cpu::ExecutionBudget::currentTurn(*core)));
+  (void)psx::cpu::callOriginalOrPropagate(*core, kCounterDrawer);
 }
 
 // FUN_800520CC(image, x, y, size): the emitted x is $a1.
@@ -42,9 +40,7 @@ void spriteEmitter(Core *core) {
                   spyro::ui_anchor::correctionAndReport(
                       {.name = "hud-meter", .index = core->r[31]}, *anchor, frame(*core)));
   }
-  (void)psx::cpu::completeOrPropagate(
-      *core,
-      psx::cpu::callOriginal(*core, kSpriteEmitter, psx::cpu::ExecutionBudget::currentTurn(*core)));
+  (void)psx::cpu::callOriginalOrPropagate(*core, kSpriteEmitter);
 }
 
 } // namespace

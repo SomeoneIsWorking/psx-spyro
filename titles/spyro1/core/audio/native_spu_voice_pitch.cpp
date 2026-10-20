@@ -1,4 +1,4 @@
-#include "spyro1/core/audio/native_spu_voice_pitch.h"
+#include "spyro1/core/audio/spu_library.h"
 
 #include "core/native_execution.h"
 
@@ -7,11 +7,6 @@
 namespace spyro1::native {
 namespace {
 
-constexpr std::uint32_t kPitchRoundingGuard = 0x80073578u;
-constexpr std::uint32_t kPitchShift = 0x8007357Cu;
-constexpr std::uint32_t kPitchRoundingStep = 0x80073580u;
-constexpr std::uint32_t kPitchRoundingMask = 0x80073584u;
-constexpr std::uint32_t kVoicePitchTable = 0x80073554u;
 
 constexpr std::uint32_t kReturnRoundedPitch = 0xFFFFFFFEu;
 constexpr std::uint32_t kReturnShiftedPitch = 0xFFFFFFFFu;
@@ -37,25 +32,18 @@ constexpr std::uint32_t kReturnShiftedPitch = 0xFFFFFFFFu;
 //   any other voice stores the SHIFTED pitch at table[voice] and returns the ROUNDED pitch.
 // v1 holds that store address on the storing arm and the caller's own word on the other two, so it
 // must stay unwritten on them.
-//
-// MEASURED on route artisans-walk, 31 of 31 sampled calls matching, with each arm probed by a
-// deliberately wrong body so the coverage has a denominator instead of an assumption: the storing
-// arm is taken on 14 of the 31 and the -1 arm on 3, and both probes are caught (the -1 one as
-// register v0 0x202 against 0x1010, the storing one as a 16-bit device write at 0x1F801C06). The -2
-// arm is taken on NONE of them, so a body wrong there still passes this route and that arm rests on
-// the disassembly alone.
 void setVoicePitch(Core *c) {
   const std::uint32_t voice = c->r[4];
   std::uint32_t pitch = c->r[5];
 
-  if (c->mem_r32(kPitchRoundingGuard) != 0u) {
-    const std::uint32_t step = c->mem_r32(kPitchRoundingStep);
+  if (c->mem_r32(libspu::kSpuPitchRoundingGuard) != 0u) {
+    const std::uint32_t step = c->mem_r32(libspu::kSpuPitchRoundingStep);
     if (step != 0u && (pitch % step) != 0u) {
-      pitch = (pitch + step) & ~c->mem_r32(kPitchRoundingMask);
+      pitch = (pitch + step) & ~c->mem_r32(libspu::kSpuPitchRoundingMask);
     }
   }
 
-  const std::uint32_t shifted = pitch >> (c->mem_r32(kPitchShift) & 31u);
+  const std::uint32_t shifted = pitch >> (c->mem_r32(libspu::kSpuFieldShift) & 31u);
   if (voice == kReturnRoundedPitch) {
     c->r[2] = pitch;
     return;
@@ -64,7 +52,7 @@ void setVoicePitch(Core *c) {
     c->r[2] = shifted & 0xFFFFu;
     return;
   }
-  const std::uint32_t slot = (voice << 1) + c->mem_r32(kVoicePitchTable);
+  const std::uint32_t slot = (voice << 1) + c->mem_r32(libspu::kSpuRegisterBase);
   c->mem_w16(slot, static_cast<std::uint16_t>(shifted));
   c->r[2] = pitch;
   c->r[3] = slot;

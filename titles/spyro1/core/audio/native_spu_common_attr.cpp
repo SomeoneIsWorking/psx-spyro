@@ -1,4 +1,4 @@
-#include "spyro1/core/audio/native_spu_common_attr.h"
+#include "spyro1/core/audio/spu_library.h"
 
 #include "core/native_execution.h"
 
@@ -8,10 +8,6 @@
 namespace spyro1::native {
 namespace {
 
-// The live SPU state every group publishes through. The body re-reads it per group
-// (`lui $v1, 0x8007 ; lw $v1, 0x3554($v1)`), so a group writes through the pointer the STATE holds
-// when that group runs, never one hoisted to entry.
-constexpr std::uint32_t kSpuCommonAttrState = 0x80073554u;
 
 // The two retail switch tables the argument's two preset indices index, one case arm per entry:
 // `sll $v0, $v1, 2 ; lui $at, 0x8001 ; addu $at, $at, $v0 ; lw $v0, 0x157c($at)` for the first
@@ -131,14 +127,14 @@ void pushVolume(Core *c, std::uint32_t arg, const VolumeGroup &group, bool usePr
     }
   }
   c->r[2] = level | preset;
-  c->r[3] = c->mem_r32(kSpuCommonAttrState);
+  c->r[3] = c->mem_r32(libspu::kSpuRegisterBase);
   c->mem_w16(c->r[3] + group.stateOffset, static_cast<std::uint16_t>(c->r[2]));
 }
 
 // One halfword copied straight through, UNSIGNED, to its state slot. $v0 carries the loaded word
 // out with $v1 the state pointer.
 void pushStateHalfword(Core *c, std::uint32_t arg, const HalfwordField &field) {
-  c->r[3] = c->mem_r32(kSpuCommonAttrState);
+  c->r[3] = c->mem_r32(libspu::kSpuRegisterBase);
   c->r[2] = c->mem_r16(arg + field.argOffset);
   c->mem_w16(c->r[3] + field.stateOffset, static_cast<std::uint16_t>(c->r[2]));
 }
@@ -148,7 +144,7 @@ void pushStateHalfword(Core *c, std::uint32_t arg, const HalfwordField &field) {
 // $v1, the reverse of every other group.
 void pushStateFlag(Core *c, std::uint32_t arg, const FlagField &field) {
   const std::uint32_t flagBit = field.flagBit;
-  const std::uint32_t state = c->mem_r32(kSpuCommonAttrState);
+  const std::uint32_t state = c->mem_r32(libspu::kSpuRegisterBase);
   const std::uint32_t flags = c->mem_r16(state + kStateFlags);
   c->r[2] = state;
   if (c->mem_r32(arg + field.argOffset) != 0u) {
@@ -168,28 +164,6 @@ void pushStateFlag(Core *c, std::uint32_t arg, const FlagField &field) {
 // last skipped group leaves behind on the way out. $v1 is the caller's unless a group runs, and
 // the first volume group's skip publishes bit 4 rather than its own select bit 1, because the
 // table/direct test between them is the delay slot that ran last.
-//
-// MEASURED, and the coverage is narrower than the body: artisans-walk samples 19 of 19 calls and
-// pause-menu 27 of 27, both matching, and across the 46 calls only TWO masks occur — 0xC0 eighteen
-// and twenty-six times and 0xC3 once each. So the two volume groups and the two halfword groups
-// (0x1B0, 0x1B2) are exercised with several distinct halfword values, the six remaining groups
-// are exercised only in their SKIPPED form, and the mask of zero never occurs at all. Unexercised
-// therefore, and following the retail disassembly and its data alone:
-//
-//   * BOTH VOLUME PRESET TABLES. Bits 4 and 8 are clear in both masks, so neither index is ever
-//     dispatched and volumePreset never runs. Its input was READ out of the executable instead of
-//     assumed, which mattered: the table at 0x8001157C puts the "leave the volume alone" arm at
-//     index 0 and the seven presets 0x8000..0xE000 at indices 1..7, so a table of
-//     `0x8000 + index * 0x1000` — the reading the arms' layout alone suggests — is wrong on
-//     three of its eight entries, and 0x8001159C is shifted the same way.
-//   * BOTH CLAMPS. Both indices are 0 and both levels are 15564, so the `slti`/`bgez` clamp never
-//     runs; the level reaches the store `lhu`-read and `andi`-cut, which differs from the clamp
-//     for any level of 128 or more and for every negative level.
-//   * ALL FOUR FLAG GROUPS. Every argument flag word is zero, and their select bits are clear in
-//     both masks, so pushStateFlag never runs and the state flag halfword is never written.
-//
-// None of that is a substitute for the gate, and none of it is claimed to be: the differential
-// covers the mask and the stores the game actually makes, and the rest stands on the disassembly.
 void setSpuCommonAttr(Core *c) {
   const std::uint32_t arg = c->r[4];
   const std::uint32_t mask = c->mem_r32(arg);

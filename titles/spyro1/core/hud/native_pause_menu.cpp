@@ -1,4 +1,6 @@
 #include "spyro1/core/hud/native_pause_menu.h"
+#include "spyro1/core/guest_functions.h"
+#include "spyro1/core/guest_globals.h"
 
 #include "core/native_execution.h"
 #include "guest_call.h"
@@ -9,6 +11,14 @@
 namespace spyro1::native {
 namespace {
 
+using spyro1::guest::kZero3;
+
+using spyro1::guest::kGamestate;
+using spyro1::guest::kLevelId;
+using spyro1::guest::kLoadStage;
+using spyro1::guest::kPad;
+using spyro1::guest::kStateSwitch;
+
 // Every guest global below is a lui plus an immediate the body at 0x8002E12C itself executes, so
 // an address audit decodes each one and refuses the module if any of them is a
 // hand-typed address the retail code never builds.
@@ -17,7 +27,6 @@ constexpr std::uint32_t kNoButtonTicks = 0x8007568Cu;
 constexpr std::uint32_t kHudSteadyTicks[] = {
     0x80077FB4u, 0x80077FB8u, 0x80077FBCu, 0x80077FC0u, 0x80077FC4u};
 constexpr std::uint32_t kFramesSinceStart = 0x800758B8u;
-constexpr std::uint32_t kPadDownWord = 0x80077378u;
 constexpr std::uint32_t kMenuScreen = 0x800757C8u;
 constexpr std::uint32_t kSelectedOption = 0x80075720u;
 constexpr std::uint32_t kSpu = 0x800761D4u;
@@ -38,7 +47,6 @@ constexpr std::uint32_t kMusicVolumeRight = 0x80075F1Au;
 constexpr std::uint32_t kAudioMono = 0x80076240u;
 constexpr std::uint32_t kCdMixVolume = 0x800776D0u;
 constexpr std::uint32_t kCameraMode = 0x80075914u;
-constexpr std::uint32_t kLevelId = 0x8007596Cu;
 constexpr std::uint32_t kOverlaySpacePointer = 0x80076B90u;
 constexpr std::uint32_t kCdLoadMode = 0x800113A0u;
 constexpr std::uint32_t kCdLoadLength = 0x8007A6E4u;
@@ -46,10 +54,7 @@ constexpr std::uint32_t kCdLoadOffset = 0x8007A6E0u;
 constexpr std::uint32_t kTitleScreenCopy = 0x8007DDE8u;
 constexpr std::uint32_t kCopyBuf = 0x800785D8u;
 constexpr std::uint32_t kDiscCopyBuf = 0x800785DCu;
-constexpr std::uint32_t kLoadStage = 0x80075864u;
 constexpr std::uint32_t kCutsceneIdx = 0x8007566Cu;
-constexpr std::uint32_t kStateSwitch = 0x8007579Cu;
-constexpr std::uint32_t kGamestate = 0x800757D8u;
 constexpr std::uint32_t kUpdateMoby = 0x80075734u;
 constexpr std::uint32_t kExitLevelFlag = 0x80075900u;
 constexpr std::uint32_t kHeadLookTarget = 0x80078BFCu;
@@ -68,7 +73,6 @@ constexpr std::uint32_t kDrawSync = 0x8005F764u;           // `jal` at 0x8002E2D
 constexpr std::uint32_t kSpuSetCommonAttr = 0x8005CC58u;   // `jal` at 0x8002E6C4
 constexpr std::uint32_t kCdLoadSync = 0x80016500u;         // `jal` at 0x8002E328
 constexpr std::uint32_t kLoadCutscene = 0x80014564u;       // `jal` at 0x8002E338
-constexpr std::uint32_t kVecNull = 0x800176F0u;            // `jal` at 0x8002EAB4
 constexpr std::uint32_t kCdMusicUpdate = 0x8002BBE0u;      // `jal` at 0x8002E340
 constexpr std::uint32_t kStartCutscenePlayback = 0x8002D338u; // `jal` at 0x8002E360
 constexpr std::uint32_t kKickTitleScreen = 0x8002D170u;       // `jal` at 0x8002E368
@@ -192,7 +196,7 @@ void updatePauseMenuInput(Core *c) {
     return;
   }
 
-  const std::uint32_t pad = c->mem_r32(kPadDownWord);
+  const std::uint32_t pad = c->mem_r32(kPad);
   c->r[4] = pad;
   c->r[2] = pad & kPadSelect;
   if (c->r[2] != 0u) {
@@ -502,7 +506,7 @@ void updatePauseMenuInput(Core *c) {
       c->mem_w32(kMenuScreen, kScreenQuit);
       return;
     }
-    psx::cpu::callGuestNow(*c, kOverrideName, kVecNull, kHeadLookTarget, 0u, 0x10u, 0u);
+    psx::cpu::callGuestNow(*c, kOverrideName, kZero3, kHeadLookTarget, 0u, 0x10u, 0u);
     c->r[2] = c->mem_r32(kIsFlightLevel);
     c->mem_w32(kHeadLookField, 0u);
     if (c->r[2] == 0u) {

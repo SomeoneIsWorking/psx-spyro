@@ -1,4 +1,5 @@
 #include "spyro1/core/frame/native_draw_setup.h"
+#include "spyro1/core/guest_globals.h"
 
 #include "core/native_execution.h"
 #include "guest_call.h"
@@ -8,18 +9,16 @@
 namespace spyro1::native {
 namespace {
 
-// D_800770C8, the draw area's light state: the specular direction is the three words at +0x00
-// ..+0x08, the one light colour the per-face colour program reads is the three words at
-// +0x0C..+0x14, and m_specularTime is the byte phase that drives the direction at +0x2C.
-constexpr std::uint32_t kSpecularDirection = 0x800770C8u;
-constexpr std::uint32_t kLightColor = kSpecularDirection + 0x0Cu;
-constexpr std::uint32_t kSpecularTime = kSpecularDirection + 0x2Cu;
+using spyro1::guest::kCosTable;
+using spyro1::guest::kMetalMatrix;
+using spyro1::guest::kSinTable;
+using spyro1::guest::kSpecularLightDirection;
+using spyro1::guest::kSpecularLightDirectionMoby;
+using spyro1::guest::kSpecularTime;
+
 constexpr std::uint32_t kSpecularZ = 0xFFFFFC00u;
 
-// D_8006CBF8 is the sine table and D_8006CC78 the cosine one, a quarter turn of 0x80 bytes later.
-// Both entries are read with `lh`, so a negative table entry stays negative through the scaling.
-constexpr std::uint32_t kSineTable = 0x8006CBF8u;
-constexpr std::uint32_t kCosineTable = kSineTable + 0x80u;
+// Both tables are read with `lh`, so a negative entry stays negative through the scaling.
 constexpr std::uint32_t kTableEntryBytes = 2u;
 constexpr std::uint32_t kPhaseMask = 0xFFu;
 
@@ -66,7 +65,6 @@ constexpr std::uint32_t kChecksumBytes = 0x58Cu;
 // 0x80058BD8 — the three light-colour slots, six bytes apart, and the frame the body builds the
 // colour in. The frame is sp-0x30 with ra, s1 and s0 saved at +0x28..+0x20 and the three-word
 // colour buffer at +0x10, so every frame offset is measured from the decremented sp.
-constexpr std::uint32_t kColorSlots = 0x800770E0u;
 constexpr std::uint32_t kColorSlotStride = 6u;
 constexpr std::uint32_t kColorBufferOffset = 0x10u;
 constexpr std::uint32_t kSavedS0Offset = 0x20u;
@@ -101,14 +99,14 @@ void setLightColorSlots(Core *c) {
   c->mem_w32(colour, kRedColorWord);
   c->r[17] = kRedColorWord;
   psx::cpu::callGuestNow(*c, "set_light_color_slots", kForwardColorBufferLeaf, colour, colour);
-  c->r[16] = kColorSlots;
-  psx::cpu::callGuestNow(*c, "set_light_color_slots", kStoreColorSlotLeaf, kColorSlots, colour);
+  c->r[16] = kMetalMatrix;
+  psx::cpu::callGuestNow(*c, "set_light_color_slots", kStoreColorSlotLeaf, kMetalMatrix, colour);
 
   psx::cpu::callGuestNow(*c, "set_light_color_slots", kClearThreeWordsLeaf, colour);
   c->mem_w32(colour + 4u, kGreenColorWord);
   psx::cpu::callGuestNow(*c, "set_light_color_slots", kForwardColorBufferLeaf, colour, colour);
   psx::cpu::callGuestNow(
-      *c, "set_light_color_slots", kStoreColorSlotLeaf, kColorSlots + kColorSlotStride, colour);
+      *c, "set_light_color_slots", kStoreColorSlotLeaf, kMetalMatrix + kColorSlotStride, colour);
 
   psx::cpu::callGuestNow(*c, "set_light_color_slots", kClearThreeWordsLeaf, colour);
   c->mem_w32(colour + 8u, kBlueColorWord);
@@ -116,7 +114,7 @@ void setLightColorSlots(Core *c) {
   psx::cpu::callGuestNow(*c,
                          "set_light_color_slots",
                          kStoreColorSlotLeaf,
-                         kColorSlots + kColorSlotStride * 2u,
+                         kMetalMatrix + kColorSlotStride * 2u,
                          colour);
 
   c->r[31] = c->mem_r32(frame + kSavedRaOffset);
@@ -133,12 +131,12 @@ void setLightColorAndSpecular(Core *c) {
   const std::uint32_t first = 0xFFFFF62Bu;
   const std::uint32_t second = 0xFFFFF666u;
   const std::uint32_t third = 0xFFFFF4E0u;
-  c->mem_w32(kSpecularDirection, first);
-  c->mem_w32(kSpecularDirection + 4u, second);
-  c->mem_w32(kSpecularDirection + 8u, third);
-  c->mem_w32(kLightColor, first);
-  c->mem_w32(kLightColor + 4u, second);
-  c->mem_w32(kLightColor + 8u, third);
+  c->mem_w32(kSpecularLightDirection, first);
+  c->mem_w32(kSpecularLightDirection + 4u, second);
+  c->mem_w32(kSpecularLightDirection + 8u, third);
+  c->mem_w32(kSpecularLightDirectionMoby, first);
+  c->mem_w32(kSpecularLightDirectionMoby + 4u, second);
+  c->mem_w32(kSpecularLightDirectionMoby + 8u, third);
   c->r[1] = 0x80070000u;
   c->r[2] = third;
   c->r[3] = second;
@@ -154,14 +152,14 @@ void advanceSpecularDirection(Core *c) {
   const std::uint32_t phase = (c->mem_r32(kSpecularTime) + c->r[4]) & kPhaseMask;
   c->mem_w32(kSpecularTime, phase);
   const std::uint32_t entry = phase * kTableEntryBytes;
-  const std::uint32_t cosine = static_cast<std::uint32_t>(c->mem_r16s(kCosineTable + entry));
-  const std::uint32_t sine = static_cast<std::uint32_t>(c->mem_r16s(kSineTable + entry));
+  const std::uint32_t cosine = static_cast<std::uint32_t>(c->mem_r16s(kCosTable + entry));
+  const std::uint32_t sine = static_cast<std::uint32_t>(c->mem_r16s(kSinTable + entry));
   std::uint32_t x = (cosine << 5) - cosine;
   x <<= 6;
   x -= cosine;
   const std::int32_t directionX = static_cast<std::int32_t>(x) >> 11;
-  c->mem_w32(kSpecularDirection, static_cast<std::uint32_t>(directionX));
-  c->mem_w32(kSpecularDirection + 8u, kSpecularZ);
+  c->mem_w32(kSpecularLightDirection, static_cast<std::uint32_t>(directionX));
+  c->mem_w32(kSpecularLightDirection + 8u, kSpecularZ);
   std::uint32_t y = (sine << 1) + sine;
   const std::uint32_t yIntermediate = y << 5;
   y += yIntermediate;
@@ -170,7 +168,7 @@ void advanceSpecularDirection(Core *c) {
   y <<= 3;
   y += sine;
   const std::int32_t directionY = static_cast<std::int32_t>(y) >> 12;
-  c->mem_w32(kSpecularDirection + 4u, static_cast<std::uint32_t>(directionY));
+  c->mem_w32(kSpecularLightDirection + 4u, static_cast<std::uint32_t>(directionY));
   c->r[1] = 0x80070000u;
   c->r[2] = static_cast<std::uint32_t>(directionY);
   c->r[3] = yIntermediate;

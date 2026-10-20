@@ -6,17 +6,19 @@
 
 class Core;
 
+namespace spyro {
+class FieldOwner;
+}
+
 namespace spyro1 {
 
-class FieldScheduler;
+class SkipMap;
 
-// Resumable transcription of Spyro 1 boot 0x800127C0/0x8001286C. Each incomplete step performs
-// exactly one 60 Hz field; zero-field asset/finalization transitions are folded into an adjacent
-// step. The retained generated bodies remain available for differential diagnostics but are not
-// dispatched by the product boot because they call libetc VSync.
+// Resumable transcription of Spyro 1 boot 0x800127C0/0x8001286C: each incomplete step is one field,
+// and the zero-field asset and finalisation work folds into an adjacent step.
 class BootSequence {
 public:
-  explicit BootSequence(FieldScheduler &fields);
+  BootSequence(spyro::FieldOwner &fields, SkipMap &skipMap);
 
   void initialize(Core &core);
   bool step(Core &core);
@@ -44,7 +46,8 @@ private:
   void leaveSecondPresentationHold();
   void observePress();
 
-  FieldScheduler &fields_;
+  spyro::FieldOwner &fields_;
+  SkipMap &skipMap_;
   Phase phase_ = Phase::FadeFirstIn;
   std::uint32_t originalStack_ = 0;
   std::uint32_t firstHoldStart_ = 0;
@@ -52,9 +55,7 @@ private:
   std::uint32_t assetBase_ = 0;
   std::uint32_t logoSource_ = 0;
   std::uint32_t logoDestination_ = 0;
-  // A Start/Cross edge seen in a fade or in the stage 3->10 loader, held until a hold phase can act
-  // on it. The fades and the loader still run to their own ends; only the hold's exit is taken
-  // early.
+  // An edge from a fade or the stage 3->10 loader, held for the next hold phase to take.
   PressLatch pressLatch_;
   int iteration_ = 0;
   bool initialized_ = false;

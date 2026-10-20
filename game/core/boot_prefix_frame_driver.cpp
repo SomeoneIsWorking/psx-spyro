@@ -30,7 +30,7 @@ BootPrefixFrameDriver::BootPrefixFrameDriver(Game &game, const BootPrefixFacts &
 
 void BootPrefixFrameDriver::initialize() {
   if (initialized_) {
-    lucent::error("boot-native", "{} frame driver initialized twice", facts_.titleName);
+    lucent::error("boot-native", "{} frame driver initialized twice", facts_.field.titleName);
     std::abort();
   }
   initialized_ = true;
@@ -43,7 +43,7 @@ void BootPrefixFrameDriver::initialize() {
   }
   lucent::info("boot-native",
                "{} enters the retail boot prefix 0x{:08X}; libetc VSync stays a frame boundary",
-               facts_.titleName,
+               facts_.field.titleName,
                facts_.bootPrefix);
 }
 
@@ -57,7 +57,7 @@ bool BootPrefixFrameDriver::enterCall(std::uint32_t entry) {
         "boot-native",
         "{}: refusing to enter {} with `$r[31]` = 0x{:08X} inside guest RAM; the call would "
         "stop at an address it never reaches",
-        facts_.titleName,
+        facts_.field.titleName,
         facts_.callName,
         returnPc);
     return false;
@@ -74,7 +74,7 @@ bool BootPrefixFrameDriver::enterCall(std::uint32_t entry) {
 
 void BootPrefixFrameDriver::deliverField(const char *site, bool present, bool pace) {
   if (!fields_.deliver({.site = site, .present = present, .pace = pace})) {
-    lucent::error("frameloop", "{}: field owner refused the field at {}", facts_.titleName, site);
+    lucent::error("frameloop", "{}: field owner refused the field at {}", facts_.field.titleName, site);
     std::abort();
   }
 }
@@ -85,7 +85,7 @@ void BootPrefixFrameDriver::reportStop(Core &core,
   lucent::error("frameloop",
                 "{} stopped: phase={} step={} call 0x{:08X} active={} turns={} cycles={} "
                 "exit={} at guest pc=0x{:08X} ra=0x{:08X} sp=0x{:08X} fields={} presents={}",
-                facts_.titleName,
+                facts_.field.titleName,
                 phase_ == Phase::Boot ? "boot" : "main-loop",
                 steps_,
                 call.entry(),
@@ -144,7 +144,7 @@ void BootPrefixFrameDriver::stepBoot(Core &core) {
                   "{}'s boot prefix ran {} step(s) without returning and delivered {} "
                   "field(s) in total (step bound {}); it is polling rather than waiting, so the "
                   "field bound cannot see it -- ending the run at resume 0x{:08X}",
-                  facts_.titleName,
+                  facts_.field.titleName,
                   bootSteps_,
                   fields_.fields(),
                   facts_.bootStepLimit,
@@ -166,7 +166,7 @@ void BootPrefixFrameDriver::stepBoot(Core &core) {
     lucent::info("boot-native",
                  "{}'s retail boot prefix returned after {} step(s) and {} field(s); the "
                  "per-frame update 0x{:08X} and draw 0x{:08X} now own each step",
-                 facts_.titleName,
+                 facts_.field.titleName,
                  steps_,
                  fields_.fields(),
                  facts_.frameUpdate,
@@ -178,7 +178,7 @@ void BootPrefixFrameDriver::stepBoot(Core &core) {
     lucent::error("frameloop",
                   "{}'s boot prefix delivered {} field(s) in one call without returning and "
                   "gave up on the guest at resume 0x{:08X} (bound {}); ending the run",
-                  facts_.titleName,
+                  facts_.field.titleName,
                   fields_.fields() - fieldsBefore,
                   call_.resumePc(),
                   facts_.bootStepFieldLimit);
@@ -221,7 +221,7 @@ void BootPrefixFrameDriver::stepMainLoop(Core &core) {
 void BootPrefixFrameDriver::stepFrame(Core &core, std::uint32_t frame) {
   if (!initialized_) {
     lucent::error(
-        "frameloop", "{} step {} ran before boot initialization", facts_.titleName, frame);
+        "frameloop", "{} step {} ran before boot initialization", facts_.field.titleName, frame);
     std::abort();
   }
   ++steps_;
@@ -243,7 +243,7 @@ void BootPrefixFrameDriver::stepFrame(Core &core, std::uint32_t frame) {
   lucent::debug("boot",
                 "{} step {} phase={} call_active={} resume=0x{:08X} turns={} cycles={} "
                 "fields={} presents={}",
-                facts_.titleName,
+                facts_.field.titleName,
                 frame,
                 phase_ == Phase::Boot ? "boot" : "main-loop",
                 call_.pending() ? 1 : 0,
@@ -252,14 +252,6 @@ void BootPrefixFrameDriver::stepFrame(Core &core, std::uint32_t frame) {
                 callCycles_,
                 fields_.fields(),
                 fields_.presents());
-}
-
-BootPrefixFrameDriver &bootPrefixFrameDriver(Core &core) {
-  if (core.game == nullptr || core.game->frameDriver == nullptr) {
-    lucent::error("frameloop", "boot-prefix runtime has no FrameDriver");
-    std::abort();
-  }
-  return static_cast<BootPrefixFrameDriver &>(*core.game->frameDriver);
 }
 
 } // namespace spyro

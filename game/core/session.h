@@ -7,12 +7,17 @@
 #include "core/debug/warp.h"
 #include "core/field_owner.h"
 #include "game_runtime.h"
-#include "render/hud/hud_draw_context.h"
 #include "state_producer.h"
 
 class Core;
 
 namespace spyro {
+
+// Per-Core state that one title's natives own.
+class TitleState {
+public:
+  virtual ~TitleState() = default;
+};
 
 // The per-Core state of every Spyro title, created with each Game by Runtime::createSession.
 class Session final : public psx::game::TitleSessionState {
@@ -21,9 +26,6 @@ public:
   // The selected title's field owner, published by its frame driver. Non-owning: the driver
   // holds it and is installed before the first host turn can arrive.
   FieldOwner *fieldOwner = nullptr;
-  // The screen-space widget whose draw is in progress, for the emitters a title's HUD shares
-  // between widgets.
-  spyro::hud_draw_context::Draw hudDraw{};
   // The sector-visibility bytes the guest's own visibility call left in the scratchpad. The
   // drawer's classification clears each byte as it consumes it, so an in-between has to be handed
   // them rather than find them.
@@ -35,6 +37,7 @@ public:
   psx::present::StateProducerTable stateProducers;
   // The title's `warp` request, applied by its frame driver.
   std::unique_ptr<Warp> warp;
+  std::unique_ptr<TitleState> titleState;
 };
 
 // The session of the Game `core` belongs to; a native override reaches it from its Core alone.

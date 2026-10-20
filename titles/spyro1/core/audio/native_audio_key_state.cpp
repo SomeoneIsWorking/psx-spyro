@@ -1,4 +1,4 @@
-#include "spyro1/core/audio/native_audio_key_state.h"
+#include "spyro1/core/audio/spu_library.h"
 
 #include "core/native_execution.h"
 
@@ -19,8 +19,6 @@ constexpr std::uint32_t kKeyPathBit0 = 1u;
 constexpr std::uint32_t kKeyTransferMode = 0x8007354Cu;
 constexpr std::uint32_t kKeyUpdatePending = 0x80073118u;
 constexpr std::uint32_t kSioKeyBits = 0x80073114u;
-constexpr std::uint32_t kCdKeyBits = 0x800730ECu;
-constexpr std::uint32_t kCdKeyControl = 0x80073554u;
 
 // The SIO records are one 8-byte block: mode 1 writes the pair at +0, mode 0 the pair at +4, and
 // each mode withdraws the bits of the pair the other one wrote.
@@ -84,21 +82,21 @@ void applyKeyBit(Core *c, std::uint32_t bitOffset, bool modeZero) {
     clearSupersededKeyBits(c, superseded, bitOffset);
     return;
   }
-  const std::uint32_t control = c->mem_r32(kCdKeyControl);
+  const std::uint32_t control = c->mem_r32(libspu::kSpuRegisterBase);
   const std::uint32_t field = modeZero ? kCdKeyFieldModeZero : kCdKeyFieldModeOne;
   if (modeZero) {
     c->mem_w16(control + field, static_cast<std::uint16_t>(bitOffset));
     c->mem_w16(control + field + 2u, static_cast<std::uint16_t>(highHalf));
     c->r[3] = ~bitOffset;
-    c->r[2] = c->mem_r32(kCdKeyBits) & ~bitOffset;
-    c->mem_w32(kCdKeyBits, c->r[2]);
+    c->r[2] = c->mem_r32(libspu::kSpuKeyStatus) & ~bitOffset;
+    c->mem_w32(libspu::kSpuKeyStatus, c->r[2]);
     return;
   }
-  c->r[2] = c->mem_r32(kCdKeyBits) | bitOffset;
+  c->r[2] = c->mem_r32(libspu::kSpuKeyStatus) | bitOffset;
   c->r[3] = control;
   c->mem_w16(control + field, static_cast<std::uint16_t>(bitOffset));
   c->mem_w16(control + field + 2u, static_cast<std::uint16_t>(highHalf));
-  c->mem_w32(kCdKeyBits, c->r[2]);
+  c->mem_w32(libspu::kSpuKeyStatus, c->r[2]);
 }
 
 // 0x8005C7D4 (libspu's SpuSetKey) — record the CD/XA key bit offset for one direction of the key
@@ -108,13 +106,6 @@ void applyKeyBit(Core *c, std::uint32_t bitOffset, bool modeZero) {
 // against), so that arm hands back the caller's own v1 untouched. The offset is masked to 24 bits
 // on entry, and the records read it back zero-extended (`lhu`), which is why the two halves are
 // masked apart.
-//
-// MEASURED on route artisans-walk (23 of 23 sampled calls matching, every RAM byte and compared
-// register): the transfer mode word is zeroed by the SPU init block at 0x8005BB60 and no other
-// instruction in the executable stores to it, so every live call takes the CD-command arms. The SIO
-// pair is therefore UNEXERCISED by the differential, and the early return is unreachable from this
-// title's three call sites (0x80055A3C and 0x80056F40 pass mode 0, 0x80056F18 mode 1); both are
-// here from the retail bytes rather than folded away.
 void setSpuKeyBitPosition(Core *c) {
   const std::uint32_t bitOffset = c->r[5] & kKeyOffsetMask;
   const std::uint32_t mode = c->r[4];

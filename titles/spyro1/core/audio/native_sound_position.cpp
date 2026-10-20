@@ -1,4 +1,6 @@
 #include "spyro1/core/audio/native_sound_position.h"
+#include "spyro1/core/guest_functions.h"
+#include "spyro1/core/guest_globals.h"
 
 #include "core/native_execution.h"
 #include "guest_call.h"
@@ -7,6 +9,16 @@
 
 namespace spyro1::native {
 namespace {
+
+using spyro1::guest::kAngDiff8;
+using spyro1::guest::kAtan2;
+using spyro1::guest::kRand;
+using spyro1::guest::kVecLen;
+using spyro1::guest::kVsra;
+using spyro1::guest::kVsub;
+
+using spyro1::guest::kCameraPosition;
+using spyro1::guest::kCameraRotationZ;
 
 constexpr std::uint32_t kAudioMonoFlag = 0x80076240u;
 constexpr std::int32_t kChannelCeiling = 0x3FFF;
@@ -46,9 +58,6 @@ constexpr std::uint32_t kPresetGainRight = 0x800761EAu;
 constexpr std::uint32_t kRecordGain = 0x800761F4u;
 constexpr std::uint32_t kGlobalGainScale = 0x8007622Cu;
 constexpr std::uint32_t kSlotChangedMask = 0x80076238u;
-constexpr std::uint32_t kListenerX = 0x80076DF8u;
-constexpr std::uint32_t kListenerZ = 0x80076DFCu;
-constexpr std::uint32_t kListenerYaw = 0x80076E20u;
 
 constexpr std::uint32_t kSoundRecordStride = 20u;
 constexpr std::uint32_t kRecordWord0 = 0x00u;
@@ -76,12 +85,6 @@ constexpr std::uint32_t kFrameSlotMaskWord = 0x10093u;
 // 26-bit field of that instruction rather than a `lui`+immediate pair, and
 // an address audit re-derives it from the `jal` itself.
 constexpr std::uint32_t kProbeActiveSound = 0x80056DC4u;
-constexpr std::uint32_t kSubtractPosition = 0x8001778Cu;
-constexpr std::uint32_t kSetVectorLimit = 0x800176C8u;
-constexpr std::uint32_t kComputeSpan = 0x800171FCu;
-constexpr std::uint32_t kWrapIntoRange = 0x8006272Cu;
-constexpr std::uint32_t kAngleToListener = 0x80016AB4u;
-constexpr std::uint32_t kAddListenerYaw = 0x80017908u;
 constexpr std::uint32_t kMarkSlotsChanged = 0x8005C7ACu;
 constexpr std::uint32_t kPositionalStereoVolume = 0x80056C84u;
 
@@ -91,14 +94,14 @@ constexpr std::uint32_t kPositionalStereoVolume = 0x80056C84u;
 // record kind.
 constexpr std::uint32_t kProbeModeJal = 0x80055AE0u;
 constexpr std::uint32_t kProbeLimitedModeJal = 0x80055B00u;
-constexpr std::uint32_t kSubtractPositionJal = 0x80055B1Cu;
-constexpr std::uint32_t kSetVectorLimitJal = 0x80055B28u;
-constexpr std::uint32_t kComputeSpanJal = 0x80055B34u;
+constexpr std::uint32_t kVsubJal = 0x80055B1Cu;
+constexpr std::uint32_t kVsraJal = 0x80055B28u;
+constexpr std::uint32_t kVecLenJal = 0x80055B34u;
 constexpr std::uint32_t kWrapKindZeroJal = 0x80055D3Cu;
 constexpr std::uint32_t kWrapKindOneJal = 0x80055DA4u;
 constexpr std::uint32_t kWrapKindTwoJal = 0x80055E0Cu;
-constexpr std::uint32_t kAngleToListenerJal = 0x800560C0u;
-constexpr std::uint32_t kAddListenerYawJal = 0x800560D8u;
+constexpr std::uint32_t kAtan2Jal = 0x800560C0u;
+constexpr std::uint32_t kAngDiff8Jal = 0x800560D8u;
 constexpr std::uint32_t kPositionalStereoVolumeJal = 0x800560FCu;
 constexpr std::uint32_t kMarkSlotsChangedJal = 0x8005613Cu;
 
@@ -304,17 +307,17 @@ void assignActiveSoundSlot(Core *c) {
     // 0x80056DC4 runs, and the test that follows is against the constant 2 either way.
     const spyro::GuestFrameScope guestFrame(*c, frame);
     if (mode == kLimitedProbeMode) {
-      spyro::callGuestJumpedFrom(*c,
+      psx::cpu::callGuestNow(*c,
                                  "assign_active_sound_slot",
-                                 {.jal = kProbeLimitedModeJal, .target = kProbeActiveSound},
+                                 psx::cpu::GuestCallSite::fromJal(kProbeLimitedModeJal, kProbeActiveSound),
                                  moby,
                                  soundId,
                                  mode,
                                  slotOut);
     } else {
-      spyro::callGuestJumpedFrom(*c,
+      psx::cpu::callGuestNow(*c,
                                  "assign_active_sound_slot",
-                                 {.jal = kProbeModeJal, .target = kProbeActiveSound},
+                                 psx::cpu::GuestCallSite::fromJal(kProbeModeJal, kProbeActiveSound),
                                  moby,
                                  soundId,
                                  mode,
@@ -331,20 +334,20 @@ void assignActiveSoundSlot(Core *c) {
     }
     if (mode == kLimitedProbeMode) {
       const std::uint32_t scratch = frame + 0x58u;
-      spyro::callGuestJumpedFrom(*c,
+      psx::cpu::callGuestNow(*c,
                                  "assign_active_sound_slot",
-                                 {.jal = kSubtractPositionJal, .target = kSubtractPosition},
+                                 psx::cpu::GuestCallSite::fromJal(kVsubJal, kVsub),
                                  scratch,
                                  moby + 0x0Cu,
-                                 kListenerX);
-      spyro::callGuestJumpedFrom(*c,
+                                 kCameraPosition);
+      psx::cpu::callGuestNow(*c,
                                  "assign_active_sound_slot",
-                                 {.jal = kSetVectorLimitJal, .target = kSetVectorLimit},
+                                 psx::cpu::GuestCallSite::fromJal(kVsraJal, kVsra),
                                  scratch,
                                  4u);
-      spyro::callGuestJumpedFrom(*c,
+      psx::cpu::callGuestNow(*c,
                                  "assign_active_sound_slot",
-                                 {.jal = kComputeSpanJal, .target = kComputeSpan},
+                                 psx::cpu::GuestCallSite::fromJal(kVecLenJal, kVecLen),
                                  scratch,
                                  1u);
       // `sll $fp, $v0, 4`: a shift, so it leaves HI/LO alone.
@@ -432,25 +435,25 @@ void assignActiveSoundSlot(Core *c) {
     if (recordKind == 0u) {
       const std::uint32_t reduced = level - multiplyLow(c, step, range >> 1);
       c->mem_w16(frame + 0x2Cu, static_cast<std::uint16_t>(reduced));
-      spyro::callGuestJumpedFrom(*c,
+      psx::cpu::callGuestNow(*c,
                                  "assign_active_sound_slot",
-                                 {.jal = kWrapKindZeroJal, .target = kWrapIntoRange},
+                                 psx::cpu::GuestCallSite::fromJal(kWrapKindZeroJal, kRand),
                                  record,
                                  range,
                                  level,
                                  1u);
     } else if (recordKind == 1u) {
-      spyro::callGuestJumpedFrom(*c,
+      psx::cpu::callGuestNow(*c,
                                  "assign_active_sound_slot",
-                                 {.jal = kWrapKindOneJal, .target = kWrapIntoRange},
+                                 psx::cpu::GuestCallSite::fromJal(kWrapKindOneJal, kRand),
                                  record,
                                  range,
                                  level,
                                  1u);
     } else if (recordKind == 2u) {
-      spyro::callGuestJumpedFrom(*c,
+      psx::cpu::callGuestNow(*c,
                                  "assign_active_sound_slot",
-                                 {.jal = kWrapKindTwoJal, .target = kWrapIntoRange},
+                                 psx::cpu::GuestCallSite::fromJal(kWrapKindTwoJal, kRand),
                                  record,
                                  range,
                                  level,
@@ -517,12 +520,12 @@ void assignActiveSoundSlot(Core *c) {
     // two angle calls, so both are reproduced rather than left holding the level and range from
     // above.
     if (gated) {
-      const std::uint32_t listenerX = c->mem_r32(kListenerX);
-      spyro::callGuestJumpedFrom(*c,
+      const std::uint32_t listenerX = c->mem_r32(kCameraPosition);
+      psx::cpu::callGuestNow(*c,
                                  "assign_active_sound_slot",
-                                 {.jal = kAngleToListenerJal, .target = kAngleToListener},
+                                 psx::cpu::GuestCallSite::fromJal(kAtan2Jal, kAtan2),
                                  listenerX - c->mem_r32(moby + 0x0Cu),
-                                 c->mem_r32(kListenerZ) - c->mem_r32(moby + 0x10u),
+                                 c->mem_r32(kCameraPosition + 4u) - c->mem_r32(moby + 0x10u),
                                  0u,
                                  listenerX);
       // The first call's return value is the angle the second call takes in $a1 (`andi
@@ -530,10 +533,10 @@ void assignActiveSoundSlot(Core *c) {
       // $a2 (0x800560E8). $a2 and $a3 are not set again before the second `jal`, so it receives
       // whatever the first left in them.
       const std::uint32_t listenerAngle = c->r[2];
-      const std::int32_t yaw = static_cast<std::int32_t>(c->mem_r16(kListenerYaw) << 16);
-      spyro::callGuestJumpedFrom(*c,
+      const std::int32_t yaw = static_cast<std::int32_t>(c->mem_r16(kCameraRotationZ) << 16);
+      psx::cpu::callGuestNow(*c,
                                  "assign_active_sound_slot",
-                                 {.jal = kAddListenerYawJal, .target = kAddListenerYaw},
+                                 psx::cpu::GuestCallSite::fromJal(kAngDiff8Jal, kAngDiff8),
                                  yaw >> 20,
                                  listenerAngle & 0xFFu,
                                  c->r[6],
@@ -543,10 +546,10 @@ void assignActiveSoundSlot(Core *c) {
       // 0x80056C84 reads it as its fifth argument, so it is written here and not left to the frame.
       c->mem_w32(frame + 0x10u, slotBase + kSlotVolumeLeft);
       const spyro::GuestFrameScope stereoFrame(*c, frame);
-      spyro::callGuestJumpedFrom(
+      psx::cpu::callGuestNow(
           *c,
           "assign_active_sound_slot",
-          {.jal = kPositionalStereoVolumeJal, .target = kPositionalStereoVolume},
+          psx::cpu::GuestCallSite::fromJal(kPositionalStereoVolumeJal, kPositionalStereoVolume),
           frame + 0x20u,
           span,
           panAngle & 0xFFu,
@@ -570,9 +573,9 @@ void assignActiveSoundSlot(Core *c) {
   c->mem_w16(frame + 0x22u, static_cast<std::uint16_t>(scaledRight));
 
   const spyro::GuestFrameScope tailFrame(*c, frame);
-  spyro::callGuestJumpedFrom(*c,
+  psx::cpu::callGuestNow(*c,
                              "assign_active_sound_slot",
-                             {.jal = kMarkSlotsChangedJal, .target = kMarkSlotsChanged},
+                             psx::cpu::GuestCallSite::fromJal(kMarkSlotsChangedJal, kMarkSlotsChanged),
                              frame + 0x18u,
                              tailArg1,
                              tailArg2,

@@ -11,10 +11,7 @@ namespace {
 
 void flattenOverride(Core *core) {
   OrderingTable::assignSlots(*core, core->r[4]);
-  (void)psx::cpu::completeOrPropagate(
-      *core,
-      psx::cpu::callOriginal(
-          *core, OrderingTable::kFlatten, psx::cpu::ExecutionBudget::currentTurn(*core)));
+  (void)psx::cpu::callOriginalOrPropagate(*core, OrderingTable::kFlatten);
 }
 
 } // namespace

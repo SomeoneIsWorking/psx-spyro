@@ -1,10 +1,10 @@
 #include "spyro1/core/frame/frame_driver.h"
 
 #include "core.h"
-#include "core/guest_gp.h"
 #include "core/session.h"
 #include "game.h"
 #include "guest_call.h"
+#include "spyro1/core/frame/guest_update_budget.h"
 
 #include <algorithm>
 #include <cstdlib>
@@ -13,99 +13,52 @@
 namespace spyro1 {
 namespace {
 
+using guest::kDeltaTime;
+using guest::kGp;
+using guest::kStateSwitch;
+using guest::kUnprocessedFrames;
+
 constexpr std::uint32_t kStaticConstructors = 0x8005B988u;
 constexpr std::uint32_t kFrameUpdate = 0x8003385Cu;
-constexpr std::uint64_t kFrameBudgetCycles = 33'868'800ull * 4ull;
-
+constexpr std::uint32_t kVblankCounter = 0x800749E0u;
+constexpr std::uint32_t kRootHandlers = 0x80073928u;
 constexpr std::uint32_t kInputLatchOpen = kGp + 0x604u;
-constexpr std::uint32_t kVblanksThisFrame = kGp + 0x4FCu;
-constexpr std::uint32_t kFrameStep = kGp + 0x468u;
-constexpr std::uint32_t kRenderSuppressed = kGp + 0x538u;
-constexpr std::int32_t kFrameStepMin = 2;
-constexpr std::int32_t kFrameStepMax = 4;
-// Draw-less iterations are bounded by the same four seconds as one guest update
-// (kFrameBudgetCycles).
-constexpr std::uint32_t kSuppressedFieldLimit = 240;
-
-class FrameState {
-public:
-  explicit FrameState(Core &core) : core_(core) {}
-
-  void closeInputLatch() {
-    core_.mem_w8(kInputLatchOpen, 0);
-  }
-  void openInputLatch() {
-    core_.mem_w8(kInputLatchOpen, 1);
-  }
-  std::int32_t elapsedFields() const {
-    return static_cast<std::int32_t>(core_.mem_r32(kVblanksThisFrame));
-  }
-  void restartFieldCount() {
-    core_.mem_w32(kVblanksThisFrame, 0);
-  }
-  void setFrameStep(std::int32_t step) {
-    core_.mem_w32(kFrameStep, static_cast<std::uint32_t>(step));
-  }
-  bool renderSuppressed() const {
-    return core_.mem_r32(kRenderSuppressed) != 0;
-  }
-
-private:
-  Core &core_;
-};
+constexpr std::int32_t kDeltaTimeMin = 2;
+constexpr std::int32_t kDeltaTimeMax = 4;
 
 } // namespace
 
-FrameDriver::FrameDriver(Game &game, bool observeStageUpdate, bool observeHandoffStores)
-    : fields_(game), boot_(fields_), transitions_(fields_),
-      stageObserver_(observeStageUpdate, kFrameUpdate),
-      handoffStoreObserver_(observeHandoffStores, fields_), cut_(kFrameCutFacts) {}
-
-FrameDriver::~FrameDriver() {
-  stageObserver_.report();
-  handoffStoreObserver_.finish();
-  handoffStoreObserver_.report();
-}
+FrameDriver::FrameDriver(Game &game)
+    : fields_(game,
+              spyro::FieldOwnerFacts{
+                  .titleName = "Spyro 1", .fieldCounter = kVblankCounter, .rootHandlerSlot = kRootHandlers},
+              &skipMap_),
+      boot_(fields_, skipMap_), transitions_(fields_), cut_(kFrameCutFacts) {}
 
 void FrameDriver::initialize(Core &core) {
-  const auto storeStatus = handoffStoreObserver_.arm(core);
-  if (storeStatus != psx::cpu::StoreObserverStatus::Configured) {
-    lucent::error("handoff-store",
-                  "could not arm exact-PC store observer (status={})",
-                  static_cast<int>(storeStatus));
-    std::abort();
-  }
-  psx::cpu::dispatchGuestToReturn0(core,
-                                   kStaticConstructors,
-                                   psx::cpu::ExecutionBudget::currentTurn(core),
-                                   "static-constructors");
+  fields_.publish();
+  psx::cpu::callGuestNow(core, "static-constructors", kStaticConstructors);
   boot_.initialize(core);
   lucent::info("frameloop",
-               "FrameDriver initialized; guest main 0x{:08X} and boot body 0x{:08X} are "
-               "not dispatched",
+               "FrameDriver initialized; guest main 0x{:08X} and boot body 0x{:08X} are not dispatched",
                0x80012204u,
                0x800127C0u);
 }
 
 bool FrameDriver::runGuestUpdate(Core &core) {
-  // Before the guest update reads the transition globals, so a cancelled screen releases its hold
-  // in the same frame the press arrives.
+  // Before the update reads the transition globals, so a cancel releases its hold this frame.
   transitions_.observe(core);
 
-  FrameState state(core);
-  state.closeInputLatch();
-  stageObserver_.beginStage(core, kFrameUpdate);
-  psx::cpu::dispatchGuestToReturn0(core,
-                                   kFrameUpdate,
-                                   psx::cpu::ExecutionBudget::fromCycles(kFrameBudgetCycles),
-                                   "frame-update");
-  stageObserver_.afterReturn(core, kFrameUpdate);
-  state.openInputLatch();
-  // Retail main.c: g_DeltaTime = clamp(g_UnprocessedFrames, 2, 4); g_UnprocessedFrames = 0.
-  state.setFrameStep(std::clamp(state.elapsedFields(), kFrameStepMin, kFrameStepMax));
-  const bool suppressed = state.renderSuppressed();
-  state.restartFieldCount();
-  return suppressed;
+  core.mem_w8(kInputLatchOpen, 0);
+  psx::cpu::dispatchGuestWithArgumentsToReturn(
+      core, kFrameUpdate, {}, psx::cpu::ExecutionBudget::fromCycles(kGuestUpdateCycles), "frame-update");
+  core.mem_w8(kInputLatchOpen, 1);
+  // main.c: g_DeltaTime = clamp(g_UnprocessedFrames, 2, 4); g_UnprocessedFrames = 0.
+  const auto unprocessed = static_cast<std::int32_t>(core.mem_r32(kUnprocessedFrames));
+  core.mem_w32(kDeltaTime, static_cast<std::uint32_t>(std::clamp(unprocessed, kDeltaTimeMin, kDeltaTimeMax)));
+  const bool stateSwitch = core.mem_r32(kStateSwitch) != 0;
+  core.mem_w32(kUnprocessedFrames, 0);
+  return stateSwitch;
 }
 
 void FrameDriver::stepFrame(Core &core, std::uint32_t) {
@@ -121,19 +74,14 @@ void FrameDriver::stepFrame(Core &core, std::uint32_t) {
   core.rsub.otAttr.beginLogicFrame(frame);
   perf.markPre();
 
-  // Retail main.c ends each iteration with `if (!g_StateSwitch) GamestateDraw();` and the draw's
-  // two-field wait is the only wait in the loop. While a state switch is pending (a loader stage,
-  // a scene reset) the next update runs immediately; the fields such an iteration spans are the
-  // display interrupts that land during its own guest work, which the guest-time host clock now
-  // delivers deterministically. One product step is therefore one drawn iteration, preceded by
-  // however many draw-less iterations the guest chains in front of it.
+  // main.c draws only when g_StateSwitch is clear; a product step is one drawn iteration plus the
+  // draw-less ones the guest chains before it.
   perf.phaseBegin(GpuPerf::Phase::GameLogic);
   spyro::session(core).warp->applyArmed(core, frame);
   while (runGuestUpdate(core)) {
-    if (fields_.fieldsThisLogicFrame() > kSuppressedFieldLimit) {
+    if (fields_.fieldsThisLogicFrame() > kGuestUpdateFields) {
       lucent::error("frameloop",
-                    "product step {} chained draw-less guest iterations across {} fields; "
-                    "g_StateSwitch never cleared",
+                    "product step {} chained draw-less guest iterations across {} fields; g_StateSwitch never cleared",
                     frame,
                     fields_.fieldsThisLogicFrame());
       std::abort();
@@ -150,32 +98,8 @@ void FrameDriver::stepFrame(Core &core, std::uint32_t) {
   perf.frameEnd();
 }
 
-bool FrameDriver::bootComplete() const {
+bool FrameDriver::pastBootPrefix() const {
   return boot_.complete();
-}
-
-FieldScheduler &FrameDriver::fields() {
-  return fields_;
-}
-
-const FieldScheduler &FrameDriver::fields() const {
-  return fields_;
-}
-
-FrameDriver &frameDriver(Core &core) {
-  if (core.game == nullptr || core.game->frameDriver == nullptr) {
-    lucent::error("frameloop", "Spyro 1 runtime has no FrameDriver");
-    std::abort();
-  }
-  return static_cast<FrameDriver &>(*core.game->frameDriver);
-}
-
-const FrameDriver &frameDriver(const Core &core) {
-  if (core.game == nullptr || core.game->frameDriver == nullptr) {
-    lucent::error("frameloop", "Spyro 1 runtime has no FrameDriver");
-    std::abort();
-  }
-  return static_cast<const FrameDriver &>(*core.game->frameDriver);
 }
 
 } // namespace spyro1

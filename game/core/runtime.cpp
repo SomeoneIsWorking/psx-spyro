@@ -17,12 +17,6 @@ constexpr TitleLogoFacts kNoLogoFacts{};
 
 } // namespace
 
-Runtime::Runtime(Title title) : title_(title) {}
-
-Title Runtime::title() const {
-  return title_;
-}
-
 const TitleLogoFacts &Runtime::logoFacts() const {
   return kNoLogoFacts;
 }
@@ -30,6 +24,7 @@ const TitleLogoFacts &Runtime::logoFacts() const {
 std::unique_ptr<psx::game::TitleSessionState> Runtime::createSession(Game &) {
   auto created = std::make_unique<Session>();
   created->warp = createWarp();
+  created->titleState = createTitleState();
   return created;
 }
 
@@ -46,6 +41,14 @@ std::optional<psx::host::LogoImage> Runtime::panelLogo(Core &core) const {
   return extractPanelLogo(core, logoFacts());
 }
 
+std::unique_ptr<TitleState> Runtime::createTitleState() const {
+  return nullptr;
+}
+
+bool Runtime::interpolates() const {
+  return true;
+}
+
 const GuestWidescreenProjection *Runtime::guestWidescreenProjection() const {
   return &aspectPolicy_;
 }
@@ -54,7 +57,7 @@ bool Runtime::titleCommand(Core &core, const psx::game::TitleCommandLine &input,
   if (std::strcmp(input.command, "warp") != 0) {
     return false;
   }
-  std::fprintf(reply, "%s\n", session(core).warp->arm(input.line).c_str());
+  std::fprintf(reply, "%s\n", session(core).warp->arm(input.args).c_str());
   return true;
 }
 

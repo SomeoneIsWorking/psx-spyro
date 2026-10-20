@@ -8,6 +8,7 @@
 #pragma once
 
 #include "core.h"
+#include "guest_memory_map.h"
 #include "lucent/log.h"
 
 #include <array>
@@ -33,16 +34,6 @@ struct GuestRange {
   }
 };
 
-// One past the last byte of the 2 MiB of main RAM, as a KSEG0 address.
-inline constexpr std::uint32_t kMainRamEnd = 0x80200000u;
-
-// The KSEG0 name of a main-RAM address, whose KUSEG, KSEG0, KSEG1 and mirror names are one store;
-// any other address unsegmented.
-[[nodiscard]] constexpr std::uint32_t canonicalAddress(std::uint32_t address) {
-  const std::uint32_t physical = address & 0x1FFFFFFFu;
-  return physical < 0x800000u ? 0x80000000u | (physical & 0x1FFFFFu) : physical;
-}
-
 // Where an in-between links its packets. The address has to be guest-shaped because a packet's
 // chain link is a 24-bit main-RAM offset. `bytes == 0` is the refusal case: the caller must not
 // present a truncated picture.
@@ -55,10 +46,10 @@ struct PacketArena {
 // end of main RAM.
 [[nodiscard]] constexpr PacketArena packetArenaWindow(std::uint32_t frameTop) {
   const std::uint32_t base = (frameTop + 0xFFFu) & ~0xFFFu;
-  if (base >= kMainRamEnd) {
+  if (base >= psx::kMainRamEnd) {
     return PacketArena{};
   }
-  return PacketArena{base, kMainRamEnd - base};
+  return PacketArena{base, psx::kMainRamEnd - base};
 }
 
 // A guest word as a real field first read it.
@@ -128,7 +119,7 @@ private:
   void recordRead(std::uint32_t address) const {
     const std::uint32_t word = address & ~3u;
     for (const GuestRange &range : working_) {
-      if (GuestRange{canonicalAddress(range.base), range.bytes}.contains(canonicalAddress(word))) {
+      if (GuestRange{psx::kseg0Address(range.base), range.bytes}.contains(psx::kseg0Address(word))) {
         return;
       }
     }

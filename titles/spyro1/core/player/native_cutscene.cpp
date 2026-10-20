@@ -1,6 +1,6 @@
 #include "spyro1/core/player/native_cutscene.h"
 
-#include "core/guest_globals.h"
+#include "spyro1/core/guest_globals.h"
 #include "core/native_execution.h"
 
 #include <cstdint>
@@ -8,30 +8,28 @@
 namespace spyro1::native {
 namespace {
 
-using spyro::guest::kCameraRotationX;
-using spyro::guest::kCameraRotationY;
-using spyro::guest::kCameraRotationZ;
+using spyro1::guest::kCameraPosition;
+using spyro1::guest::kCutsceneLayout;
+using spyro1::guest::kCutsceneLayoutCurrentTick;
+using spyro1::guest::kLevelMobys;
+
+using spyro1::guest::kCameraRotationX;
+using spyro1::guest::kCameraRotationY;
+using spyro1::guest::kCameraRotationZ;
 
 // g_CutsceneLayout and g_LevelMobys are POINTER globals (cutscene.h, moby.c): the layout holds the
 // tick being played, the number of mobys it poses, a 24-byte camera key per pair of ticks, and one
 // packed-keyframe list per moby; the moby array itself lives in the level's own data.
-constexpr std::uint32_t kCutsceneLayout = 0x80075680u;
-constexpr std::uint32_t kLayoutCurrentTick = 0x00u;
 constexpr std::uint32_t kLayoutMobyCount = 0x0Cu;
 constexpr std::uint32_t kLayoutCameraData = 0x10u;
 constexpr std::uint32_t kLayoutMobyData = 0x14u;
 constexpr std::uint32_t kCameraKeyBytes = 24u;
 
-// g_Camera (camera.h), base 0x80076DD0: three position words, then the three rotation halfwords.
-constexpr std::uint32_t kCameraPositionX = 0x80076DF8u;
-constexpr std::uint32_t kCameraPositionY = 0x80076DFCu;
-constexpr std::uint32_t kCameraPositionZ = 0x80076E00u;
 
 // A layout moby animates g_Models[index + 1] and is written into g_LevelMobys[index].
 constexpr std::uint32_t kModelList = 0x8007637Cu;
 constexpr std::uint32_t kModelFirstAnimation = 0x38u;
 constexpr std::uint32_t kAnimationProgressPerTick = 0x0Cu;
-constexpr std::uint32_t kLevelMobys = 0x80075828u;
 constexpr std::uint32_t kMobyBytes = 0x58u;
 constexpr std::uint32_t kMobyPositionX = 0x0Cu;
 constexpr std::uint32_t kMobyPositionY = 0x10u;
@@ -82,13 +80,13 @@ std::uint32_t shiftDownSix(std::uint32_t sum) {
 //     count and v1 at the layout's camera key array.
 void applyCutsceneLayoutTick(Core *c) {
   const std::uint32_t layout = c->mem_r32(kCutsceneLayout);
-  const std::int32_t tick = static_cast<std::int32_t>(c->mem_r32(layout + kLayoutCurrentTick));
+  const std::int32_t tick = static_cast<std::int32_t>(c->mem_r32(layout + kCutsceneLayoutCurrentTick));
   const std::uint32_t cameraKeys = c->mem_r32(layout + kLayoutCameraData);
   const std::uint32_t cameraKey =
       cameraKeys + (static_cast<std::uint32_t>(tick >> 1) * kCameraKeyBytes);
-  c->mem_w32(kCameraPositionX, c->mem_r32(cameraKey));
-  c->mem_w32(kCameraPositionY, c->mem_r32(cameraKey + 4u));
-  c->mem_w32(kCameraPositionZ, c->mem_r32(cameraKey + 8u));
+  c->mem_w32(kCameraPosition, c->mem_r32(cameraKey));
+  c->mem_w32(kCameraPosition + 4u, c->mem_r32(cameraKey + 4u));
+  c->mem_w32(kCameraPosition + 8u, c->mem_r32(cameraKey + 8u));
   c->mem_w16(kCameraRotationX, static_cast<std::uint16_t>(c->mem_r32(cameraKey + 0x0Cu)));
   c->mem_w16(kCameraRotationY, static_cast<std::uint16_t>(c->mem_r32(cameraKey + 0x10u)));
   c->mem_w16(kCameraRotationZ, static_cast<std::uint16_t>(c->mem_r32(cameraKey + 0x14u)));

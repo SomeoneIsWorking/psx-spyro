@@ -1,4 +1,5 @@
 #include "spyro1/core/input/native_gamepad.h"
+#include "spyro1/core/guest_functions.h"
 
 #include "core/native_execution.h"
 #include "guest_call.h"
@@ -10,6 +11,8 @@ namespace spyro1::native {
 
 namespace {
 
+using spyro1::guest::kCopyWords;
+
 constexpr std::string_view kName = "copy_pad_to_destination_and_reset_source";
 // g_PadSwapFlag (gamepad.h): both the `lui 0x8007` load and the `lui 0x8007` store form 0x5944, so
 // the flag this body toggles is one byte at 0x80075944.
@@ -17,7 +20,6 @@ constexpr std::uint32_t kPadSwapFlag = 0x80075944u;
 constexpr std::uint32_t kGamepadBytes = 0xA4u;
 // Memcpy(dst, src, len), the `jal` at 0x80053738. Already owned natively as the `copyw` override
 // at 0x80016958, so this call lands in that owner rather than in the JIT.
-constexpr std::uint32_t kMemcpy = 0x80016958u;
 // PadReset(pad), the `jal` at 0x80053740 in gamepad.c's pad-buffer swap. No native owner: it runs
 // through Lightrec.
 constexpr std::uint32_t kPadReset = 0x800536A4u;
@@ -34,7 +36,7 @@ void copyPadToDestinationAndResetSource(Core *c) {
   const std::uint32_t swapped = 1u - static_cast<std::uint32_t>(c->mem_r8(kPadSwapFlag));
   c->r[2] = swapped;
   c->mem_w8(kPadSwapFlag, static_cast<std::uint8_t>(swapped));
-  psx::cpu::callGuestNow(*c, kName, kMemcpy, destination, source, kGamepadBytes);
+  psx::cpu::callGuestNow(*c, kName, kCopyWords, destination, source, kGamepadBytes);
   psx::cpu::callGuestNow(*c, kName, kPadReset, source);
 }
 

@@ -1,7 +1,7 @@
 #include "spyro1/render/lit_actor_emitter.h"
 
 #include "core.h"
-#include "core/guest_globals.h"
+#include "spyro1/core/guest_globals.h"
 #include "core/guest_magnitude.h"
 #include "spyro1/render/actor_emitter_layout.h"
 
@@ -93,7 +93,7 @@ std::uint32_t length(Core &core, std::uint32_t sum, spyro::guest_memory::Working
   const auto step =
       spyro::guest_magnitude::normalize({.value = sum, .leadingZeros = gte.readData(kLzcr)});
   const auto entry =
-      static_cast<std::int16_t>(memory.r16(spyro::guest::kMagnitudeTable + step.tableByteOffset));
+      static_cast<std::int16_t>(memory.r16(spyro1::guest::kMagnitudeTable + step.tableByteOffset));
   return spyro::guest_magnitude::scaled(entry, step.exponent) >> 12;
 }
 
@@ -142,13 +142,13 @@ void LitActorEmitter::aimReflection() {
     light_ |= 0xFF000000u;
   }
   for (std::uint32_t i = 0; i < 5; ++i) {
-    gte.writeControl(gte::kLight0 + i, memory_.r32(spyro::guest::kLightColorTable + 0x18 + 4 * i));
+    gte.writeControl(gte::kLight0 + i, memory_.r32(spyro1::guest::kMetalMatrix + 4 * i));
   }
   const std::uint32_t z = gte.readControl(gte::kTranslationZ);
   const std::uint32_t x = gte.readControl(gte::kTranslationX);
   const Direction bearing{.first = z, .second = x};
   const std::uint32_t entry = memory_.r8(kArcTangent + steepness(bearing));
-  const std::uint32_t yaw = memory_.r32(spyro::guest::kCameraRotationZ);
+  const std::uint32_t yaw = memory_.r32(spyro1::guest::kCameraRotationZ);
   light_ += (sra(yaw, 3) - (turn(bearing, entry) << 1)) & 0x1FFu;
 }
 
@@ -209,7 +209,7 @@ ActorEmitter::TriangleColours LitActorEmitter::flatColours(const Triangle &trian
   }
   const std::uint32_t size = length(core_, squaredSum(gte), memory_);
   const std::uint32_t strength = divLo((light_ >> 18) << 14, size);
-  const std::uint32_t table = spyro::guest::kLightColorTable;
+  const std::uint32_t table = spyro1::guest::kSpecularAndMetal;
   const std::uint32_t red = memory_.r32(table + 0xC) & 0xFFFFu;
   const std::uint32_t green = memory_.r32(table + 0x10) & 0xFFFFu;
   const std::uint32_t blue = memory_.r32(table + 0x14) & 0xFFFFu;
@@ -361,7 +361,7 @@ std::uint32_t LitActorEmitter::directionUv(std::uint32_t x, std::uint32_t y, std
   if (asSigned(v - 0x3Fu) > 0) {
     v = 0x3F;
   }
-  const std::uint32_t sine = spyro::guest::kSinTable + (u << 1);
+  const std::uint32_t sine = spyro1::guest::kSinTable + (u << 1);
   gte.writeData(gte::kIr0, v);
   gte.writeData(gte::kIr1, signedHalf(memory_.r16(sine + 0x80)));
   gte.writeData(gte::kIr2, signedHalf(memory_.r16(sine)));

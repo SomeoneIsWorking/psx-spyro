@@ -1,7 +1,8 @@
 #include "spyro1/core/camera/native_camera.h"
+#include "spyro1/core/guest_functions.h"
 
-#include "core/guest_globals.h"
-#include "core/guest_gp.h"
+#include "spyro1/core/guest_globals.h"
+#include "spyro1/core/guest_gp.h"
 #include "core/native_execution.h"
 
 #include <cstdint>
@@ -9,11 +10,20 @@
 namespace spyro1::native {
 namespace {
 
-using spyro::guest::kCameraRotationX;
-using spyro::guest::kCameraRotationY;
-using spyro::guest::kCameraRotationZ;
-using spyro::guest::kPlayerControlFlags;
-using spyro::guest::kSpyro;
+using spyro1::guest::kGp;
+using spyro1::guest::kAtan2;
+using spyro1::guest::kCopy3;
+using spyro1::guest::kVadd;
+using spyro1::guest::kVecLen;
+using spyro1::guest::kVsub;
+
+using spyro1::guest::kCameraPosition;
+
+using spyro1::guest::kCameraRotationX;
+using spyro1::guest::kCameraRotationY;
+using spyro1::guest::kCameraRotationZ;
+using spyro1::guest::kPlayerControlFlags;
+using spyro1::guest::kSpyro;
 
 // g_Camera (camera.h), base 0x80076DD0: the spherical inputs the body reads are five words at
 // +0x84..+0x94, and the rotation it writes is the three halfwords named above.
@@ -156,12 +166,7 @@ void sphericalToCartesian(Core *c) {
 // each one does (external/spyro-1/asm/math.s, asm/collision.s and src/camera.c). They are `jal`
 // targets rather than the `lui`-plus-immediate data addresses above, so
 // an address audit re-derives each one from the `jal` that reaches it.
-constexpr std::uint32_t kVecSub = 0x8001778Cu;                       // `jal` at 0x800344C0
-constexpr std::uint32_t kVecMagnitude = 0x800171FCu;                 // `jal` at 0x800344CC
-constexpr std::uint32_t kVecCopy = 0x80017700u;                      // `jal` at 0x800344E0
-constexpr std::uint32_t kVecAdd = 0x80017758u;                       // `jal` at 0x80034428
 constexpr std::uint32_t kVecRefineMagnitude = 0x8001729Cu;           // `jal` at 0x80033F40
-constexpr std::uint32_t kAtan2 = 0x80016AB4u;                        // `jal` at 0x80033F74
 constexpr std::uint32_t kRayBetweenPointsIsClear = 0x80033E40u;      // `jal` at 0x8003475C
 constexpr std::uint32_t kUpdateSphericalCoords = 0x80033F08u;        // `jal` at 0x80034440
 constexpr std::uint32_t kResetCameraToSphericalPreset = 0x80034358u; // `jal` at 0x800347E4
@@ -221,7 +226,6 @@ constexpr RowCallSites kRowCallSites[3] = {
 //
 // m_LastSimulation is the six-word copy the preset reset reloads the row from, and unk_0xA8 is the
 // second six-word group it only ever zeroes; both are three angles plus their three offsets.
-constexpr std::uint32_t kCameraPosition = 0x80076DF8u;       // m_Position
 constexpr std::uint32_t kCameraDestination = 0x80076E04u;    // m_DestinationPosition
 constexpr std::uint32_t kCameraState = 0x80076E28u;          // m_State
 constexpr std::uint32_t kCameraLastSimulation = 0x80076E30u; // m_LastSimulation
@@ -313,23 +317,17 @@ bool isOnTheFocusPoint(std::uint32_t component) {
 //     azimuth, and every caller stores the answer in g_Camera.unk_0xE8.
 //     $v0 carries that answer out through the body's last `move $v0, $a1`, and $v1 the RAW
 //     twelve-bit Z offset: the tail stores its signed form and hands back the unsigned one.
-// MEASURED on route artisans-walk (319 of 319 sampled calls matching, and a poison store at the
-// body's first statement is caught on all 319, so the instrument does report this class of
-// difference): a poison on the turned arm and on the on-focus arm is caught on NONE of them, so
-// every sampled call leaves through the neither arm. The turned arm (the half-turn fold, the
-// elevation rewrite and the $v0 = 1 exit) and BOTH sphere-row fallbacks therefore follow the retail
-// disassembly alone — unexercised rather than unchecked by accident.
 void cameraSphericalFollow(Core *c) {
   const std::uint32_t entrySp = c->r[29];
   c->r[29] -= kFollowFrameBytes;
   const std::uint32_t offset = c->r[29] + kFollowVectorOffset;
   psx::cpu::callGuestNow(
-      *c, kCameraSphericalFollow, kVecSub, offset, c->r[4], c->mem_r32(kCameraFocusPointer));
-  psx::cpu::callGuestNow(*c, kCameraSphericalFollow, kVecMagnitude, offset, 1u);
+      *c, kCameraSphericalFollow, kVsub, offset, c->r[4], c->mem_r32(kCameraFocusPointer));
+  psx::cpu::callGuestNow(*c, kCameraSphericalFollow, kVecLen, offset, 1u);
   c->mem_w32(kSimulationRadius, c->r[2]);
   psx::cpu::callGuestNow(*c, kCameraSphericalFollow, kVecRefineMagnitude, offset, c->r[2], 1u);
   c->mem_w32(kSimulationRadius, c->r[2]);
-  psx::cpu::callGuestNow(*c, kCameraSphericalFollow, kVecMagnitude, offset, 0u);
+  psx::cpu::callGuestNow(*c, kCameraSphericalFollow, kVecLen, offset, 0u);
   psx::cpu::callGuestNow(*c, kCameraSphericalFollow, kVecRefineMagnitude, offset, c->r[2], 0u);
   psx::cpu::callGuestNow(*c, kCameraSphericalFollow, kAtan2, c->r[2], c->mem_r32(offset + 8u), 1u);
   const std::uint32_t elevation = c->r[2];
@@ -385,18 +383,7 @@ struct CameraScratch {
   std::uint32_t snapshot; // m_Simulation as it stood before the spherical passes
 };
 
-// The retail body keeps six values live in $s0-$s6 and runs with $sp already lowered by its own
-// 0x68-byte frame. Every callee it calls spills all of them, and the sphere-collision helper's save
-// area at 0x80077DD8 SURVIVES the call, so the differential sees those registers as ordinary RAM:
-// an override that held them in C++ locals would differ there while behaving identically. The body
-// therefore aliases the real registers, and this guard puts the caller's values back on every exit,
-// which is exactly what the epilogue's loads do.
-//
-// $ra is in that list for the same reason, and only since 2026-10-01: the body reaches its callees
-// through spyro::callGuestJumpedFrom, which leaves `$ra` holding the callee's own `jal` address
-// (docs/issues/0150), and the epilogue restores it from 0x64($sp) on every exit. Without the
-// restore the override exited with `$ra` at its last `jal` — measured as call 2 of the attract
-// route differing in `register ra`, original 0x80037314 against native 0x80034774.
+// The callees spill $s0-$s6 and $ra to RAM the differential sees, so the body aliases the real registers and restores them on exit.
 class SpilledRegisters {
 public:
   SpilledRegisters(Core *core, std::uint32_t entrySp)
@@ -462,19 +449,19 @@ bool testSphericalRow(Core *c,
   c->r[3] = c->mem_r32(row.offsets + 8u) << shift;
   c->r[2] = c->mem_r32(row.address + 0x20u) + c->r[3];
   c->mem_w32(row.address + 8u, c->r[2]);
-  spyro::callGuestJumpedFrom(*c,
+  psx::cpu::callGuestNow(*c,
                              kCameraCollisionUpdate,
-                             {.jal = sites.sphericalToCartesian, .target = kSphericalToCartesian},
+                             psx::cpu::GuestCallSite::fromJal(sites.sphericalToCartesian, kSphericalToCartesian),
                              kCameraDestination);
-  spyro::callGuestJumpedFrom(*c,
+  psx::cpu::callGuestNow(*c,
                              kCameraCollisionUpdate,
-                             {.jal = sites.vecAdd, .target = kVecAdd},
+                             psx::cpu::GuestCallSite::fromJal(sites.vecAdd, kVadd),
                              kCameraDestination,
                              kCameraDestination,
                              c->mem_r32(row.address + 0x58u));
-  spyro::callGuestJumpedFrom(*c,
+  psx::cpu::callGuestNow(*c,
                              kCameraCollisionUpdate,
-                             {.jal = sites.sphereCollision, .target = kSphereCollisionCheck},
+                             psx::cpu::GuestCallSite::fromJal(sites.sphereCollision, kSphereCollisionCheck),
                              kCameraDestination,
                              kSphereProbeRadius,
                              kSphereProbeRadius);
@@ -485,19 +472,19 @@ bool testSphericalRow(Core *c,
     c->r[2] = recordBit;
     *accepted |= recordBit;
   }
-  spyro::callGuestJumpedFrom(
+  psx::cpu::callGuestNow(
       *c,
       kCameraCollisionUpdate,
-      {.jal = sites.rayClearDestinationFirst, .target = kRayBetweenPointsIsClear},
+      psx::cpu::GuestCallSite::fromJal(sites.rayClearDestinationFirst, kRayBetweenPointsIsClear),
       kCameraDestination,
       c->r[29] + kWalkVectorOffset);
   if (c->r[2] == 0u) {
     return false;
   }
-  spyro::callGuestJumpedFrom(
+  psx::cpu::callGuestNow(
       *c,
       kCameraCollisionUpdate,
-      {.jal = sites.rayClearDestinationLast, .target = kRayBetweenPointsIsClear},
+      psx::cpu::GuestCallSite::fromJal(sites.rayClearDestinationLast, kRayBetweenPointsIsClear),
       c->r[29] + kWalkVectorOffset,
       kCameraDestination);
   return c->r[2] != 0u;
@@ -509,9 +496,9 @@ bool testSphericalRow(Core *c,
 void acceptSphericalRow(Core *c, const SphericalRow &row, const CameraScratch &work) {
   c->r[2] = kAcceptedRowMarker;
   c->mem_w32(row.address + 0x4Cu, kAcceptedRowMarker);
-  spyro::callGuestJumpedFrom(*c,
+  psx::cpu::callGuestNow(*c,
                              kCameraCollisionUpdate,
-                             {.jal = 0x80034BE8u, .target = kUpdateSphericalCoords},
+                             psx::cpu::GuestCallSite::fromJal(0x80034BE8u, kUpdateSphericalCoords),
                              kCameraDestination);
   c->r[2] = c->mem_r32(row.address + 0x18u);
   c->r[3] = c->mem_r32(row.address + 0x1Cu);
@@ -559,9 +546,9 @@ void settleOffCenterFrame(Core *c, std::uint32_t far, const CameraScratch &work)
   c->r[2] = c->mem_r32(kCameraState);
   bool centred = static_cast<std::int32_t>(c->r[2]) < 0;
   if (!centred) {
-    spyro::callGuestJumpedFrom(*c,
+    psx::cpu::callGuestNow(*c,
                                kCameraCollisionUpdate,
-                               {.jal = 0x80034B94u, .target = kRotateVectorByCamera},
+                               psx::cpu::GuestCallSite::fromJal(0x80034B94u, kRotateVectorByCamera),
                                work.walk,
                                kSpyro);
     c->r[2] = c->mem_r32(work.walk) - kOnScreenXBase;
@@ -593,13 +580,6 @@ void settleOffCenterFrame(Core *c, std::uint32_t far, const CameraScratch &work)
 // those four registers are reproduced at the retail's own offsets. The step count is read in the
 // delay slot of the rescale call, and $s0 is zeroed in the delay slot of the test that skips the
 // walk, so both are set before the call that would otherwise have run first.
-//
-// MEASURED on routes artisans-walk and portal-level (740 calls, 106 of them shadowed on
-// artisans-walk, all matching): every call returned CLEAR, with a step count of 1, 2 or 3. The
-// walk itself, the advance, the loop's back edge and the clear answer are therefore covered, and
-// the two exits no route here reaches are NOT: the hit answer, whose v0 = 0 comes out of the
-// delay slot of the branch that leaves the walk, and the zero-step answer, which skips the walk
-// entirely. Both are the two-instruction tails above, and the walk they leave is the one measured.
 void rayBetweenPointsIsClear(Core *c) {
   const std::uint32_t first = c->r[4];
   const std::uint32_t second = c->r[5];
@@ -615,9 +595,9 @@ void rayBetweenPointsIsClear(Core *c) {
   const std::uint32_t rayEnd = frame + kRayEndOffset;
   c->r[29] = frame;
   c->r[31] = kAfterVecSub;
-  psx::cpu::callGuestNow(*c, kRayBetweenPointsIsClearOwner, kVecSub, stepVector, second, first);
+  psx::cpu::callGuestNow(*c, kRayBetweenPointsIsClearOwner, kVsub, stepVector, second, first);
   c->r[31] = kAfterVecMagnitude;
-  psx::cpu::callGuestNow(*c, kRayBetweenPointsIsClearOwner, kVecMagnitude, stepVector, 1u);
+  psx::cpu::callGuestNow(*c, kRayBetweenPointsIsClearOwner, kVecLen, stepVector, 1u);
   const std::uint32_t magnitude = c->r[2];
   c->r[31] = kAfterVecScale;
   c->r[19] = static_cast<std::uint32_t>(static_cast<std::int32_t>(magnitude) >> kRayStepShift);
@@ -625,7 +605,7 @@ void rayBetweenPointsIsClear(Core *c) {
       *c, kRayBetweenPointsIsClearOwner, kVecScaleToLength, stepVector, magnitude, kRayStepUnits);
   c->r[17] = rayStart;
   c->r[31] = kAfterVecCopyStart;
-  psx::cpu::callGuestNow(*c, kRayBetweenPointsIsClearOwner, kVecCopy, rayStart, first);
+  psx::cpu::callGuestNow(*c, kRayBetweenPointsIsClearOwner, kCopy3, rayStart, first);
   c->r[16] = 0u;
   const std::int32_t steps = static_cast<std::int32_t>(c->r[19]);
   bool clear = true;
@@ -633,7 +613,7 @@ void rayBetweenPointsIsClear(Core *c) {
     c->r[18] = rayEnd;
     c->r[31] = kAfterVecAdd;
     psx::cpu::callGuestNow(
-        *c, kRayBetweenPointsIsClearOwner, kVecAdd, rayEnd, rayStart, stepVector);
+        *c, kRayBetweenPointsIsClearOwner, kVadd, rayEnd, rayStart, stepVector);
     c->r[16] = step;
     c->r[29] = frame;
     c->r[31] = kAfterSegmentTest;
@@ -644,7 +624,7 @@ void rayBetweenPointsIsClear(Core *c) {
       break;
     }
     c->r[31] = kAfterVecCopyAdvance;
-    psx::cpu::callGuestNow(*c, kRayBetweenPointsIsClearOwner, kVecCopy, rayStart, rayEnd);
+    psx::cpu::callGuestNow(*c, kRayBetweenPointsIsClearOwner, kCopy3, rayStart, rayEnd);
   }
   c->r[2] = clear ? 1u : 0u;
   c->r[16] = entryS0;
@@ -662,15 +642,6 @@ void rayBetweenPointsIsClear(Core *c) {
 // the last guest call left in it, so each branch reproduces the register the retail body held
 // rather than a result of its own. It runs with the body's own $sp frame and its six live $s
 // values in the real registers, because every callee it makes spills both.
-//
-// MEASURED on route artisans-walk (53 of 53 sampled calls matching): every sampled call leaves
-// through settleOffCenterFrame, so the differential covers the walk and the off-centre exit and
-// NOTHING from the colour filter onwards. A deliberate poison store at the colour filter, and
-// another at the snapshot-and-spherical-passes section, are caught at neither, while the same
-// store at the body's first statement is caught on all 53 calls: the instrument does report this
-// class of difference, so those two regions are unexercised rather than unchecked-by-accident.
-// They follow the retail disassembly alone: $s0 names one row for a whole pass and only $s2 walks,
-// and the accept mask is $s5 itself, because the later passes read that register.
 void resolveCameraCollision(Core *c) {
   const SpilledRegisters entry(c, c->r[29]);
   c->r[29] -= kFrameBytes;
@@ -693,30 +664,30 @@ void resolveCameraCollision(Core *c) {
   s3 = kCameraDestination;
   s4 = 0u;
   s5 = kCameraPosition;
-  spyro::callGuestJumpedFrom(*c,
+  psx::cpu::callGuestNow(*c,
                              kCameraCollisionUpdate,
-                             {.jal = 0x800344C0u, .target = kVecSub},
+                             psx::cpu::GuestCallSite::fromJal(0x800344C0u, kVsub),
                              walkVector,
                              kCameraDestination,
                              kSpyro);
-  spyro::callGuestJumpedFrom(
-      *c, kCameraCollisionUpdate, {.jal = 0x800344CCu, .target = kVecMagnitude}, walkVector, 1u);
+  psx::cpu::callGuestNow(
+      *c, kCameraCollisionUpdate, psx::cpu::GuestCallSite::fromJal(0x800344CCu, kVecLen), walkVector, 1u);
   s6 = static_cast<std::int32_t>(c->r[2]) >= kWalkStartsBelowLength
            ? 1u
            : 0u; // the "camera is far" flag
-  spyro::callGuestJumpedFrom(*c,
+  psx::cpu::callGuestNow(*c,
                              kCameraCollisionUpdate,
-                             {.jal = 0x800344E0u, .target = kVecCopy},
+                             psx::cpu::GuestCallSite::fromJal(0x800344E0u, kCopy3),
                              stepVector,
                              kCameraDestination);
-  spyro::callGuestJumpedFrom(*c,
+  psx::cpu::callGuestNow(*c,
                              kCameraCollisionUpdate,
-                             {.jal = 0x800344F4u, .target = kVecSub},
+                             psx::cpu::GuestCallSite::fromJal(0x800344F4u, kVsub),
                              walkVector,
                              kCameraDestination,
                              kCameraPosition);
-  spyro::callGuestJumpedFrom(
-      *c, kCameraCollisionUpdate, {.jal = 0x80034500u, .target = kVecMagnitude}, walkVector, 1u);
+  psx::cpu::callGuestNow(
+      *c, kCameraCollisionUpdate, psx::cpu::GuestCallSite::fromJal(0x80034500u, kVecLen), walkVector, 1u);
   std::int32_t length = static_cast<std::int32_t>(c->r[2]);
   if (length < 0) {
     length += 0xFF;
@@ -733,34 +704,34 @@ void resolveCameraCollision(Core *c) {
     c->mem_w32(walkVector + 4u, c->r[3]);
     c->mem_w32(walkVector + 8u, c->r[2]);
   }
-  spyro::callGuestJumpedFrom(*c,
+  psx::cpu::callGuestNow(*c,
                              kCameraCollisionUpdate,
-                             {.jal = 0x800345D4u, .target = kVecCopy},
+                             psx::cpu::GuestCallSite::fromJal(0x800345D4u, kCopy3),
                              kCameraDestination,
                              kCameraPosition);
 
   s0 = 0u;
   while (static_cast<std::int32_t>(s0) < steps) {
-    spyro::callGuestJumpedFrom(*c,
+    psx::cpu::callGuestNow(*c,
                                kCameraCollisionUpdate,
-                               {.jal = 0x800345F0u, .target = kVecAdd},
+                               psx::cpu::GuestCallSite::fromJal(0x800345F0u, kVadd),
                                kCameraDestination,
                                kCameraDestination,
                                walkVector);
     s1 = 0u;
     for (;;) {
-      spyro::callGuestJumpedFrom(*c,
+      psx::cpu::callGuestNow(*c,
                                  kCameraCollisionUpdate,
-                                 {.jal = 0x80034604u, .target = kSphereCollisionCheck},
+                                 psx::cpu::GuestCallSite::fromJal(0x80034604u, kSphereCollisionCheck),
                                  kCameraDestination,
                                  kSphereProbeRadius,
                                  kSphereProbeRadius);
       if (c->r[2] == 0u) {
         break;
       }
-      spyro::callGuestJumpedFrom(*c,
+      psx::cpu::callGuestNow(*c,
                                  kCameraCollisionUpdate,
-                                 {.jal = 0x8003461Cu, .target = kVecCopy},
+                                 psx::cpu::GuestCallSite::fromJal(0x8003461Cu, kCopy3),
                                  kCameraDestination,
                                  kCollisionPoint);
       s1 += 1u;
@@ -771,9 +742,9 @@ void resolveCameraCollision(Core *c) {
     }
     s0 += 1u;
     if (static_cast<std::int32_t>(s1) == kWalkProbeLimit) {
-      spyro::callGuestJumpedFrom(*c,
+      psx::cpu::callGuestNow(*c,
                                  kCameraCollisionUpdate,
-                                 {.jal = 0x80034644u, .target = kVecCopy},
+                                 psx::cpu::GuestCallSite::fromJal(0x80034644u, kCopy3),
                                  kCameraDestination,
                                  stepVector);
       s0 = static_cast<std::uint32_t>(steps + 1);
@@ -785,17 +756,17 @@ void resolveCameraCollision(Core *c) {
   c->r[2] = static_cast<std::int32_t>(s1) < kWalkProbeLimit ? 1u : 0u;
   if (c->r[2] != 0u) {
     if (s4 == 0u) {
-      spyro::callGuestJumpedFrom(*c,
+      psx::cpu::callGuestNow(*c,
                                  kCameraCollisionUpdate,
-                                 {.jal = 0x80034710u, .target = kVecCopy},
+                                 psx::cpu::GuestCallSite::fromJal(0x80034710u, kCopy3),
                                  kCameraPosition,
                                  kCameraDestination);
       c->r[2] = kForcedToDestination;
       c->mem_w32(s0, kForcedToDestination);
     } else {
-      spyro::callGuestJumpedFrom(*c,
+      psx::cpu::callGuestNow(*c,
                                  kCameraCollisionUpdate,
-                                 {.jal = 0x80034684u, .target = kVecSub},
+                                 psx::cpu::GuestCallSite::fromJal(0x80034684u, kVsub),
                                  stepVector,
                                  kCameraDestination,
                                  kCameraPosition);
@@ -810,9 +781,9 @@ void resolveCameraCollision(Core *c) {
           c->mem_w32(address, 0);
         }
       }
-      spyro::callGuestJumpedFrom(*c,
+      psx::cpu::callGuestNow(*c,
                                  kCameraCollisionUpdate,
-                                 {.jal = 0x800346FCu, .target = kVecAdd},
+                                 psx::cpu::GuestCallSite::fromJal(0x800346FCu, kVadd),
                                  kCameraPosition,
                                  kCameraPosition,
                                  stepVector);
@@ -820,23 +791,23 @@ void resolveCameraCollision(Core *c) {
   }
 
   s2 = kCameraPosition;
-  spyro::callGuestJumpedFrom(*c,
+  psx::cpu::callGuestNow(*c,
                              kCameraCollisionUpdate,
-                             {.jal = 0x80034728u, .target = kUpdateSphericalCoords},
+                             psx::cpu::GuestCallSite::fromJal(0x80034728u, kUpdateSphericalCoords),
                              kCameraPosition);
   c->mem_w32(kCameraAzimuthChanged, c->r[2]);
-  spyro::callGuestJumpedFrom(
-      *c, kCameraCollisionUpdate, {.jal = 0x80034744u, .target = kVecCopy}, walkVector, kSpyro);
+  psx::cpu::callGuestNow(
+      *c, kCameraCollisionUpdate, psx::cpu::GuestCallSite::fromJal(0x80034744u, kCopy3), walkVector, kSpyro);
   c->mem_w32(walkVector + 8u, c->mem_r32(walkVector + 8u) - kSpyroProbeDepth);
-  spyro::callGuestJumpedFrom(*c,
+  psx::cpu::callGuestNow(*c,
                              kCameraCollisionUpdate,
-                             {.jal = 0x8003475Cu, .target = kRayBetweenPointsIsClear},
+                             psx::cpu::GuestCallSite::fromJal(0x8003475Cu, kRayBetweenPointsIsClear),
                              kCameraPosition,
                              walkVector);
   if (c->r[2] != 0u) {
-    spyro::callGuestJumpedFrom(*c,
+    psx::cpu::callGuestNow(*c,
                                kCameraCollisionUpdate,
-                               {.jal = 0x8003476Cu, .target = kRayBetweenPointsIsClear},
+                               psx::cpu::GuestCallSite::fromJal(0x8003476Cu, kRayBetweenPointsIsClear),
                                walkVector,
                                kCameraPosition);
     const bool blocked = c->r[2] != 0u;
@@ -869,26 +840,26 @@ void resolveCameraCollision(Core *c) {
     for (std::uint32_t preset = 0; preset < kRowCount; ++preset) {
       const std::uint32_t presetAddress = kSphericalPresets + s0;
       c->mem_w32(s4, presetAddress); // the reset's own delay slot
-      spyro::callGuestJumpedFrom(*c,
+      psx::cpu::callGuestNow(*c,
                                  kCameraCollisionUpdate,
-                                 {.jal = 0x800347E4u, .target = kResetCameraToSphericalPreset},
+                                 psx::cpu::GuestCallSite::fromJal(0x800347E4u, kResetCameraToSphericalPreset),
                                  presetAddress);
-      spyro::callGuestJumpedFrom(*c,
+      psx::cpu::callGuestNow(*c,
                                  kCameraCollisionUpdate,
-                                 {.jal = 0x800347F4u, .target = kSphereCollisionCheck},
+                                 psx::cpu::GuestCallSite::fromJal(0x800347F4u, kSphereCollisionCheck),
                                  s3,
                                  kSphereProbeRadius,
                                  kSphereProbeRadius);
       if (c->r[2] == 0u) {
-        spyro::callGuestJumpedFrom(*c,
+        psx::cpu::callGuestNow(*c,
                                    kCameraCollisionUpdate,
-                                   {.jal = 0x80034804u, .target = kRayBetweenPointsIsClear},
+                                   psx::cpu::GuestCallSite::fromJal(0x80034804u, kRayBetweenPointsIsClear),
                                    s3,
                                    s2);
         if (c->r[2] != 0u) {
-          spyro::callGuestJumpedFrom(*c,
+          psx::cpu::callGuestNow(*c,
                                      kCameraCollisionUpdate,
-                                     {.jal = 0x80034814u, .target = kRayBetweenPointsIsClear},
+                                     psx::cpu::GuestCallSite::fromJal(0x80034814u, kRayBetweenPointsIsClear),
                                      s2,
                                      s3);
           if (c->r[2] != 0u) {
@@ -954,12 +925,6 @@ void resolveCameraCollision(Core *c) {
 // the callees see the retail's saved-register file, which the fixed spill area at 0x80077DD8 turns
 // into ordinary RAM the differential compares. v0/v1 leave holding whatever the rotation update
 // leaves, and it is the last call, so neither register is assigned here.
-//
-// MEASURED on route artisans-walk: 1 of 1 sampled calls matching. The body has no branch at all,
-// so that one call exercises every store and every callee it makes — but it is one call, and the
-// preset fallback that reaches it is itself rare: resolveCameraCollision's own note records that
-// every sampled call of 0x80034480 leaves before the preset loop. Treat this as a straight-line
-// transcription checked once, not as a well-sampled differential.
 void resetCameraToSphericalPreset(Core *c) {
   const SpilledRegisters entry(c, c->r[29]);
   c->r[29] -= kPresetFrameBytes;
@@ -984,9 +949,9 @@ void resetCameraToSphericalPreset(Core *c) {
   }
   psx::cpu::callGuestNow(*c, kCameraSphericalPresetReset, kSphericalToCartesian, s1);
   psx::cpu::callGuestNow(
-      *c, kCameraSphericalPresetReset, kVecAdd, s1, s1, c->mem_r32(kCameraFocusPointer));
+      *c, kCameraSphericalPresetReset, kVadd, s1, s1, c->mem_r32(kCameraFocusPointer));
   s0 = kCameraPosition;
-  psx::cpu::callGuestNow(*c, kCameraSphericalPresetReset, kVecCopy, s0, s1);
+  psx::cpu::callGuestNow(*c, kCameraSphericalPresetReset, kCopy3, s0, s1);
   psx::cpu::callGuestNow(*c, kCameraSphericalPresetReset, kUpdateSphericalCoords, s0);
   c->mem_w32(kCameraAzimuthChanged, c->r[2]);
   // The rotation update reads no argument at all, so the three words handed over here are inert;
