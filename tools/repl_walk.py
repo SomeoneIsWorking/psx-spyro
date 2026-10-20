@@ -23,7 +23,8 @@ from typing import Callable, Protocol
 
 import guest_globals
 import spyro1_steering
-from spyro1_steering import Refusal, Walk
+from automation.process import ToolError  # noqa: E402  (path set by title_identity)
+from spyro1_steering import Walk
 
 # common.h's Gamestate values the walker has to know about. Every other non-zero state (level
 # transition, respawn, game over, fairy) is something the walk's own `stop` predicate names or
@@ -111,7 +112,7 @@ class Seeker:
         self._hold(set())
         self._waited += self._step
         if self._waited > self.CUTSCENE_BUDGET:
-            raise Refusal(
+            raise ToolError(
                 f"the guest stayed in gamestate {state} for {self._waited} step(s) without "
                 "returning to GS_Playing, so the pad is not steering anything"
             )
@@ -172,7 +173,7 @@ class Seeker:
             spent += self._step
         self._hold(set())
         if self._stop is not None:
-            raise Refusal(
+            raise ToolError(
                 f"walked to within {self._walk.closest} of a {self._walk.what} over {spent} "
                 f"step(s), but {self._stop_is} never happened: being next to one is not entering it"
             )

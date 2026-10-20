@@ -1,28 +1,12 @@
 #!/usr/bin/env python3
-"""title_states.py — Spyro 1's gamestates, title-overlay modes and states, and the overlay's own record.
-
-One home for this vocabulary, because two modules now need it and neither may own it: `drive.py` (the
-REPL driver) and `title_prompts.py` (which button a screen is asking for, shared by the REPL driver and
-the live one). When the driver owned them, the prompt policy could not import them without a cycle,
-which is pressure to copy them — and a second copy of "what gamestate 13 is" is how a driver ends up
-answering a prompt the game never showed.
-
-Values are the authenticated image's, cross-referenced against external/spyro-1:
-- gamestates from `include/gamestates.h` and the dispatch table in src/gamestates/update.c;
-- TSM_Init/Menu/Loading/Demo from include/titlescreen.h, TSS_Setup/Loading/Active likewise;
-- TitleState's six words in declaration order (include/titlescreen.h), which is how tools/drive.py's
-  REPL reads them in one `rw`.
-"""
+"""Spyro 1's gamestates, title-overlay modes and states, from external/spyro-1's `include/gamestates.h`
+and `include/titlescreen.h`; the one table `drive.py`, `press_conditions.py` and `title_prompts.py` read."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 
-# g_Gamestate — the stage the main loop dispatches on (src/gamestates/update.c). Every value the
-# enum defines is named here, including the ones no drivable route enters yet (fairy, balloonist,
-# dragon, flight results): a census that names only the states a route happens to reach cannot
-# report the ones it did not, and "the balloonist screen never appeared" and "the balloonist screen
-# rendered fine" are the two readings of a clean run that have to be told apart.
+# g_Gamestate, dispatched in src/gamestates/update.c.
 GS_PLAYING = 0
 GS_LEVEL_TRANSITION = 1
 GS_PAUSE_MENU = 2
@@ -49,8 +33,7 @@ TSS_SETUP, TSS_LOADING, TSS_ACTIVE = 0, 1, 2
 
 @dataclass(frozen=True)
 class TitleState:
-    """g_TitlescreenState's first six words: the mode, the state, two tick counters, the sub-state and
-    the selected option. Read in one `rw` because they are contiguous, and interpreted nowhere here."""
+    """g_TitlescreenState's first six words, read in one `rw`."""
     mode: int
     state: int
     tick: int
@@ -58,8 +41,27 @@ class TitleState:
     sub_state: int
     option: int
 
-# The presentation each gamestate owns, in the words the skip inventory uses. A census reports
-# numbers; this says what the player was looking at, which is the question a skip is asked about.
+
+GAMESTATE_NAMES: dict[int, str] = {
+    GS_PLAYING: "GS_Playing",
+    GS_LEVEL_TRANSITION: "GS_LevelTransition",
+    GS_PAUSE_MENU: "GS_PauseMenu",
+    GS_INVENTORY_MENU: "GS_InventoryMenu",
+    GS_RESPAWN: "GS_Respawn",
+    GS_GAME_OVER: "GS_GameOver",
+    GS_OLD_DRAGON: "GS_OldDragon",
+    GS_FLIGHT_RESULTS: "GS_FlightResults",
+    GS_DRAGON: "GS_Dragon",
+    GS_ENTRANCE_ANIMATION: "GS_EntranceAnimation",
+    GS_EXIT_LEVEL: "GS_ExitLevel",
+    GS_FAIRY: "GS_Fairy",
+    GS_BALLOONIST: "GS_Balloonist",
+    GS_TITLE_SCREEN: "GS_TitleScreen",
+    GS_CUTSCENE: "GS_Cutscene",
+    GS_CREDITS: "GS_Credits",
+}
+
+# What the player sees in each gamestate, in the skip inventory's words.
 GAMESTATE_PRESENTATION: dict[int, str] = {
     GS_PLAYING: "gameplay",
     GS_LEVEL_TRANSITION: "level-transition gem tally (portal in/out)",

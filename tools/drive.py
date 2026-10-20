@@ -31,123 +31,39 @@ from __future__ import annotations
 
 import argparse
 import json
-import math
 import os
 import re
 import subprocess
 import sys
-from dataclasses import dataclass
 from pathlib import Path
 
 import guest_globals
 import press_conditions
+import provision_title
 import route_scenes
+import title_prompts
+from automation.process import ToolError  # noqa: E402  (path set by title_identity)
+from port.launch_environment import agent_environment  # noqa: E402
 from repl_walk import Seeker
-from spyro1_steering import Refusal as SteeringRefusal
 from spyro1_steering import moby_class_targets, portal_targets
+from title_identity import ROOT
+from title_states import GAMESTATE_NAMES, GAMESTATE_PRESENTATION, GS_EXIT_LEVEL, GS_FLIGHT_RESULTS, TitleState
 
-ROOT = Path(__file__).resolve().parent.parent
-
-# The enhancement configuration every agent run of this port is gated under. It lives in the launch
-# environment rather than in one tool's argparse default because oracle_compare.py builds its product
-# environment from here too: left unset, the product falls back to its own discovery and picks up
-# whichever psxport_settings.ini happens to sit in the working directory -- an untracked, per-machine
-# file. Measured 2026-09-19: an oracle run that recorded product_env {} still had fps60 and widescreen
-# on, from the operator's personal file, and a fresh clone or CI would silently have run without them.
+# The agent build every driver launches unless told otherwise.
+EXECUTABLE = ROOT / "build" / "agent" / "bin" / "spyro_port"
+# Tracked, so a run never depends on an untracked psxport_settings.ini in the working directory.
 SHIPPING_SETTINGS = ROOT / "tools" / "shipping_settings.ini"
-
-# The memory card a route that must repeat starts without. The card is an input the guest reads and a file
-# the run writes, and with no `PSXPORT_CARD` every run of every title shares `scratch/saves/card.mcr`: the
-# previous run's writes become the next run's boot state. Measured 2026-10-01 (docs/issues/0169): Spyro 3's
-# title route reached gameplay at field 4890 on the card Spyro 1 left and 4740 on every run after, and
-# Spyro 2 at 3340 on a blank card and 3190 after its own run wrote one -- same binary, same pad edges, a
-# per-field state digest identical until the field the guest first reads the card. Deleted before each
-# launch, so the start state is a function of the binary and the disc alone. The Spyro 2/3 routes
-# (title_route.open_port) use it. Spyro 1's own route does NOT: it answers the save picker of the existing card
-# and stalls on a blank one (never reaches TSM_Loading), and it never writes that card.
+# Deleted before each route that must repeat: a shared card makes the previous run's writes the next boot state (issue 0169).
 ROUTE_CARD = ROOT / "scratch" / "saves" / "route.mcr"
-
-# The card a SCENE route runs on, and it is its own file for the reason issue 0169 measured: a route
-# that must repeat cannot share a card another route writes. The fairy's scene WRITES a save (that
-# is the whole point), so on the shared card it left BASCUS-94228SPYRO with a filled first slot; the
-# next run then booted into the picker's "this slot has a save" screen (TSM_Loading state 2), which
-# refuses to answer the overwrite because that screen is the operator's card, and the run refused at
-# "the save picker never committed a slot". Deleted before each run by the framework's
-# blank_card_environment, so a scene starts from the binary and the disc alone and its own write
-# stays inside its own file.
+# The fairy scene writes a save, so scenes get their own card.
 SCENE_CARD = ROOT / "scratch" / "saves" / "scene.mcr"
 
-# Guest addresses. The shared ones come from the shipping owner, game/core/guest_globals.h, through
-# tools/guest_globals.py, so this driver and the product cannot read different memory. The two
-# level-transition words below are read here and nowhere else, so they stay with their only reader.
-G_GAMESTATE = guest_globals.kGamestate
-G_TITLESCREEN = guest_globals.kTitlescreenState
-G_LOAD_STAGE = guest_globals.kLoadStage
-G_LEVEL_ID = guest_globals.kLevelId
+# Read only here: the level-transition HUD words.
 G_LEVEL_TRANS_TICKS = 0x800756AC
 G_LEVEL_TRANS_HUD = 0x800756B0
-# The pause menu's own two words, read by the --quit-home route: D_80075720 is the selected entry
-# and D_800757C8 the submenu (0 = the main list). Reached with tools/re_globals.py on the pause-menu
-# update 0x8002E12C; they are read here and nowhere else, so they stay with their only reader. They
-# are 0xA8 apart, so they are two reads and never one.
+# Pause-menu selected entry and submenu (update 0x8002E12C); 0xA8 apart, so two reads.
 G_PAUSE_OPTION = 0x80075720
 G_PAUSE_SUBMENU = 0x800757C8
-
-# The gamestate / overlay vocabulary is title_states' (one home, because tools/title_prompts.py needs it
-# too and a second copy is how two drivers come to disagree about which screen they are on). Re-exported
-# here because this module is where every other tool has always imported them from.
-from title_states import (  # noqa: F401  (re-exported on purpose — see above)
-    GS_BALLOONIST,
-    GS_CUTSCENE,
-    GS_CREDITS,
-    GS_DRAGON,
-    GS_ENTRANCE_ANIMATION,
-    GS_EXIT_LEVEL,
-    GS_FAIRY,
-    GS_FLIGHT_RESULTS,
-    GS_GAME_OVER,
-    GS_INVENTORY_MENU,
-    GS_LEVEL_TRANSITION,
-    GS_OLD_DRAGON,
-    GS_PAUSE_MENU,
-    GS_PLAYING,
-    GS_RESPAWN,
-    GS_TITLE_SCREEN,
-    TSS_ACTIVE,
-    TSM_DEMO,
-    TSM_INIT,
-    TSM_LOADING,
-    TSM_MENU,
-    TitleState,
-)
-from title_states import GAMESTATE_PRESENTATION
-
-import title_prompts  # the menu sequence, shared with tools/live_play.py's driver
-
-# Named so a census line reads as game states rather than as integers, and carrying EVERY state the
-# enum defines so a route reports the presentations it did not reach as well as the ones it did. The
-# presentation each state owns is title_states' vocabulary; this is only the name.
-GAMESTATE_NAMES = {
-    GS_PLAYING: "playing",
-    GS_LEVEL_TRANSITION: "level_transition",
-    GS_PAUSE_MENU: "pause_menu",
-    GS_INVENTORY_MENU: "inventory_menu",
-    GS_RESPAWN: "respawn",
-    GS_GAME_OVER: "game_over",
-    GS_OLD_DRAGON: "old_dragon",
-    GS_FLIGHT_RESULTS: "flight_results",
-    GS_DRAGON: "dragon",
-    GS_ENTRANCE_ANIMATION: "entrance_animation",
-    GS_EXIT_LEVEL: "exit_level",
-    GS_FAIRY: "fairy",
-    GS_BALLOONIST: "balloonist",
-    GS_TITLE_SCREEN: "title_screen",
-    GS_CUTSCENE: "cutscene",
-    GS_CREDITS: "credits",
-}
-# One refusal type for every named refusal a driver can make, so a steering refusal is reported the
-# same way as a navigation one instead of escaping as a traceback.
-Refusal = SteeringRefusal
 
 
 class Port:
@@ -157,8 +73,8 @@ class Port:
     _READY = re.compile(r"\[repl\] frame=(\d+) ready")
 
     def __init__(self, executable: Path, binary: Path, log: Path, env: dict[str, str],
-                 post_presses: "press_conditions.PostArrivalPressConditions | None" = None,
-                 gamestate_address: int = G_GAMESTATE):
+                 post_presses: "press_conditions.PressConditions | None" = None,
+                 gamestate_address: int = guest_globals.kGamestate):
         # The word every sample reads. Spyro 1's by default; a title with its own game-state word
         # (tools/title_profile.py) names it here, because sampling Spyro 1's address in another
         # image reads an unrelated word and fills the census with plausible integers.
@@ -181,7 +97,7 @@ class Port:
         # its time here: the level-transition tally, the entrance sweep and the return-home glide are
         # all reached by walking or by the pause menu, long after reach_gameplay() returned.
         self._post_presses = (post_presses if post_presses is not None
-                              else press_conditions.PostArrivalPressConditions())
+                              else press_conditions.PressConditions(phase="post-arrival"))
         # Every gamestate this run was ever observed in, and how many samples saw it. A driven run
         # that ends without its symptom proves nothing unless the state under test was reached, and
         # until now no driver could say: issue 0103's documented repro exits 0 either because the
@@ -297,7 +213,7 @@ class Port:
         return self.word(G_PAUSE_OPTION), self.word(G_PAUSE_SUBMENU)
 
     def title(self) -> TitleState:
-        w = self.words(G_TITLESCREEN, 6)
+        w = self.words(guest_globals.kTitlescreenState, 6)
         return TitleState(w[0], w[1], w[2], w[3], w[4], w[5])
 
     def gates(self) -> None:
@@ -321,7 +237,7 @@ class Port:
         for line in self._lines():
             if "[repl] shot" in line and f"-> {path}" in line:
                 return
-        raise Refusal(f"the port exited before writing the shot {path}")
+        raise ToolError(f"the port exited before writing the shot {path}")
 
     def dumpram(self, path: str) -> None:
         Path(ROOT / path).parent.mkdir(parents=True, exist_ok=True)
@@ -377,7 +293,7 @@ class Port:
             if match:
                 self.frame = int(match.group(1))
                 return self.frame
-        raise Refusal("the port exited before reaching its next frame boundary")
+        raise ToolError("the port exited before reaching its next frame boundary")
 
     def _await_words(self, address: int, count: int) -> list[int]:
         for line in self._lines():
@@ -386,7 +302,7 @@ class Port:
                 values = [int(v, 16) for v in match.group(2).split()]
                 if len(values) == count:
                     return values
-        raise Refusal(f"the port exited before answering rw 0x{address:08X}")
+        raise ToolError(f"the port exited before answering rw 0x{address:08X}")
 
     def _drain(self) -> None:
         for _ in self._lines():
@@ -446,7 +362,7 @@ class Navigator:
 
     def _answer(self, prompt: "title_prompts.Prompt") -> None:
         if prompt.refuse:
-            raise Refusal(prompt.refuse)
+            raise ToolError(prompt.refuse)
         buttons = prompt.buttons
         if buttons and prompt.target and not prompt.repeatable:
             buttons = tuple(b for b in buttons if (prompt.target, b) not in self._cancelled)
@@ -480,7 +396,7 @@ class Navigator:
             self._answer(prompt)
             spent += self.STEP
             self._advance()
-        raise Refusal(
+        raise ToolError(
             f"never reached the save picker (TSM_Loading) within {self._budget} steps; "
             f"last gamestate={self._port.gamestate()} title={self._port.title()}"
         )
@@ -499,7 +415,7 @@ class Navigator:
             self._answer(prompt)
             spent += self.STEP
             self._advance()
-        raise Refusal(
+        raise ToolError(
             f"the save picker never committed a slot within {self._budget} steps; "
             f"last title={self._port.title()}"
         )
@@ -514,9 +430,9 @@ class Navigator:
             self._answer(prompt)
             spent += self.STEP
             self._advance()
-        raise Refusal(
+        raise ToolError(
             f"never reached GS_Playing within {self._budget} steps; "
-            f"gamestate={self._port.gamestate()} load_stage={self._port.word(G_LOAD_STAGE)}"
+            f"gamestate={self._port.gamestate()} load_stage={self._port.word(guest_globals.kLoadStage)}"
         )
 
 
@@ -530,9 +446,9 @@ def quit_to_home(port: Port, budget: int = 4000) -> None:
     instead of leaving the level -- a route that walked into it would sit pressing Start at a prompt
     it cannot answer.
     """
-    level = port.word(G_LEVEL_ID)
+    level = port.word(guest_globals.kLevelId)
     if level % 10 == 0:
-        raise Refusal(
+        raise ToolError(
             f"--quit-home needs a sub-level: level {level} is a homeworld, where the pause menu's "
             f"Quit opens a confirm screen instead of calling the exit-level entry (func_8002C618). "
             f"Cross a portal first (--seek-portal) or teleport onto a gate (--gate-teleport)"
@@ -548,64 +464,44 @@ def quit_to_home(port: Port, budget: int = 4000) -> None:
             # A flight level's Quit is a different arm: `func_8002E12C` sends it to GS_FlightResults
             # and sets its own flag rather than calling the exit-level entry, so there is no glide to
             # reach from here. Said by name instead of left to spin out the budget.
-            raise Refusal(
+            raise ToolError(
                 f"--quit-home reached GS_FlightResults in level {level}: a flight level's Quit is the "
                 f"results screen, not the return-home glide (func_8002E12C's g_IsFlightLevel arm)"
             )
         option, submenu = port.pause_menu()
         prompt = title_prompts.pause_quit_prompt(state, option, submenu)
         if prompt.refuse:
-            raise Refusal(prompt.refuse)
+            raise ToolError(prompt.refuse)
         for button in prompt.buttons:
             print(f"quit-home: gamestate {state} option {option} submenu {submenu} -> {button}",
                   file=sys.stderr)
             port.tap(button)
         port.run(Navigator.STEP)
         spent += Navigator.STEP
-    raise Refusal(f"the pause menu never handed off to GS_ExitLevel within {budget} steps; "
+    raise ToolError(f"the pause menu never handed off to GS_ExitLevel within {budget} steps; "
                   f"last gamestate={port.gamestate()}")
 
 
-def environment(disc: str | None, settings: Path | None = None,
+def environment(title: str = "spyro1", settings: Path | None = None,
                 card: Path | None = None) -> dict[str, str]:
-    """The headless REPL launch environment for the built port. The framework's launch policy
-    (external/psxport/tools/port/launch_environment.py) owns the headless/silent/unpaced knobs so
-    no agent driver can seize the desktop or drift from the others.
+    """The hidden-window REPL environment for one title, with its disc resolved.
 
-    `settings` names the tracked .ini the run is gated with, defaulting to the shipping one. The
-    picture oracle passes the reference configuration instead: it photographs the product against a
-    4:3 console, and a widescreen frame is a different SIZE, which the comparison would refuse.
-
-    `card` is a memory-card image the run starts without (deleted here, so the product makes a blank one);
-    pass `ROUTE_CARD` for any route that must repeat. The default None runs on whatever card is in force,
-    which makes the run depend on every run that wrote it before (see ROUTE_CARD)."""
-    sys.path.insert(0, str(ROOT / "external" / "psxport" / "tools"))
-    from port.launch_environment import agent_environment
-
+    `card` is deleted first so the run starts on a blank card; pass `ROUTE_CARD` for a route that must repeat."""
+    spec = provision_title.SPECS[title]
     env = agent_environment(dict(os.environ), settings or SHIPPING_SETTINGS, card=card)
-    env.update(
-        PSXPORT_REPL="1",
-        PSXPORT_WATCHDOG="0",
-        PSXPORT_ASSET_DIR="external/psxport",
-    )
-    if disc:
-        env["PSXPORT_SPYRO_DISC"] = disc
+    env.update(PSXPORT_REPL="1", PSXPORT_WATCHDOG="0")
+    env[spec.disc_env] = str(provision_title.resolve_disc(spec, None).path)
     return env
 
 
-def disc_path(variable: str = "PSXPORT_SPYRO_DISC") -> str | None:
-    """The disc named by `variable` in the environment, else in the repository's `.env`. The default is
-    Spyro 1's; `boot_run.py` asks for the Spyro 2 and 3 variables through the same reader."""
-    value = os.environ.get(variable)
-    if value:
-        return value
-    env_file = ROOT / ".env"
-    if env_file.exists():
-        for line in env_file.read_text().splitlines():
-            key, separator, rest = line.partition("=")
-            if separator and key.strip() == variable:
-                return rest.strip()
-    return None
+def launch_inputs(title: str, executable: Path) -> tuple[Path, Path]:
+    """The built port and the title's provisioned image, refused by name when either is missing."""
+    if not executable.is_file():
+        raise ToolError(f"the built port is missing: {executable} - build target spyro_port first")
+    image = ROOT / provision_title.SPECS[title].executable
+    if not image.is_file():
+        raise ToolError(f"{title} is not provisioned: {image} is missing - run tools/provision_title.py")
+    return executable, image
 
 
 def main() -> int:
@@ -613,8 +509,7 @@ def main() -> int:
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
     parser.add_argument("target", choices=["gameplay"], help="the state to drive to")
-    parser.add_argument("--executable", default="build/bin/spyro_port")
-    parser.add_argument("--binary", default="scratch/assets/spyro1/SCUS_942.28")
+    parser.add_argument("--executable", default=str(EXECUTABLE))
     parser.add_argument("--log", default="scratch/logs/drive.log")
     parser.add_argument("--debug", default="", help="PSXPORT_DEBUG channels for this run")
     parser.add_argument(
@@ -627,9 +522,7 @@ def main() -> int:
     parser.add_argument(
         "--settings",
         default=str(SHIPPING_SETTINGS),
-        help="PSXPORT_SETTINGS for this run; the default turns on the two enhancements under test "
-        "(widescreen and interpolated 60fps), because the previous default named a file that did "
-        "not exist and silently gated the product with both of them off",
+        help="PSXPORT_SETTINGS for this run; a missing file is refused",
     )
     parser.add_argument(
         "--settle",
@@ -665,7 +558,7 @@ def main() -> int:
         "Exactly one edge per spec, never a second: gamestate 0 is both the boot logo and the "
         "arrival state, and a live run that re-fired there pressed Start in gameplay and opened the "
         "pause menu. The states are "
-        + ", ".join(f"{n}={s}" for s, n in sorted(press_conditions.GAMESTATE_NAMES.items()))
+        + ", ".join(f"{n}={s}" for s, n in sorted(GAMESTATE_NAMES.items()))
         + ".",
     )
     parser.add_argument(
@@ -680,7 +573,7 @@ def main() -> int:
         "frame counts, and the port enters a level transition on a portal the run walks into rather "
         "than at a field anyone can predict. Same one-edge rule; the states a button cannot skip "
         "(GS_Playing, the pause menu, the inventory) are refused by name. The states are "
-        + ", ".join(f"{n}={s}" for s, n in sorted(press_conditions.GAMESTATE_NAMES.items()))
+        + ", ".join(f"{n}={s}" for s, n in sorted(GAMESTATE_NAMES.items()))
         + ".",
     )
     parser.add_argument("--hold", action="append", default=[], help="button held after arrival")
@@ -792,35 +685,23 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    env = environment(disc_path(), card=SCENE_CARD if args.scene and not args.card else args.card)
+    try:
+        executable, image = launch_inputs("spyro1", ROOT / args.executable)
+        env = environment("spyro1", ROOT / args.settings,
+                          SCENE_CARD if args.scene and not args.card else args.card)
+        presses = press_conditions.parse_all(args.press_while)
+        post_presses = press_conditions.parse_post_all(args.press_after)
+    except (OSError, ToolError) as refusal:
+        parser.error(str(refusal))
     if args.debug:
         env["PSXPORT_DEBUG"] = args.debug
-    if args.settings:
-        # A settings path the product cannot open is worse than none: the run proceeds on defaults
-        # and looks exactly like a run that honoured the file, which is how six weeks of Spyro
-        # evidence came to be collected with widescreen and fps60 off. Refuse by name instead.
-        settings = Path(args.settings)
-        if not settings.is_file():
-            parser.error(
-                f"--settings {args.settings} does not exist; the product would silently run on "
-                "defaults, with the enhancements under test switched off"
-            )
-        env["PSXPORT_SETTINGS"] = str(settings.resolve())
     for entry in args.env:
         name, separator, value = entry.partition("=")
         if not separator:
             parser.error(f"--env expects NAME=VALUE, got {entry!r}")
         env[name] = value
 
-    try:
-        presses = press_conditions.parse_all(args.press_while)
-    except press_conditions.Refusal as refusal:
-        parser.error(str(refusal))
-    try:
-        post_presses = press_conditions.parse_post_all(args.press_after)
-    except press_conditions.Refusal as refusal:
-        parser.error(str(refusal))
-    port = Port(ROOT / args.executable, ROOT / args.binary, ROOT / args.log, env, post_presses)
+    port = Port(executable, image, ROOT / args.log, env, post_presses)
     try:
         Navigator(port, skip_transitions=args.skip_transitions, presses=presses,
                   skip_button=args.skip_button).reach_gameplay()
@@ -875,9 +756,9 @@ def main() -> int:
                 arrived=args.seek_arrived,
             ).walk()
         elif args.seek_portal:
-            entering = port.word(G_LEVEL_ID)
+            entering = port.word(guest_globals.kLevelId)
             Seeker(port, "portal", portal_targets(port.words), arrived=0,
-                   stop=lambda: port.word(G_LEVEL_ID) != entering,
+                   stop=lambda: port.word(guest_globals.kLevelId) != entering,
                    stop_is=f"left level {entering}").walk()
         if args.quit_home:
             quit_to_home(port, budget=args.quit_budget)
@@ -904,7 +785,7 @@ def main() -> int:
         for command in args.repl:
             port.repl_command(command)
             port.run(1)
-    except Refusal as refusal:
+    except ToolError as refusal:
         print(f"drive.py REFUSED: {refusal}", file=sys.stderr)
         print(f"  {port.census_line()}", file=sys.stderr)
         print(f"  {presses.report()}", file=sys.stderr)

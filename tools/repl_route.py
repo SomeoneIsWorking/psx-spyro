@@ -26,8 +26,8 @@ from typing import Callable
 
 import guest_globals
 import repl_walk
-import spyro1_steering
-from spyro1_steering import Refusal, Target
+from automation.process import ToolError  # noqa: E402  (path set by title_identity)
+from spyro1_steering import Target
 
 ROUTES_DIR = Path(__file__).resolve().parent / "routes"
 LEG_ARRIVED = 200    # view-space units (~800 world, measured from Spyro): a waypoint is a way
@@ -43,7 +43,7 @@ class Route:
 
     def __init__(self, level: int, name: str, waypoints: list[tuple[int, ...]]):
         if not waypoints:
-            raise Refusal(f"route {name!r} has no waypoints")
+            raise ToolError(f"route {name!r} has no waypoints")
         self.level = level
         self.name = name
         self.waypoints = waypoints
@@ -59,7 +59,7 @@ class Route:
         points = []
         for point in raw:
             if len(point) not in (3, 4) or not all(isinstance(v, int) for v in point):
-                raise Refusal(f"route {name!r} in {path.name} has a malformed waypoint {point!r}")
+                raise ToolError(f"route {name!r} in {path.name} has a malformed waypoint {point!r}")
             points.append(tuple(point))
         return cls(int(data["level"]), name, points)
 
@@ -81,7 +81,7 @@ def follow(port, route: Route, stop: Callable[[], bool] | None = None, stop_is: 
     own word, when the thing the route exists to cause (a death, a cutscene) has happened."""
     level = port.words(guest_globals.kLevelId, 1)[0]
     if level != route.level:
-        raise Refusal(
+        raise ToolError(
             f"route {route.name!r} was recorded in level {route.level} but g_LevelId is {level}"
         )
     for index, point in enumerate(route.waypoints):

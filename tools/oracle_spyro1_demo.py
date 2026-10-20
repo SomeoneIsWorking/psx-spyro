@@ -32,9 +32,10 @@ a difference fails rather than hides.
 
 from __future__ import annotations
 
+import guest_globals
 import oracle_spyro1 as base
 from compare import Checkpoint, CoreSession, DeclaredRange, Driver, Settle, u32
-from drive import GS_PLAYING, GS_TITLE_SCREEN, TSM_DEMO
+from title_states import GS_PLAYING, GS_TITLE_SCREEN, TSM_DEMO
 
 name = f"{base.name} — attract demo"
 
@@ -43,7 +44,7 @@ name = f"{base.name} — attract demo"
 # title overlay's +0x1C word (titles/spyro1/core/frame/transition_skip.cpp:53).
 G_DEMO_MODE = 0x80075714
 G_DEMO_FADE_TIMER = 0x80075884
-G_TITLE_DEMO_TYPE = base.G_TITLESCREEN + 0x1C
+G_TITLE_DEMO_TYPE = guest_globals.kTitlescreenState + 0x1C
 
 TSS_SETUP, TSS_LOADING = 0, 1   # include/titlescreen.h:58-60
 DEMO_TYPE_DEMO_LEVEL = 2        # TSD_DemoLevel: load g_DemoLevelIds[g_DemoIndex]
@@ -62,7 +63,6 @@ declared = base.declared + (
 )
 
 excluded = base.excluded
-selftest = base.selftest
 picture_decisive = base.picture_decisive
 observe = base.observe
 lookahead = base.lookahead
@@ -135,7 +135,7 @@ DEMO_MODE_PLAY = 1  # include/gamepad.h:41-43
 
 def _in_demo_playback(core: CoreSession) -> bool:
     return (u32(core, G_DEMO_MODE) == DEMO_MODE_PLAY
-            and u32(core, base.G_GAMESTATE) == GS_PLAYING)
+            and u32(core, guest_globals.kGamestate) == GS_PLAYING)
 
 
 def advance(core: CoreSession, frames: int, strict: bool = False) -> None:

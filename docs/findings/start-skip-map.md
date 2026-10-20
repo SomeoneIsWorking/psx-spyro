@@ -271,7 +271,7 @@ Any future skip verification for a pre-gameplay state therefore needs a pre-arri
 drive's arrival-gated route cannot express it, and that is a harness gap rather than a title defect.
 
 **CLOSED 2026-09-28 for everything up to `GS_Playing`.** `tools/press_conditions.py` and
-`drive.py --press-while GAMESTATE:BUTTON[:FRAMES]`, gated by `press_conditions_selftest`. It is
+`drive.py --press-while GAMESTATE:BUTTON[:FRAMES]`. It is
 condition-driven, not a frame count, because the boot/attract sequence is timing dependent and field
 400 is a different screen on every run. One edge per spec, never a second: gamestate 0 is both the
 boot logo and the arrival state, and the first version of the rule (one edge per contiguous run) fired

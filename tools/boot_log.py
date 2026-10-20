@@ -1,7 +1,7 @@
 """boot_log.py — read a boot run's own log into the counters a boot claim needs, with denominators.
 
 The port prints everything a Spyro 2/3 boot measurement needs, but across five differently shaped
-lines. This module is the only reader of them, so `boot_run.py` and its selftest cannot disagree
+lines. This module is the only reader of them, so no two tools can disagree
 about what a line means. It is pure: text in, a `BootReport` out, nothing launched.
 
 WHAT IT REFUSES TO DO is report a count it did not read. A run that aborts before its `run complete`

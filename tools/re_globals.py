@@ -19,8 +19,10 @@ again from a refusal to open the image. A `lui` whose register is never paired i
 
 import argparse
 import pathlib
-import struct
 import sys
+
+import title_identity  # noqa: F401  (puts the framework tools on sys.path)
+from formats import psx_exe  # noqa: E402
 
 # The instructions that pair with a lui to form an address, by primary opcode.
 LO_OPS = {
@@ -31,30 +33,11 @@ LO_OPS = {
 }
 
 
-class Image:
-    """A PS-X EXE mapped at its own load address."""
-
-    def __init__(self, path: pathlib.Path):
-        data = path.read_bytes()
-        if data[:8] != b"PS-X EXE":
-            raise SystemExit(f"re_globals: {path} is not a PS-X EXE (magic {data[:8]!r})")
-        _pc, _gp, self.load, self.size = struct.unpack("<IIII", data[0x10:0x20])
-        self.text = data[0x800:0x800 + self.size]
-
-    def word(self, address: int) -> int:
-        offset = address - self.load
-        if offset < 0 or offset + 4 > len(self.text):
-            raise SystemExit(
-                f"re_globals: 0x{address:08X} is outside the image's "
-                f"0x{self.load:08X}-0x{self.load + len(self.text):08X}")
-        return struct.unpack_from("<I", self.text, offset)[0]
-
-
 def signed16(value: int) -> int:
     return value - 0x10000 if value & 0x8000 else value
 
 
-def scan(image: Image, start: int, end: int | None):
+def scan(image: psx_exe.PsxExe, start: int, end: int | None):
     """Decode [start, end), or to the function's own `jr $ra` and its delay slot when end is None."""
     hi: dict[int, tuple[int, int]] = {}  # register -> (high half, the pc that set it)
     pairs: list[tuple[int, int, str, int]] = []  # (pc, address, mnemonic, register)
@@ -110,10 +93,13 @@ def main() -> int:
         print(f"re_globals: REFUSED — no image at {path}. Provision the title first; this tool "
               f"reads the user's own executable and never ships one.", file=sys.stderr)
         return 2
-    image = Image(path)
     start = int(args.start, 0)
     end = int(args.end, 0) if args.end else None
-    instructions, pairs, unpaired = scan(image, start, end)
+    try:
+        instructions, pairs, unpaired = scan(psx_exe.load(path), start, end)
+    except (IndexError, ValueError) as error:
+        print(f"re_globals: REFUSED — {error}", file=sys.stderr)
+        return 2
 
     print(f"0x{start:08X}: decoded {instructions} instruction(s)")
     if not pairs:

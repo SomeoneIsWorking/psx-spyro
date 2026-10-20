@@ -14,13 +14,9 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 
 import title_identity
+from automation.process import ToolError  # noqa: E402  (path set by title_identity)
 
-ROOT = pathlib.Path(__file__).resolve().parent.parent
-
-
-class Refused(Exception):
-    """The selected input cannot support the requested title."""
-
+ROOT = title_identity.ROOT
 
 GENERIC_DISC_KEY = "PSXPORT_DISC"
 # Relative to the repository root; the product's catalog names the same root.
@@ -74,7 +70,7 @@ def _path(value: str, root: pathlib.Path) -> pathlib.Path:
 def _validate(value: str, source: str, root: pathlib.Path) -> ResolvedDisc:
     path = _path(value, root)
     if not path.is_file():
-        raise Refused(f"{source} names {path}, which is not a file")
+        raise ToolError(f"{source} names {path}, which is not a file")
     return ResolvedDisc(path.resolve(), source)
 
 
@@ -85,7 +81,7 @@ def _dotenv(path: pathlib.Path, keys: tuple[str, ...]) -> dict[str, str]:
     try:
         lines = path.read_text(encoding="utf-8").splitlines()
     except OSError as error:
-        raise Refused(f"cannot read {path}: {error}") from error
+        raise ToolError(f"cannot read {path}: {error}") from error
     for line in lines:
         stripped = line.strip()
         if not stripped or stripped.startswith("#") or "=" not in stripped:
@@ -121,11 +117,11 @@ def resolve_disc(
     if len(dropins) == 1:
         return _validate(str(dropins[0]), "repository-root *.chd drop-in", root)
     if len(dropins) > 1:
-        raise Refused(
+        raise ToolError(
             "multiple repository-root CHDs are ambiguous: "
             + ", ".join(path.name for path in dropins)
         )
-    raise Refused(
+    raise ToolError(
         "no disc image; pass one explicitly or configure " + " or ".join(spec.env_keys)
     )
 
@@ -134,14 +130,14 @@ def parse_boot_target(path: pathlib.Path) -> str:
     try:
         text = path.read_text(encoding="ascii", errors="replace")
     except OSError as error:
-        raise Refused(f"cannot read extracted SYSTEM.CNF: {error}") from error
+        raise ToolError(f"cannot read extracted SYSTEM.CNF: {error}") from error
     match = re.search(
         r"^\s*BOOT\s*=\s*cdrom:\\+([^;\r\n]+)(?:;1)?\s*$",
         text,
         re.IGNORECASE | re.MULTILINE,
     )
     if match is None:
-        raise Refused("SYSTEM.CNF has no supported BOOT = cdrom:\\...;1 target")
+        raise ToolError("SYSTEM.CNF has no supported BOOT = cdrom:\\...;1 target")
     return pathlib.PureWindowsPath(match.group(1).strip()).name
 
 
@@ -154,7 +150,7 @@ def extract_boot(discdump: pathlib.Path, disc: pathlib.Path, output: pathlib.Pat
     )
     if result.returncode:
         detail = (result.stderr or result.stdout).strip()
-        raise Refused(f"discdump failed with exit {result.returncode}: {detail}")
+        raise ToolError(f"discdump failed with exit {result.returncode}: {detail}")
 
 
 def provision(
@@ -169,10 +165,7 @@ def provision(
     """Inspect selected media in fresh staging before consulting or replacing any cache."""
     publish_dir = output_dir or spec.cache_dir
     publish_dir.mkdir(parents=True, exist_ok=True)
-    try:
-        manifest = title_identity.load_manifest(spec.slug)
-    except title_identity.Refused as error:
-        raise Refused(str(error)) from error
+    manifest = title_identity.load_manifest(spec.slug)
     executable_name = str(manifest["executable"])
     check_identity = identity_check or (lambda path: title_identity.check(manifest, path))
     with tempfile.TemporaryDirectory(
@@ -183,15 +176,15 @@ def provision(
         system_cnf = staging / "SYSTEM.CNF"
         boot_target = parse_boot_target(system_cnf)
         if boot_target.casefold() != executable_name.casefold():
-            raise Refused(
+            raise ToolError(
                 f"SYSTEM.CNF boots {boot_target!r}, but {spec.slug} requires {executable_name!r}"
             )
         executable = staging / executable_name
         if not executable.is_file():
-            raise Refused(f"discdump did not extract {executable_name}")
+            raise ToolError(f"discdump did not extract {executable_name}")
         failures = check_identity(executable)
         if failures:
-            raise Refused(
+            raise ToolError(
                 f"{spec.serial} identity disagrees on {len(failures)} tracked fact(s)"
             )
         destination = publish_dir / executable_name
@@ -214,7 +207,7 @@ def main() -> int:
         print(f"MATCH: SYSTEM.CNF and executable identify {spec.serial}")
         print(f"provisioned {destination.relative_to(ROOT)}")
         return 0
-    except (OSError, Refused, title_identity.Refused) as error:
+    except (OSError, ToolError) as error:
         print(f"REFUSED: {error}", file=sys.stderr)
         return 2
 

@@ -18,15 +18,11 @@ from compare import (
     CoreSession,
     DeclaredRange,
     Driver,
-    SelftestSeed,
     Settle,
     step_until_counter_resets,
     u32,
 )
-from drive import (
-    G_GAMESTATE,
-    G_LOAD_STAGE,
-    G_TITLESCREEN,
+from title_states import (
     GS_PLAYING,
     GS_TITLE_SCREEN,
     TSM_INIT,
@@ -37,7 +33,7 @@ from drive import (
 
 name = "Spyro the Dragon (SCUS_942.28)"
 
-# The shared globals come from the shipping owner through tools/guest_globals.py; see drive.py.
+# The shared globals come from the shipping owner through tools/guest_globals.py.
 G_GAME_TICK = guest_globals.kGameTick                    # incremented once per GS_Playing update
 G_LEVEL_TICKS = guest_globals.kLevelTicks                # incremented by the VSync callback, per field
 G_UNPROCESSED_FRAMES = guest_globals.kUnprocessedFrames  # fields since the main loop consumed them
@@ -56,11 +52,11 @@ declared = (
     # checkpoint, native 00 against console 03 at +0 (issue 0125). Nothing was watching it until a
     # card probe was found writing 128 bytes over it (psxport 63671d3c).
     DeclaredRange("kernel_page0", 0x80000000, 0x80, False),
-    DeclaredRange("gamestate", G_GAMESTATE, 4, True),
-    DeclaredRange("title.mode_state", G_TITLESCREEN, 8, True),       # m_Mode, m_State
-    DeclaredRange("title.ticks", G_TITLESCREEN + 8, 8, False),        # m_Tick, m_SubTick
-    DeclaredRange("title.sub_state_option", G_TITLESCREEN + 16, 8, True),  # m_SubState, m_OptionSelected
-    DeclaredRange("load_stage", G_LOAD_STAGE, 4, True),
+    DeclaredRange("gamestate", guest_globals.kGamestate, 4, True),
+    DeclaredRange("title.mode_state", guest_globals.kTitlescreenState, 8, True),       # m_Mode, m_State
+    DeclaredRange("title.ticks", guest_globals.kTitlescreenState + 8, 8, False),        # m_Tick, m_SubTick
+    DeclaredRange("title.sub_state_option", guest_globals.kTitlescreenState + 16, 8, True),  # m_SubState, m_OptionSelected
+    DeclaredRange("load_stage", guest_globals.kLoadStage, 4, True),
     DeclaredRange("level_id", G_LEVEL_ID, 4, True),
     DeclaredRange("game_tick", G_GAME_TICK, 4, True),
     DeclaredRange("level_ticks", G_LEVEL_TICKS, 4, False),
@@ -145,8 +141,6 @@ gameplay = (
     (frozenset(), 30),
 )
 
-selftest = SelftestSeed(G_SPYRO, "player.position", 0)
-
 
 
 def lookahead(core: CoreSession) -> int:
@@ -183,9 +177,9 @@ class Observation:
 
 
 def observe(core: CoreSession) -> Observation:
-    raw = core.read(G_TITLESCREEN, 24)
+    raw = core.read(guest_globals.kTitlescreenState, 24)
     words = [int.from_bytes(raw[i:i + 4], "little") for i in range(0, 24, 4)]
-    return Observation(u32(core, G_GAMESTATE), TitleState(*words), u32(core, G_GAME_TICK),
+    return Observation(u32(core, guest_globals.kGamestate), TitleState(*words), u32(core, G_GAME_TICK),
                        u32(core, G_LEVEL_ID))
 
 
