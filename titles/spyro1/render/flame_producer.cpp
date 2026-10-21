@@ -2,6 +2,7 @@
 
 #include "blend.h"
 #include "core.h"
+#include "core/session.h"
 #include "gte_control.h"
 #include "render/field/guest_render_globals.h"
 #include "render/field/record_blend.h"
@@ -29,15 +30,15 @@ void drawFlame(Core *core) {
   Core &guest = *core;
   spyro::guest_render_globals::spillBorrowedRegisters(guest, kRenderGlobals);
   const std::array<GuestSpan, 3> working = actors::binnedWorkingRanges(guest);
-  psx::present::LevelReads reads;
-  const psx::present::EmitMemory memory(guest, reads, working);
+  const psx::present::Kept<psx::present::LevelReads>::Use reads(spyro::session(guest).drawReads);
+  const psx::present::EmitMemory memory(guest, *reads, working);
   FlameState state{.camera = spyro::guest_terrain::readCamera(guest, kRenderGlobals)};
   guest.readBytes(flame_block::kBlock, std::as_writable_bytes(std::span(state.block)));
   const auto scope = guest.emission.instance(flame_block::kBlock);
   FlameTrails flame(guest, memory);
   flame.draw();
   flame.end();
-  memory::saveDraw(guest, state, std::span<const psx::present::LevelWord>(reads.words()));
+  memory::saveDraw(guest, state, reads->words());
 }
 
 // The block at `t`: the anchor and rotation moved, a part that grew between the two saves part of
@@ -53,7 +54,8 @@ Block blockBetween(const Block &from, const Block &to, float t) {
     std::memcpy(words.data(), block.data() + at(flame_block::kRotation), sizeof(words));
     return words;
   };
-  const psx::gte::RotationWords rotation = psx::present::rotationBetween(rotationOf(from), rotationOf(to), t);
+  const psx::gte::RotationWords rotation =
+      psx::present::rotationBetween(rotationOf(from), rotationOf(to), t);
   std::memcpy(shown.data() + at(flame_block::kRotation), rotation.data(), sizeof(rotation));
   for (std::uint32_t part = 0; part < flame_block::kParts; ++part) {
     const std::uint32_t length = at(flame_block::kLengths) + part;

@@ -4,6 +4,7 @@
 #include "lucent/log.h"
 
 #include <algorithm>
+#include <array>
 #include <cstdlib>
 #include <utility>
 #include <vector>
@@ -27,7 +28,8 @@ void drawField(Core &core, const TerrainImage &image) {
   FieldState state;
   state.camera = readCamera(core, image.globals());
   state.argument = core.r[4];
-  const std::vector<psx::present::LevelWord> read = draw(core, image);
+  const psx::present::Kept<psx::present::LevelReads>::Use read(spyro::session(core).drawReads);
+  draw(core, image, *read);
   const std::vector<std::uint8_t> &visible = spyro::session(core).terrainVisibility;
   if (visible.size() > kScratchpadBytes) {
     lucent::error("terrstate",
@@ -40,18 +42,20 @@ void drawField(Core &core, const TerrainImage &image) {
   state.packetBudget = spyro::session(core).terrainPacketBudget;
   state.sectorCount = static_cast<std::uint32_t>(visible.size());
   std::copy(visible.begin(), visible.end(), state.visible);
-  guest_memory::saveDraw(core, state, std::span<const psx::present::LevelWord>(read));
+  guest_memory::saveDraw(core, state, read->words());
 }
 
 void TerrainStateProducer::render(const psx::present::StateInterval &states,
                                   psx::present::PrimitiveSink &sink) const {
   const SavedField before = readField(states.from);
   const SavedField after = readField(states.to);
-  const InBetweenCamera camera = cameraBetween(
-      core_, image_, before.header.camera, after.header.camera, states.t);
-  const std::vector<std::uint8_t> visible =
+  const InBetweenCamera camera =
+      cameraBetween(core_, image_, before.header.camera, after.header.camera, states.t);
+  std::array<std::uint8_t, kScratchpadBytes> sectors{};
+  const std::span<const std::uint8_t> visible =
       unionVisibility(std::span(before.header.visible, before.header.sectorCount),
-                      std::span(after.header.visible, after.header.sectorCount));
+                      std::span(after.header.visible, after.header.sectorCount),
+                      sectors);
   Rebuild rebuild(core_,
                   image_,
                   camera,

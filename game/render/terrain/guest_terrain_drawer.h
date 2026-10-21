@@ -52,14 +52,16 @@ public:
   virtual void drawPasses(TerrainFrame &frame) const = 0;
 };
 
-// What an in-between field draws with instead of the guest's own: its camera, the sink its places go to, the drawer's $a0
-// the field was called with, its packet arena (0 = the guest's cursor) and that arena's budget.
+// What an in-between field draws with instead of the guest's own: its camera, the sink its places
+// go to, the drawer's $a0 the field was called with, its packet arena (0 = the guest's cursor) and
+// that arena's budget.
 struct InBetweenWindow {
   const InBetweenCamera *camera = nullptr;
   psx::present::PrimitiveSink *places = nullptr;
   std::uint32_t argument = 0;
   std::uint32_t arenaBase = 0;
   std::int32_t packetBudget = 0;
+  std::vector<std::uint8_t> *linkedBins = nullptr;
 };
 
 class Drawer {
@@ -86,7 +88,7 @@ private:
   InBetweenWindow inBetween_;
 };
 
-// The override entry: one real field over the guest. Returns every level word it read, as first read.
-std::vector<psx::present::LevelWord> draw(Core &core, const TerrainImage &image);
+// The override entry: one real field over the guest, noting every level word it reads in `reads`.
+void draw(Core &core, const TerrainImage &image, psx::present::LevelReads &reads);
 
 } // namespace spyro::guest_terrain

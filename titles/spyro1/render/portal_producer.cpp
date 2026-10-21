@@ -3,6 +3,7 @@
 #include "blend.h"
 #include "core.h"
 #include "core/native_execution.h"
+#include "core/session.h"
 #include "render/field/guest_word.h"
 #include "render/state_producer_override.h"
 #include "spyro1/core/guest_globals.h"
@@ -58,18 +59,21 @@ void drawPortals(Core *core) {
                                   kScratch[4],
                                   kScratch[5],
                                   kScratch[6]);
-  psx::present::LevelReads reads;
-  const psx::present::EmitMemory emit(guest, reads, working);
-  Portals portals(guest, emit);
-  const std::int32_t count = asSigned(guest.mem_r32(guest::kPortalCount));
-  for (std::int32_t index = 0; index < count; ++index) {
-    state.index = static_cast<std::uint32_t>(index);
-    const auto scope = guest.emission.instance(guest.mem_r32(guest::kPortals + state.index * 4));
-    reads.clear();
-    if (const std::optional<Approach> approach = portals.drawFar(state.index)) {
-      portals.drawNear(*approach, rotations);
+  // The reads are released before the level sky, whose own save takes them.
+  {
+    const psx::present::Kept<psx::present::LevelReads>::Use reads(spyro::session(guest).drawReads);
+    const psx::present::EmitMemory emit(guest, *reads, working);
+    Portals portals(guest, emit);
+    const std::int32_t count = asSigned(guest.mem_r32(guest::kPortalCount));
+    for (std::int32_t index = 0; index < count; ++index) {
+      state.index = static_cast<std::uint32_t>(index);
+      const auto scope = guest.emission.instance(guest.mem_r32(guest::kPortals + state.index * 4));
+      reads->clear();
+      if (const std::optional<Approach> approach = portals.drawFar(state.index)) {
+        portals.drawNear(*approach, rotations);
+      }
+      memory::saveDraw(guest, state, reads->words());
     }
-    memory::saveDraw(guest, state, std::span<const psx::present::LevelWord>(reads.words()));
   }
   std::uint32_t group = guest.mem_r32(guest::kCameraOcclusionGroup);
   if (asSigned(group) >= asSigned(guest.mem_r32(guest::kEnvironmentOcclusionGroupCount))) {

@@ -1,6 +1,7 @@
 #include "spyro1/render/actor_emitter_producer.h"
 
 #include "core.h"
+#include "core/session.h"
 #include "gte_control.h"
 #include "guest_memory_map.h"
 #include "render/field/guest_render_globals.h"
@@ -14,8 +15,8 @@
 
 #include <array>
 #include <memory>
+#include <optional>
 #include <span>
-#include <vector>
 
 namespace spyro1::actors {
 namespace {
@@ -23,30 +24,45 @@ namespace {
 namespace memory = spyro::guest_memory;
 using terrain::kRenderGlobals;
 
-std::unique_ptr<ActorEmitter>
-emitterFor(const EmitterPass &pass,
-           Core &core,
-           const psx::present::EmitMemory &memory,
-           psx::present::PrimitiveSink *places = nullptr) {
-  const auto bounds = spyro::presentedBounds(core, spyro1::terrain::kSharedFacts);
-  if (pass.lit) {
-    return std::make_unique<LitActorEmitter>(core, memory, bounds, places);
+// The pass's emitter, held in place.
+class PassEmitter {
+public:
+  PassEmitter(const EmitterPass &pass,
+              Core &core,
+              const psx::present::EmitMemory &memory,
+              psx::present::PrimitiveSink *places = nullptr) {
+    const auto bounds = spyro::presentedBounds(core, spyro1::terrain::kSharedFacts);
+    if (pass.lit) {
+      emitter_ = &lit_.emplace(core, memory, bounds, places);
+    } else {
+      emitter_ = &plain_.emplace(core, memory, bounds, places);
+    }
   }
-  return std::make_unique<ActorEmitter>(core, memory, bounds, places);
-}
+  PassEmitter(const PassEmitter &) = delete;
+  PassEmitter &operator=(const PassEmitter &) = delete;
 
-// The level words `record`'s list builder reads under the field's camera, which an in-between
-// reruns: the builder over a copy of what it writes.
-std::vector<psx::present::LevelWord>
-listReads(Core &guest, const EmitterPass &pass, std::uint32_t record) {
-  psx::present::HostMemory probe;
+  ActorEmitter *operator->() const {
+    return emitter_;
+  }
+
+private:
+  std::optional<ActorEmitter> plain_;
+  std::optional<LitActorEmitter> lit_;
+  ActorEmitter *emitter_ = nullptr;
+};
+
+// Notes in `probe` the level words `record`'s list builder reads under the field's camera, which an
+// in-between reruns: the builder over a copy of what it writes.
+void listReads(Core &guest,
+               const EmitterPass &pass,
+               std::uint32_t record,
+               psx::present::HostMemory &probe) {
   probe.keepLevelReads();
   probe.mapGuest(guest, kWorkBlock, kWorkBlockBytes);
   probe.mapGuest(guest, record, static_cast<std::uint32_t>(sizeof(spyro::moby_record::Bytes)));
   probe.mapGuest(guest, kShadowListEnd, 4);
   const psx::present::GteGuard gte(guest.gte());
   (void)listRecord(guest, psx::present::EmitMemory(guest, probe), *pass.list, record);
-  return probe.levelReads().words();
 }
 
 void emitList(Core &guest, const EmitterPass &pass) {
@@ -55,9 +71,10 @@ void emitList(Core &guest, const EmitterPass &pass) {
       binnedWorkingRanges(guest,
                           GuestSpan{kVertexScreens, psx::kScratchpadBytes},
                           GuestSpan{kWorkBlock, kWorkBlockBytes});
-  psx::present::LevelReads reads;
-  const psx::present::EmitMemory memory(guest, reads, working);
-  const std::unique_ptr<ActorEmitter> emitter = emitterFor(pass, guest, memory);
+  spyro::Session &session = spyro::session(guest);
+  const psx::present::Kept<psx::present::LevelReads>::Use reads(session.drawReads);
+  const psx::present::EmitMemory memory(guest, *reads, working);
+  const PassEmitter emitter(pass, guest, memory);
   EmittedRecordState state{.camera = spyro::guest_terrain::readCamera(guest, kRenderGlobals)};
   emitter->begin(guest.r[3]);
   for (std::uint32_t entry = kDrawList;; entry += entry::kBytes) {
@@ -67,12 +84,11 @@ void emitList(Core &guest, const EmitterPass &pass) {
     state.record = memory.mem_r32(entry + entry::kRecord);
     guest.readBytes(state.record, std::as_writable_bytes(std::span(state.bytes)));
     const auto scope = guest.emission.instance(state.record);
-    std::vector<psx::present::LevelWord> levelWords = listReads(guest, pass, state.record);
-    reads.clear();
+    const psx::present::Kept<psx::present::HostMemory>::Use probe(session.renderMemory);
+    listReads(guest, pass, state.record, *probe);
+    reads->clear();
     (void)emitter->draw(entry);
-    const std::vector<psx::present::LevelWord> drawn = reads.words();
-    levelWords.insert(levelWords.end(), drawn.begin(), drawn.end());
-    memory::saveDraw(guest, state, std::span<const psx::present::LevelWord>(levelWords));
+    memory::saveDraw(guest, state, probe->levelReads().words(), reads->words());
   }
   emitter->end();
 }
@@ -113,7 +129,7 @@ void ActorEmitterProducer::render(const psx::present::StateInterval &states,
   const std::uint32_t frame = memory.mem_r32(kDrawList + entry::kFrame);
   const std::uint32_t nearPolygons = memory.mem_r32(frame + emitter::frame::kNearPolygons);
   between.host().mapGuest(core_, nearPolygons, memory.mem_r32(nearPolygons) + 4);
-  const std::unique_ptr<ActorEmitter> emitter = emitterFor(pass_, core_, memory, &sink);
+  const PassEmitter emitter(pass_, core_, memory, &sink);
   emitter->begin(0);
   if (emitter->draw(kDrawList)) {
     between.emitBins(sink);

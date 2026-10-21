@@ -45,7 +45,8 @@ template <typename... Extra>
 // field's level words overlaid, the packet arena empty and the cursor and pool end around it.
 class InBetween {
 public:
-  InBetween(Core &core, std::span<const psx::present::LevelWord> reads);
+  // `reads`: the field's packed LevelWords.
+  InBetween(Core &core, std::span<const std::byte> reads);
   InBetween(const InBetween &) = delete;
   InBetween &operator=(const InBetween &) = delete;
 
@@ -53,7 +54,7 @@ public:
     return memory_;
   }
   [[nodiscard]] psx::present::HostMemory &host() {
-    return host_;
+    return *host_;
   }
 
   // `bytes` at `address` in place of the guest's.
@@ -77,7 +78,7 @@ public:
 
 private:
   psx::present::GteGuard gte_;
-  psx::present::HostMemory host_;
+  psx::present::Kept<psx::present::HostMemory>::Use host_;
   psx::present::EmitMemory memory_;
   spyro::guest_memory::PacketArena arena_;
   std::uint32_t table_ = 0;

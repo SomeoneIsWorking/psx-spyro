@@ -2,6 +2,7 @@
 
 #include "blend.h"
 #include "core.h"
+#include "core/session.h"
 #include "render/field/guest_render_globals.h"
 #include "render/field/guest_view_slope.h"
 #include "render/field/record_blend.h"
@@ -26,15 +27,15 @@ void drawList(Core *core) {
   spyro::guest_render_globals::spillBorrowedRegisters(guest, kSpill);
   const std::array<GuestSpan, 4> working =
       actors::binnedWorkingRanges(guest, GuestSpan{terrain::kPoolExhausted, 4});
-  psx::present::LevelReads reads;
-  const psx::present::EmitMemory memory(guest, reads, working);
+  const psx::present::Kept<psx::present::LevelReads>::Use reads(spyro::session(guest).drawReads);
+  const psx::present::EmitMemory memory(guest, *reads, working);
   EmitList list(guest, memory, spyro::presentedBounds(guest, spyro1::terrain::kSharedFacts));
   list.begin();
   ParticleState state{.camera = spyro::guest_terrain::readCamera(guest, kRenderGlobals)};
   for (std::uint32_t at = guest.mem_r32(kListBase);; at += kRecordBytes) {
     guest.readBytes(at, std::as_writable_bytes(std::span(state.bytes)));
     const auto scope = guest.emission.instance(at);
-    reads.clear();
+    reads->clear();
     const Outcome outcome = list.draw(at);
     if (outcome == Outcome::End || outcome == Outcome::PoolFull) {
       list.end(outcome == Outcome::PoolFull);
@@ -42,7 +43,7 @@ void drawList(Core *core) {
     }
     if (outcome == Outcome::Drawn) {
       state.record = at;
-      memory::saveDraw(guest, state, std::span<const psx::present::LevelWord>(reads.words()));
+      memory::saveDraw(guest, state, reads->words());
     }
   }
 }

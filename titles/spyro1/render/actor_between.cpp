@@ -1,6 +1,7 @@
 #include "spyro1/render/actor_between.h"
 
 #include "core.h"
+#include "core/session.h"
 #include "guest_memory_map.h"
 #include "packet_chains.h"
 #include "render/field/keyframe_blend.h"
@@ -78,39 +79,39 @@ std::array<GuestSpan, 3> binnedWorkingRanges(Core &core) {
   }};
 }
 
-InBetween::InBetween(Core &core, std::span<const psx::present::LevelWord> reads)
-    : gte_(core.gte()), memory_(core, host_),
+InBetween::InBetween(Core &core, std::span<const std::byte> reads)
+    : gte_(core.gte()), host_(spyro::session(core).renderMemory), memory_(core, *host_),
       arena_(terrain::kTerrainImage.windows(core).inBetweenArena) {
-  host_.overlay(reads);
-  host_.zero(arena_.address, arena_.bytes);
+  host_->overlay(reads);
+  host_->zero(arena_.address, arena_.bytes);
   provideWord(kRenderGlobals.primitiveCursor, arena_.address);
   provideWord(terrain::kPacketPoolEnd, arena_.address + arena_.bytes);
 }
 
 void InBetween::provide(std::uint32_t address, std::span<const std::uint8_t> bytes) {
-  host_.provide(address, std::as_bytes(bytes));
+  host_->provide(address, std::as_bytes(bytes));
 }
 
 void InBetween::provideWord(std::uint32_t address, std::uint32_t word) {
-  host_.provide(address, std::as_bytes(std::span(&word, 1)));
+  host_->provide(address, std::as_bytes(std::span(&word, 1)));
 }
 
 void InBetween::mapWorkspace() {
-  host_.zero(kVertexScreens, psx::kScratchpadBytes);
-  host_.zero(kWorkBlock, kWorkBlockBytes);
+  host_->zero(kVertexScreens, psx::kScratchpadBytes);
+  host_->zero(kWorkBlock, kWorkBlockBytes);
 }
 
 void InBetween::mapCamera(const spyro::guest_terrain::InBetweenCamera &camera) {
-  host_.provide(kRenderGlobals.cameraRotation, std::as_bytes(std::span(camera.rotation)));
-  host_.provide(terrain::kSharedFacts.classify.viewRotation,
-                std::as_bytes(std::span(camera.viewRotation)));
-  host_.provide(kRenderGlobals.cameraPosition, std::as_bytes(std::span(camera.position)));
-  host_.provide(kRenderGlobals.cameraAngles, std::as_bytes(std::span(camera.angles)));
+  host_->provide(kRenderGlobals.cameraRotation, std::as_bytes(std::span(camera.rotation)));
+  host_->provide(terrain::kSharedFacts.classify.viewRotation,
+                 std::as_bytes(std::span(camera.viewRotation)));
+  host_->provide(kRenderGlobals.cameraPosition, std::as_bytes(std::span(camera.position)));
+  host_->provide(kRenderGlobals.cameraAngles, std::as_bytes(std::span(camera.angles)));
 }
 
 void InBetween::mapTable() {
   table_ = memory_.mem_r32(kRenderGlobals.orderingTable);
-  host_.zero(table_, terrain::kOrderingTableBytes);
+  host_->zero(table_, terrain::kOrderingTableBytes);
 }
 
 void InBetween::emitBins(psx::present::PrimitiveSink &sink) const {

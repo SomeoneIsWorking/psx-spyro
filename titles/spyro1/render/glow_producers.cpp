@@ -2,6 +2,7 @@
 
 #include "blend.h"
 #include "core.h"
+#include "core/session.h"
 #include "render/field/guest_render_globals.h"
 #include "render/field/guest_view_slope.h"
 #include "render/field/record_blend.h"
@@ -23,8 +24,8 @@ void drawEmitters(Core *core) {
   Core &guest = *core;
   spyro::guest_render_globals::spillBorrowedRegisters(guest, kRenderGlobals);
   const std::array<GuestSpan, 3> working = actors::binnedWorkingRanges(guest);
-  psx::present::LevelReads reads;
-  const psx::present::EmitMemory memory(guest, reads, working);
+  const psx::present::Kept<psx::present::LevelReads>::Use reads(spyro::session(guest).drawReads);
+  const psx::present::EmitMemory memory(guest, *reads, working);
   GlowFans fans(guest, memory, spyro::presentedBounds(guest, spyro1::terrain::kSharedFacts));
   fans.begin();
   EmitterState state{.camera = spyro::guest_terrain::readCamera(guest, kRenderGlobals)};
@@ -38,9 +39,9 @@ void drawEmitters(Core *core) {
     guest.readBytes(guest.mem_r32(entry + emitter::kPosition),
                     std::as_writable_bytes(std::span(state.position)));
     const auto scope = guest.emission.instance(entry);
-    reads.clear();
+    reads->clear();
     fans.draw(entry);
-    memory::saveDraw(guest, state, std::span<const psx::present::LevelWord>(reads.words()));
+    memory::saveDraw(guest, state, reads->words());
   }
   fans.end();
 }
@@ -48,22 +49,22 @@ void drawEmitters(Core *core) {
 void drawSparkles(Core *core) {
   Core &guest = *core;
   const std::array<GuestSpan, 3> working = actors::binnedWorkingRanges(guest);
-  psx::present::LevelReads reads;
-  const psx::present::EmitMemory memory(guest, reads, working);
+  const psx::present::Kept<psx::present::LevelReads>::Use reads(spyro::session(guest).drawReads);
+  const psx::present::EmitMemory memory(guest, *reads, working);
   Sparkles sparkles(guest, memory, spyro::presentedBounds(guest, spyro1::terrain::kSharedFacts));
   sparkles.begin(guest.r[4]);
   SparkleState state{.camera = spyro::guest_terrain::readCamera(guest, kRenderGlobals)};
   for (std::uint32_t index = 0; index < kSparkleCount; ++index) {
     const std::uint32_t record = kSparkles + index * kSparkleBytes;
     const auto scope = guest.emission.instance(record);
-    reads.clear();
+    reads->clear();
     if (!sparkles.draw(record)) {
       continue;
     }
     state.record = record;
     guest.readBytes(record, std::as_writable_bytes(std::span(state.bytes)));
     sparkles.retire(record);
-    memory::saveDraw(guest, state, std::span<const psx::present::LevelWord>(reads.words()));
+    memory::saveDraw(guest, state, reads->words());
   }
   sparkles.end();
 }

@@ -507,11 +507,59 @@ Same route and rules (`scratch/judder-pass5/realtime.py`, `simdisplay.py` with t
 With the vblank a tenth of a period after the due time instead, two presents 2.3 and 2.5 ms late each add a repeat
 and a drop: 1825 (save picker) and 3700 (the cutscene's last field).
 
+## Pass 6 (2026-10-21)
+Judged as `psxport/docs/workspace/WORKSPACE.md` says: ires=0, fps60=1, the player's aspect (a scratch copy of
+`psxport_settings.ini`), `PSXPORT_PRESENT_SINK=3840x2160`, hidden window, no `PSXPORT_NOPACE` (all read back from
+`/proc/<pid>/environ`), and a simulated 60.00 Hz display over the `presentseq` times. Pacing is at the guest's
+59.94 Hz again (psxport 58862879), so every run has the accepted repeat about every 16.7 s.
+
+- Late presents at 1825 (save picker) and 3700 (the cutscene's last field). Cause: psxport
+  `runtime/psx/gpu/ordering_table.cpp:submitOrderingTable` (and the block DMA path) ran a whole DrawOTag, 2-3 ms of
+  host work, inside one executor segment, so a present that fell due during it waited for the segment's end. Fix
+  (psxport ea8b5f95): the walk and `gpu::dma2Block` show a due present between nodes and blocks.
+- Spyro 2 level 21 ran 3-field logic frames where the guest's rule gives 2. Cause:
+  `game/core/boot_prefix_frame_driver.cpp:BootPrefixFrameDriver::runCall/stepFrame` delivered two fields for one
+  guest VSync(0), the `FrameBoundary` field and the step's own "frame-tail" field, so every draw that waited a
+  host turn became a 3-field frame, and it presented at each wait instead of when the draw returned. Fix: a
+  `FrameBoundary` that would reach the step's field bound ends the step with that field, the step presents the
+  logic frame's fields when the draw returns (`LoopStop::FrameDrawn`), fields of a frame still running are deferred
+  up to `kLongestDeferredFrame` (4, Spyro 1's own delta clamp) and paced as holds past that, and the field redraw
+  saves one redraw per in-between of the frame being drawn from the guest's own rule: at least 2 fields, one more
+  when the draw's wait flag is set (`FieldOwner::drawnFrameFields`; Spyro 1 0x80075784 read at 0x8001F090, Spyro 2
+  0x80067044, Spyro 3 0x8006C678 read at 0x8001E87C).
+- Allocation (psxport 0173): the composer, record sealing, frame states, `LevelReads`, `HostMemory`, the OT
+  assignments, every Spyro producer save and render and the terrain in-between keep their storage
+  (`Session::drawReads`, `renderMemory`, `terrainBins`). A portal save held the kept reads across its call of the
+  level sky, whose own save takes them; the reads are now released first. Proof in 0173; guest execution still
+  allocates (psxport 0175).
+
+Level scan (`scratch/judder-pass6/scan.sh`, `warp`, settle 6 s, turn 1 s): Spyro 2 levels 10-13, 21-26, 30, 32,
+33 and Spyro 3 levels 10-17, 20-26 have no gameplay logic frame other than 1 or 2 fields. Longer frames appear only
+on the front end (Spyro 3's menu over the flyby, 3-5 fields; Spyro 2's fade off the title, 3-5 fields) and nothing
+composes them there (issue 0207).
+
+| run | screen | presents | repeats | drops | notes |
+|---|---|---|---|---|---|
+| `judge-s1` (load 1.24-1.70) | boot | 57 | 0 | 0 | |
+| | logos, flag intro, title | 2718 | 4 | 1 | 435/437 boot handover (437 2.02 ms late); the rest the 59.94 Hz repeat |
+| | menus | 317 | 0 | 0 | |
+| | save picker | 615 | 1 | 0 | 59.94 Hz repeat; 1825 no longer late |
+| | intro cutscene | 2860 | 4 | 1 | 59.94 Hz repeats; 3700 no longer late |
+| | title after cutscene, warp load | 650 | 0 | 0 | the 0174 still card held 3 planned fields |
+| | `warp 10` turning | 1220 | 1 | 0 | 59.94 Hz repeat |
+| `judge-s2` (load 1.39-1.66) | title, warp, load | 1477 | 5 | 3 | load field 1982 42.67 ms late (psxport 0174); the rest 59.94 Hz |
+| | level 21 turning, 66 frames all 2 fields | 131 | 0 | 0 | 66 of 66 in-betweens composed |
+| `judge-s3` (load 1.34-1.56) | title, menu, load | 2135 | 8 | 6 | load field 2543 58.65 ms late (0174); the rest 59.94 Hz |
+| | level 10 turning, 308 frames all 2 fields | 614 | 1 | 0 | 307 of 307 in-betweens composed; the repeat is 59.94 Hz |
+
+Repeats and drops with the vblank half a period after the first present; with it a tenth of a period after the due
+time the only other event is Spyro 1's 4080/4081 in the warp load (3.06 ms late) and Spyro 2's 2305 on arrival
+(2.06 ms late). Playcheck: Spyro 1 p50 16.75 ms, p99 17.00 ms, missed 1 of 8458.
+
 ## Next
 Spyro 2: the opening conversation box is linked by logic before the dispatcher, so the redraw
 keeps n+1's box; moving it needs its drawer (FUN_8004D2D8 / FUN_8004A374) re-run at the in-between
 in place of logic's packets. Spyro 1's motion trails and demo overlay (issue 0186) show their frames whole
-when drawn. Presents 2-3 ms late (pass 5: 1825, 3700), which a vblank close after the due time turns into a
-repeat and a drop.
+when drawn. Front-end frames of Spyro 2 and 3 compose nothing (0207). Spyro 1's boot handover 437 is 2 ms late.
 A real-time check by the operator is still to do: these runs
 measure the composed images, not the play feel.

@@ -2,6 +2,7 @@
 
 #include "blend.h"
 #include "core.h"
+#include "core/session.h"
 #include "render/field/guest_view_slope.h"
 #include "render/field/record_blend.h"
 #include "render/state_producer_override.h"
@@ -22,8 +23,8 @@ void drawShadows(Core *core) {
   Core &guest = *core;
   const std::array<GuestSpan, 4> working =
       actors::binnedWorkingRanges(guest, GuestSpan{kStaging, kStagingBytes});
-  psx::present::LevelReads reads;
-  const psx::present::EmitMemory memory(guest, reads, working);
+  const psx::present::Kept<psx::present::LevelReads>::Use reads(spyro::session(guest).drawReads);
+  const psx::present::EmitMemory memory(guest, *reads, working);
   MobyShadows shadows(guest, memory, spyro::presentedBounds(guest, terrain::kSharedFacts));
   shadows.begin();
   MobyShadowState state{.camera = spyro::guest_terrain::readCamera(guest, kRenderGlobals)};
@@ -33,9 +34,9 @@ void drawShadows(Core *core) {
     state.radius = guest.mem_r32(entry + 4);
     guest.readBytes(state.record, std::as_writable_bytes(std::span(state.bytes)));
     const auto scope = guest.emission.instance(state.record);
-    reads.clear();
+    reads->clear();
     shadows.draw(state.record, state.radius);
-    memory::saveDraw(guest, state, std::span<const psx::present::LevelWord>(reads.words()));
+    memory::saveDraw(guest, state, reads->words());
   }
   shadows.end();
 }
