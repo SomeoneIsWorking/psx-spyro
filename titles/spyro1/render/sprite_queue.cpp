@@ -11,6 +11,7 @@
 #include "render/terrain/guest_depth_bins.h"
 #include "spyro1/core/guest_globals.h"
 #include "spyro1/render/terrain_facts.h"
+#include "state_producer.h"
 
 #include <cstdlib>
 
@@ -85,8 +86,11 @@ QueueView presentedQueueView(const Core &core) {
                    .bounds = spyro::presentedBounds(core, spyro1::terrain::kSharedFacts)};
 }
 
-SpriteQueue::SpriteQueue(Core &core, const psx::present::EmitMemory &memory, const QueueView &view)
-    : core_(core), memory_(memory), view_(view), bins_(memory) {}
+SpriteQueue::SpriteQueue(Core &core,
+                         const psx::present::EmitMemory &memory,
+                         const QueueView &view,
+                         psx::present::PrimitiveSink *places)
+    : core_(core), memory_(memory), view_(view), places_(places), bins_(memory) {}
 
 void SpriteQueue::begin() {
   shadows_ = memory_.mem_r32(kShadowListEnd);
@@ -313,6 +317,9 @@ bool SpriteQueue::projectVertices() {
     next += 3;
     v1_ = loadVertex(core_, word);
     const std::uint32_t screen = core_.gte().readData(gte::kSxy2);
+    if (places_ != nullptr) {
+      vertexPlaces_[i] = core_.gte().projectedPlace(2);
+    }
     v0_ = core_.gte().readData(gte::kSz3);
     const std::uint32_t slot = kVertexScreens + i * 4;
     memory_.mem_w32(slot + (kVertexDepths - kVertexScreens), v0_);
@@ -398,6 +405,12 @@ void SpriteQueue::drawPolygon(const PolygonWords &polygon) {
   screen_[1] = memory_.mem_r32(v1_);
   screen_[2] = memory_.mem_r32(a0);
   screen_[3] = memory_.mem_r32(a1);
+  if (places_ != nullptr) {
+    cornerPlaces_ = {vertexPlaces_[(v0_ - kVertexScreens) / 4u],
+                     vertexPlaces_[(v1_ - kVertexScreens) / 4u],
+                     vertexPlaces_[(a0 - kVertexScreens) / 4u],
+                     vertexPlaces_[(a1 - kVertexScreens) / 4u]};
+  }
   if (asSigned(edge_) < 0) {
     if ((screen_[0] & screen_[1] & screen_[2] & screen_[3] & 0xFu) != 0) {
       return;
@@ -458,6 +471,7 @@ void SpriteQueue::drawGouraud(const PolygonTail &tail) {
     memory_.mem_w32(t9 + 0x14, c2);
     memory_.mem_w32(t9 + 0x1C, c3);
     memory_.mem_w32(t9, guest_packet::kG4Tag);
+    declarePlaces(t9, 4);
     v1_ = bins_.link(kLocalBins + (v0_ << 3));
     v0_ = kLocalBins + (v0_ << 3);
     return;
@@ -483,6 +497,7 @@ void SpriteQueue::drawGouraud(const PolygonTail &tail) {
   memory_.mem_w32(t9 + 0x14, c2);
   v0_ = sra(v0_, 5) + (colours & 3u);
   memory_.mem_w32(t9, guest_packet::kG3Tag);
+  declarePlaces(t9, 3);
   v1_ = bins_.link(kLocalBins + (v0_ << 3));
   v0_ = kLocalBins + (v0_ << 3);
 }
@@ -551,6 +566,7 @@ void SpriteQueue::drawLit(const PolygonTail &tail) {
     }
   }
   memory_.mem_w32(t9 + 0x04, colour | v1_);
+  declarePlaces(t9, a0 != a1 ? 4 : 3);
   (void)bins_.link(kLocalBins + (sra(depth, 5) << 3));
 }
 
@@ -633,8 +649,15 @@ void SpriteQueue::drawFlat(const PolygonTail &tail) {
   if (asSigned(depth) <= 0) {
     return;
   }
+  declarePlaces(t9, a0 != a1 ? 4 : 3);
   v1_ = bins_.link(kLocalBins + (v0_ << 3));
   v0_ = kLocalBins + (v0_ << 3);
+}
+
+void SpriteQueue::declarePlaces(std::uint32_t packet, std::size_t count) const {
+  if (places_ != nullptr) {
+    places_->placeCorners(packet, std::span(cornerPlaces_).first(count));
+  }
 }
 
 // 8002397C..800239B4: the bins the record reached, deepest first, into one chain; each emptied.
