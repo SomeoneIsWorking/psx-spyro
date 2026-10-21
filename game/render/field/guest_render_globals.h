@@ -15,8 +15,8 @@ struct Globals {
   std::uint32_t primitiveCursor = 0;   // next free primitive packet
   std::uint32_t orderingTable = 0;     // 8-byte depth bins: last packet linked, first
   std::uint32_t orderingTableMark = 0; // deepest bin a far prim reached
-  std::uint32_t overlayPair =
-      0; // the screen overlays' (head, first) pair, flattened after every bin
+  // The screen overlays' (head, first) pair, flattened after every bin.
+  std::uint32_t overlayPair = 0;
   std::uint32_t cameraRotation = 0; // five RT words
   std::uint32_t cameraPosition = 0; // x, y, z words
   // The three signed 16-bit angles the camera builder writes the rotation from (0x80067EC8 on

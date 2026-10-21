@@ -35,6 +35,24 @@ void wordBetween(std::array<std::uint8_t, N> &shown,
         psx::present::lerpWord(load<std::uint32_t>(from, at), load<std::uint32_t>(to, at), t));
 }
 
+// The unsigned halfword at `at` of two records, at `t`, into `shown`.
+template <std::size_t N>
+void halfBetween(std::array<std::uint8_t, N> &shown,
+                 const std::array<std::uint8_t, N> &from,
+                 const std::array<std::uint8_t, N> &to,
+                 std::uint32_t at,
+                 float t) {
+  store(shown,
+        at,
+        static_cast<std::uint16_t>(
+            psx::present::lerpInt(load<std::uint16_t>(from, at), load<std::uint16_t>(to, at), t)));
+}
+
+// An unsigned byte at `t`.
+[[nodiscard]] inline std::uint8_t byteBetween(std::uint8_t from, std::uint8_t to, float t) {
+  return static_cast<std::uint8_t>(psx::present::lerpInt(from, to, t));
+}
+
 // An angle byte, 256 steps a turn, at `t` the short way round.
 [[nodiscard]] inline std::uint8_t angleBetween(std::uint8_t from, std::uint8_t to, float t) {
   return static_cast<std::uint8_t>(psx::present::lerpTurn(from, to, 8, t));

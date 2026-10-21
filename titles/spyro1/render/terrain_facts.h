@@ -69,9 +69,9 @@ inline constexpr Facts kFacts{
 //
 //   80077DD8  the register save area (800258F0)
 //   800757B0  the next free primitive packet, read at 800261F0 and written at exit (8002A6B0)
-//   80075820  the ordering table base (80026208); 8007581C the overlay pair AddPrimToOT 0x800168DC
-//   appends to 80076DD0  the projection rotation, row 1 scaled (800261A8); 80076DE4 the
-//   classification one
+//   80075820  the ordering table base (80026208)
+//   8007581C  the overlay pair AddPrimToOT 0x800168DC appends to
+//   80076DD0  the projection rotation, row 1 scaled (800261A8); 80076DE4 the classification one
 //             (8002592C + 0x14); 80076DF8 the camera position (+0x28)
 //   80076E1C  the three angle halfwords the camera builder 0x80033C50 reads
 //   8006CBF8  its sine table (0x80016C58)

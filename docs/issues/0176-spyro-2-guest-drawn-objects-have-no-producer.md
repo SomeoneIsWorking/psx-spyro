@@ -47,5 +47,8 @@ boot), keyed without render 0, no redraw warning; adjacent differences even (10:
 4.3..9.2, 22: 2.3..5.9) against 0/19 alternating before; 81..95% of each in-between's changing pixels
 lie between its neighbours; the Glimmer conversation box present in every present, stepping with
 logic; HUD anchored on in-betweens. Captures `scratch/interp2/f10`, `f11`, `f22`, `h10`.
+Review (2026-10-21): the redraw also moves the effects pass's records (`spyro::effect_pools`) and
+each animated mesh's keyframe pose (`spyro::keyframe_blend`); before, those drew the next field's
+state at the in-between (issue 0196 has the proof).
 Left: the attract demo's DEMO MODE text (linked after the dispatcher) shows its field whole; level
 21 runs logic at 20 fps and gets one in-between per three fields.

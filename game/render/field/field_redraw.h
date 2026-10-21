@@ -1,17 +1,18 @@
 // field_redraw.h — everything the field's draw dispatcher draws but the terrain, drawn once more by
 // the guest's own routine for the in-between before each real field, and owned at the flatten.
 //
-// The dispatcher's override reads what an in-between moves (the camera, each moby record's position
-// and angles, Spyro's position and angles), runs the dispatcher as a psx::present::GuestRedraw with
-// those inputs half way from the last field's, keeps what the bins and the overlay pair then hold
-// (the packets logic linked before the dispatcher and the ones the redraw linked), and then makes
-// the real call. The terrain has its own producer, so the redraw clears its flag. The real call may
-// run on past the host turn, so the field is owned where its bins are whole: the flatten is the
-// producer, keys every packet linked before the dispatcher's last drawer returned that the terrain
-// did not, and saves the redraw.
+// The dispatcher's override reads what an in-between moves (the camera, each moby record's
+// position, angles and keyframes, Spyro's, and the effects pass's records), runs the dispatcher as
+// a psx::present::GuestRedraw with those inputs half way from the last field's, keeps what the bins
+// and the overlay pair then hold (the packets logic linked before the dispatcher and the ones the
+// redraw linked), and then makes the real call. The terrain has its own producer, so the redraw
+// clears its flag. The real call may run on past the host turn, so the field is owned where its
+// bins are whole: the flatten is the producer, keys every packet linked before the dispatcher's
+// last drawer returned that the terrain did not, and saves the redraw.
 #pragma once
 
 #include "core.h"
+#include "render/field/effect_pools.h"
 #include "render/field/moby_record.h"
 #include "render/terrain/guest_depth_bins.h"
 #include "render/terrain/terrain_rebuild.h"
@@ -32,7 +33,10 @@ struct Facts {
   std::uint32_t spyroPosition = 0;      // x, y, z words
   std::uint32_t spyroAngles = 0;        // three angle bytes, then one that is not
   std::uint32_t spyroHeadAngles = 0;    // the same for the head
-  std::uint32_t lastDrawer = 0;         // the dispatcher's last call, after which it links nothing
+  std::uint32_t spyroKeyframes = 0;     // keyframe_blend::Pose keyframes, then the head's
+  std::uint32_t spyroKeyProgress = 0;   // the body's progress byte, then the head's
+  effect_pools::Facts effects;
+  std::uint32_t lastDrawer = 0; // the dispatcher's last call, after which it links nothing
   const char *lastDrawerName = "";
 };
 
@@ -48,8 +52,14 @@ struct Inputs {
   guest_terrain::CameraState camera;
   std::uint32_t mobyArray = 0;
   std::vector<moby_record::Bytes> mobys;
-  // Position x, y, z, the angle word and the head angle word.
-  std::array<std::uint32_t, 5> spyro{};
+  struct Spyro {
+    std::array<std::uint32_t, 3> position{};
+    std::uint32_t angles = 0;
+    std::uint32_t headAngles = 0;
+    std::array<std::uint32_t, 2> keyframes{}; // body, head
+    std::uint32_t keyProgress = 0;            // body byte, head byte
+  } spyro;
+  effect_pools::Records effects;
 };
 
 // The last field's inputs, the redraw waiting for its flatten, and the buffers every field reuses.

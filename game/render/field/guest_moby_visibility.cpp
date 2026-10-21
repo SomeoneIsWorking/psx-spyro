@@ -241,7 +241,7 @@ MobyWalk::MeshSlots MobyWalk::meshSlots(std::uint32_t rec) {
   const std::uint32_t index = core_.mem_r16(rec + moby_record::kMesh);
   return MeshSlots{
       .slots = core_.mem_r32(facts_.meshSlotTable + index * 4),
-      .packed = core_.mem_r32(rec + record::kPacked),
+      .packed = core_.mem_r32(rec + record::kKeyframes),
   };
 }
 
@@ -394,7 +394,7 @@ MobyWalk::Step MobyWalk::finishEntry(const Candidate &candidate) {
   const std::int32_t cz = asSigned(core_.gte().readControl(gte::kTranslationZ));
   const std::uint32_t biasWord = core_.mem_r16(rec + record::kDepthBias);
   const std::uint32_t overlay =
-      core_.mem_r8(facts_.overlayTable + core_.mem_r8(rec + record::kKind));
+      core_.mem_r8(facts_.keyframeBlend + core_.mem_r8(rec + record::kKeyProgress));
   const std::int32_t depthBias = static_cast<std::int32_t>((biasWord & 0xFFu) << 8) - cz;
   const std::uint32_t scale = biasWord >> 8;
   std::uint32_t texture = core_.mem_r32(((slots.packed >> 13) & 0x7F8u) + mesh + kMeshTextures);
