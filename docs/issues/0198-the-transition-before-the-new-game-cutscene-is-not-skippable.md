@@ -1,6 +1,6 @@
 # 0198: the transition before the new-game cutscene is not skippable
 
-Status: resolved (Spyro 1)
+Status: resolved (Spyro 1); Spyro 2 is issue 0204, Spyro 3 is issue 0205
 
 ## Observed
 USER, 2026-10-20: "only one transition scene is skippable (after the new game cutscene, the one BEFORE
@@ -22,9 +22,10 @@ left out as undispatchable.
 
 ## Fix
 `TransitionSkip` has a `CutsceneTransitionIntroCard` arm: on Start or Cross while the card is up and
-`g_LoadStage == 7` (an earlier press is held), it lowers `$sp` by the function's `0x38` frame, spills `$ra`
-(the frame update's call site return, `0x800339F4`) and `$s0..$s2` where the prologue does, and runs the
-guest from `0x8003304C` through its own epilogue. `m_Tick` is not written.
+`g_LoadStage == 7` (an earlier press is held), it sets `$ra` to the frame update's call site return
+(`0x800339F4`) and builds the function's `0x38` frame with `psx::cpu::enterGuestFrame` (psxport
+`guest_abi.h`, the prologue half `GuestFrame` also uses), spilling `$ra` and `$s0..$s2` where the prologue
+does, and runs the guest from `0x8003304C` through its own epilogue. `m_Tick` is not written.
 
 ## Shown in the product
 Clang `build/agent`, hidden window (`PSXPORT_VK_HEADLESS=1` in the process environment),
@@ -33,8 +34,10 @@ Clang `build/agent`, hidden window (`PSXPORT_VK_HEADLESS=1` in the process envir
 cutscene frame (`scratch/0198/after/2-cutscene-start.png`) matches the unskipped one
 (`scratch/0198/before/2-cutscene-start.png`); the cutscene plays (`3-cutscene-240.png`), its held Start ends it, the
 "THE ADVENTURE BEGINS..." flyby follows, and Artisans (level 10) is in `GS_Playing` (`4-playing.png`).
+With the frame built by `enterGuestFrame`, `repro.py fix2 150` logs the same line and its four captures
+(`scratch/0198/fix2/`) are pixel-identical to `scratch/0198-review/after/`'s.
 
 ## Spyro 2 and 3
-Neither has a transition-skip owner yet (S034, S035 missing). Spyro 2's executable has no flyby card text;
-Spyro 3's carries "THE ADVENTURE BEGINS", "THE ADVENTURE CONTINUES" and "A Desperate Rescue Begins...", so it
-probably has an equivalent card. Not reproduced here; it belongs to S035's skip work.
+Both have a card before the first new-game cutscene, and Start does not end either (hidden window,
+`scratch/0198/s23.py <title> <tag> [steps]`: New Game from the title, then no input, a capture every 60 steps).
+Spyro 2's storybook card is issue 0204, Spyro 3's caption card issue 0205.

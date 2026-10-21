@@ -62,11 +62,7 @@ constexpr std::uint32_t kLoadStageCutsceneReady = 7u;
 void runIntroCardTerminal(Core &core) {
   const std::uint32_t entrySp = core.r[psx::cpu::kSp];
   core.r[psx::cpu::kRa] = kCutsceneTransitionCall.returnPc;
-  core.r[psx::cpu::kSp] = entrySp - kCutsceneTransitionFrame;
-  for (const GuestFrameSpill &spill : kCutsceneTransitionSpills) {
-    core.mem_w32(core.r[psx::cpu::kSp] + static_cast<std::uint32_t>(spill.offset),
-                 core.r[spill.reg]);
-  }
+  psx::cpu::enterGuestFrame(core, kCutsceneTransitionFrame, kCutsceneTransitionSpills);
   const psx::cpu::ExecutionResult result =
       psx::cpu::resumeGuestToReturn(core,
                                     kCutsceneTransitionCall,
