@@ -158,12 +158,13 @@ encoding: Spyro 1 counts a moby's progress (+0x40, pair at +0x3C) in 64ths (weig
 
 Proof (same route, stepped preseq): new-game cutscene adjacent differences even (2.5..2.7 against
 0.0/4.0), each in-between as far from its previous present as from its next; real presents
-pixel-identical to before (max 0.0), only in-betweens changed. Boot logo intro: 2.2/7.3 alternating
-became an even 3..5. Gameplay `warp 10` while turning, Spyro's region: |in-between - previous|
+pixel-identical to before (max 0.0), only in-betweens changed. Boot logo intro at product frame 600:
+2.2/7.3 alternating became 1.4..3.3, still alternating in places (1.8 3.3 1.4 2.9 at the window's start);
+see "Flag intro margins" below. Gameplay `warp 10` while turning, Spyro's region: |in-between - previous|
 12.01 and |in-between - next| 8.47 before, 10.71 and 10.43 after. Real speed, final build, boot to
 the title screen: `[playcheck] presents: intervals=2445 p50=16.75ms p99=17.00ms worst=47.71ms
 missed=4 (0.16%)`, `records: repeats=0 backwards=0`. New-game cutscene after: p50 16.69 ms, p99
-17.27 ms, irregular intervals only at the cutscene's end and the level load. fps60 off for
+17.27 ms on that run; this claim did not hold under host load (psxport issue 0168). fps60 off for
 comparison: intro p50 33.37 ms, gameplay 608 presents in 20.25 s, all 33..34 ms.
 
 Also found on these runs:
@@ -172,22 +173,41 @@ Also found on these runs:
   one present (psxport issue 0168); the card presents at 16.7 ms.
 - The title screen after the flag shows every in-between whole (211 in-betweens in the final boot
   run; packets 0x80187BB4/0x801A3BB4 from the title overlay's logo sprite drawer): issue 0206.
-- Gameplay `warp 10` while turning at real speed: logic held 28.2 Hz (missed 3.91%, intervals 9..35
-  ms). The main thread was the limit: composition 43%, of it HostMemory's `std::map` lookups 23%
-  self time. With `HostMemory` on a sorted vector and a last-range cache, 29.95 Hz, missed 1.08%,
-  but intervals still spread 8..30 ms: the in-between half (guest logic, draw, compose, build) runs
-  past its 16.7 ms deadline (462 of 620 in-between presents had no wait left) while the real half
-  has 6.9 ms spare. Owner and proposed fix: psxport issue 0168.
+- Gameplay `warp 10` while turning at real speed: the first figures recorded here (28.2 Hz, intervals
+  8..35 ms, 462 of 620 in-betweens with no wait left) came from runs that overlapped heavy host load and
+  are withdrawn. The review build at low load gave 1206 of 1216 intervals in the 17 ms bin. The real cause
+  of late in-betweens under load was the presenter giving guest logic only the in-between's half of the
+  frame: psxport issue 0168, fixed there (presents scheduled at their deadline while the guest runs).
 
 Not measurable from a tool run: the unmapped surface is never scanned out, so where each present
 lands against the display's vblank, and any repeat/skip from pacing to 59.94 Hz on a 60.00 Hz
 display under MAILBOX, cannot be seen. The operator's real-window check is still the only test of
 that.
 
+## Real speed after psxport 0168 and issue 0206 (2026-10-21)
+Spyro 1, fps60, 16:9, real speed, unmapped window (`PSXPORT_SHOW_WINDOW=0`, no `PSXPORT_NOPACE`, both
+read from `/proc/<pid>/environ`), host load average 2..15 from other agents, `scratch/judder-fix/`:
+- New-game cutscene, records 1700-3100: 2802 presents, p50 16.68 ms, p99 16.77 ms, worst 16.96 ms; every
+  present within 0.6 ms of its deadline; 1401 of 1401 in-betweens composed. Run end `[playcheck] presents:
+  intervals=5433 p50=16.75ms p99=17.00ms worst=45.27ms missed=6 (0.11%)`, repeats 0, backwards 0.
+- Same cutscene with 8 busy processes added: p99 16.84 ms, one 57 ms stall; with 14: still late (the host
+  is oversubscribed), 616 intervals over 20 ms against 733 before.
+- `warp 10` turning, 20 s: 1218 presents, p50 16.68 ms, p99 16.86 ms, worst 18.28 ms.
+- Boot to the title, 40 s: 1008 of 1008 in-betweens composed (583 of 1004 before issue 0206's fix), p99
+  16.78 ms. Stepped capture of the logo sliding in: its lowest edge moves 4,5,5,5,5,6,5,6,5,6,6,7,6 rows
+  per present, against 0 and about 11 alternating when the title's in-betweens were shown whole.
+
+## Flag intro margins (open)
+Stepped capture at product frame 600 (`scratch/judder-fix/bootseq/s0600`): 16-pixel blocks at the right
+16:9 margin (x 576..640, y 80..128 of 684) and x 16, y 144 change only between every other pair of
+presents, and the pole's foot (x 400..470, y 144) mostly so. Something drawn there moves only on real
+presents: those adjacent differences alternate 1.4-1.8 against 2.9-3.3 at the window's start. Not traced
+yet; the drawer of the near white peak at the right edge is the first suspect.
+
 ## Next
 Spyro 2: the opening conversation box is linked by logic before the dispatcher, so the redraw
 keeps n+1's box; moving it needs its drawer (FUN_8004D2D8 / FUN_8004A374) re-run at the in-between
 in place of logic's packets. Spyro 1's horn and motion trails and demo overlay (issue 0186)
-show their frames whole when drawn; so does its title screen (issue 0206).
+show their frames whole when drawn.
 A real-time check by the operator is still to do: these runs
 measure the composed images, not the play feel.

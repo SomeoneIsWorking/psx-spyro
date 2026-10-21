@@ -1,10 +1,11 @@
 #include "core.h"
 #include "core/archive_transfer.h"
 #include "core/native_execution.h"
-#include "spyro1/core/execution/native_owners.h"
 #include "core/session.h"
 #include "execution_control.h"
 #include "guest_call.h"
+#include "spyro1/core/execution/native_owners.h"
+#include "spyro1/render/title_sprites.h"
 
 #include <cstdint>
 #include <lucent/log.h>
@@ -65,6 +66,7 @@ void transfer(Core &core, bool deferred) {
     // Both retail loaders are void, so the transfer owner raises the typed fault instead.
     return;
   }
+  spyro1::titleOverlayLanded(core, read.destination, read.length);
   publishTransferState(core, read, deferred);
   if (deferred) {
     core.r[2] = decision.returnValue();

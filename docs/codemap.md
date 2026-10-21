@@ -56,6 +56,7 @@ Dependency direction: `titles/<title>/` (one image's facts and natives) → `gam
 - `titles/spyro1/render/ordering_table.*` — S1 LinkOTPrimitives / ordering table slots
 - `titles/spyro1/render/hud_anchor.*` — S1 HUD anchor class per HUD record
 - `titles/spyro1/render/screen_overlays.*` — S1 fullscreen tint and cinematic letterbox producers
+- `titles/spyro1/render/title_sprites.*` — S1 title screen sprites (logo slide, PRESS START, memory card menus) producer, installed per title overlay landing
 - `titles/spyro1/render/particle*` — S1 particles / emit list, producer
 - `titles/spyro1/render/screen.h` — S1 retail outcode window for widened culls
 - `titles/spyro2/core/`, `titles/spyro3/core/` — S2/S3 runtime: crt0, stock libraries, interrupt-driven libcd, module landing, packet pool, cut, logo; boot facts (boot prefix, update / draw, gamestate and level words); warp route through the title screen's Start teardown

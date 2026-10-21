@@ -1,8 +1,6 @@
 #include "spyro1/core/runtime/runtime.h"
 
 #include "core.h"
-#include "spyro1/core/debug/gate_debug.h"
-#include "spyro1/core/execution/native_owners.h"
 #include "crt0_boot.h"
 #include "game.h"
 #include "platform_hle.h"
@@ -10,30 +8,26 @@
 #include "spyro1/core/audio/native_sound_position.h"
 #include "spyro1/core/audio/spu_library.h"
 #include "spyro1/core/camera/native_camera.h"
+#include "spyro1/core/debug/gate_debug.h"
 #include "spyro1/core/debug/warp.h"
 #include "spyro1/core/effect/native_effect_state.h"
 #include "spyro1/core/effect/native_particle_alloc.h"
 #include "spyro1/core/execution/native_level_initialization.h"
+#include "spyro1/core/execution/native_owners.h"
 #include "spyro1/core/execution/native_random_range.h"
 #include "spyro1/core/frame/frame_driver.h"
 #include "spyro1/core/frame/logo_facts.h"
 #include "spyro1/core/frame/native_draw_setup.h"
-#include "spyro1/render/ordering_table.h"
-#include "spyro1/render/hud_anchor.h"
-#include "spyro1/render/moby_shadow_producer.h"
-#include "spyro1/render/portal_producer.h"
-#include "spyro1/render/glow_pools.h"
 #include "spyro1/core/hud/native_hud_collectables.h"
 #include "spyro1/core/hud/native_pause_menu.h"
 #include "spyro1/core/hud/native_pixel_fade.h"
-#include "spyro1/render/screen_overlays.h"
 #include "spyro1/core/input/native_gamepad.h"
 #include "spyro1/core/moby/native_collision_shade.h"
 #include "spyro1/core/moby/native_environment_light.h"
 #include "spyro1/core/moby/native_level_globals_table.h"
 #include "spyro1/core/moby/native_moby_allocator.h"
-#include "spyro1/core/moby/native_moby_collision.h"
 #include "spyro1/core/moby/native_moby_animation.h"
+#include "spyro1/core/moby/native_moby_collision.h"
 #include "spyro1/core/moby/native_moby_lists.h"
 #include "spyro1/core/moby/native_moby_transform.h"
 #include "spyro1/core/moby/native_shaded_moby_queue.h"
@@ -44,12 +38,19 @@
 #include "spyro1/render/actor_emitter_producer.h"
 #include "spyro1/render/actor_list.h"
 #include "spyro1/render/drop_shadow_producer.h"
+#include "spyro1/render/glow_pools.h"
 #include "spyro1/render/glow_producers.h"
+#include "spyro1/render/hud_anchor.h"
+#include "spyro1/render/moby_shadow_producer.h"
+#include "spyro1/render/ordering_table.h"
 #include "spyro1/render/paired_actor_producer.h"
 #include "spyro1/render/particle_producer.h"
+#include "spyro1/render/portal_producer.h"
+#include "spyro1/render/screen_overlays.h"
 #include "spyro1/render/sky_producer.h"
 #include "spyro1/render/sprite_queue_producer.h"
 #include "spyro1/render/terrain_image.h"
+#include "spyro1/render/title_sprites.h"
 
 #include <lucent/log.h>
 
@@ -154,6 +155,7 @@ void Runtime::registerOverrides(Game &game) {
   native::registerSoundPositionOverrides(game.core);
   OrderingTable::registerOverrides(game.core);
   registerScreenOverlayOverrides(game.core);
+  registerTitleSpriteProducer(game.core);
   spyro1::terrain::registerOverrides(game.core);
   actors::registerListOverrides(game.core);
   actors::registerEmitterOverrides(game.core);
