@@ -87,7 +87,12 @@ void SkyProducer::render(const psx::present::StateInterval &states,
 }
 
 void registerSkyOverrides(Core &core) {
-  spyro::installProducerOverride(core, SkyProducer::kEntry, "spyro1-sky", drawSky, std::make_unique<SkyProducer>(core));
+  spyro::installProducerOverride(core,
+                                 SkyProducer::kEntry,
+                                 "spyro1-sky",
+                                 drawSky,
+                                 std::make_unique<SkyProducer>(core),
+                                 psx::present::Arg::None);
 }
 
 } // namespace spyro1::sky

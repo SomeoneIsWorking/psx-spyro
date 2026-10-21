@@ -242,6 +242,24 @@ the in-between differs from both neighbours on Spyro (17% of changed pixels equa
 Spyro himself (the paired actor) never hit this: across 1200 part blends while starting and stopping a run in
 `warp 10`, every pair continued, since the guest cross-blends his animations itself.
 
+## Terrain and sky identity in `warp 10` (fixed)
+Reproduction: `scratch/judder-boot/gameplay_seq.py <tag> PSXPORT_IRES=4` warps to level 10 from the title, waits
+120 fields, captures 160 presents and holds right+up for 1.2 s. One in-between about 0.9 s into the turn matched
+the next real present on 94% of the changed pixels (`live11` p0052, `live12` p0054, `live13` p0056): terrain and
+sky at the next camera, the mobys between. The composer found no earlier state for terrain `0x800258F0` and sky
+`0x8004EBA8` object `0x11` at that record.
+
+Cause: `titles/spyro1/render/terrain_image.cpp:registerOverrides` and `sky_producer.cpp:registerSkyOverrides`
+named the object by `$a0`, which `FUN_8002B9CC` sets to the word at `0x80076E24` while that is under
+`0x800785B4` and to -1 otherwise; the drawer's argument changed, so the field's one terrain became a new object
+with nothing to interpolate from.
+
+Fix: both register with psxport's `Arg::None` (one object per call); the argument stays in their saved state,
+and the in-between draws with the later field's, as before.
+
+Proof (`scratch/judder-boot/live14`): over 110 presents of the same route no in-between matches a neighbour on
+more than 59% of changed pixels, and those (p0066..p0074) sit at half the neighbours' shift (-1 of -2 4x pixels).
+
 ## Next
 Spyro 2: the opening conversation box is linked by logic before the dispatcher, so the redraw
 keeps n+1's box; moving it needs its drawer (FUN_8004D2D8 / FUN_8004A374) re-run at the in-between
