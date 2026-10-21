@@ -6,6 +6,7 @@
 #include "render/field/keyframe_blend.h"
 #include "render/field/record_blend.h"
 #include "render/terrain/guest_depth_bins.h"
+#include "spyro1/render/actor_emitter_layout.h"
 #include "spyro1/render/actor_facts.h"
 #include "spyro1/render/terrain_facts.h"
 #include "spyro1/render/terrain_image.h"
@@ -15,10 +16,28 @@ namespace {
 
 using terrain::kRenderGlobals;
 
+// The emitter reads both frames' streams with frame A's counts and shifts.
+bool sharesLayout(const psx::present::EmitMemory &memory,
+                  std::uint32_t meshIndex,
+                  std::uint32_t frameA,
+                  std::uint32_t frameB) {
+  const std::uint32_t mesh = memory.mem_r32(spyro1::guest::kModels + meshIndex * 4);
+  const std::uint32_t a = memory.mem_r32(mesh + mesh::kFrames + frameA * 4);
+  const std::uint32_t b = memory.mem_r32(mesh + mesh::kFrames + frameB * 4);
+  return memory.mem_r16(a + emitter::frame::kVertexCounts) ==
+             memory.mem_r16(b + emitter::frame::kVertexCounts) &&
+         memory.mem_r8(a + emitter::frame::kPositionShift) ==
+             memory.mem_r8(b + emitter::frame::kPositionShift) &&
+         memory.mem_r8(a + emitter::frame::kHalfShift) ==
+             memory.mem_r8(b + emitter::frame::kHalfShift);
+}
+
 } // namespace
 
-spyro::moby_record::Bytes
-recordBetween(const spyro::moby_record::Bytes &from, const spyro::moby_record::Bytes &to, float t) {
+spyro::moby_record::Bytes recordBetween(const spyro::moby_record::Bytes &from,
+                                        const spyro::moby_record::Bytes &to,
+                                        float t,
+                                        const psx::present::EmitMemory *frames) {
   const bool sameSpace =
       ((from[moby::kCullDistance] ^ to[moby::kCullDistance]) & moby::kScreenSpace) == 0;
   if (!spyro::moby_record::sameObject(from, to) || !sameSpace) {
@@ -30,8 +49,20 @@ recordBetween(const spyro::moby_record::Bytes &from, const spyro::moby_record::B
         .keyframes = spyro::record_blend::load<std::uint32_t>(bytes, moby::kFrames),
         .progress = bytes[moby::kBlend]};
   };
-  const spyro::keyframe_blend::Pose pose =
-      spyro::keyframe_blend::between(poseOf(from), poseOf(to), t, moby::kBlendProgress);
+  const spyro::keyframe_blend::Pose before = poseOf(from);
+  const spyro::keyframe_blend::Pose after = poseOf(to);
+  spyro::keyframe_blend::Pose pose =
+      spyro::keyframe_blend::between(before, after, t, moby::kBlendProgress);
+  if (frames != nullptr && !spyro::keyframe_blend::continues(before, after, moby::kBlendProgress)) {
+    const spyro::keyframe_blend::Pose crossing =
+        spyro::keyframe_blend::across(before, after, t, moby::kBlendProgress);
+    if (sharesLayout(*frames,
+                     spyro::record_blend::load<std::uint16_t>(to, spyro::moby_record::kMesh),
+                     crossing.keyframes & 0xFFu,
+                     (crossing.keyframes >> 8) & 0xFFu)) {
+      pose = crossing;
+    }
+  }
   spyro::record_blend::store(shown, moby::kFrames, pose.keyframes);
   shown[moby::kBlend] = pose.progress;
   return shown;

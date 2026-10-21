@@ -100,7 +100,8 @@ void ActorEmitterProducer::render(const psx::present::StateInterval &states,
   between.mapWorkspace();
   between.mapCamera(camera);
   between.mapTable();
-  between.provide(state.record, recordBetween(before.header.bytes, state.bytes, states.t));
+  between.provide(state.record,
+                  recordBetween(before.header.bytes, state.bytes, states.t, &between.memory()));
   between.provideWord(kShadowListEnd, kShadowList);
   const psx::present::EmitMemory &memory = between.memory();
   if (!listRecord(core_, memory, *pass_.list, state.record)) {

@@ -21,9 +21,16 @@ struct Progress {
 
 inline constexpr Progress kNibbleSteps{};
 
+// `to` is `from`'s pair further on, or the pair after it.
+[[nodiscard]] bool continues(const Pose &from, const Pose &to, Progress progress = kNibbleSteps);
+
 // The pose at `t`: in `from`'s pair or, when `to`'s frame A is `from`'s frame B, in `to`'s, at the
 // step nearest `t` of the way; `to` when the two are not one animation a step apart.
 [[nodiscard]] Pose
 between(const Pose &from, const Pose &to, float t, Progress progress = kNibbleSteps);
+
+// Across an animation switch, which `to` does not continue: `from`'s nearer frame as A, `to`'s as
+// B, at the step nearest `t`. Fixed-step progress only.
+[[nodiscard]] Pose across(const Pose &from, const Pose &to, float t, Progress progress);
 
 } // namespace spyro::keyframe_blend
