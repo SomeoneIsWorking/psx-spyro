@@ -53,6 +53,7 @@ Dependency direction: `titles/<title>/` (one image's facts and natives) → `gam
 - `titles/spyro1/render/moby_shadow*` — S1 moby shadows (RenderMobyShadows), producer
 - `titles/spyro1/render/drop_shadow*` — S1 Spyro drop shadow, producer
 - `titles/spyro1/render/flame*` — S1 flame breath (DrawSpyroHornStrikeTrails): tip fans and arc ribbons, producer
+- `titles/spyro1/render/rescue_star*` — S1 dragon-rescue star burst over a freed dragon, producer
 - `titles/spyro1/render/glow*` — S1 glow fans and sparkles, their emitter and sparkle pools, producers
 - `titles/spyro1/render/ordering_table.*` — S1 LinkOTPrimitives / ordering table slots
 - `titles/spyro1/render/hud_anchor.*` — S1 HUD anchor class per HUD record

@@ -32,6 +32,10 @@ public:
 
   void render(const psx::present::StateInterval &states,
               psx::present::PrimitiveSink &sink) const override;
+  // An additive or subtractive tint the guest skips (the dragon flash at fade 0) is one of colour
+  // 0.
+  [[nodiscard]] bool rests(std::span<const std::byte> drawn,
+                           std::span<std::byte> into) const override;
 };
 
 // DrawCinematicLetterbox(): steps the bar height at 0x800756C0 toward 0 or 22, then draws two
