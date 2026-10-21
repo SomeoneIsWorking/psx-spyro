@@ -46,7 +46,7 @@ bool samePair(const Pose &from, const Pose &to, Progress encoding) {
          step(to.progress, encoding) >= step(from.progress, encoding);
 }
 
-// The slot and frame bytes of the pair's nearer end: A before half way, B from it.
+// The nearer end's frame byte (0 or 1) and its vertex-step byte (2 or 3): A before half way, B from it.
 std::array<std::uint32_t, 2> nearer(const Pose &pose, Progress encoding) {
   const std::uint32_t end = share(pose, encoding) < 0.5 ? 0u : 1u;
   return {(pose.keyframes >> (8 * end)) & 0xFFu, (pose.keyframes >> (16 + 8 * end)) & 0xFFu};
@@ -77,8 +77,7 @@ Pose between(const Pose &from, const Pose &to, float t, Progress progress) {
 Pose across(const Pose &from, const Pose &to, float t, Progress progress) {
   const std::array<std::uint32_t, 2> a = nearer(from, progress);
   const std::array<std::uint32_t, 2> b = nearer(to, progress);
-  const auto k = static_cast<std::uint32_t>(
-      std::lround(std::clamp(static_cast<double>(t), 0.0, 1.0) * progress.fixedSteps));
+  const std::uint32_t k = nearestStep(to, std::min(static_cast<double>(t), 1.0), progress);
   return Pose{.keyframes = a[0] | (b[0] << 8) | (a[1] << 16) | (b[1] << 24),
               .progress = static_cast<std::uint8_t>(k)};
 }
