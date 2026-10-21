@@ -7,6 +7,7 @@
 #include "render/field/guest_word.h"
 #include "render/terrain/guest_depth_bins.h"
 #include "spyro1/render/actor_facts.h"
+#include "state_producer.h"
 
 namespace spyro1::shadow {
 namespace {
@@ -28,7 +29,6 @@ constexpr std::uint32_t kFrameTable = 0x24u;
 
 constexpr std::uint32_t kRadii = kStaging + 0x80u;
 constexpr std::uint32_t kHeights = kStaging + 0x90u;
-constexpr std::uint32_t kPoints = 16;
 
 // A segment: a draw-mode packet (subtractive, dithered), then a POLY_G3 from the centre.
 constexpr std::uint32_t kModeTag = 0x82000000u;
@@ -43,8 +43,10 @@ std::uint32_t frameData(std::uint32_t word) {
 
 } // namespace
 
-DropShadow::DropShadow(Core &core, const psx::present::EmitMemory &memory)
-    : core_(core), memory_(memory) {}
+DropShadow::DropShadow(Core &core,
+                       const psx::present::EmitMemory &memory,
+                       psx::present::PrimitiveSink *places)
+    : core_(core), memory_(memory), places_(places) {}
 
 bool DropShadow::draw() {
   if (asSigned(memory_.mem_r32(shadow_block::kSuppress)) > 0) {
@@ -79,6 +81,7 @@ void DropShadow::placeCentre() {
   gte.execute(gte::kRtps);
   const std::uint32_t heading = static_cast<std::uint32_t>(memory_.mem_r8(kSpyro + kHeading)) << 1;
   centreScreen_ = gte.readData(gte::kSxy2);
+  centrePlace_ = gte.projectedPlace(2);
   centreDepth_ = gte.readData(gte::kSz3);
   gte.writeControl(gte::kTranslationZ, gte.readData(gte::kMac3));
   gte.writeControl(gte::kTranslationY, gte.readData(gte::kMac2));
@@ -187,6 +190,7 @@ void DropShadow::projectRing() {
     gte.execute(gte::kRtps);
     memory_.mem_w32(kStaging + point * 8, gte.readData(gte::kSxy2));
     memory_.mem_w32(kStaging + point * 8 + 4, gte.readData(gte::kSz3));
+    ringPlaces_[point] = gte.projectedPlace(2);
   }
 }
 
@@ -197,7 +201,7 @@ void DropShadow::drawSegments() {
   const std::uint32_t closing = kStaging + kPoints * 8;
   memory_.mem_w32(closing, memory_.mem_r32(kStaging));
   memory_.mem_w32(closing + 4, memory_.mem_r32(kStaging + 4));
-  for (std::uint32_t at = kStaging; at != closing; at += 8) {
+  for (std::uint32_t at = kStaging, point = 0; at != closing; at += 8, ++point) {
     const std::uint32_t screen = memory_.mem_r32(at);
     const std::uint32_t nextScreen = memory_.mem_r32(at + 8);
     const std::uint32_t rimDepth = memory_.mem_r32(at + 4) + memory_.mem_r32(at + 0xC);
@@ -214,6 +218,10 @@ void DropShadow::drawSegments() {
     const std::uint32_t bin = ((rimDepth + (rimDepth >> 1) + centreDepth_) >> 9) - bias;
     if (asSigned(bin) < 0) {
       continue;
+    }
+    if (places_ != nullptr) {
+      places_->placeCorners(
+          cursor + 0xC, {{centrePlace_, ringPlaces_[point], ringPlaces_[(point + 1) % kPoints]}});
     }
     const std::uint32_t slot = (bin << 3) + table;
     spyro::depth_bins::linkIntoBin(memory_, slot, cursor, cursor + 0xC);
