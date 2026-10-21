@@ -21,7 +21,7 @@ namespace spyro1::actors {
 struct EmittedRecordState {
   spyro::guest_terrain::CameraState camera;
   std::uint32_t record = 0;
-  MobyBytes bytes{};
+  spyro::moby_record::Bytes bytes{};
 };
 static_assert(std::is_trivially_copyable_v<EmittedRecordState>);
 

@@ -18,6 +18,8 @@ namespace spyro2 {
 //   80067030  next free primitive packet, written by the drawer's exit (80029118).
 //   80066FFC  the ordering table, whose 8-byte depth bins both routines link into.
 //   80067168  the far-shade watermark, lowered only by the walk (80044030..80044050).
+//   80067000  the overlay pair, the 8 bytes below the table (80011E80); FUN_8001B390 appends to it
+//             and the flatten links it after bin 0.
 //   80067E84  the camera rotation, five RT words, read at 800438F8.
 //   80067EAC  the camera position x, y, z, read at 800438FC.
 //   8006B300  one visibility byte per terrain sector, written by the classification pass (800244F0)
@@ -30,10 +32,12 @@ inline constexpr spyro::guest_render_globals::Globals kRenderGlobals{
     .primitiveCursor = 0x80067030u,
     .orderingTable = 0x80066FFCu,
     .orderingTableMark = 0x80067168u,
+    .overlayPair = 0x80067000u,
     .cameraRotation = 0x80067E84u,
     .cameraPosition = 0x80067EACu,
     .cameraAngles = 0x80067EC8u,
-    // 80061BD8: the sine table FUN_8001B61C indexes; FUN_8001B664 reads its cosine a quarter turn on.
+    // 80061BD8: the sine table FUN_8001B61C indexes; FUN_8001B664 reads its cosine a quarter turn
+    // on.
     .cameraSineTable = 0x80061BD8u,
     .visibilityGroups = 0x8006B300u,
 };
@@ -136,6 +140,25 @@ inline constexpr spyro::guest_moby::Facts kMobyFacts{
     .exitV0 = 0x8006820Cu,
 };
 
+// The field's draw dispatcher, FUN_800155A0, called by the per-field body FUN_800156FC through
+// FUN_80013A14 with $a0 = 0x3D in gameplay.
+//
+//   800155D4  a0 bit 4 calls FUN_8004C4FC, the terrain drawer's caller
+//   80015788  FUN_8001BDB0 copies the camera position to 0x80067EB8 before the dispatcher runs
+//   80041E04  the Spyro drawer's base 0x80069FF0, its position words; 800421B0 hands FUN_8001B6C8
+//             the angle bytes at +0xC and 8004228C the head's at +0x10
+inline constexpr spyro::field_redraw::Facts kFieldFacts{
+    .entry = 0x800155A0u,
+    .overrideName = "spyro2-field-dispatcher",
+    .terrainFlag = 0x4u,
+    .drawCameraPosition = 0x80067EB8u,
+    .spyroPosition = 0x80069FF0u,
+    .spyroAngles = 0x80069FFCu,
+    .spyroHeadAngles = 0x8006A000u,
+    .lastDrawer = 0x8004D604u, // the letterbox, called at 800156D4 and nowhere else
+    .lastDrawerName = "spyro2-field-letterbox",
+};
+
 // The flatten, FUN_8001B2A8, called by the draw at 800159A4 and by three other draws (800146AC,
 // 80014A54, 8004D938), each once per table.
 inline constexpr std::uint32_t kFlatten = 0x8001B2A8u;
@@ -144,6 +167,7 @@ inline constexpr spyro::EngineRenderFacts kRenderFacts{
     .globals = kRenderGlobals,
     .terrain = kTerrainFacts,
     .moby = kMobyFacts,
+    .field = kFieldFacts,
     .flatten = kFlatten,
     .flattenName = "spyro2-depth-bins",
 };

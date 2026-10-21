@@ -80,6 +80,13 @@ native shadow cull on the widened window draws what retail's 512-wide test culle
 near sky's packets against `0x8004F4BC` beside all five of level 10's gates, and its packets and
 faded table against `0x80050240` with a forced fade beside two of them. Captures: `scratch/interp/final{10,11,20,near,hud}/`.
 
+## Shared owners (2026-10-21)
+The moby record layout and blend (`game/render/field/moby_record.*`, `record_blend.h`) and the
+overlay pair (`guest_render_globals::Globals::overlayPair`, `depth_bins::overlayBins`) moved to
+`game/` for Spyro 2's field producer; Spyro 1's actor, shadow, particle, glow and sprite-queue
+producers use them. Spyro 1 `warp` 10 at fps60 16:9 afterwards: no unkeyed primitive after gameplay
+starts, adjacent differences 7.1..10.4 (`scratch/interp2/s1`).
+
 ## Proper fix
 The same shape for what is left: the horn and motion trails, the demo overlay and `0x80058864`.
 For 16:9, the portal fill's screen triangles (`0x8006CB8C`, retail 512x240) and the outline window

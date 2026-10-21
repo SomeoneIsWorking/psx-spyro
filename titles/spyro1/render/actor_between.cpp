@@ -15,20 +15,14 @@ using terrain::kRenderGlobals;
 
 } // namespace
 
-MobyBytes recordBetween(const MobyBytes &from, const MobyBytes &to, float t) {
-  MobyBytes shown = to;
-  const bool sameMesh = load<std::uint16_t>(from, moby::kMesh) == load<std::uint16_t>(to, moby::kMesh);
-  const bool sameSpace = ((from[moby::kCullDistance] ^ to[moby::kCullDistance]) & moby::kScreenSpace) == 0;
-  if (!sameMesh || !sameSpace) {
-    return shown;
+spyro::moby_record::Bytes
+recordBetween(const spyro::moby_record::Bytes &from, const spyro::moby_record::Bytes &to, float t) {
+  const bool sameSpace =
+      ((from[moby::kCullDistance] ^ to[moby::kCullDistance]) & moby::kScreenSpace) == 0;
+  if (!spyro::moby_record::sameObject(from, to) || !sameSpace) {
+    return to;
   }
-  for (const std::uint32_t at : {moby::kX, moby::kY, moby::kZ}) {
-    wordBetween(shown, from, to, at, t);
-  }
-  for (std::uint32_t axis = 0; axis < 3; ++axis) {
-    shown[moby::kRotation + axis] = angleBetween(from[moby::kRotation + axis], to[moby::kRotation + axis], t);
-  }
-  return shown;
+  return spyro::moby_record::between(from, to, t);
 }
 
 std::array<GuestSpan, 3> binnedWorkingRanges(Core &core) {
@@ -42,7 +36,8 @@ std::array<GuestSpan, 3> binnedWorkingRanges(Core &core) {
 }
 
 InBetween::InBetween(Core &core, std::span<const psx::present::LevelWord> reads)
-    : gte_(core.gte()), memory_(core, host_), arena_(terrain::kTerrainImage.windows(core).inBetweenArena) {
+    : gte_(core.gte()), memory_(core, host_),
+      arena_(terrain::kTerrainImage.windows(core).inBetweenArena) {
   host_.overlay(reads);
   host_.zero(arena_.address, arena_.bytes);
   provideWord(kRenderGlobals.primitiveCursor, arena_.address);
@@ -64,7 +59,8 @@ void InBetween::mapWorkspace() {
 
 void InBetween::mapCamera(const spyro::guest_terrain::InBetweenCamera &camera) {
   host_.provide(kRenderGlobals.cameraRotation, std::as_bytes(std::span(camera.rotation)));
-  host_.provide(terrain::kSharedFacts.classify.viewRotation, std::as_bytes(std::span(camera.viewRotation)));
+  host_.provide(terrain::kSharedFacts.classify.viewRotation,
+                std::as_bytes(std::span(camera.viewRotation)));
   host_.provide(kRenderGlobals.cameraPosition, std::as_bytes(std::span(camera.position)));
   host_.provide(kRenderGlobals.cameraAngles, std::as_bytes(std::span(camera.angles)));
 }

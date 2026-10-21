@@ -8,16 +8,15 @@
 
 #include <algorithm>
 #include <cstdlib>
+#include <optional>
 
 namespace spyro::depth_bins {
 namespace {
 
-// The bin count both draws ask the flatten for (0x580); its start clamps to the mark's bin.
-constexpr std::int32_t kScanBins = 0x580;
 constexpr std::uint32_t kMarkSlack = kBinStride;
 
 // Assigns `slot` to the chain of the (head, first) pair at `pair`, first-linked packet to head.
-void assignPair(Core &core, std::uint32_t pair, psx::present::OtSlot slot) {
+void assignPair(Core &core, std::uint32_t pair, psx::present::OtSlot slot, Claim claim) {
   const std::uint32_t head = core.mem_r32(pair);
   std::uint32_t packet = core.mem_r32(pair + kBinFirstOffset);
   for (int assigned = 0; packet != 0; ++assigned) {
@@ -32,8 +31,16 @@ void assignPair(Core &core, std::uint32_t pair, psx::present::OtSlot slot) {
       std::abort();
     }
     core.otTables.assign(packet, slot);
-    // Until the flatten links them, a bin's chain runs from its first packet to the head and ends in a zero link.
-    const psx::gpu::OtNode tag(psx::gpu::mainRamOffsetOf(packet), psx::gpu::OtHeaderWord{core.mem_r32(packet)});
+    if (packet < claim.below) {
+      const std::optional<psx::present::RecordKey> key = core.emission.keyFor(packet);
+      if (!key || key->producer == core.emission.current().producer) {
+        core.emission.bindPacket(packet);
+      }
+    }
+    // Until the flatten links them, a bin's chain runs from its first packet to the head and ends
+    // in a zero link.
+    const psx::gpu::OtNode tag(psx::gpu::mainRamOffsetOf(packet),
+                               psx::gpu::OtHeaderWord{core.mem_r32(packet)});
     packet = packet == head || tag.endsChain() ? 0 : psx::gpu::guestAddressOf(tag.nextRamOffset());
   }
 }
@@ -47,17 +54,26 @@ Bins publishedBins(Core &core, const guest_render_globals::Globals &globals) {
   return Bins{.table = kTable,
               .base = table,
               .named = kBins,
-              .linked = static_cast<std::uint32_t>(std::max(0, std::min(kScanBins, reach)))};
+              .linked = static_cast<std::uint32_t>(
+                  std::max(0, std::min(static_cast<std::int32_t>(kBins), reach)))};
 }
 
-void assignBins(Core &core, const Bins &bins) {
+Bins overlayBins(Core &core, const guest_render_globals::Globals &globals) {
+  return Bins{
+      .table = kOverlayTable, .base = core.mem_r32(globals.overlayPair), .named = 1, .linked = 1};
+}
+
+void assignBins(Core &core, const Bins &bins, Claim claim) {
   core.otTables.name(bins.table, bins.base, bins.named, kBinStride, psx::gpu::OtWalk::HighToLow);
   for (std::uint32_t bin = 0; bin < bins.linked; ++bin) {
-    assignPair(core, bins.base + bin * kBinStride, psx::present::OtSlot{bins.table, bin});
+    assignPair(core, bins.base + bin * kBinStride, psx::present::OtSlot{bins.table, bin}, claim);
   }
 }
 
-std::uint32_t linkIntoBin(const psx::present::EmitMemory &memory, std::uint32_t slot, std::uint32_t first, std::uint32_t last) {
+std::uint32_t linkIntoBin(const psx::present::EmitMemory &memory,
+                          std::uint32_t slot,
+                          std::uint32_t first,
+                          std::uint32_t last) {
   const std::uint32_t head = memory.mem_r32(slot);
   memory.mem_w32(slot, last);
   if (head == 0) {

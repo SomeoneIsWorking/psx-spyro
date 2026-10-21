@@ -93,9 +93,10 @@ The portal fill and near sky of `0x80050BD0` stay on retail's 512-wide window: t
 | 9 | S1 | psxport F-FPS60.1 | `titles/spyro1/render/sky_producer.cpp:SkyProducer`, `titles/spyro1/render/drop_shadow_producer.cpp:DropShadowProducer`, `titles/spyro1/render/glow_producers.cpp:GlowFanProducer`, `SparkleProducer`, `titles/spyro1/render/particle_producer.cpp:ParticleProducer` — the sky (`0x8004EBA8`), drop shadow (`0x80059A48`), each glow emitter, sparkle and particle record redrawn at t |
 | 10 | S1 | psxport F-FPS60.1 | `titles/spyro1/render/actor_emitter_producer.cpp:ActorEmitterProducer` — each moby the emitters (`0x8001F798`, `0x80020F34`) draw, its list entry rebuilt and drawn at t, record and camera moved |
 | 11 | S1 | psxport F-FPS60.1 | `titles/spyro1/render/portal_producer.cpp:PortalProducer`, `titles/spyro1/render/moby_shadow_producer.cpp:MobyShadowProducer` — each portal (`0x80050BD0`: fill, and near sky with the sky's spin at t) and each moby shadow (`0x80059F8C`) redrawn at t, camera moved |
+| 12 | S2 | psxport F-FPS60.1 | `game/render/field/field_redraw.cpp:redrawField`, `FieldRedrawProducer` — the draw dispatcher `0x800155A0` re-run less the terrain at the in-between camera, mobys and Spyro; the flatten `0x8001B2A8` claims every unkeyed packet linked before the letterbox `0x8004D604` returns and saves the redraw |
 | 6 | all | psxport F-FPS60.2 | `game/core/frame_cut.cpp:FrameCut::isCut` — game state, level, or (S2, S3) a camera placement inside a scene |
 
-S1's horn and motion trails, demo overlay and `0x80058864` have no producer yet; a present holding one shows the field whole (issue 0186).
+S1's horn and motion trails, demo overlay and `0x80058864` have no producer yet; a present holding one shows the field whole (issue 0186). S2's packets linked after its dispatcher (the attract demo's DEMO MODE text) stay unkeyed and show the field whole; S2 at 20 fps logic gets one in-between per three fields (the presenter's single `kInBetweenAt`). S3 has no field producer yet (issue 0196).
 
 ## F-DEBUG
 

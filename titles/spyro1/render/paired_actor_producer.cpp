@@ -2,8 +2,9 @@
 
 #include "core.h"
 #include "guest_memory_map.h"
-#include "render/state_producer_override.h"
 #include "render/field/guest_render_globals.h"
+#include "render/field/record_blend.h"
+#include "render/state_producer_override.h"
 #include "spyro1/render/actor_between.h"
 #include "spyro1/render/paired_actor.h"
 #include "spyro1/render/terrain_image.h"
@@ -42,18 +43,19 @@ void drawSpyro(Core *core) {
 
 } // namespace
 
-std::array<std::uint8_t, spyro_record::kBytes> spyroBetween(const std::array<std::uint8_t, spyro_record::kBytes> &from,
-                                                            const std::array<std::uint8_t, spyro_record::kBytes> &to,
-                                                            float t) {
+std::array<std::uint8_t, spyro_record::kBytes>
+spyroBetween(const std::array<std::uint8_t, spyro_record::kBytes> &from,
+             const std::array<std::uint8_t, spyro_record::kBytes> &to,
+             float t) {
   std::array<std::uint8_t, spyro_record::kBytes> shown = to;
   for (std::uint32_t axis = 0; axis < 3; ++axis) {
-    wordBetween(shown, from, to, spyro_record::kPosition + 4 * axis, t);
+    spyro::record_blend::wordBetween(shown, from, to, spyro_record::kPosition + 4 * axis, t);
   }
   // Bytes 0..2 of each part's angle word; byte 3's sign says whether the part turns at all.
   for (std::uint32_t part = 0; part < 3; ++part) {
     for (std::uint32_t axis = 0; axis < 3; ++axis) {
       const std::uint32_t at = spyro_record::kAngles + 4 * part + axis;
-      shown[at] = angleBetween(from[at], to[at], t);
+      shown[at] = spyro::record_blend::angleBetween(from[at], to[at], t);
     }
   }
   return shown;

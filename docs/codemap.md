@@ -13,10 +13,12 @@ Dependency direction: `titles/<title>/` (one image's facts and natives) → `gam
 - `game/core/guest_magnitude.*` — reciprocal magnitude / vector length normalise step, GTE square sum and square root table
 - `game/core/title_logo*` — title wordmark / logo snapshotted from guest VRAM for the picker panel
 - `game/core/debug/warp.*` — `warp <level>` control command / level select / dev warp, applied when the title screen is idle
-- `game/render/engine_render_overrides.*` — S2/S3 render overrides bound to one image: terrain producer, moby walk, flatten depth bins
+- `game/render/engine_render_overrides.*` — S2/S3 render overrides bound to one image: terrain producer, moby walk, field dispatcher and its last drawer, flatten depth bins and field producer
+- `game/render/field/field_redraw.*` — S2 field in-between: the draw dispatcher re-run as a guest redraw at the in-between camera, mobys and Spyro, its packets saved by the flatten as the field's state
+- `game/render/field/moby_record.*`, `record_blend.h` — moby record layout and identity, record lerp, little-endian field load/store and angle lerp shared by S1 and S2
 - `game/render/field/guest_moby_*` — moby / object visibility walk: sphere frustum cull, GTE use, orientation onto camera rotation
 - `game/render/field/guest_view_slope.*` — horizontal frustum slope, screen margin and outcode window at 4:3 or widened 16:9
-- `game/render/field/guest_render_globals.h` — camera, ordering-table and packet-cursor guest words per image
+- `game/render/field/guest_render_globals.h` — camera, ordering-table, overlay-pair and packet-cursor guest words per image
 - `game/render/field/guest_working_memory.h` — in-between packet arena window, packet tag link, rotation words, saved draws
 - `game/render/field/guest_word.h` — MIPS word arithmetic: signed view, `sra`, absolute value, sign-extended halfword
 - `game/render/field/guest_packet.h` — GP0 packet tags, packet sizes and command words the emitters write
@@ -26,7 +28,7 @@ Dependency direction: `titles/<title>/` (one image's facts and natives) → `gam
 - `game/render/terrain/engine_terrain_image.*` — S2/S3 terrain drawer as one TerrainImage
 - `game/render/terrain/guest_terrain_*` (classify, sphere, animation, mesh, cull, screen, far, far_vertices, detail, translucent, polygon, coarse, fine, split, grid, resplit, fog) — terrain passes: sector classification and bounding sphere, sector animation, vertex projection (RTPS), outcode and NCLIP culls, far LOD, near detail and translucent, subdivision grids, split pieces and edge cracks, re-split of oversized polygons, distance fog
 - `game/render/terrain/guest_camera_builder.*` — guest camera builder re-run for an in-between camera
-- `game/render/terrain/guest_depth_bins.*` — depth bins / ordering-table slot of each packet before the flatten
+- `game/render/terrain/guest_depth_bins.*` — depth bins and overlay pair / ordering-table slot of each packet before the flatten, the field's claim of unkeyed packets
 - `game/render/terrain/terrain_rebuild.*`, `terrain_state_producer.*` — terrain interpolation: drawer re-run over saved words at an in-between camera, terrain state producer
 - `titles/spyro1/core/runtime/` — S1 runtime: crt0, stock bindings, native leaves, pad delivery, Record capabilities, cut, title command
 - `titles/spyro1/core/guest_globals.h`, `guest_gp.h`, `guest_functions.h` — S1 guest globals, gp, callee entries, names from the spyro-1 decomp

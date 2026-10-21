@@ -3,6 +3,7 @@
 #include "blend.h"
 #include "core.h"
 #include "render/field/guest_view_slope.h"
+#include "render/field/record_blend.h"
 #include "render/state_producer_override.h"
 #include "spyro1/render/actor_facts.h"
 #include "spyro1/render/moby_shadows.h"
@@ -40,16 +41,18 @@ void drawShadows(Core *core) {
 }
 
 // The record at `t`: position, angles and ground height moved, everything else `to`'s.
-actors::MobyBytes
-shadowRecordBetween(const actors::MobyBytes &from, const actors::MobyBytes &to, float t) {
-  actors::MobyBytes shown = actors::recordBetween(from, to, t);
-  const auto fromGround = actors::load<std::uint32_t>(from, kGround);
-  const auto toGround = actors::load<std::uint32_t>(to, kGround);
+spyro::moby_record::Bytes shadowRecordBetween(const spyro::moby_record::Bytes &from,
+                                              const spyro::moby_record::Bytes &to,
+                                              float t) {
+  spyro::moby_record::Bytes shown = actors::recordBetween(from, to, t);
+  const auto fromGround = spyro::record_blend::load<std::uint32_t>(from, kGround);
+  const auto toGround = spyro::record_blend::load<std::uint32_t>(to, kGround);
   if ((fromGround & 0xFFFFu) != 0 && (toGround & 0xFFFFu) != 0) {
-    actors::store(shown,
-                  kGround,
-                  (toGround & 0xFFFF0000u) |
-                      psx::present::lerpHalf(fromGround, toGround, psx::present::Halfword::Low, t));
+    spyro::record_blend::store(
+        shown,
+        kGround,
+        (toGround & 0xFFFF0000u) |
+            psx::present::lerpHalf(fromGround, toGround, psx::present::Halfword::Low, t));
   }
   return shown;
 }
