@@ -34,7 +34,7 @@ Every Spyro 1 horizontal cull and HUD placement sits inside a whole guest routin
 | sky | cyclorama `0x8004EBA8`, the tail of `0x80050BD0` | native, x outcodes widened, producer (`spyro1::sky::Cyclorama`) |
 | portals | `0x80050BD0`: fill `0x8004FEA0`, near sky `0x8004F4BC` / `0x80050240` | native, producer per portal (`spyro1::portals::Portals`); fill and window on retail's 512x240 |
 | moby shadows | RenderMobyShadows `0x80059F8C` | native, x tests widened, producer per record (`spyro1::shadows::MobyShadows`) |
-| other effects | horn trails `0x80058D64`, motion trails `0x800189F0`, demo overlay `0x80018908`, `0x80058864` | guest, no producer |
+| other effects | flame `0x80058D64`, motion trails `0x800189F0`, demo overlay `0x80018908`, `0x80058864` | guest, no producer |
 
 A widened draw leaves guest state as retail's 4:3 window writes it: a particle's seen byte and a
 sparkle's fade follow `spyro1::kRetailBounds`, so a sparkle in a margin is drawn once and dies as
