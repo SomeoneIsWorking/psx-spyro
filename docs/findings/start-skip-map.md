@@ -79,11 +79,12 @@ Repeated synthetic Start pulses are not a shipping skip mechanism: once the sequ
 gameplay, another pulse opens the pause screen. A shipping implementation must consume one host edge
 inside a positively identified skippable state and release it before the next state reads input.
 
-## The card before the intro (`TSD_Cutscene`), recovered and not cancellable
+## The card before the intro (`TSD_Cutscene`), recovered and cancelled
 
 This is the 384-tick card a NEW GAME flies before the intro cutscene, reached from
 `overlays/titlescreen.c:479` (`m_Mode = TSM_Loading`, `m_State = 5`, `m_DemoType = 0`). Its terminal is
-recovered from the image, and it is the one transition whose terminal **cannot** be dispatched:
+recovered from the image, and it is inline in `GamestateCutsceneTransition` (`0x80032B08`) rather than a
+call pair:
 
 ```
 0x8003300C  lw    $v0, 0x5864($v0)      ; g_LoadStage < 7 -> jal 0x80014564 (LoadCutscene)
@@ -100,18 +101,18 @@ recovered from the image, and it is the one transition whose terminal **cannot**
 0x800330E4  j     0x80033190           ; THE FUNCTION'S OWN EPILOGUE
 ```
 
-Two independent reasons, both structural rather than "the decomp does not say":
+The block ends by branching to the enclosing function's epilogue, which reloads `$ra`, `$s0..$s2`
+from the guest stack and raises `$sp` by `0x38`, and `ClearImage` takes a `RECT` built in that same
+frame at `$sp+0x20`. So the block is entered with the frame its prologue (`0x80032B08..0x80032B28`)
+builds: `$sp` lowered by `0x38`, `$ra` set to the frame update's call site return (`jal 0x80032B08` at
+`0x800339EC`, return `0x800339F4`) and spilled at `+0x34`, `$s2/$s1/$s0` at `+0x30/+0x2C/+0x28`. The
+guest's own instructions then run from `0x8003304C` through the epilogue back to `0x800339F4`, and
+`$sp` comes back to its entry value. Nothing in the block is copied to the host.
 
-1. The block ends by branching to the enclosing function's epilogue, so entering it mid-function runs
-   the block and then reloads `$ra` from the guest stack — the same clobber `docs/issues/0138`
-   measured for stage 9's terminal. No prefix of this block is dispatchable.
-2. `ClearImage` is handed a `RECT` that lives on the guest stack at `$sp+0x20`, and this game has no
-   dispatchable full-screen clear: all twelve `ClearImage` call sites in `external/spyro-1` build the
-   RECT inline, so there is no guest function to call and no address to pass.
-
-The load loop is required I/O and is not the obstacle — running it is the point. What would unblock
-this screen is named in `docs/issues/0151` so it is not re-derived: a framework entry point that can
-run a mid-function guest block with a synthesised frame, or a guest-owned full-screen clear.
+`TransitionSkip` classifies the card as `CutsceneTransitionIntroCard` on a Start or Cross edge while
+`m_Mode == TSM_Demo`, `m_State == TSS_Active`, `m_DemoType == TSD_Cutscene` **and** `g_LoadStage == 7`;
+a press earlier in the load is held, as for the level flyby. `m_Tick` is not written. Shown in the
+product in `docs/issues/0198`.
 
 ## Level-transition tally
 
@@ -159,10 +160,9 @@ Its terminal transition depends on `m_DemoType`, and only one of the three is re
 - `TSD_DemoLevel = 2` runs the same two calls but first writes `g_DemoMode` and `g_DemoFadeTimer`,
   neither of whose guest addresses is recovered here.
 - `TSD_Cutscene = 0` ends somewhere else entirely: `ClearImage`, `AllocateBuffers(1)`, a load loop to
-  stage 10, then `StartCutscenePlayback()` and `g_StateSwitch = 1`.
+  stage 10, then `StartCutscenePlayback()` and `g_StateSwitch = 1`, inline (the section above).
 
-So only `TSD_Level` is cancellable, and the other two are deliberately absent rather than
-approximated.
+`TSD_Level` and `TSD_Cutscene` are cancellable; `TSD_DemoLevel` is the attract demo and stays absent.
 
 ### The two guest addresses, recovered numerically
 
@@ -184,7 +184,7 @@ The decomp names `func_8004AC24` in its own symbol but gives `LoadLevel` no addr
 
 The terminal has **two** conditions: `m_Tick >= 384`, which is presentation, and `g_LoadStage == 13`,
 which is I/O. `titles/spyro1/core/frame/transition_skip.cpp` honours the second and cancels only the first. A Start or
-Cross edge arriving while the level is still streaming is **held** — `flybyPressHeld_`, cleared the
+Cross edge arriving while the level is still streaming is **held** — `flybyPress_`, cleared the
 moment the card is no longer up — and classified on a later frame once the load gate opens. Nothing
 writes `m_Tick`: claim C179 already established that advancing a clock is not a valid skip route, and
 this is the same move.

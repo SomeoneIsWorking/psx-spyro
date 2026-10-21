@@ -16,7 +16,7 @@ namespace spyro1 {
 struct TransitionState {
   std::uint32_t stage = 0;
   std::uint32_t levelTransHudActive = 0;
-  // The flyby card is one branch of one gamestate; only this quadruple identifies it.
+  // The flyby cards are one branch of one gamestate; only this quadruple identifies them.
   std::uint32_t titleMode = 0;
   std::uint32_t titleState = 0;
   std::uint32_t demoType = 0;
@@ -29,9 +29,11 @@ enum class Cancellation : std::uint8_t {
   LevelTransitionTally,
   ReturnHomeSequence,
   CutsceneTransitionFlyby,
+  CutsceneTransitionIntroCard,
 };
 
-// True while the "THE ADVENTURE BEGINS/CONTINUES..." flyby owns the screen, loaded or not.
+// True while "IN THE WORLD OF DRAGONS..." or "THE ADVENTURE BEGINS/CONTINUES..." owns the screen,
+// loaded or not; the attract demo's flyby is excluded.
 bool flybyCardUp(const TransitionState &state);
 
 // Which transition screen, if any, the current state authorises cancelling.
@@ -53,7 +55,7 @@ public:
 private:
   spyro::FieldOwner &fields_;
   std::uint32_t cancellations_ = 0;
-  // A press while the flyby's level streams, held until g_LoadStage reaches 13; dropped with the card.
+  // A press while a flyby card's load streams, held until its load gate opens; dropped with the card.
   PressLatch flybyPress_;
 };
 
