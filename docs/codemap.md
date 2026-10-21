@@ -40,7 +40,7 @@ Dependency direction: `titles/<title>/` (one image's facts and natives) → `gam
 - `titles/spyro1/core/moby/` — S1 mobys / game objects: allocator, lists, transform, animation, collision, collision shade, environment light, shaded queue, shared models (PETE.WAD), level globals table
 - `titles/spyro1/core/player/` — S1 player: Spyro physics, body / head / tail animation, cutscene playback
 - `titles/spyro1/core/camera/` — S1 camera state
-- `titles/spyro1/core/effect/` — S1 effects: ground shadow block and ring, particle pool allocation
+- `titles/spyro1/core/effect/` — S1 effects: ground shadow block and ring, flame block, particle pool allocation
 - `titles/spyro1/core/hud/` — S1 HUD: collectables, pause menu, pixel fade
 - `titles/spyro1/core/input/` — S1 gamepad buffers, input phase for `.pad` recordings
 - `titles/spyro1/core/debug/` — S1 warp route (reset then TSD_Level flyby), `gates` / `gate-teleport` commands
@@ -52,6 +52,7 @@ Dependency direction: `titles/<title>/` (one image's facts and natives) → `gam
 - `titles/spyro1/render/portal*` — S1 portal drawer: outline, far fill, near sky cut to the outline, sky spin, producer
 - `titles/spyro1/render/moby_shadow*` — S1 moby shadows (RenderMobyShadows), producer
 - `titles/spyro1/render/drop_shadow*` — S1 Spyro drop shadow, producer
+- `titles/spyro1/render/flame*` — S1 flame breath (DrawSpyroHornStrikeTrails): tip fans and arc ribbons, producer
 - `titles/spyro1/render/glow*` — S1 glow fans and sparkles, their emitter and sparkle pools, producers
 - `titles/spyro1/render/ordering_table.*` — S1 LinkOTPrimitives / ordering table slots
 - `titles/spyro1/render/hud_anchor.*` — S1 HUD anchor class per HUD record

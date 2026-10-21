@@ -38,6 +38,7 @@
 #include "spyro1/render/actor_emitter_producer.h"
 #include "spyro1/render/actor_list.h"
 #include "spyro1/render/drop_shadow_producer.h"
+#include "spyro1/render/flame_producer.h"
 #include "spyro1/render/glow_pools.h"
 #include "spyro1/render/glow_producers.h"
 #include "spyro1/render/hud_anchor.h"
@@ -163,6 +164,7 @@ void Runtime::registerOverrides(Game &game) {
   actors::registerPairedActorOverrides(game.core);
   sky::registerSkyOverrides(game.core);
   shadow::registerDropShadowOverrides(game.core);
+  flame::registerFlameOverrides(game.core);
   shadows::registerMobyShadowOverrides(game.core);
   portals::registerPortalOverrides(game.core);
   glows::registerGlowOverrides(game.core);

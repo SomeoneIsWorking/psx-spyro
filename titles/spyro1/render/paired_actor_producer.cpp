@@ -6,6 +6,7 @@
 #include "render/field/keyframe_blend.h"
 #include "render/field/record_blend.h"
 #include "render/state_producer_override.h"
+#include "spyro1/core/effect/flame_block.h"
 #include "spyro1/render/actor_between.h"
 #include "spyro1/render/paired_actor.h"
 #include "spyro1/render/paired_actor_layout.h"
@@ -20,10 +21,6 @@ namespace {
 namespace memory = spyro::guest_memory;
 using terrain::kRenderGlobals;
 
-// g_anSpyroHornStrikeAnchorPos + 0xB8: the five rotation words the routine may write there.
-constexpr std::uint32_t kHornRotation = kHornAnchor + 0xB8u;
-constexpr std::uint32_t kHornRotationBytes = 0x14u;
-
 void drawSpyro(Core *core) {
   Core &guest = *core;
   spyro::guest_render_globals::spillBorrowedRegisters(guest, kRenderGlobals);
@@ -31,7 +28,7 @@ void drawSpyro(Core *core) {
       binnedWorkingRanges(guest,
                           GuestSpan{kVertexScreens, psx::kScratchpadBytes},
                           GuestSpan{kWorkBlock, kWorkBlockBytes},
-                          GuestSpan{kHornRotation, kHornRotationBytes});
+                          GuestSpan{flame_block::kRotation, flame_block::kRotationBytes});
   psx::present::LevelReads reads;
   const psx::present::EmitMemory memory(guest, reads, working);
   PairedActorState state{.camera = spyro::guest_terrain::readCamera(guest, kRenderGlobals)};
@@ -93,7 +90,7 @@ void PairedActorProducer::render(const psx::present::StateInterval &states,
       core_, terrain::kTerrainImage, before.header.camera, after.header.camera, states.t));
   between.mapTable();
   between.provide(kSpyroRecord, spyroBetween(before.header.record, after.header.record, states.t));
-  between.host().zero(kHornRotation, kHornRotationBytes);
+  between.host().zero(flame_block::kRotation, flame_block::kRotationBytes);
   PairedActor actor(core_, between.memory(), &sink);
   if (actor.draw()) {
     between.emitBins(sink);
