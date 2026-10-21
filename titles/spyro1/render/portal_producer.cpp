@@ -104,7 +104,7 @@ void PortalProducer::render(const psx::present::StateInterval &states,
                          before.header.spin.yaw, after.header.spin.yaw, kTurnBits, states.t),
                      .pitch = psx::present::lerpTurn(
                          before.header.spin.pitch, after.header.spin.pitch, kTurnBits, states.t)};
-  Portals portals(core_, between.memory());
+  Portals portals(core_, between.memory(), &sink);
   if (const std::optional<Approach> approach = portals.drawFar(after.header.index)) {
     portals.drawNear(
         *approach,

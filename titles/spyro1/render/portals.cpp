@@ -14,6 +14,7 @@
 #include "spyro1/render/sky.h"
 #include "spyro1/render/terrain_facts.h"
 #include "spyro1/render/terrain_image.h"
+#include "state_producer.h"
 
 #include <algorithm>
 #include <cstdlib>
@@ -31,9 +32,6 @@ using terrain::kRenderGlobals;
 
 // D_8006CB8C: the two triangles that cover the screen, three packed points each.
 constexpr std::uint32_t kScreenTriangles = 0x8006CB8Cu;
-// The fill queues the pieces a clip splits off here, four words each (8004FF00).
-constexpr std::uint32_t kPieces = actors::kWorkBlock + 0x800u;
-constexpr std::uint32_t kPieceBytes = 0x10u;
 // The near sky's pieces, three points, three colours and their edge, stacked from kPieces
 // (8004F920).
 constexpr std::uint32_t kShadedPieceBytes = 0x1Cu;
@@ -95,8 +93,19 @@ std::uint32_t packed(std::uint32_t x, std::uint32_t y) {
 
 } // namespace
 
-Portals::Portals(Core &core, const psx::present::EmitMemory &memory)
-    : core_(core), memory_(memory) {}
+Portals::Portals(Core &core,
+                 const psx::present::EmitMemory &memory,
+                 psx::present::PrimitiveSink *places)
+    : core_(core), memory_(memory), places_(places) {}
+
+std::array<GtePlace, 3> &Portals::piecePlaces(std::uint32_t piece, std::uint32_t bytes) {
+  const std::uint32_t slot = (piece - kPieces) / bytes;
+  if (slot >= pieces_.size()) {
+    lucent::error("spyro1-portals", "piece 0x{:08X} is past the work block", piece);
+    std::abort();
+  }
+  return pieces_[slot];
+}
 
 std::uint32_t
 Portals::colourToward(std::uint32_t colour, std::uint32_t target, std::uint32_t amount) {
@@ -146,6 +155,9 @@ Portals::appendEdge(std::uint32_t i, std::uint32_t j, std::uint32_t &edges) {
   memory_.mem_w32(at + edge::kA, a);
   memory_.mem_w32(at + edge::kB, b);
   memory_.mem_w32(at + edge::kC, (0u - a) * asWord(from.x) - b * asWord(from.y));
+  if (places_ != nullptr) {
+    edgeEnds_.at(edges) = {outline_.at(i), outline_.at(j)};
+  }
   ++edges;
   return std::array<std::uint32_t, 2>{absolute(asWord(from.x) - asWord(to.x)),
                                       absolute(asWord(from.y) - asWord(to.y))};
@@ -270,6 +282,9 @@ std::optional<Approach> Portals::drawFar(std::uint32_t index) {
     gte.writeData(gte::kVxy0, packed(sra(cameraY - y, shift), sra(cameraZ - z, shift)));
     gte.execute(gte::kRtps);
     const std::uint32_t screen = gte.readData(gte::kSxy2);
+    if (places_ != nullptr) {
+      outline_.at(i) = gte.projectedPlace(2);
+    }
     const std::uint32_t out = kProjected + i * portal::kPointBytes;
     memory_.mem_w32(out, signedHalf(screen));
     memory_.mem_w32(out + 4, sra(screen, 16));
@@ -373,7 +388,8 @@ void Portals::drawSky(std::uint32_t skyAt, bool fading, const sky::Rotations &ro
       memory_,
       spyro::guest_terrain::ScreenBounds::edges(asSigned(sra(memory_.mem_r32(kWindow + 0xC), 16)),
                                                 asSigned(sra(memory_.mem_r32(kWindow + 0x8), 16)),
-                                                vertical));
+                                                vertical),
+      places_);
   std::optional<sky::SkyFade> fade;
   if (fading) {
     fade = sky::SkyFade{.colour = memory_.mem_r32(kFadeColour), .step = memory_.mem_r32(kFadeStep)};
@@ -393,10 +409,17 @@ std::optional<std::pair<std::uint32_t, bool>> Portals::outlineNear(const Approac
     for (std::uint32_t axis = 0; axis < 2; ++axis) {
       const std::int32_t value = asSigned(memory_.mem_r32(point + axis * 4));
       const std::int32_t middle = asSigned(approach.average[axis]);
+      std::int32_t push = 0;
       if (middle < value) {
-        memory_.mem_w32(point + axis * 4, asWord(value) + kNearPush);
+        push = static_cast<std::int32_t>(kNearPush);
       } else if (value < middle) {
-        memory_.mem_w32(point + axis * 4, asWord(value) - kNearPush);
+        push = -static_cast<std::int32_t>(kNearPush);
+      }
+      if (push != 0) {
+        memory_.mem_w32(point + axis * 4, asWord(value + push));
+        if (places_ != nullptr) {
+          (axis == 0 ? outline_.at(i).x : outline_.at(i).y) += static_cast<float>(push);
+        }
       }
     }
     const Point pushed = projected(i);
@@ -442,9 +465,13 @@ void Portals::fill(std::uint32_t colour) {
   std::uint32_t cursor = memory_.mem_r32(kRenderGlobals.primitiveCursor);
   const std::uint32_t slot =
       memory_.mem_r32(kRenderGlobals.orderingTable) + (memory_.mem_r32(kBin) << 3);
+  const auto screenCorner = [this](std::uint32_t at) {
+    const std::uint32_t point = memory_.mem_r32(at);
+    return Corner{.point = point, .place = psx::present::wholePlace(point)};
+  };
   for (std::uint32_t triangle = 0; triangle < 2; ++triangle) {
     const std::uint32_t corners = kScreenTriangles + triangle * 12;
-    clip({memory_.mem_r32(corners), memory_.mem_r32(corners + 4), memory_.mem_r32(corners + 8)},
+    clip({screenCorner(corners), screenCorner(corners + 4), screenCorner(corners + 8)},
          kEdges,
          queued,
          cursor,
@@ -452,7 +479,10 @@ void Portals::fill(std::uint32_t colour) {
          slot);
   }
   for (std::uint32_t piece = kPieces; piece != queued; piece += kPieceBytes) {
-    clip({memory_.mem_r32(piece), memory_.mem_r32(piece + 4), memory_.mem_r32(piece + 8)},
+    const std::array<GtePlace, 3> &places = piecePlaces(piece, kPieceBytes);
+    clip({Corner{.point = memory_.mem_r32(piece), .place = places[0]},
+          Corner{.point = memory_.mem_r32(piece + 4), .place = places[1]},
+          Corner{.point = memory_.mem_r32(piece + 8), .place = places[2]}},
          memory_.mem_r32(piece + 12),
          queued,
          cursor,
@@ -465,63 +495,73 @@ void Portals::fill(std::uint32_t colour) {
 // 0x8004FF90: the triangle cut by each edge in turn; a corner past an edge is moved onto it, and
 // when one corner was cut off the quad left over queues its second half to go on from the next
 // edge.
-void Portals::clip(std::array<std::uint32_t, 3> p,
+void Portals::clip(std::array<Corner, 3> p,
                    std::uint32_t at,
                    std::uint32_t &queued,
                    std::uint32_t &cursor,
                    std::uint32_t command,
                    std::uint32_t slot) {
-  const auto queue = [&](std::uint32_t a, std::uint32_t b, std::uint32_t c, std::uint32_t next) {
-    memory_.mem_w32(queued, a);
-    memory_.mem_w32(queued + 4, b);
-    memory_.mem_w32(queued + 8, c);
+  const auto queue = [&](const Corner &a, const Corner &b, const Corner &c, std::uint32_t next) {
+    memory_.mem_w32(queued, a.point);
+    memory_.mem_w32(queued + 4, b.point);
+    memory_.mem_w32(queued + 8, c.point);
     memory_.mem_w32(queued + 12, next);
+    if (places_ != nullptr) {
+      piecePlaces(queued, kPieceBytes) = {a.place, b.place, c.place};
+    }
     queued += kPieceBytes;
+  };
+  // The fill's crossings carry no colour.
+  const auto cross = [&](const Corner &inside, const Corner &outside) {
+    const Corner found = crossing({.point = inside.point, .place = inside.place},
+                                  {.point = outside.point, .place = outside.place},
+                                  at);
+    return Corner{.point = found.point, .place = found.place};
   };
   for (;; at += kEdgeBytes) {
     if (memory_.mem_r32(at + edge::kFlag) == 0) {
       break;
     }
     const std::uint32_t next = at + kEdgeBytes;
-    switch (outsideCorners(p, at)) {
+    switch (outsideCorners({p[0].point, p[1].point, p[2].point}, at)) {
     case 0:
       continue;
     case kFirstOut: {
-      const std::uint32_t a = crossing({p[1]}, {p[0]}, at).point;
-      const std::uint32_t b = crossing({p[2]}, {p[0]}, at).point;
+      const Corner a = cross(p[1], p[0]);
+      const Corner b = cross(p[2], p[0]);
       queue(a, p[2], b, next);
       p[0] = a;
       continue;
     }
     case kSecondOut: {
-      const std::uint32_t a = crossing({p[0]}, {p[1]}, at).point;
-      const std::uint32_t b = crossing({p[2]}, {p[1]}, at).point;
+      const Corner a = cross(p[0], p[1]);
+      const Corner b = cross(p[2], p[1]);
       queue(a, b, p[2], next);
       p[1] = a;
       continue;
     }
     case kFirstOut | kSecondOut: {
-      const std::uint32_t a = crossing({p[2]}, {p[0]}, at).point;
-      p[1] = crossing({p[2]}, {p[1]}, at).point;
+      const Corner a = cross(p[2], p[0]);
+      p[1] = cross(p[2], p[1]);
       p[0] = a;
       continue;
     }
     case kThirdOut: {
-      const std::uint32_t a = crossing({p[0]}, {p[2]}, at).point;
-      const std::uint32_t b = crossing({p[1]}, {p[2]}, at).point;
+      const Corner a = cross(p[0], p[2]);
+      const Corner b = cross(p[1], p[2]);
       queue(a, p[1], b, next);
       p[2] = a;
       continue;
     }
     case kFirstOut | kThirdOut: {
-      const std::uint32_t a = crossing({p[1]}, {p[0]}, at).point;
-      p[2] = crossing({p[1]}, {p[2]}, at).point;
+      const Corner a = cross(p[1], p[0]);
+      p[2] = cross(p[1], p[2]);
       p[0] = a;
       continue;
     }
     case kSecondOut | kThirdOut: {
-      const std::uint32_t a = crossing({p[0]}, {p[1]}, at).point;
-      p[2] = crossing({p[0]}, {p[2]}, at).point;
+      const Corner a = cross(p[0], p[1]);
+      p[2] = cross(p[0], p[2]);
       p[1] = a;
       continue;
     }
@@ -531,9 +571,12 @@ void Portals::clip(std::array<std::uint32_t, 3> p,
   }
   memory_.mem_w32(cursor, spyro::guest_packet::kF3Tag);
   memory_.mem_w32(cursor + 0x04, command);
-  memory_.mem_w32(cursor + 0x08, p[0]);
-  memory_.mem_w32(cursor + 0x0C, p[1]);
-  memory_.mem_w32(cursor + 0x10, p[2]);
+  memory_.mem_w32(cursor + 0x08, p[0].point);
+  memory_.mem_w32(cursor + 0x0C, p[1].point);
+  memory_.mem_w32(cursor + 0x10, p[2].point);
+  if (places_ != nullptr) {
+    places_->placeCorners(cursor, {{p[0].place, p[1].place, p[2].place}});
+  }
   spyro::depth_bins::linkIntoBin(memory_, slot, cursor, cursor);
   cursor += spyro::guest_packet::kF3Bytes;
 }
@@ -550,6 +593,9 @@ void Portals::cutShaded(std::array<Corner, 3> q, std::uint32_t at, sky::Cycloram
     memory_.mem_w32(piece + 0x10, b.colour);
     memory_.mem_w32(piece + 0x14, c.colour);
     memory_.mem_w32(piece + 0x18, at);
+    if (places_ != nullptr) {
+      piecePlaces(piece, kShadedPieceBytes) = {a.place, b.place, c.place};
+    }
     memory_.mem_w32(kPieceQueue, piece + kShadedPieceBytes);
   };
   for (;; at += kEdgeBytes) {
@@ -596,15 +642,25 @@ void Portals::cutShaded(std::array<Corner, 3> q, std::uint32_t at, sky::Cycloram
       return;
     }
   }
-  sky.emit({.points = {q[0].point, q[1].point, q[2].point},
-            .colours = {q[0].colour, q[1].colour, q[2].colour}},
-           q[0].colour == q[1].colour && q[0].colour == q[2].colour);
+  sky::SkyTriangle drawn{.points = {q[0].point, q[1].point, q[2].point},
+                         .colours = {q[0].colour, q[1].colour, q[2].colour}};
+  if (places_ != nullptr) {
+    drawn.places = std::array<GtePlace, 3>{q[0].place, q[1].place, q[2].place};
+  }
+  sky.emit(drawn, q[0].colour == q[1].colour && q[0].colour == q[2].colour);
 }
 
 void Portals::cut(const sky::SkyTriangle &triangle, sky::Cyclorama &sky) {
   const auto &p = triangle.points;
   const auto &c = triangle.colours;
-  cutShaded({Corner{p[0], c[0]}, Corner{p[1], c[1]}, Corner{p[2], c[2]}}, kEdges, sky);
+  std::array<GtePlace, 3> places{};
+  if (triangle.places) {
+    places = *triangle.places;
+  }
+  cutShaded(
+      {Corner{p[0], c[0], places[0]}, Corner{p[1], c[1], places[1]}, Corner{p[2], c[2], places[2]}},
+      kEdges,
+      sky);
 }
 
 // 8004FC98..8004FD0C: the queued pieces last first, each from the edge after the one that split it.
@@ -613,8 +669,11 @@ void Portals::finishSector(sky::Cyclorama &sky) {
        piece = memory_.mem_r32(kPieceQueue)) {
     piece -= kShadedPieceBytes;
     memory_.mem_w32(kPieceQueue, piece);
-    const auto corner = [this, piece](std::uint32_t n) {
-      return Corner{memory_.mem_r32(piece + n * 4), memory_.mem_r32(piece + 0x0C + n * 4)};
+    const std::array<GtePlace, 3> places =
+        places_ != nullptr ? piecePlaces(piece, kShadedPieceBytes) : std::array<GtePlace, 3>{};
+    const auto corner = [this, piece, &places](std::uint32_t n) {
+      return Corner{
+          memory_.mem_r32(piece + n * 4), memory_.mem_r32(piece + 0x0C + n * 4), places[n]};
     };
     cutShaded({corner(0), corner(1), corner(2)}, memory_.mem_r32(piece + 0x18) + kEdgeBytes, sky);
   }
@@ -657,7 +716,7 @@ Portals::Corner Portals::crossing(Corner inside, Corner outside, std::uint32_t a
   const std::uint32_t along = a * dx + b * dy;
   if (along == 0) {
     // 8004FE98: retail returns with its scratch registers as they stand.
-    return Corner{.point = x0, .colour = y0 | dy};
+    return Corner{.point = x0, .colour = y0 | dy, .place = inside.place};
   }
   const std::uint32_t side = ((a * x0 + c + b * y0) << kCrossingShift) + kCrossingRound;
   gte.writeData(gte::kIr0, ((0u - psx::cpu::quotient({side, along})) << kFractionShift) + kFractionRound);
@@ -665,7 +724,24 @@ Portals::Corner Portals::crossing(Corner inside, Corner outside, std::uint32_t a
   const std::uint32_t point =
       (gte.readData(gte::kMac2) << 16) | (gte.readData(gte::kMac1) & 0xFFFFu);
   gte.execute(gte::kDpcs);
-  return Corner{.point = point, .colour = spyro::guest_packet::kG3Code | gte.readData(gte::kRgb2)};
+  return Corner{.point = point,
+                .colour = spyro::guest_packet::kG3Code | gte.readData(gte::kRgb2),
+                .place = places_ != nullptr ? crossingPlace(inside.place, outside.place, at)
+                                            : GtePlace{}};
+}
+
+GtePlace Portals::crossingPlace(GtePlace inside, GtePlace outside, std::uint32_t at) const {
+  const auto &[from, to] = edgeEnds_.at((at - kEdges) / kEdgeBytes);
+  const float a = from.y - to.y;
+  const float b = to.x - from.x;
+  const float c = -a * from.x - b * from.y;
+  const float along = a * (outside.x - inside.x) + b * (outside.y - inside.y);
+  if (along == 0.0f) {
+    return inside;
+  }
+  const float fraction = std::clamp(-(a * inside.x + b * inside.y + c) / along, 0.0f, 1.0f);
+  return {inside.x + (outside.x - inside.x) * fraction,
+          inside.y + (outside.y - inside.y) * fraction};
 }
 
 SkySpin advanceSkySpin(Core &core) {
