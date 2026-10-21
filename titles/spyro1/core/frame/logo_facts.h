@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
 #pragma once
 
 #include "core/title_logo_facts.h"

@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
 // A title's own logo, snapshotted from its live VRAM while its title screen is on it.
 #pragma once
 
