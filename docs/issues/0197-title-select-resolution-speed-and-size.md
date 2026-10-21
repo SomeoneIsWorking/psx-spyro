@@ -1,6 +1,6 @@
 # 0197: title select is low-resolution, slow and wrongly sized
 
-Status: fixed headless; the real-window check (menu over the selector, real-time pacing, the player's display resolution) is still owed
+Status: fixed headless; the real-window check (real-time pacing, the player's display resolution) is still owed
 
 ## Observed
 USER, 2026-10-20: "title select is bad (ires, speed, size)".
@@ -60,8 +60,8 @@ boots; Spyro 1/2/3 `warp 10` gameplay in `gameplay-montage.png`):
   in colour, the others grey and dimmed, gold seams.
 - `tap right` x3, `tap left`: `selected panel 1`, `2`, `0`, `2`; `tap l2`, `tap r2`: no selection change;
   `select right` / `select left`: `0`, `2`.
-- `menu on`: replies `menu: shown`, but no capture shows it: RmlUi is drawn only onto the swapchain and
-  `pshot` reads the present image, so the menu over the selector still needs the real-window check.
+- `menu on`: the menu is drawn over the selector (`scratch/overlay-shot/run/selector-menu.png`; `pshot`
+  now captures the window's screen pass, overlay included).
   `menu nav down`, `menu nav enter`: handled, the dump reads
   `Internal Resolution = X2` (was `Vanilla`), and the running panel's picture shows the finer raster
   (`selector-fast-after-menu.png`).
