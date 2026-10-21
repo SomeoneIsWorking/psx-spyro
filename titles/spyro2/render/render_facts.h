@@ -167,6 +167,8 @@ inline constexpr spyro::field_redraw::Facts kFieldFacts{
             .glows = 0x80067D00u,     // 8004ACAC
             .beams = 0x8006B400u,     // 8004B1CC
             .trails = 0x8006A2B4u,    // 8004B730
+            .trailBytes = 0x30u,      // 8004B73C
+            .trailHead = 0x28u,       // 8004B748: 6 points
             .meshes = 0x80069F30u,    // 80015618
             .particles = 0x80066F18u, // 800481DC
         },

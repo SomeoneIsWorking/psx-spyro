@@ -31,13 +31,12 @@ inline constexpr std::uint32_t kColour = 0x18;
 inline constexpr std::uint32_t kSegments = 0x1C; // 0: free
 } // namespace beam
 
-// Trails, 0x8004B72C (filled by 0x800502FC): owner, a ring of halfword points, head and count.
+// Trails, 0x8004B72C (filled by 0x800502FC): owner, a ring of halfword points up to the head and
+// count bytes (Facts::trailHead).
 namespace trail {
 inline constexpr std::uint32_t kOwner = 0x00; // 0: free
 inline constexpr std::uint32_t kPoints = 0x04;
 inline constexpr std::uint32_t kPointBytes = 6;
-inline constexpr std::uint32_t kHead = 0x28;
-inline constexpr std::uint32_t kCount = 0x29; // 2 to 6
 } // namespace trail
 
 // Particles, 0x80048128: texture, kind and age bytes, then per kind a point or a line.
@@ -58,13 +57,14 @@ void readPool(Core &core, std::uint32_t address, Pool<Bytes, Count> &pool) {
   core.readBytes(address, std::as_writable_bytes(std::span(pool)));
 }
 
-// The words of `shown` that differ from `to`'s, written at `address`.
+// The first `bytes` of `shown`'s words that differ from `to`'s, written at `address`.
 template <std::size_t N>
 void writeChanged(psx::present::GuestRedraw &run,
                   std::uint32_t address,
+                  std::uint32_t bytes,
                   const std::array<std::uint8_t, N> &to,
                   const std::array<std::uint8_t, N> &shown) {
-  for (std::uint32_t at = 0; at < N; at += 4) {
+  for (std::uint32_t at = 0; at < bytes; at += 4) {
     if (load<std::uint32_t>(shown, at) != load<std::uint32_t>(to, at)) {
       run.writeWord(address + at, load<std::uint32_t>(shown, at));
     }
@@ -94,10 +94,11 @@ void pointBetween(std::array<std::uint8_t, N> &shown,
   }
 }
 
-// Each slot that `same` pairs, moved by `move`, written over `to`'s.
+// Each slot that `same` pairs, moved by `move`, written over `to`'s; slots are `stride` apart.
 template <std::size_t Bytes, std::size_t Count, typename Same, typename Move>
 void poolBetween(psx::present::GuestRedraw &run,
                  std::uint32_t address,
+                 std::uint32_t stride,
                  const Pool<Bytes, Count> &from,
                  const Pool<Bytes, Count> &to,
                  Same same,
@@ -108,7 +109,7 @@ void poolBetween(psx::present::GuestRedraw &run,
     }
     std::array<std::uint8_t, Bytes> shown = to[i];
     move(shown, from[i], to[i]);
-    writeChanged(run, address + static_cast<std::uint32_t>(i * Bytes), to[i], shown);
+    writeChanged(run, address + static_cast<std::uint32_t>(i) * stride, stride, to[i], shown);
   }
 }
 
@@ -164,8 +165,11 @@ void particlesBetween(psx::present::GuestRedraw &run,
               ? record_blend::byteBetween(before[particle::kSpin], after[particle::kSpin], t)
               : record_blend::angleBetween(before[particle::kSpin], after[particle::kSpin], t);
     }
-    writeChanged(
-        run, to.particlePool + static_cast<std::uint32_t>(i) * kParticleBytes, after, shown);
+    writeChanged(run,
+                 to.particlePool + static_cast<std::uint32_t>(i) * kParticleBytes,
+                 kParticleBytes,
+                 after,
+                 shown);
   }
 }
 
@@ -175,7 +179,10 @@ void read(Core &core, const Facts &facts, Records &records) {
   readPool(core, facts.sprites, records.sprites);
   readPool(core, facts.glows, records.glows);
   readPool(core, facts.beams, records.beams);
-  readPool(core, facts.trails, records.trails);
+  for (std::size_t i = 0; i < records.trails.size(); ++i) {
+    core.readBytes(facts.trails + static_cast<std::uint32_t>(i) * facts.trailBytes,
+                   std::as_writable_bytes(std::span(records.trails[i]).first(facts.trailBytes)));
+  }
   readPool(core, facts.meshes, records.meshes);
   for (std::size_t i = 0; i < records.meshes.size(); ++i) {
     std::vector<std::uint32_t> &vertices = records.meshVertices[i];
@@ -203,6 +210,7 @@ void writeBetween(psx::present::GuestRedraw &run,
   poolBetween(
       run,
       facts.sprites,
+      kSpriteBytes,
       from.sprites,
       to.sprites,
       [](const auto &a, const auto &b) {
@@ -216,6 +224,7 @@ void writeBetween(psx::present::GuestRedraw &run,
   poolBetween(
       run,
       facts.glows,
+      kGlowBytes,
       from.glows,
       to.glows,
       [](const auto &a, const auto &b) {
@@ -229,6 +238,7 @@ void writeBetween(psx::present::GuestRedraw &run,
   poolBetween(
       run,
       facts.beams,
+      kBeamBytes,
       from.beams,
       to.beams,
       [](const auto &a, const auto &b) {
@@ -239,24 +249,28 @@ void writeBetween(psx::present::GuestRedraw &run,
         positionBetween(shown, a, b, 0, t);
         positionBetween(shown, a, b, beam::kEnd, t);
       });
+  const std::uint32_t head = facts.trailHead;
+  const std::uint32_t countAt = head + 1;
   poolBetween(
       run,
       facts.trails,
+      facts.trailBytes,
       from.trails,
       to.trails,
-      [](const auto &a, const auto &b) {
-        const std::uint32_t count = b[trail::kCount];
+      [head, countAt](const auto &a, const auto &b) {
+        const std::uint32_t points = b[countAt];
         return load<std::uint32_t>(b, trail::kOwner) != 0 &&
                load<std::uint32_t>(a, trail::kOwner) == load<std::uint32_t>(b, trail::kOwner) &&
-               a[trail::kCount] == count && count >= 2 && count <= 6;
+               a[countAt] == points && points >= 2 &&
+               trail::kPoints + points * trail::kPointBytes <= head;
       },
-      [t](auto &shown, const auto &a, const auto &b) {
+      [t, head, countAt](auto &shown, const auto &a, const auto &b) {
         // The point `age` fields old, in each ring.
-        const std::uint32_t count = b[trail::kCount];
-        const auto slot = [count](const auto &ring, std::uint32_t age) {
-          return trail::kPoints + ((ring[trail::kHead] + count - age) % count) * trail::kPointBytes;
+        const std::uint32_t points = b[countAt];
+        const auto slot = [head, points](const auto &ring, std::uint32_t age) {
+          return trail::kPoints + ((ring[head] + points - age) % points) * trail::kPointBytes;
         };
-        for (std::uint32_t age = 0; age < count; ++age) {
+        for (std::uint32_t age = 0; age < points; ++age) {
           const std::uint32_t before = slot(a, age);
           const std::uint32_t after = slot(b, age);
           for (std::uint32_t axis = 0; axis < 3; ++axis) {

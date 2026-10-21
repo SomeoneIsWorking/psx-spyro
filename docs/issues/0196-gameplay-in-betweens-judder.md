@@ -101,9 +101,43 @@ fairy's wings and Spyro's legs and tail lie between presents 31 and 33 where the
 33's pose (`scratch/s2effects/g11-32-fairy.png`, `g11-32-spyro.png`). Captures
 `scratch/s2effects/g{10,11,22}/spyro2-seq`.
 
+## Spyro 3 (2026-10-21)
+Observed: fps60, 16:9, hidden window, `warp` 10, 40 presents while turning: adjacent differences
+0.0 and 8.9..18.8 alternating; census span-miss 554758 of 1267963 primitives (only the terrain
+keyed), so every in-between was frame n whole.
+
+Cause: SCUS_944.67 bound no field facts, so `spyro::registerEngineRenderOverrides` installed only
+the terrain producer and the plain flatten; everything the dispatcher `0x8001E460` draws besides
+the terrain (mobys, Spyro, effects, HUD, sky, fades) carried no key.
+
+Fix: `spyro3::kFieldFacts` (`titles/spyro3/render/render_facts.h`) binds the shared
+`spyro::field_redraw` to this image: the dispatcher `0x8001E460`, its letterbox `0x8001FF44`,
+the draw's camera copy `0x8006E02C`, Spyro at `0x80070328` and the effects pools. The trail
+pool is the one layout that differs (0x6C records, head and count at +0x64, up to 16 points,
+against Spyro 2's 0x30, +0x28, 6), so `effect_pools::Facts` carries the record size and head
+offset and reads and writes each trail at the image's stride.
+
+Proof (fps60, 16:9, hidden window, 40 presents each): `warp` 10, 11, 20 while turning, and
+level 10 from 40 fields after arrival with the HUD in. Census: span-miss stays at the
+pre-gameplay count from arrival to shutdown on every level (10: 9826, 11: 10246, 20: 10034),
+unkeyed 0, keyed without render 0. Adjacent differences even (10: 5.9..13.7, 11: 6.1..9.8,
+20: 5.6..10.1, 10 early: 6.4..13.7); each in-between 0.89..1.25x as far from its previous present
+as from its next, each about 0.7 of the distance between them, and 84..93% of its changing pixels
+between them. Real presents are pixel-identical to the previous build (0.00 on every odd present
+of level 10), only in-betweens changed. Pictures: Spyro's glide pose, Sparx and a gem advance
+between presents with no crack (`scratch/s3field/f10-spyro.png`, `g20-sheet.png`); the gem
+counter at the left edge, lives centred and eggs at the right edge stay put on in-betweens
+while the 3D gem icon turns (`e10-hud.png`). Spyro 2 level 11 after the trail change:
+pixel-identical to the previous build on all 40 presents. Captures
+`scratch/s3field/{f10,g11,g20,e10}/spyro3-{seq,early}`, `s2g11/spyro2-seq`.
+
+Left on Spyro 3: the Atlas (Select) is not a gameplay field; its frames show whole (span-miss
+grows while it is open). The trail pool was not seen drawing on these routes, so its pairing is
+read from the drawer.
+
 ## Next
 Spyro 2: the opening conversation box is linked by logic before the dispatcher, so the redraw
 keeps n+1's box; moving it needs its drawer (FUN_8004D2D8 / FUN_8004A374) re-run at the in-between
-in place of logic's packets. Spyro 3: no field producer, so its in-betweens still repeat frame n. Spyro 1's horn and motion trails and demo overlay (issue 0186)
+in place of logic's packets. Spyro 1's horn and motion trails and demo overlay (issue 0186)
 show their frames whole when drawn. A real-time check by the operator is still to do: these runs
 measure the composed images, not the play feel.

@@ -144,6 +144,38 @@ inline constexpr spyro::guest_moby::Facts kMobyFacts{
     .exitV0 = 0x8006E388u,
 };
 
+// The field's draw dispatcher, FUN_8001E460, FUN_800155A0's body over this image's drawers, called
+// by each state handler (gameplay FUN_8001D274) with $a0 = 0x3D.
+//
+//   8001E494  a0 bit 4 calls FUN_8001EC24, the terrain drawer's caller
+//   8001E6D4  FUN_8004F178 copies the camera position to 0x8006E02C before the handler runs
+//   8003CDE8  the Spyro drawer FUN_8003CDA0's base 0x80070328, laid out as SCUS_944.25's 0x80069FF0
+//   8001E5F0  the letterbox FUN_8001FF44, its only call site
+inline constexpr spyro::field_redraw::Facts kFieldFacts{
+    .entry = 0x8001E460u,
+    .overrideName = "spyro3-field-dispatcher",
+    .terrainFlag = 0x4u,
+    .drawCameraPosition = 0x8006E02Cu,
+    .spyroPosition = 0x80070328u,
+    .spyroAngles = 0x80070334u,
+    .spyroHeadAngles = 0x80070338u,
+    .spyroKeyframes = 0x8007033Cu,
+    .spyroKeyProgress = 0x80070344u,
+    .effects =
+        {
+            .sprites = 0x8006E1F4u,   // 8002ECCC
+            .glows = 0x8006DEF8u,     // 8002F0CC
+            .beams = 0x80072430u,     // 8002F5EC
+            .trails = 0x80070610u,    // 8002FB6C
+            .trailBytes = 0x6Cu,      // 8002FB78
+            .trailHead = 0x64u,       // 8002FB84: 16 points
+            .meshes = 0x80070260u,    // 8001E4D8
+            .particles = 0x8006C554u, // 8003AAE8
+        },
+    .lastDrawer = 0x8001FF44u,
+    .lastDrawerName = "spyro3-field-letterbox",
+};
+
 // The flatten, FUN_8004E664: FUN_8001B2A8's body over this image's table (8006C634) and mark
 // (8006C7D4), plus the chain's tail stored at 8006C6B0. The draw 0x8001E638 calls it once per frame
 // (8001EB74, or 8001E994 / 8001EAC0 in states 4 and 0xD); FUN_80020168 calls it at 80020290.
@@ -160,6 +192,7 @@ inline constexpr spyro::EngineRenderFacts kRenderFacts{
     .globals = kRenderGlobals,
     .terrain = kTerrainFacts,
     .moby = kMobyFacts,
+    .field = kFieldFacts,
     .flatten = kFlatten,
     .flattenName = "spyro3-depth-bins",
     .unbinnedFlattens = kSecondPassFlattenReturns,
