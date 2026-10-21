@@ -19,3 +19,7 @@ keys every packet it writes). The known guest drawers are the moby drawers (FUN_
 FUN_80046FD8, close mobys FUN_800499D4), the HUD FUN_80053E78, the sky and the particles. Each is one
 guest call that loops over its own list (re-frontier `guest.moby-provenance`), so a key per object
 needs that drawer native.
+
+Since an in-between with any unkeyed primitive is shown whole (issue 0196), these drawers decide
+whether Spyro 2 interpolates at all. Spyro 1 reached keyed-only gameplay frames by porting each
+drawer the census named and keying it per object (issue 0186); the same applies here.

@@ -5,6 +5,13 @@
 namespace spyro::guest_terrain {
 
 namespace gte = psx::gte;
+
+void loadFarColour(psx::cpu::Gte &gte, std::uint32_t colour) {
+  gte.writeControl(gte::kFarRed, (colour << 4) & 0xFF0u);
+  gte.writeControl(gte::kFarGreen, (colour >> 4) & 0xFF0u);
+  gte.writeControl(gte::kFarBlue, (colour >> 12) & 0xFF0u);
+}
+
 void loadFogColour(const psx::present::EmitMemory &memory, Core &core, const Facts &facts) {
   core.gte().writeControl(gte::kFarRed, memory.mem_r32(facts.fogColour));
   core.gte().writeControl(gte::kFarGreen, memory.mem_r32(facts.fogColour + 4));
@@ -18,11 +25,19 @@ std::uint32_t fogColours(const psx::present::EmitMemory &memory,
                          std::uint32_t end,
                          std::uint32_t fog) {
   loadFogColour(memory, core, facts);
+  return fadeColours(memory, core, colours, end, fog, facts.foggedColours);
+}
+
+std::uint32_t fadeColours(const psx::present::EmitMemory &memory,
+                          Core &core,
+                          std::uint32_t colours,
+                          std::uint32_t end,
+                          std::uint32_t fade,
+                          std::uint32_t to) {
   std::uint32_t from = colours;
-  core.gte().writeData(gte::kIr0, fog);
+  core.gte().writeData(gte::kIr0, fade);
   core.gte().writeData(gte::kRgbc, memory.mem_r32(from));
   from += 4;
-  std::uint32_t to = facts.foggedColours;
   do {
     core.gte().execute(gte::kDpcs);
     const std::uint32_t next = memory.mem_r32(from);

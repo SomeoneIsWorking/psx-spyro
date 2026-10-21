@@ -22,7 +22,7 @@ The host picture differs from it on purpose: it is not dithered (issue 0200), an
 | S002 | Stage-13 title modes 0 and 1 are presented | partial — on Record the guest's title overlay draws them and recordcheck at t=1 matches through the boot route; the native title-menu owner was deleted 2026-10-15 | S001 | G003 |
 | S003 | Stage-13 title mode 2 presents the three-slot save screen | partial — on Record the guest's overlay draws it; the 900-field mode-2 route has not been rerun on Record (it was verified on the deleted native owner) | S002 | G003 |
 | S004 | Spyro 1 boot and gameplay advance under a title-owned frame/field scheduler | partial — since 2026-10-15 the main loop runs GamestateDraw `0x8001ED5C` through its own display tail: each `VSync(0)` of its pace loop is one field delivered by `spyro1::FrameDraw`, and the frame is presented once after its DrawOTag (`FieldScheduler::presentFrame`); the boot logos still run on `spyro1::BootSequence` | S001 | G002, G003 |
-| S005 | Spyro 1 presents on the Record path | partial — since 2026-10-15 `spyro1::Runtime` selects `RenderPath::Record` with `interpolates()`; the device draws the guest's own ordering table, so draw order is retail OT order. `PSXPORT_DEBUG=recordcheck`, 1x 4:3, 3000 steps to the attract demo's gameplay (gamestate 0): 2566 of 2566 checked records `mismatched=0` (the 24bpp boot logos are not record presents). Its producers are the fullscreen tint 0x800190D4 and cinematic letterbox 0x80018F30 (`spyro1::ScreenOverlays`); the same run composes the tint at t=1 with mismatched=0 and the census shows keyed 44, all under a producer with a render. The terrain, sprite queue, Spyro, moby emitters, sky, drop shadow, glows and particles are producers too (S020); portals and the remaining effects are the guest's packets as drawn, so their in-betweens repeat the shown record (issue 0186) | S002, S004 | G003 |
+| S005 | Spyro 1 presents on the Record path | partial — since 2026-10-15 `spyro1::Runtime` selects `RenderPath::Record` with `interpolates()`; the device draws the guest's own ordering table, so draw order is retail OT order. `PSXPORT_DEBUG=recordcheck`, 1x 4:3, 3000 steps to the attract demo's gameplay (gamestate 0): 2566 of 2566 checked records `mismatched=0` (the 24bpp boot logos are not record presents). Its producers are the fullscreen tint 0x800190D4 and cinematic letterbox 0x80018F30 (`spyro1::ScreenOverlays`); the same run composes the tint at t=1 with mismatched=0 and the census shows keyed 44, all under a producer with a render. The terrain, sprite queue, Spyro, moby emitters, sky, drop shadow, glows, particles, portals and moby shadows are producers too (S020); the trails and demo overlay are the guest's packets as drawn, and a present holding one shows the field whole (issue 0186) | S002, S004 | G003 |
 | S006 | Spyro 2 has identity-derived executable facts and a title-local native boot owner through the pre-display boundary | partial — the finite three-field bootstrap and its `0x80011B1C` stop are DELETED; the retail boot prefix `0x80011E9C` executes through Lightrec and, since issue 0156, RETURNS: the loader's modules are published as images (framework `stockCdReadLanded`, psxport `guest_code_module.*`), the boot prefix returns after 43 steps and 133 fields with instantaneous CD reads (359 steps and 606 fields once reads take the drive's time, issue 0164), and the per-frame update `0x8001B140`/draw `0x800156FC` then run 784 product steps / 1,500 fields with 0 faults (`tools/boot_run.py --title spyro2 --frames 784`, fence steps); the loader's CD completion is fixed (psxport `28682cde`, issue 0143). Nothing is claimed about what those frames draw, and zero interpreter fallback is still refused by a Lightrec self-modifying-block false positive at `0x8005FFFC` (37 blocks, issue 0092 section 4) | — | G001 **MEASURED 2026-10-01 (commits a8781a3, 02a9514, 3bbaf41, 9a7bb73; issues 0159-0162): the title screen is PRESENTED.** Captures at steps 300..2400 (`PSXPORT_PRESENT_SHOT_AT`, headless): logo sign at 300 (555,363 of 691,200 pixels non-black), Spyro flies in at 600 (621,978), the "Spyro Ripto's Rage" logo with "press start" from step 900 (621,534; 621,363 at 2400). Blockers cleared: the frame driver ran one call per step (0162), negative VSync answered the HBlank timer instead of `[0x80066618]` (0160), retail CdControlB `0x80058994` waited out a 0x3C0-vblank deadline before each XA Setmode (0161), native CdInit removed (0159). Not compared pixel-for-pixel against the full-console oracle; fields-per-step is an assumption (2). |
 | S007 | Spyro 1 accepts held digital input and moves the player after the New Game field handoff | partial | S004 | G001, G003 |
 | S008 | psxport executes remaining Spyro guest code through a per-Core Lightrec runtime with bounded, accounted fallback | partial | — | G002, G004 |
@@ -36,7 +36,7 @@ The host picture differs from it on purpose: it is not dithered (issue 0200), an
 | S016 | Android CI produces an APK with ARM64 dynarec execution and authored touch controls | missing | S008, S018 | G004 |
 | S017 | A WASM gameplay build is released through CI and deployed on GitHub Pages | missing | S008, S018 | G004 |
 | S018 | Packaged first launch selects, validates and persists user-supplied game files without a terminal | missing | S001 | G004 |
-| S019 | Widescreen renders additional horizontal scene coverage without stretching the original image: every horizontal cull or screen-rect limit the title owns is overridden natively so the margins show what the view would, with guest memory untouched | partial — on Record (2026-10-15) the canvas widens (`spyro::Runtime::guestWidescreenProjection`, 684x240 at 16:9); S1's terrain, moby list planes, moby emitters, sprite queue, sky, glows and particles cull on the widened window, leaving the seen and fade bytes, moby drawn byte +0x51, sector marks and sector animation as retail's 4:3 view writes them; its portal bodies clip at 512 (issue 0186) | S005 | G003 |
+| S019 | Widescreen renders additional horizontal scene coverage without stretching the original image: every horizontal cull or screen-rect limit the title owns is overridden natively so the margins show what the view would, with guest memory untouched | partial — on Record (2026-10-15) the canvas widens (`spyro::Runtime::guestWidescreenProjection`, 684x240 at 16:9); S1's terrain, moby list planes, moby emitters, sprite queue, sky, glows and particles cull on the widened window, leaving the seen and fade bytes, moby drawn byte +0x51, sector marks and sector animation as retail's 4:3 view writes them; its portal fill and near sky stay on retail's 512-wide window (issue 0186) | S005 | G003 |
 | S030 | Spyro 1 widescreen anchors the UI: edge HUD elements sit at the widened edges, centred elements stay centred, nothing stretches | partial — the HUD icon and text records and the life-orb and egg quads take their edge class through `spyro::ui_anchor` (`spyro1::hud_anchor`); 16:9 captures show gems at the left edge, dragons centred, lives at the right edge. 2026-10-21 (B4, `warp 10` level entry, 684 vs 512 columns): gem digit 80..102 at both, dragon +86, lives 539..619 vs 367..447 (+172). The life orbs were not on screen in the capture; the transition fade covers the margins (issue 0199) | S019 | G003 |
 | S020 | Spyro 1 presents interpolated 60fps | partial — producers are the fullscreen tint and the letterbox, the terrain (override differential 4661/4661, 0 mismatches), the sprite queue and Spyro (differentials 2744/2744 and 2739/2740, 1 incomparable), the moby emitters (differentials 4792/4792 and 1972/1972), the sky, drop shadow, glows and particles (differentials 4792/4792 and 1972/1972 each); census 7787825 of 7823787 primitives keyed. Portals and the remaining effects repeat the shown record (issue 0186) **Regressed in B4 (issue 0196):** an in-between holding any unowned primitive shows frame n whole, and every gameplay record holds some, so gameplay fps60 shows 30 fps motion until the remaining producers exist. | S004, S005 | G003 |
 | S021 | Touch-enabled releases provide an authored SVG control interface | missing | S018 | G004 |
@@ -63,8 +63,8 @@ All three titles present on the Record path, with 60 fps as psxport F-FPS60 (`do
 Spyro 2 and Spyro 3 interpolate their terrain through the shared
 `guest_terrain::TerrainStateProducer` (S028, S029); a saved field carries every guest word the
 drawer read, as first read, because the guest rewrites level words between a field's draw and its
-present. Spyro 1 composes its screen overlays, terrain, sprite queue, Spyro, sky, drop shadow, glows
-and particles (S020). Open: Spyro 1's portals and remaining effects (issue 0186); Spyro 2/3 mobys, HUD, sky and particles (issue
+present. Spyro 1 composes its screen overlays, terrain, sprite queue, Spyro, sky, drop shadow, glows,
+particles, portals and moby shadows (S020). Open: Spyro 1's trails and demo overlay (issue 0186); Spyro 2/3 mobys, HUD, sky and particles (issue
 0176); the aspect-dependent walk (issue 0178, proper fix is a margin-only side list).
 
 ## Hosted verification and host gaps
@@ -149,8 +149,8 @@ until the boot logos are done.
 Evidence: `PSXPORT_DEBUG=recordcheck` at 1x 4:3 over 3000 steps to the attract demo's gameplay: 2566
 of 2566 checked records `mismatched=0`; the 24bpp boot logos are not record presents.
 
-Gap: the portal bodies and the effects listed in issue 0186 have no producer, so they repeat the
-shown record in an in-between. The guest facts recovered by
+Gap: the trails and demo overlay listed in issue 0186 have no producer; a present holding one shows
+the field whole. The guest facts recovered by
 the deleted native renderer are in `docs/findings/spyro1-field-draw-families.md`.
 
 ### S006 — Spyro 2 measured boot boundary
@@ -363,7 +363,8 @@ fade are written from retail's 4:3 window (`spyro1::kRetailBounds`), whatever th
 drew; a moby's drawn byte +0x51 and the sector marks
 `0x800771C8` and sector animation follow retail's plane and sphere, since level code reads them.
 
-Gap: the portal bodies of `0x80050BD0` clip at 512 (issue 0186).
+Gap: the portal fill (screen triangles `0x8006CB8C`) and the near sky's outline window stay on retail's
+512-wide screen, so at 16:9 a portal reaching into a margin is filled only to the 4:3 edge (issue 0186).
 
 ### S020 — Spyro 1 60 fps
 
@@ -375,13 +376,22 @@ each record of the sprite queue `0x80022A2C`, Spyro `0x80023AC4` and each moby t
 `0x8001F798`/`0x80020F34` draw (`SpriteQueueProducer`, `PairedActorProducer`,
 `ActorEmitterProducer`), position and angles moved at t; the sky
 `0x8004EBA8` (rotations at t), the drop shadow `0x80059A48` (ground point and heading), each glow
-emitter `0x800580F4` and sparkle `0x800584C4`, and each particle record `0x800573C8` (points and
-angle when the kind is unchanged). recordcheck
+emitter `0x800580F4` and sparkle `0x800584C4`, each particle record `0x800573C8` (points and
+angle when the kind is unchanged), each portal `0x80050BD0` (its fill, and its near sky with the
+sky's spin at t) and each moby shadow `0x80059F8C`. recordcheck
 1x 4:3, 3000 steps: 2566 of 2566 records `mismatched=0`, 2559 composed at t=1. recordcheck composes the tint at t=1 with `mismatched=0`; the census shows keyed 44, all
 under a producer with a render.
 
-Gap: no producer for the portal bodies or the remaining effects (issue 0186); the census, attract
-route, 6000 steps, leaves 35962 of 7823787 primitives unkeyed, all from those. No real-time check of this path is recorded.
+Evidence (2026-10-21, fps60, 16:9, hidden window, `PSXPORT_PRODUCERS=1`, `warp` 10, 11, 20 and a
+`gate-teleport 0 0` beside level 10's portal): every primitive drawn in gameplay keyed and rendered
+(+646865, +606622, +372210 and +228725 primitives after reaching gameplay, keyed without render 0;
+the only unkeyed are 17 of the level-entry transition before gameplay); 40 presents while turning
+show even adjacent differences and a steady image shift with each in-between between its
+neighbours (|p - prev| ≈ |p - next| < |prev - next|); real frames are pixel-identical to the
+guest-drawn portals; the HUD, shown by its own gem-tally machine, is anchored and moves with its
+icon's turn.
+
+Gap: no producer for the trails and demo overlay (issue 0186). No real-time check of this path is recorded.
 
 ### S021 — SVG touch-control interface
 

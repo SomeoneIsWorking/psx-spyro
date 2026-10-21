@@ -66,6 +66,7 @@ void InBetween::mapCamera(const spyro::guest_terrain::InBetweenCamera &camera) {
   host_.provide(kRenderGlobals.cameraRotation, std::as_bytes(std::span(camera.rotation)));
   host_.provide(terrain::kSharedFacts.classify.viewRotation, std::as_bytes(std::span(camera.viewRotation)));
   host_.provide(kRenderGlobals.cameraPosition, std::as_bytes(std::span(camera.position)));
+  host_.provide(kRenderGlobals.cameraAngles, std::as_bytes(std::span(camera.angles)));
 }
 
 void InBetween::mapTable() {

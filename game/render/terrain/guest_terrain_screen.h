@@ -47,6 +47,15 @@ public:
       : left_(margin > 0 ? -margin : 0), right_(nativeWidth + (margin > 0 ? margin : 0)),
         vertical_(vertical) {}
 
+  // A window with these edges, as a drawer that clips to a smaller one tests it.
+  [[nodiscard]] static constexpr ScreenBounds
+  edges(std::int32_t left, std::int32_t right, VerticalBounds vertical) {
+    ScreenBounds bounds(0, 0, vertical);
+    bounds.left_ = left;
+    bounds.right_ = right;
+    return bounds;
+  }
+
   [[nodiscard]] constexpr std::int32_t left() const {
     return left_;
   }

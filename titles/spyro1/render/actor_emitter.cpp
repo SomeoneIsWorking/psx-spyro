@@ -2,6 +2,7 @@
 
 #include "core.h"
 #include "gte_registers.h"
+#include "render/terrain/guest_terrain_fog.h"
 #include "spyro1/render/actor_emitter_layout.h"
 
 namespace spyro1::actors {
@@ -206,16 +207,6 @@ void ActorEmitter::fadeColours() {
   colours_ = kFadedColours;
 }
 
-namespace {
-
-void writeFarColour(psx::cpu::Gte &gte, std::uint32_t colour) {
-  gte.writeControl(gte::kFarRed, (colour << 4) & 0xFF0u);
-  gte.writeControl(gte::kFarGreen, (colour >> 4) & 0xFF0u);
-  gte.writeControl(gte::kFarBlue, (colour >> 12) & 0xFF0u);
-}
-
-} // namespace
-
 // 8001FDF0..8001FE80: each near colour toward its far colour by IR0.
 void ActorEmitter::fadeToFar() {
   auto &gte = core_.gte();
@@ -223,11 +214,12 @@ void ActorEmitter::fadeToFar() {
   std::uint32_t to = memory_.mem_r32(frame_ + frame::kFarColours);
   std::uint32_t out = kFadedColours;
   std::uint32_t far = memory_.mem_r32(to);
-  const std::uint32_t end = to + (std::uint32_t{memory_.mem_r16(frame_ + frame::kColourCount)} << 2);
+  const std::uint32_t end =
+      to + (std::uint32_t{memory_.mem_r16(frame_ + frame::kColourCount)} << 2);
   std::uint32_t near = memory_.mem_r32(from);
   do {
     gte.writeData(gte::kRgbc, near);
-    writeFarColour(gte, far);
+    spyro::guest_terrain::loadFarColour(gte, far);
     far = memory_.mem_r32(to + 4);
     from += 4;
     to += 4;
@@ -243,8 +235,9 @@ void ActorEmitter::fadeToFog() {
   auto &gte = core_.gte();
   std::uint32_t from = memory_.mem_r32(frame_ + frame::kFarColours);
   std::uint32_t out = kFadedColours;
-  writeFarColour(gte, memory_.mem_r32(kFogColour));
-  const std::uint32_t end = from + (std::uint32_t{memory_.mem_r16(frame_ + frame::kColourCount)} << 2);
+  spyro::guest_terrain::loadFarColour(gte, memory_.mem_r32(kFogColour));
+  const std::uint32_t end =
+      from + (std::uint32_t{memory_.mem_r16(frame_ + frame::kColourCount)} << 2);
   gte.writeData(gte::kRgbc, memory_.mem_r32(from));
   do {
     gte.execute(gte::kDpcs);

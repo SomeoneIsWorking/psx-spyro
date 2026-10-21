@@ -23,6 +23,11 @@ namespace spyro::guest_word {
   return asSigned(value) < 0 ? 0u - value : value;
 }
 
+// `div` then `mflo` for a non-zero divisor: toward zero, with 0x80000000 / -1 wrapping.
+[[nodiscard]] constexpr std::uint32_t quotient(std::uint32_t dividend, std::uint32_t divisor) {
+  return asSigned(divisor) == -1 ? 0u - dividend : asWord(asSigned(dividend) / asSigned(divisor));
+}
+
 // The low halfword sign-extended, as `lh` loads it.
 [[nodiscard]] constexpr std::uint32_t signedHalf(std::uint32_t word) {
   return sra(word << 16, 16);

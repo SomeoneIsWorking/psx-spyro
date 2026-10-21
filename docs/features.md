@@ -76,7 +76,7 @@ S2 and S3 take the BIOS pad path.
 | 8 | S1 | psxport F-WIDE.2 | `titles/spyro1/render/sky.cpp`, `titles/spyro1/render/glows.cpp`, `titles/spyro1/render/particles.cpp` — the cyclorama (`0x8004EBA8`), glows (`0x800580F4`, `0x800584C4`) and particles (`0x800573C8`) test x on the widened window; the seen and fade bytes they write follow `titles/spyro1/render/screen.h:kRetailBounds` |
 | 9 | S1 | psxport F-WIDE.2 | `titles/spyro1/render/actor_emitter_vertices.cpp:ActorEmitter::keepScreen` — the moby emitters (`0x8001F798`, `0x80020F34`) outcode a straddling moby's vertices on `spyro::presentedBounds` (`guest_view_slope.h`) |
 
-The portal bodies of `0x80050BD0` clip at 512 (issue 0186).
+The portal fill and near sky of `0x80050BD0` stay on retail's 512-wide window: the fill covers the screen triangles at `0x8006CB8C` and the outline window is clamped to [0, 512] (issue 0186).
 
 ## F-FPS60
 
@@ -91,9 +91,10 @@ The portal bodies of `0x80050BD0` clip at 512 (issue 0186).
 | 8 | S1 | psxport F-FPS60.1 | `titles/spyro1/render/sprite_queue_producer.cpp:SpriteQueueProducer`, `titles/spyro1/render/paired_actor_producer.cpp:PairedActorProducer` — each queued record (`0x80022A2C`) and Spyro (`0x80023AC4`) redrawn at t, position and angles moved |
 | 9 | S1 | psxport F-FPS60.1 | `titles/spyro1/render/sky_producer.cpp:SkyProducer`, `titles/spyro1/render/drop_shadow_producer.cpp:DropShadowProducer`, `titles/spyro1/render/glow_producers.cpp:GlowFanProducer`, `SparkleProducer`, `titles/spyro1/render/particle_producer.cpp:ParticleProducer` — the sky (`0x8004EBA8`), drop shadow (`0x80059A48`), each glow emitter, sparkle and particle record redrawn at t |
 | 10 | S1 | psxport F-FPS60.1 | `titles/spyro1/render/actor_emitter_producer.cpp:ActorEmitterProducer` — each moby the emitters (`0x8001F798`, `0x80020F34`) draw, its list entry rebuilt and drawn at t, record and camera moved |
+| 11 | S1 | psxport F-FPS60.1 | `titles/spyro1/render/portal_producer.cpp:PortalProducer`, `titles/spyro1/render/moby_shadow_producer.cpp:MobyShadowProducer` — each portal (`0x80050BD0`: fill, and near sky with the sky's spin at t) and each moby shadow (`0x80059F8C`) redrawn at t, camera moved |
 | 6 | all | psxport F-FPS60.2 | `game/core/frame_cut.cpp:FrameCut::isCut` — game state, level, or (S2, S3) a camera placement inside a scene |
 
-S1's portal bodies and remaining effects have no producer yet; their in-betweens repeat the shown record (issue 0186).
+S1's horn and motion trails, demo overlay and `0x80058864` have no producer yet; a present holding one shows the field whole (issue 0186).
 
 ## F-DEBUG
 

@@ -15,6 +15,9 @@
 
 namespace spyro::guest_terrain {
 
+// A packed 0x00BBGGRR colour as the GTE's far colour, each byte << 4.
+void loadFarColour(psx::cpu::Gte &gte, std::uint32_t colour);
+
 // Load the level's fog colour (facts.fogColour: RFC, GFC, BFC words) into the GTE's far colour.
 void loadFogColour(const psx::present::EmitMemory &memory, Core &core, const Facts &facts);
 
@@ -27,6 +30,15 @@ std::uint32_t fogColours(const psx::present::EmitMemory &memory,
                          std::uint32_t colours,
                          std::uint32_t end,
                          std::uint32_t fog);
+
+// With the far colour loaded, fade the colour words [colours, end - 4) by `fade` into `to`, the
+// loop fogColours runs. Returns one past the last faded word written.
+std::uint32_t fadeColours(const psx::present::EmitMemory &memory,
+                          Core &core,
+                          std::uint32_t colours,
+                          std::uint32_t end,
+                          std::uint32_t fade,
+                          std::uint32_t to);
 
 // A vertex colour between its near and far colour (SCUS_944.25 80024C94, SCUS_942.28 80026E18):
 struct ColourFade {

@@ -80,7 +80,8 @@ public:
   void provideWord(std::uint32_t address, std::uint32_t word);
   // The scratchpad vertex cache and the work block, empty.
   void mapWorkspace();
-  // The camera block at 0x80076DD0: the projection rotation, the view rotation at +0x14, the position at +0x28.
+  // The camera block at 0x80076DD0: the projection rotation, the view rotation at +0x14, the position at +0x28,
+  // the angles at +0x4C.
   void mapCamera(const spyro::guest_terrain::InBetweenCamera &camera);
   // An empty ordering table at the base the field published.
   void mapTable();

@@ -20,6 +20,8 @@
 #include "spyro1/core/frame/native_draw_setup.h"
 #include "spyro1/render/ordering_table.h"
 #include "spyro1/render/hud_anchor.h"
+#include "spyro1/render/moby_shadow_producer.h"
+#include "spyro1/render/portal_producer.h"
 #include "spyro1/render/glow_pools.h"
 #include "spyro1/core/hud/native_hud_collectables.h"
 #include "spyro1/core/hud/native_pause_menu.h"
@@ -159,6 +161,8 @@ void Runtime::registerOverrides(Game &game) {
   actors::registerPairedActorOverrides(game.core);
   sky::registerSkyOverrides(game.core);
   shadow::registerDropShadowOverrides(game.core);
+  shadows::registerMobyShadowOverrides(game.core);
+  portals::registerPortalOverrides(game.core);
   glows::registerGlowOverrides(game.core);
   particles::registerParticleOverrides(game.core);
   hud_anchor::registerOverrides(game.core);

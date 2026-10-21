@@ -160,10 +160,14 @@ set(SPYRO_RUNTIME_SOURCES
   titles/spyro1/render/paired_actor_vertices.cpp
   titles/spyro1/render/drop_shadow.cpp
   titles/spyro1/render/drop_shadow_producer.cpp
+  titles/spyro1/render/moby_shadows.cpp
+  titles/spyro1/render/moby_shadow_producer.cpp
   titles/spyro1/render/glow_producers.cpp
   titles/spyro1/render/glows.cpp
   titles/spyro1/render/particle_producer.cpp
   titles/spyro1/render/particles.cpp
+  titles/spyro1/render/portal_producer.cpp
+  titles/spyro1/render/portals.cpp
   titles/spyro1/render/sky.cpp
   titles/spyro1/render/sky_producer.cpp
   titles/spyro1/render/sprite_queue.cpp

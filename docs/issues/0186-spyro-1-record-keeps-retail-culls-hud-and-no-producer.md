@@ -1,8 +1,8 @@
 ---
 id: 186
-title: Spyro 1 on Record keeps retail culls and has no producer for its portals and remaining effects
+title: Spyro 1 on Record keeps retail culls and has no producer for its trails and demo overlay
 status: open
-symptom: at 16:9 portals clip at the 4:3 edge; at 60 fps in-betweens repeat the portals, spikes, horn and motion trails and the demo overlay
+symptom: at 16:9 portals fill only to the 4:3 edge; at 60 fps a present holding a horn or motion trail or the demo overlay shows the field whole
 tags: spyro1,render,record,widescreen,fps60
 features: [F-FPS60, F-WIDE]
 created: 2026-10-15
@@ -32,8 +32,9 @@ Every Spyro 1 horizontal cull and HUD placement sits inside a whole guest routin
 | particles | RasterizeEmitList `0x800573C8` (hand asm) | native, x tests widened, producer per drawn record (`spyro1::particles::EmitList`) |
 | glows | `0x80058BA8` (C) calls the fans `0x800580F4` and sparkles `0x800584C4` | native, x outcodes widened, producer per emitter and per sparkle (`spyro1::glows`) |
 | sky | cyclorama `0x8004EBA8`, the tail of `0x80050BD0` | native, x outcodes widened, producer (`spyro1::sky::Cyclorama`) |
-| portals | `0x80050BD0`'s bodies `0x8004F4BC`, `0x8004FEA0`, `0x80050240` | guest, 512/240 clips, no producer |
-| other effects | spikes `0x80059F8C`, horn trails `0x80058D64`, motion trails `0x800189F0`, demo overlay `0x80018908`, `0x80058864` | guest, no producer |
+| portals | `0x80050BD0`: fill `0x8004FEA0`, near sky `0x8004F4BC` / `0x80050240` | native, producer per portal (`spyro1::portals::Portals`); fill and window on retail's 512x240 |
+| moby shadows | RenderMobyShadows `0x80059F8C` | native, producer per record (`spyro1::shadows::MobyShadows`) |
+| other effects | horn trails `0x80058D64`, motion trails `0x800189F0`, demo overlay `0x80018908`, `0x80058864` | guest, no producer |
 
 A widened draw leaves guest state as retail's 4:3 window writes it: a particle's seen byte and a
 sparkle's fade follow `spyro1::kRetailBounds`, so a sparkle in a margin is drawn once and dies as
@@ -48,10 +49,8 @@ The fullscreen tint `0x800190D4` and the cinematic letterbox `0x80018F30` (`spyr
 the terrain RenderWorldChunks `0x800258F0` (`spyro1::terrain::TerrainImage`), the sprite queue
 `0x80022A2C` (one save per queued record, keyed by the record), Spyro `0x80023AC4` (keyed by his
 record), the moby emitters `0x8001F798` and `0x80020F34` (one save per drawn record), the sky `0x8004EBA8`, the drop shadow `0x80059A48`, each glow emitter `0x800580F4` and
-sparkle `0x800584C4`, and each particle record `0x800573C8`; the LinkOTPrimitives override
-`0x80016784` gives every packet its slot (`spyro1::OrderingTable`). Tests:
-`tests/spyro1/test_terrain.cpp`, `tests/spyro1/test_actors.cpp`, `tests/spyro1/test_effects.cpp`;
-the margin tests there check +0x51 and the sector marks at 16:9.
+sparkle `0x800584C4`, each particle record `0x800573C8`, each portal `0x80050BD0` and each moby shadow `0x80059F8C`; the
+LinkOTPrimitives override `0x80016784` gives every packet its slot (`spyro1::OrderingTable`).
 See `docs/re-frontier.md` `spyro1.record`.
 
 Census, attract route, shipping settings, 6000 steps: 7823787 primitives, 7787825 keyed and 35962
@@ -59,5 +58,28 @@ unkeyed (before the moby emitters: 276457 unkeyed; before the effects: 3982144 o
 `jalr`-reached function, so every unkeyed primitive shows as GamestateDraw `0x8001ED5C`; they are
 its `jal` callees in the table's last two rows.
 
+## Portals and moby shadows (2026-10-21)
+Cause: `0x80050BD0` and `0x80059F8C` ran as guest code, so their packets carried no key; any
+present holding one (every gameplay frame with a portal or a shadowed moby in view) showed frame n
+whole.
+
+Fix: both are native ports that run over guest memory on the field and over host memory for an
+in-between. `spyro1::portals::PortalProducer` saves, per portal under its own emission scope, the
+camera, the near sky's spin and the level clock; its render redraws the fill, and within 0x4000 the
+near sky, at t. The near sky is the cyclorama's sector walk (`sky::Cyclorama::drawThrough`) with
+each triangle cut to the outline by `Portals::cutShaded` (F7E8) and the faded colours from the
+fog owner's `fadeColours`; its rotations come from the camera builder `0x80033C50` with the spin
+applied (`nearSkyRotations`). `spyro1::shadows::MobyShadowProducer` keys each staged record.
+
+Proof (fps60, 16:9, hidden window, `PSXPORT_PRODUCERS=1`): on `warp` 10, 11 and 20 and beside
+level 10's portal (`gate-teleport 0 0`, near sky drawn), the census after gameplay starts adds only
+keyed primitives with a render (the 17 unkeyed are the level-entry transition, before gameplay);
+40 presents while turning have even adjacent differences and a steady image shift; real frames are
+pixel-identical to the guest-drawn run. A temporary in-process differential (removed) matched the
+near sky's packets against `0x8004F4BC` beside all five of level 10's gates, and its packets and
+faded table against `0x80050240` with a forced fade beside two of them. Captures: `scratch/interp/final{10,11,20,near,hud}/`.
+
 ## Proper fix
-The same shape for what is left: the portal bodies and the remaining effects in the table.
+The same shape for what is left: the horn and motion trails, the demo overlay and `0x80058864`.
+For 16:9, the portal fill's screen triangles (`0x8006CB8C`, retail 512x240) and the outline window
+clamp (`Portals::publishWindow`) need the presented width.
