@@ -33,8 +33,8 @@ const psx::present::StateProducer *Runtime::stateProducer(Core &core,
   return session(core).stateProducers.find(producer);
 }
 
-void Runtime::pacePresentation(Core &core, psx::frame::FieldCadence cadence) {
-  core.game->framePacer.waitPresentedFields(core, cadence);
+std::optional<double> Runtime::presentDeadline(Core &core, psx::frame::FieldCadence cadence) {
+  return core.game->framePacer.presentedFieldsDeadline(core, cadence);
 }
 
 std::optional<psx::host::LogoImage> Runtime::panelLogo(Core &core) const {
