@@ -197,7 +197,7 @@ read from `/proc/<pid>/environ`), host load average 2..15 from other agents, `sc
   16.78 ms. Stepped capture of the logo sliding in: its lowest edge moves 4,5,5,5,5,6,5,6,5,6,6,7,6 rows
   per present, against 0 and about 11 alternating when the title's in-betweens were shown whole.
 
-## Flag intro margins (fixed)
+## Flag intro margins (fixed above 1x; open at the shipping 1x)
 Reproduction: stepped from boot, `scratch/judder-boot/boot_seq.py <tag> 600` with `SEQ_COUNT=40`, 40 presents
 from product frame 600, fps60, 16:9; `parity.py` and `halfway.py` over the captures. At 1x and at
 `PSXPORT_IRES=4` the right-margin blocks (x 576..640, y 80..128), x 0..48 y 96..144 and the pole's foot changed
@@ -211,16 +211,27 @@ Cause, two roundings of one in-between camera:
 - `game/render/terrain/guest_camera_builder.cpp:interpolate` rounded the in-between camera angles to whole guest
   units; the intro camera turns three units per field, so the in-between sat 2/3 of the way, not 1/2.
 
-Fix: psxport keeps each projected vertex's unrounded place for composed presents (`PreciseProjection`,
-issue 0169). `guest_camera::interpolate` returns angles with four bits below the guest's unit and the builder
+Fix: each producer declares the unrounded place of every vertex it copies from a projection into a packet,
+by packet address and vertex index, and the composer gives those polygons their fraction (psxport issue 0169).
+Spyro 1 declares places in the sky (`Cyclorama`), the moby emitters (`ActorEmitter`, `LitActorEmitter`) and all
+terrain passes (`TerrainFrame::declarePlaces`, kept per scratchpad word as each pass projects, carried through
+the split grid's pulls and the re-split midpoints). A first version matched places by the packed SXY value;
+review rejected that as guessed identity and it is gone. `guest_camera::interpolate` returns angles with four bits below the guest's unit and the builder
 reads its tables at that precision (`AngleTable::atFine`); a whole angle reads exactly what the guest reads,
 so real presents are unchanged.
 
-Proof (`scratch/judder-boot/{before4,fix4,after1}`): at 4x, in-betweens within 15% of one neighbour on a moving
+Proof (`scratch/judder-boot/{before4,fix4,after1,tr4}`): with declared places (`tr4`) the worst block
+parity is 1.9:1, the same blocks and ratio as the value-matched version (`fix4`); with only the sky declaring
+(`id4`) it was 4.4:1 along the sign moby and 3.0:1 on the right-hand peak. At 4x, in-betweens within 15% of one neighbour on a moving
 16-pixel block fell from 30.3% to 4.2%; the margin blocks went from 0/38 to at most 1.9:1 between the two
 present parities; |in-between - previous| / |in-between - next| per in-between 0.62..2.13 before, 0.84..1.60
-after. At 1x every real present is pixel-identical to the previous build. At 1x a sky moving one pixel per
-field still cannot show half a pixel; the player's settings use auto resolution, which scales above 1x.
+after. At 1x every real present is pixel-identical to the previous build.
+
+Open at 1x: the shipping settings run at `ires=1` (`cv_ires` defaults to 1, "Vanilla"; Auto is 0), not at auto
+resolution as this note first said. At 1x a sky moving about one native pixel per field has no pixel halfway,
+so the margins keep up to 4.5:1 parity imbalance there; no composer change can place half a pixel on a 1x
+target. Closing it means presenting above 1x by default (Auto or 2x), which costs GPU time on every title and
+is the operator's call.
 
 ## Moby animation switch (fixed)
 Reproduction: from boot to the save picker (`scratch/judder-boot/picker_seq.py <tag> PSXPORT_IRES=4`), 120
@@ -262,21 +273,44 @@ more than 59% of changed pixels, and those (p0066..p0074) sit at half the neighb
 
 ## Boot walk, 2026-10-21
 Each screen from boot through 20 s of `warp 10`, fps60, 16:9, shipping settings; stepped and live captures
-at `PSXPORT_IRES=4` under `scratch/judder-boot/`.
-- Logos (native boot, one field per present): fades step evenly. Open: fence ~226 lands 2..12 ms late at the
-  second logo's load stage (`0x80014564`, 18 ms of guest work over fences 226..229) on unchanged pixels.
-- Boot to frame loop (fences 436..438): 5..16 ms late on black and the first fade frame, the first Lightrec
-  turn of `0x8001ED5C`. Open, same gap: guest work over one field's budget.
-- Flag intro: fixed above. Title screen: the logo and PRESS START are title sprites (issue 0206); PRESS START
-  is a brightness toggle. Title Spyro's in-between pose is exactly half way (64ths); his head moves under one
-  4x pixel per present, so the in-between lands on one neighbour's pixels.
-- Save picker: fixed above (animation switch). The picker and new-game screens run one field per logic frame,
-  so they need no in-between.
-- New-game intro: the dragon and the camera move about one 4x pixel per present; 2.4% and 1.2% of moving
-  blocks sit within 15% of a neighbour, no whole-object holds.
-- `warp 10`: fixed above (terrain identity); 0.9% stuck while turning.
-- Real speed (`rt3`, load average 47 at boot falling to 21): 8106 presents, 3448 in-betweens, all composed,
-  repeats 0, backwards 0; p99 39 ms is the loaded host and is no pacing evidence.
+at `PSXPORT_IRES=4` under `scratch/judder-boot/`. Real-speed runs read `PSXPORT_SHOW_WINDOW=0` and no
+`PSXPORT_NOPACE` from `/proc/<pid>/environ`; each figure carries the host load average.
+- First logo field (fence 8): fixed. It was 3.4..10.5 ms late in every run: `Disc::open` ran on the first CD
+  read inside the field (`chd_open`, 1.3..6.7 ms). The disc now opens when the title boots (psxport issue
+  0170). `final1` (load 5..10): 0.19 ms. Under load 13..17 (`final3`, `final4`) 2.9..3.9 ms, from the first two
+  cold hunks decoded on a busy host (4.8 and 13.2 ms for hunks that take 0.45 ms idle).
+- Logo load stages (fences 9, 226..228): fixed. `psx::cd::Disc::residentHunk` decoded every CHD hunk on the
+  guest thread into a one-hunk cache, 17..19 hunks per stage, 9..16 ms inside a field. `HunkReader` decodes
+  ahead on worker threads (psxport issue 0170). `final1`: 0.25..0.33 ms late; the caller decoded or waited on
+  180 of 13789 hunks over a 140 s route, 58 ms in all.
+- Boot hands over to the frame loop (fences 436..438): partly fixed. `game/core/archive_transfer.cpp` wrote each
+  WAD byte through `Core::mem_w8`, one executable-write invalidation per byte; it now writes the block with
+  `Core::mem_write` (one invalidation per load). `final1` (load 5..10): 1.4, 2.4, 0.6 ms late. Under load
+  13..17: 437 at 0.9 and 16.2 ms. Open: the rest of that field is `Core::mem_write`'s per-byte store bookkeeping
+  (producer census `OtAttr::trackStoreSlow`, `PacketPoolExtent::readFrom`, emission notes; about a third of the
+  window's samples), the first Lightrec translation of the loaded code and its SHA-256. The proper fix is a range
+  store in `Core::mem_write` (census, emission and write rollback over one span, one copy), not done here.
+- Raw-to-record switches (437/438, 1834/1835, 2218/2219, 3690/3691): not repeats. The `presentseq` label printed
+  `shown=` the presenter's current record for a raw present, while the picture is the displayed VRAM; it now
+  prints -1 there (psxport `FramePresenter::presentCurrent`). Stepped at the handover, luma rises 0, 1.14, 2.83,
+  4.08, 5.57 over 436..439; at real speed the raw and composed presents at 1830/1831 and 2214/2215 differ (0.004
+  inside a slow fade, 0.788). What remains real: at a switch from a raw picture to a record no in-between can be
+  composed (there is no earlier record), so the raw picture holds two fields once. `final1`: repeats 0,
+  backwards 0 over 4819 records.
+- Flag intro: fixed above 1x, open at 1x (above).
+- Title screen: the logo and PRESS START are title sprites (issue 0206); PRESS START is a brightness toggle.
+  Title Spyro's in-between pose is exactly half way (64ths); his head moves under one 4x pixel per present.
+- Save picker: fixed above (animation switch); `across` now takes its step from `keyframe_blend`'s own
+  `nearestStep`. The picker and new-game screens run one field per logic frame and need no in-between.
+- New-game intro: the dragon and the camera move about one 4x pixel per present; no whole-object holds.
+  `final1` (load 5..10): 28 of 2852 presents over 4 ms late, worst 15.7 ms. The main thread ran for about half
+  of the 45 ms before the worst ones (46..54 samples at 2 kHz), so it was off the CPU, not composing; with the
+  host loaded this is no pacing evidence.
+- `warp 10`: fixed above (terrain identity); 4x turn in Artisans (`wk4/walk`) shows no seams in the split ground.
+  Spyro himself, shadows, particles, glows, the sprite queue and portals declare no places yet and step on whole
+  native pixels above 1x (psxport issue 0169, Open).
+- Run end, `final1` (load 5..10): `[playcheck] presents: intervals=8424 p50=16.75ms p99=20.25ms worst=73.82ms
+  missed=9 (0.11%)`; boot through the new-game card: no present over 4.7 ms late.
 
 ## Next
 Spyro 2: the opening conversation box is linked by logic before the dispatcher, so the redraw
