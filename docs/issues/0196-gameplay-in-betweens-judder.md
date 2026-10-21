@@ -222,6 +222,26 @@ present parities; |in-between - previous| / |in-between - next| per in-between 0
 after. At 1x every real present is pixel-identical to the previous build. At 1x a sky moving one pixel per
 field still cannot show half a pixel; the player's settings use auto resolution, which scales above 1x.
 
+## Moby animation switch (fixed)
+Reproduction: from boot to the save picker (`scratch/judder-boot/picker_seq.py <tag> PSXPORT_IRES=4`), 120
+presents captured. The picker repeats its loop every 86 presents; once per loop an in-between was pixel-identical
+to the real present after it (`live6/picker` p0004, `live7/picker2` p0058), and a hash of the composed record
+matched the real one at fences 1545 and 1631. Spyro's moby switches animation there
+(`24230505/32 -> 36350404/0`: frame 5 steps 0x23..0x24 to frame 4 step 0x35), so the whole moby jumped on the
+in-between and held on the real present.
+
+Cause: `titles/spyro1/render/actor_between.cpp:recordBetween` took `to`'s pose whenever
+`keyframe_blend::between` found the two poses were not one animation a step apart.
+
+Fix: across a switch the in-between blends `from`'s nearer keyframe into `to`'s by the guest's own frame
+pair (`keyframe_blend::across`; the guest blends two frames itself at its own transitions), when the two frames
+share vertex counts and shifts, which the emitter needs since it reads both streams with frame A's.
+
+Proof (`scratch/judder-boot/live10`): no in-between equals a neighbour in 104 picker presents; at the switch
+the in-between differs from both neighbours on Spyro (17% of changed pixels equal the previous, 28% the next).
+Spyro himself (the paired actor) never hit this: across 1200 part blends while starting and stopping a run in
+`warp 10`, every pair continued, since the guest cross-blends his animations itself.
+
 ## Next
 Spyro 2: the opening conversation box is linked by logic before the dispatcher, so the redraw
 keeps n+1's box; moving it needs its drawer (FUN_8004D2D8 / FUN_8004A374) re-run at the in-between
