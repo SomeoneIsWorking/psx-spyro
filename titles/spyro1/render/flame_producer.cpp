@@ -2,6 +2,7 @@
 
 #include "blend.h"
 #include "core.h"
+#include "gte_control.h"
 #include "render/field/guest_render_globals.h"
 #include "render/field/record_blend.h"
 #include "render/state_producer_override.h"
@@ -9,6 +10,7 @@
 #include "spyro1/render/flame.h"
 #include "spyro1/render/terrain_image.h"
 
+#include <cstring>
 #include <memory>
 #include <vector>
 
@@ -45,16 +47,14 @@ Block blockBetween(const Block &from, const Block &to, float t) {
   for (std::uint32_t axis = 0; axis < 3; ++axis) {
     spyro::record_blend::wordBetween(shown, from, to, at(flame_block::kPosition) + 4 * axis, t);
   }
-  for (std::uint32_t word = at(flame_block::kRotation);
-       word < at(flame_block::kRotation) + flame_block::kRotationBytes;
-       word += 4) {
-    spyro::record_blend::store(
-        shown,
-        word,
-        psx::present::lerpHalves(spyro::record_blend::load<std::uint32_t>(from, word),
-                                 spyro::record_blend::load<std::uint32_t>(to, word),
-                                 t));
-  }
+  static_assert(flame_block::kRotationBytes == sizeof(psx::gte::RotationWords));
+  const auto rotationOf = [](const Block &block) {
+    psx::gte::RotationWords words{};
+    std::memcpy(words.data(), block.data() + at(flame_block::kRotation), sizeof(words));
+    return words;
+  };
+  const psx::gte::RotationWords rotation = psx::present::rotationBetween(rotationOf(from), rotationOf(to), t);
+  std::memcpy(shown.data() + at(flame_block::kRotation), rotation.data(), sizeof(rotation));
   for (std::uint32_t part = 0; part < flame_block::kParts; ++part) {
     const std::uint32_t length = at(flame_block::kLengths) + part;
     const std::uint32_t limit = at(flame_block::kLimits) + part;
