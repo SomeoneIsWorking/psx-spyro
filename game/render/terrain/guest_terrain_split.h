@@ -143,10 +143,20 @@ struct CrackRun {
 void drawEdgeCracks(TerrainFrame &frame, CrackEdges edges, const CrackPolygon &polygon, CrackRun run);
 
 // A GT4 (four cells) or GT3 (three) piece of the grid: its cells and their depth and screen words.
+// A piece's cells and the screen words read from them, in packet order.
+struct PieceCorners {
+  std::span<const std::uint32_t> cells;
+  std::span<const std::uint32_t> screens;
+};
+
 template <std::size_t N> struct Piece {
   std::array<std::uint32_t, N> cells{};
   std::array<std::uint32_t, N> depths{};
   std::array<std::uint32_t, N> screens{};
+
+  [[nodiscard]] PieceCorners corners() const {
+    return {cells, screens};
+  }
 
   // Whether every point is past one screen edge.
   [[nodiscard]] bool outside() const {
@@ -194,8 +204,8 @@ template <std::size_t N> void readPieceScreens(const psx::present::EmitMemory &m
                                     SecondTriangle second);
 [[nodiscard]] bool pieceFacesCamera(TerrainFrame &frame, const TrianglePiece &piece, bool overflow, Sidedness sides);
 
-// The piece's XYs and cell colours into the packet at `frame.primitive`.
-void storePieceScreens(TerrainFrame &frame, std::span<const std::uint32_t> screens);
+// The piece's XYs, with its cells' places, and cell colours into the packet at `frame.primitive`.
+void storePieceScreens(TerrainFrame &frame, PieceCorners corners);
 void storePieceColours(TerrainFrame &frame, std::span<const std::uint32_t> cells);
 
 // The packet at `frame.primitive` tagged a GT4 or GT3 and linked into `bin`.

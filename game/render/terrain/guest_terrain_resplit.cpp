@@ -154,6 +154,13 @@ void ResplitPass::loadPoints(std::uint32_t primitive,
     uvs[i] = memory_.mem_r32(primitive + kPacketUvs[i]);
     const std::uint32_t cell = kScratchpad + corners[i];
     memory_.mem_w32(cell + point::kScreen, screens[i]);
+    if (frame_.places != nullptr) {
+      // A corner keeps the place its packet declared, or its whole screen word when it declared none.
+      const std::optional<GtePlace> place = frame_.places->placed(psx::kseg0Address(primitive), static_cast<int>(i));
+      frame_.setPlace(cell + point::kScreen,
+                      place.value_or(GtePlace{static_cast<float>(asSigned(signedHalf(screens[i]))),
+                                              static_cast<float>(asSigned(sra(screens[i], 16)))}));
+    }
     memory_.mem_w32(cell + point::kColour, colours[i]);
     memory_.mem_w16(cell + point::kUv, static_cast<std::uint16_t>(uvs[i]));
   }
@@ -166,6 +173,11 @@ void ResplitPass::loadPoints(std::uint32_t primitive,
                 static_cast<std::uint16_t>((asSigned(sra(a, 16)) + asSigned(sra(b, 16))) >> 1));
     memory_.mem_w32(cell + point::kColour, blend(colours[mid.first], colours[mid.second]));
     memory_.mem_w16(cell + point::kUv, uvMidpoint(uvs[mid.first], uvs[mid.second]));
+    if (frame_.places != nullptr) {
+      const GtePlace &pa = frame_.placeAt(kScratchpad + corners[mid.first] + point::kScreen);
+      const GtePlace &pb = frame_.placeAt(kScratchpad + corners[mid.second] + point::kScreen);
+      frame_.setPlace(cell + point::kScreen, {(pa.x + pb.x) * 0.5f, (pa.y + pb.y) * 0.5f});
+    }
   }
   clut_ = uvs[0] & 0xFFFF0000u;
   page_ = uvs[1] & 0xFFFF0000u;
@@ -231,6 +243,8 @@ void ResplitPass::emitPieces(std::uint32_t primitive, PieceTable pieces) {
     for (std::size_t i = 0; i < cells.size(); ++i) {
       memory_.mem_w32(prim + kPacketScreens[i], screens[i]);
     }
+    frame_.declarePlaces(prim,
+                         std::array{cells[0] + point::kScreen, cells[1] + point::kScreen, cells[2] + point::kScreen});
     memory_.mem_w32(prim, guest_packet::kGt3Tag);
     guest_memory::linkAfter(memory_, tail, prim);
     tail = prim;

@@ -62,7 +62,8 @@ std::vector<std::uint8_t> unionVisibility(std::span<const std::uint8_t> from,
 Rebuild::Rebuild(Core &core,
                  const TerrainImage &image,
                  const InBetweenCamera &camera,
-                 const FieldInputs &field)
+                 const FieldInputs &field,
+                 psx::present::PrimitiveSink &places)
     : gte_(core.gte()), memory_(core, host_), camera_(camera) {
   const FieldWindows windows = image.windows(core);
   arena_ = windows.inBetweenArena;
@@ -94,6 +95,7 @@ Rebuild::Rebuild(Core &core,
                   memory_,
                   FrameMode::InBetween,
                   InBetweenWindow{.camera = &camera_,
+                                  .places = &places,
                                   .argument = field.argument,
                                   .arenaBase = arena_.address,
                                   .packetBudget = field.packetBudget});

@@ -61,10 +61,12 @@ struct FieldInputs {
 // as found when this is destroyed.
 class Rebuild {
 public:
+  // The traversal declares its packets' unrounded vertex places to `places`, which `emit` is then given.
   Rebuild(Core &core,
           const TerrainImage &image,
           const InBetweenCamera &camera,
-          const FieldInputs &field);
+          const FieldInputs &field,
+          psx::present::PrimitiveSink &places);
   Rebuild(const Rebuild &) = delete;
   Rebuild &operator=(const Rebuild &) = delete;
 

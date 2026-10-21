@@ -87,7 +87,7 @@ void CoarsePass::quad(const SplitSector &sector, const SplitRecord &record) {
     if (!pieceFacesCamera(frame_, piece, record.overflow, sidedness(record.draw), SecondTriangle::Reversed)) {
       continue;
     }
-    storePieceScreens(frame_, piece.screens);
+    storePieceScreens(frame_, piece.corners());
     storePieceColours(frame_, piece.cells);
     writePieceUvs({.pair = record.texture + kCoarsePairs + 8 * k, .span = kPieceUvSpan});
     frame_.v1 = linkQuadPiece(frame_, polygonBin(piece.depthSum(), binBias(record.draw))).head;
@@ -131,7 +131,7 @@ void CoarsePass::triangle(const SplitSector &sector, const SplitRecord &record) 
     if (!pieceFacesCamera(frame_, piece, record.overflow, sidedness(record.draw))) {
       continue;
     }
-    storePieceScreens(frame_, piece.screens);
+    storePieceScreens(frame_, piece.corners());
     storePieceColours(frame_, piece.cells);
     frame_.v0 = linkTrianglePiece(frame_, polygonBin(piece.depthSum(), binBias(record.draw))).head;
     frame_.v1 = prim >> 16;

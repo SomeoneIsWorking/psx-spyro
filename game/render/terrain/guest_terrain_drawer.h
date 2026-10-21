@@ -52,10 +52,11 @@ public:
   virtual void drawPasses(TerrainFrame &frame) const = 0;
 };
 
-// What an in-between field draws with instead of the guest's own: its camera, the drawer's $a0
+// What an in-between field draws with instead of the guest's own: its camera, the sink its places go to, the drawer's $a0
 // the field was called with, its packet arena (0 = the guest's cursor) and that arena's budget.
 struct InBetweenWindow {
   const InBetweenCamera *camera = nullptr;
+  psx::present::PrimitiveSink *places = nullptr;
   std::uint32_t argument = 0;
   std::uint32_t arenaBase = 0;
   std::int32_t packetBudget = 0;

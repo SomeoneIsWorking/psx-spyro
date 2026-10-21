@@ -602,7 +602,8 @@ void Portals::cutShaded(std::array<Corner, 3> q, std::uint32_t at, sky::Cycloram
 }
 
 void Portals::cut(const sky::SkyTriangle &triangle, sky::Cyclorama &sky) {
-  const auto &[p, c] = triangle;
+  const auto &p = triangle.points;
+  const auto &c = triangle.colours;
   cutShaded({Corner{p[0], c[0]}, Corner{p[1], c[1]}, Corner{p[2], c[2]}}, kEdges, sky);
 }
 

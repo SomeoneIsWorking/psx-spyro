@@ -67,6 +67,7 @@ bool projectFarVertices(TerrainFrame &frame,
       }
       shared &= word;
     }
+    frame.keepPlace(cell);
     frame.memory.mem_w32(cell, word);
     frame.memory.mem_w32(cell + 4, sz);
     cell += kFarCellSize;

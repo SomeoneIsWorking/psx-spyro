@@ -295,6 +295,11 @@ void DetailPass::drawQuad(const PackedIndices &vertices) {
   memory_.mem_w32(prim + packet::kXy1, xy[1]);
   memory_.mem_w32(prim + packet::kXy2, xy[3]);
   memory_.mem_w32(prim + packet::kXy3, xy[2]);
+  frame_.declarePlaces(prim,
+                       std::array{kScratchpad + vertices.first,
+                                  kScratchpad + vertices.second,
+                                  kScratchpad + vertices.fourth,
+                                  kScratchpad + vertices.third});
   std::uint32_t record = (draw & kTextureRecordMask) * kTextureRecordSize;
 
   const ShadedVertex first = shadeVertex({colours.first, depths[0]});
@@ -369,6 +374,8 @@ void DetailPass::drawTriangle(const PackedIndices &vertices) {
   memory_.mem_w32(prim + packet::kXy0, xy[0]);
   memory_.mem_w32(prim + packet::kXy1, xy[1]);
   memory_.mem_w32(prim + packet::kXy2, xy[2]);
+  frame_.declarePlaces(
+      prim, std::array{kScratchpad + vertices.first, kScratchpad + vertices.second, kScratchpad + vertices.third});
   std::uint32_t record = (draw & kTextureRecordMask) * kTextureRecordSize;
 
   const ShadedVertex first = shadeVertex({colours.first, depths[0]});

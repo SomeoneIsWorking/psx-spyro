@@ -47,6 +47,7 @@ const TerrainFrame &Drawer::run() {
   frame_.emplace(core_, facts, globals, presentedBounds(core_, facts), memory_, mode_);
   TerrainFrame &frame = *frame_;
   frame.inBetweenCamera = inBetween_.camera;
+  frame.places = inBetween_.places;
   frame.inBetweenArenaBase = inBetween_.arenaBase;
   frame.inBetweenPacketBudget = inBetween_.packetBudget;
   frame.argument = real ? core_.r[4] : inBetween_.argument;

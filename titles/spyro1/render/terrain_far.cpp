@@ -65,6 +65,12 @@ constexpr std::uint32_t kDrawModeBytes = 0xC;
 constexpr std::uint16_t kDrawModeCommand = 0xE100;
 constexpr std::uint32_t kDrawModeDither = 0x600;
 
+// A polygon's vertex cells and the screen words taken from them, in packet order.
+struct Corners {
+  std::span<const std::uint32_t> cells;
+  std::span<const std::uint32_t> screens;
+};
+
 class FarPass {
 public:
   FarPass(TerrainFrame &frame, const Facts &facts)
@@ -77,7 +83,7 @@ private:
   void drawQuad(std::uint32_t first, std::uint32_t second);
   void drawTriangle(std::uint32_t first, std::uint32_t second);
   bool fadesOut(std::uint32_t depthSum, std::uint32_t first, std::span<std::uint32_t> depths) const;
-  void emit(std::uint32_t second, std::uint32_t depthSum, std::span<const std::uint32_t> screens);
+  void emit(std::uint32_t second, std::uint32_t depthSum, const Corners &corners);
 
   TerrainFrame &frame_;
   const Facts &facts_;
@@ -207,7 +213,7 @@ void FarPass::drawQuad(std::uint32_t first, std::uint32_t second) {
   if (fadesOut(sum, first, depths)) {
     return;
   }
-  emit(second, sum, screens);
+  emit(second, sum, {.cells = cells, .screens = screens});
 }
 
 // 800265D0.
@@ -249,14 +255,13 @@ void FarPass::drawTriangle(std::uint32_t first, std::uint32_t second) {
   if (fadesOut(sum, first, depths)) {
     return;
   }
-  emit(second, sum, screens);
+  emit(second, sum, {.cells = cells, .screens = screens});
 }
 
 // 800264D4 / 800266A0: the optional draw-mode packet, then the G4 or G3, each linked into the
 // polygon's bin.
-void FarPass::emit(std::uint32_t second,
-                   std::uint32_t depthSum,
-                   std::span<const std::uint32_t> screens) {
+void FarPass::emit(std::uint32_t second, std::uint32_t depthSum, const Corners &corners) {
+  const std::span<const std::uint32_t> screens = corners.screens;
   const bool triangle = screens.size() == 3;
   const std::uint32_t bin = depthSum + (second & kBinBiasMask) + kBinBase;
   std::uint32_t code = triangle ? guest_packet::kG3Code : guest_packet::kG4Code;
@@ -280,6 +285,7 @@ void FarPass::emit(std::uint32_t second,
     memory_.mem_w32(prim + 4 + 8 * static_cast<std::uint32_t>(i), colour);
     memory_.mem_w32(prim + 8 + 8 * static_cast<std::uint32_t>(i), screens[i]);
   }
+  frame_.declarePlaces(prim, corners.cells);
   const Linked linked = frame_.linkAndAdvance(bin, PacketSize{triangle ? guest_packet::kG3Bytes : guest_packet::kG4Bytes});
   static_cast<void>(linked);
 }

@@ -79,6 +79,7 @@ void SectorProjector::advance() {
 }
 
 void SectorProjector::store(const Projected &projected) {
+  frame_.keepPlace(slot_);
   frame_.memory.mem_w32(slot_, projected.word);
   frame_.memory.mem_w16(depthSlot_, static_cast<std::uint16_t>(projected.depth));
   slot_ += 4;
