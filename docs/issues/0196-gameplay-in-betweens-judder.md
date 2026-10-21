@@ -330,25 +330,26 @@ change, which is otherwise pixel-identical.
 - Sprite queue (HUD digits, gems' sprites): fixed (`c334fbd`). The "2" digit's left edge stepped 176, 184, 192, 200,
   208 with holds; now 183, 182, 182, 181, 180 .. 208.
 - Particles: fixed (`b20aa0b`). Smoke from a flame tap (`ft10`) differs only on the puffs' edges; quads take their
-  RTPT/RTPS places, scaled quads `placeOffset` from their centre. Lines and dots stay whole (below).
+  RTPT/RTPS places; lines, dots and scaled quads in the review below.
 - Drop shadow: fixed (`36ca133`). Its lowest dark row was 3 or 7 mod 8 in 9 of 14 presents with holds (1267,
   1263, 1263, 1259, 1263, ..); now 1267, 1267, 1266, 1269, 1267, 1267, 1258, 1252, 1254, 1255, 1247 ...
 - Moby shadows: fixed (`b775700`); differences only on the far discs (100..1300 px a present).
-- Glow fans (Sparx's glow): fixed (`b44e22d`); rims `placeOffset` from the projected centre.
+- Glow fans (Sparx's glow): fixed (`b44e22d`, rims corrected in the review below).
 - Portals: fixed for the fill (`63ba7a2`). The fill's lowest row held on 7 mod 8 (903 x4, 895 x3, 887 x4, 879);
   now 920, 910, 914, 910, 909, 907, 904, 901, 899, 895, 893, 891, 889, 887, 885, 883. The clip's crossings are
   computed on the outline's places. The near sky through a portal carries places the same way but was not
   reached (no route within 0x4000 of a gate).
-- Flame `0x80058D64` (DrawSpyroHornStrikeTrails, drawn by ComposeFrameScene `0x80019698` while `0x80078760` is
-  set): open. It has no producer, so its packets are unkeyed and every in-between while it burns is shown whole:
-  `fl10` (circle held), fences 1553..1575, 23 of 23 in-betweens `composed=0`, compose reason `entry N unkeyed`;
-  the census gives 1087 unkeyed primitives, all under GamestateDraw `0x8001ED5C`. The proper fix is a native
-  `0x80058D64` (eight parts: a tip fan of four G3 and a GT4 ribbon down the part's arc path at `0x8006DAA8`,
-  linked by depth) with a producer that saves the anchor `0x800786C8`, the published matrix `+0xB8..+0xC8`, the
-  part bytes `+0x20`/`+0x28` and the arc entries, lerps the entries when a part's length and start match, and
-  declares the places of the tip RTPS/RTPT and each ribbon RTPT pair. Not done in this pass.
-- Sprites and lines stay whole by `PrimitiveList`'s design: sparkle stars, particle lines and dots step on whole
-  native pixels above 1x (psxport issue 0169, Open).
+- Flame `0x80058D64` (`r_flame.s`, `g_SpyroFlame`; open-spyro's DrawSpyroHornStrikeTrails), drawn by
+  ComposeFrameScene `0x80019698` while `0x80078760` is set: open. It has no producer, so its packets are unkeyed and
+  every in-between while it burns is shown whole: `fl10` (circle held), fences 1553..1575, 23 of 23 in-betweens
+  `composed=0`, compose reason `entry N unkeyed`; the census gives 1087 unkeyed primitives, all under GamestateDraw
+  `0x8001ED5C`. The native renderer ported it once (issue 0103: `40cd7a4` spyro_flame_recipe, `9c0bcfa`
+  spyro_flame_submitter, `c6545a5` spyro_flame_matrix; deleted with that renderer in `cda8544`). That recipe is the
+  starting point for a native `0x80058D64` (eight parts: a tip fan of four G3 and a GT4 ribbon down the part's arc
+  path at `0x8006DAA8`, linked by depth) with a producer that saves the anchor `0x800786C8`, the published matrix
+  `+0xB8..+0xC8` (still written by `PairedActor::orientParts` at `0x800240F8`), the part bytes `+0x20`/`+0x28` and
+  the arc entries, lerps the entries when a part's length and start match, and declares the places of the tip
+  RTPS/RTPT and each ribbon RTPT pair.
 - Level arrival: the first in-between after `warp 10` arrives 7.4..9.6 ms late (`prof1` fence 4083, `final2` 4073,
   load under 3); of its 48 main-thread samples about 15 are Lightrec translating the level's code for the first
   time. Open.
@@ -360,6 +361,37 @@ change, which is otherwise pixel-identical.
   no title gained a repeat, a backwards record or an error. Tekken 3 showed 13 misses after (load 6.3..5.1)
   against 1 before (load 16.7..15.5); rerun at load 6.4..5.2 it missed 0. C-12 missed 95 before (load 15.5..17.4),
   97 after (5.1..5.4) and 19 on the rerun (5.2..4.2): its misses are its own loading, unchanged here.
+
+## Review of pass 3 (2026-10-21)
+Same settings and captures as pass 3; `r2-*` under `scratch/judder-pass3/`, each against the HEAD binary
+(`r2/spyro_port.head`) on the same route.
+- Glow rims: fixed. Cause: `titles/spyro1/render/glows.cpp:GlowFans::draw` gave a rim point the centre's place plus
+  its whole-pixel GPF step, so the rim kept the step of IR0 = quotient(size << 12, depth). A rim point now takes the
+  centre's place plus its offset times size / depth, before the quotient and the shift truncate it. `r2-glowlog`
+  (Sparx): unrounded radius 23.46, 22.97, 24.74 against the guest's 23, 22, 24; the place lies up to 1.18 px past
+  the word, which the old clamp cut.
+- Sparkle stars: their two G3s are RTPT/RTPS corners and now declare those places (`Sparkles`, `SparkleProducer`);
+  the fade byte lerps while it counts down. Places continuous on frames 1435..1530 of `r2-sp10-new`; a star was not
+  isolated in a capture.
+- Particle lines and dots: lines declare their two RTPS places, dots the place plus their whole-pixel step
+  (`particles.cpp`); the rasterizer offsets each line pixel by the place interpolated along it (psxport
+  `RecordPlanner::Builder::addLine`). `r2-gp10` (Sparx trail dots), left edge mod 8 over 30 presents: HEAD 600 of
+  ~650 at 0; now 88, 75, 93, 89, 100, 63, 102, 81.
+- Scaled particle quads: corners carry the unrounded half size (MAC0 / 2^24 times the size bytes) around the centre
+  place. No route here draws kind 3 (`r2-kindlog`: kinds 0, 1, 2 only), so the path is code only.
+- 1x: `r2-x1-head` and `r2-x1-new`, 20 presents, pixel-identical.
+- Near sky through a portal: reached with `gate-teleport 0 0` in `warp 10` (`r2tools/portal_seq.py`, HOLD=left,
+  LEAD=6, 24 presents); every in-between composed. Open: at 8x thin seams cross the near sky (orange lines and dark
+  ticks off the portal's left edge) on real and in-between presents alike, in HEAD (`r2-gate-head`) and now
+  (`r2-gate-new`); none at 1x (`r2-gate-x1`). With the crossings put on the guest's words (`r2-gate-xw`, a scratch
+  experiment) the seams vanish but the sky's edge leaves the portal outline. `Portals::crossingPlace` lands a
+  crossing on the outline's place line, while `Portals::crossing` (GPL by a 7-bit fraction against the integer
+  edge) misses that line by up to 36 px (`r2-crosslog`), and seven guest words in one present hold two crossings
+  whose places differ by up to 0.6 px (`r2-skylog`). The owner is the cut (`portals.cpp:Portals::cutShaded`); which
+  piece edge opens is not yet traced.
+- Water cut: still unproven. Spyro's water word (`0x80078A58 + 0x30`) stayed 0 over 600 frames held in `warp 10`;
+  no debug route reaches water yet.
+- Timing: every run of this review was at load 13..16 (`uptime`), so no pacing figure here is evidence.
 
 ## Next
 Spyro 2: the opening conversation box is linked by logic before the dispatcher, so the redraw
