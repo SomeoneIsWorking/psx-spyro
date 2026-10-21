@@ -30,8 +30,11 @@ constexpr std::int32_t kDeltaTimeMax = 4;
 
 FrameDriver::FrameDriver(Game &game)
     : fields_(game,
-              spyro::FieldOwnerFacts{
-                  .titleName = "Spyro 1", .fieldCounter = kVblankCounter, .rootHandlerSlot = kRootHandlers},
+              spyro::FieldOwnerFacts{.titleName = "Spyro 1",
+                                     .fieldCounter = kVblankCounter,
+                                     .rootHandlerSlot = kRootHandlers,
+                                     // lw at 0x8001F090 in the draw 0x8001ED5C.
+                                     .drawWaitFlag = 0x80075784u},
               &skipMap_),
       boot_(fields_, skipMap_), transitions_(fields_), cut_(kFrameCutFacts) {}
 
@@ -39,10 +42,11 @@ void FrameDriver::initialize(Core &core) {
   fields_.publish();
   psx::cpu::callGuestNow(core, "static-constructors", kStaticConstructors);
   boot_.initialize(core);
-  lucent::info("frameloop",
-               "FrameDriver initialized; guest main 0x{:08X} and boot body 0x{:08X} are not dispatched",
-               0x80012204u,
-               0x800127C0u);
+  lucent::info(
+      "frameloop",
+      "FrameDriver initialized; guest main 0x{:08X} and boot body 0x{:08X} are not dispatched",
+      0x80012204u,
+      0x800127C0u);
 }
 
 bool FrameDriver::runGuestUpdate(Core &core) {
@@ -51,11 +55,16 @@ bool FrameDriver::runGuestUpdate(Core &core) {
 
   core.mem_w8(kInputLatchOpen, 0);
   psx::cpu::dispatchGuestWithArgumentsToReturn(
-      core, kFrameUpdate, {}, psx::cpu::ExecutionBudget::fromCycles(kGuestUpdateCycles), "frame-update");
+      core,
+      kFrameUpdate,
+      {},
+      psx::cpu::ExecutionBudget::fromCycles(kGuestUpdateCycles),
+      "frame-update");
   core.mem_w8(kInputLatchOpen, 1);
   // main.c: g_DeltaTime = clamp(g_UnprocessedFrames, 2, 4); g_UnprocessedFrames = 0.
   const auto unprocessed = static_cast<std::int32_t>(core.mem_r32(kUnprocessedFrames));
-  core.mem_w32(kDeltaTime, static_cast<std::uint32_t>(std::clamp(unprocessed, kDeltaTimeMin, kDeltaTimeMax)));
+  core.mem_w32(kDeltaTime,
+               static_cast<std::uint32_t>(std::clamp(unprocessed, kDeltaTimeMin, kDeltaTimeMax)));
   const bool stateSwitch = core.mem_r32(kStateSwitch) != 0;
   core.mem_w32(kUnprocessedFrames, 0);
   return stateSwitch;
@@ -81,7 +90,8 @@ void FrameDriver::stepFrame(Core &core, std::uint32_t) {
   while (runGuestUpdate(core)) {
     if (fields_.fieldsThisLogicFrame() > kGuestUpdateFields) {
       lucent::error("frameloop",
-                    "product step {} chained draw-less guest iterations across {} fields; g_StateSwitch never cleared",
+                    "product step {} chained draw-less guest iterations across {} fields; "
+                    "g_StateSwitch never cleared",
                     frame,
                     fields_.fieldsThisLogicFrame());
       std::abort();

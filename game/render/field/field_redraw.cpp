@@ -26,8 +26,8 @@ namespace {
 
 namespace record = guest_moby::record;
 
-// A saved field: this header, then for each in-between of a frame of `fields` fields, a primitive count and
-// that redraw's primitives.
+// A saved field: this header, then for each in-between of a frame of `fields` fields, a primitive
+// count and that redraw's primitives.
 struct Header {
   std::uint32_t serial = 0;
   std::uint32_t redrawn = 0; // 1 when the redraws are the in-betweens from `lerpedFrom`
@@ -239,9 +239,9 @@ void writeInBetween(Core &core,
   effect_pools::writeBetween(run, facts.effects, from.effects, to.effects, t);
 }
 
-// The dispatcher run at `t` with `flags` less the terrain's, the packets it linked appended to `state`
-// in the flatten's order: the bins deepest first, then the overlay pair. False when the run or its
-// packets cannot stand for the in-between.
+// The dispatcher run at `t` with `flags` less the terrain's, the packets it linked appended to
+// `state` in the flatten's order: the bins deepest first, then the overlay pair. False when the run
+// or its packets cannot stand for the in-between.
 bool redraw(Core &core,
             const Image &image,
             const Inputs &from,
@@ -296,20 +296,22 @@ void redrawField(Core &core, const Image &image) {
   History &history = session(core).fieldRedraw;
   readInputs(core, image, history.now);
   history.state.resize(sizeof(Header));
-  // One redraw per in-between of a frame as long as the last; a frame of another length refuses them.
-  history.fields = static_cast<std::uint32_t>(std::max(2, session(core).fieldOwner->lastPacedFields()));
+  // One redraw per in-between of the frame being drawn; a frame that then outlives its draw's wait
+  // refuses them.
+  history.fields = static_cast<std::uint32_t>(session(core).fieldOwner->drawnFrameFields());
   history.redrawn = core.game->mods.fps60 != 0 && history.last.serial != 0;
   for (std::uint32_t field = 1; history.redrawn && field < history.fields; ++field) {
     const std::size_t count = history.state.size();
     history.state.resize(count + sizeof(std::uint32_t));
-    history.redrawn = redraw(core,
-                             image,
-                             history.last,
-                             history.now,
-                             psx::present::inBetweenAt(static_cast<int>(field), static_cast<int>(history.fields)),
-                             history.state);
-    const auto primitives =
-        static_cast<std::uint32_t>((history.state.size() - count - sizeof(std::uint32_t)) / sizeof(SavedPrimitive));
+    history.redrawn =
+        redraw(core,
+               image,
+               history.last,
+               history.now,
+               psx::present::inBetweenAt(static_cast<int>(field), static_cast<int>(history.fields)),
+               history.state);
+    const auto primitives = static_cast<std::uint32_t>(
+        (history.state.size() - count - sizeof(std::uint32_t)) / sizeof(SavedPrimitive));
     std::memcpy(history.state.data() + count, &primitives, sizeof(primitives));
   }
   if (!history.redrawn) {

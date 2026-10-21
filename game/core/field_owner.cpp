@@ -11,6 +11,7 @@
 #include "host_turn.h"
 #include "irq_edge.h"
 
+#include <algorithm>
 #include <chrono>
 #include <cstdlib>
 #include <lucent/log.h>
@@ -35,14 +36,18 @@ void FieldOwner::armHostClock() {
   }
   hostClockArmed_ = true;
   Core &core = game_.core;
-  core.hostTurn.arm(core, &FieldOwner::hostTurnThunk, psx::frame::fieldRateMilliHz(game_.timing.displayFieldRate()));
+  core.hostTurn.arm(core,
+                    &FieldOwner::hostTurnThunk,
+                    psx::frame::fieldRateMilliHz(game_.timing.displayFieldRate()));
   lucent::info("fields", "{} host field clock armed at field {}", facts_.titleName, counter());
 }
 
 bool FieldOwner::dispatchCallbacks() {
   Core &core = game_.core;
-  const std::uint32_t root = facts_.rootHandlerSlot != 0 ? core.mem_r32(facts_.rootHandlerSlot) : 0u;
-  const bool vblankDeliverable = core.irqPendingEnabled(IRQ_BIT_VBLANK) && game_.hle.canDispatchInterrupt(core);
+  const std::uint32_t root =
+      facts_.rootHandlerSlot != 0 ? core.mem_r32(facts_.rootHandlerSlot) : 0u;
+  const bool vblankDeliverable =
+      core.irqPendingEnabled(IRQ_BIT_VBLANK) && game_.hle.canDispatchInterrupt(core);
   if (root == 0) {
     // The guest's own chain takes this field's edge now; a following field would latch over it.
     if (vblankDeliverable) {
@@ -63,11 +68,12 @@ bool FieldOwner::dispatchCallbacks() {
   }
   const std::int32_t after = counter();
   if (after != before + 1) {
-    lucent::error("fields",
-                  "{} guest vblank root advanced counter {} -> {}; host scheduler requires exactly one field",
-                  facts_.titleName,
-                  before,
-                  after);
+    lucent::error(
+        "fields",
+        "{} guest vblank root advanced counter {} -> {}; host scheduler requires exactly one field",
+        facts_.titleName,
+        before,
+        after);
     std::abort();
   }
   return true;
@@ -91,9 +97,14 @@ int FieldOwner::takePacedFields(bool pace) {
   if (!pace) {
     return 0;
   }
-  lastPacedFields_ = static_cast<int>(fieldsSincePace_);
+  const int fields = static_cast<int>(fieldsSincePace_);
   fieldsSincePace_ = 0;
-  return lastPacedFields_;
+  return fields;
+}
+
+int FieldOwner::drawnFrameFields() const {
+  const bool flagWait = facts_.drawWaitFlag != 0 && game_.core.mem_r32(facts_.drawWaitFlag) != 0;
+  return std::max(2, fieldsSincePace() + (flagWait ? 1 : 0));
 }
 
 bool FieldOwner::deliver(FieldRequest request) {
@@ -110,7 +121,8 @@ bool FieldOwner::deliver(FieldRequest request) {
 
   game_.pad.serviceFrame();
   const bool startEdge = game_.pad.pressedButton(psx::input::kButtonStart);
-  if (!game_.timing.advanceDisplayFields({1, 1}, psx::frame::fieldRateMilliHz(game_.timing.displayFieldRate()))) {
+  if (!game_.timing.advanceDisplayFields(
+          {1, 1}, psx::frame::fieldRateMilliHz(game_.timing.displayFieldRate()))) {
     lucent::error(
         "fields", "{} display clock refused one field at {}", facts_.titleName, request.site);
     std::abort();
@@ -146,7 +158,8 @@ bool FieldOwner::deliver(FieldRequest request) {
 }
 
 void FieldOwner::presentFrame() {
-  game_.presentation.commit(&game_.core, takePacedFields(true));
+  // A frame drawn after its last field was presented shows from the next one.
+  game_.presentation.commit(&game_.core, std::max(1, takePacedFields(true)));
   ++presents_;
   ++paces_;
 }
