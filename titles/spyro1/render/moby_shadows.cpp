@@ -2,6 +2,7 @@
 
 #include "core.h"
 #include "gte_registers.h"
+#include "render/field/guest_moby_rotation.h"
 #include "render/field/guest_packet.h"
 #include "render/field/guest_word.h"
 #include "render/terrain/guest_depth_bins.h"
@@ -36,52 +37,9 @@ constexpr std::uint32_t kGrey = 0x808080u;
 // The third vertex's v: 0x1F rows below the first's.
 constexpr std::uint32_t kThirdTexel = 0x1F00u;
 constexpr std::uint32_t kOneRow = 0x10000u;
-// 8005A330..8005A354: the centre must lie above row 240 and within 8 columns of the window.
+// 8005A330..8005A354: the centre must lie above row 240 and within 8 columns of the presented window.
 constexpr std::uint32_t kBottomRow = 0xF00000u;
 constexpr std::int32_t kEdgeSlack = 8;
-
-// 8005A108..8005A1A0: `r` turned by the first slope. Retail adds the second slope's table offset to
-// R11R12.
-void tiltAboutX(psx::cpu::Gte &gte,
-                std::uint32_t sine,
-                std::uint32_t cosine,
-                std::uint32_t otherAngle,
-                psx::gte::RotationWords &r) {
-  gte.writeData(gte::kVxy0, cosine << 16);
-  gte.writeData(gte::kVz0, sine);
-  gte.execute(gte::kMvmvaRtV0);
-  const std::uint32_t ir2 = gte.readData(gte::kIr2);
-  const std::uint32_t ir3 = gte.readData(gte::kIr3);
-  gte.writeData(gte::kVxy0, 0u - (sine << 16));
-  gte.writeData(gte::kVz0, cosine);
-  gte.execute(gte::kMvmvaRtV0);
-  r[0] = (r[0] & 0xFFFFu) + otherAngle;
-  r[3] = (r[3] & 0xFFFFu) + (ir3 << 16);
-  r[1] = (r[1] & 0xFFFF0000u) + (gte.readData(gte::kIr1) & 0xFFFFu);
-  r[2] = (gte.readData(gte::kIr2) << 16) + (ir2 & 0xFFFFu);
-  r[4] = gte.readData(gte::kIr3) & 0xFFFFu;
-  gte.loadRotation(r);
-}
-
-// 8005A1AC..8005A238: `r` turned by the second slope.
-void tiltAboutZ(psx::cpu::Gte &gte,
-                std::uint32_t sine,
-                std::uint32_t cosine,
-                psx::gte::RotationWords &r) {
-  gte.writeData(gte::kVz0, 0);
-  gte.writeData(gte::kVxy0, (sine << 16) + cosine);
-  gte.execute(gte::kMvmvaRtV0);
-  const std::uint32_t ir1 = gte.readData(gte::kIr1);
-  const std::uint32_t ir2 = gte.readData(gte::kIr2);
-  const std::uint32_t ir3 = gte.readData(gte::kIr3);
-  gte.writeData(gte::kVxy0, ((0u - sine) & 0xFFFFu) + (cosine << 16));
-  gte.writeData(gte::kVz0, 0);
-  gte.execute(gte::kMvmvaRtV0);
-  r[1] = (r[1] & 0xFFFFu) + (ir2 << 16);
-  r[2] = (r[2] & 0xFFFF0000u) + (gte.readData(gte::kIr2) & 0xFFFFu);
-  r[0] = (gte.readData(gte::kIr1) << 16) + (ir1 & 0xFFFFu);
-  r[3] = (gte.readData(gte::kIr3) << 16) + (ir3 & 0xFFFFu);
-}
 
 } // namespace
 
@@ -125,28 +83,20 @@ void MobyShadows::draw(std::uint32_t record, std::uint32_t radius) {
                 (memory_.mem_r32(record + actors::moby::kX) >> 2) -
                     memory_.mem_r32(kCameraQuarters));
   gte.execute(gte::kRtps);
-  const std::uint32_t slopeX = ((ground >> 16) & 0x3Fu) << 3;
-  const std::uint32_t slopeZ = ((ground >> 22) & 0x3Fu) << 3;
+  const std::uint32_t slopeX = ((ground >> 16) & 0x3Fu) << 2;
+  const std::uint32_t slopeZ = ((ground >> 22) & 0x3Fu) << 2;
   const std::uint32_t depth = gte.readData(gte::kMac3);
   gte.loadTranslation({gte.readData(gte::kMac1), gte.readData(gte::kMac2), depth});
   if (asSigned(depth) - kFarDepth >= 0) {
     return;
   }
-  if (slopeX != 0) {
-    const std::uint32_t entry = guest::kSinTable + slopeX;
-    tiltAboutX(gte,
-               memory_.mem_r16(entry),
-               memory_.mem_r16(entry + spyro::guest_render_globals::kCosineOffset),
-               slopeZ,
-               r);
-  }
-  if (slopeZ != 0) {
-    const std::uint32_t entry = guest::kSinTable + slopeZ;
-    tiltAboutZ(gte,
-               memory_.mem_r16(entry),
-               memory_.mem_r16(entry + spyro::guest_render_globals::kCosineOffset),
-               r);
-  }
+  // 8005A108..8005A238: tilted by the two slopes, the byte-1 and byte-0 axes of a moby's angles.
+  (void)spyro::guest_moby_rotation::composeTabled(core_,
+                                                  guest::kSinTable,
+                                                  {.angles = (slopeX << 8) | slopeZ},
+                                                  r,
+                                                  spyro::guest_moby_rotation::Byte0Result::Stored,
+                                                  spyro::guest_moby_rotation::Byte1Rt12::Byte0Offset);
   gte.loadRotation(r);
   const std::uint32_t centre = gte.readData(gte::kSxy2);
   const std::uint32_t centreDepth = gte.readData(gte::kSz3);

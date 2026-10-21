@@ -2,7 +2,9 @@
 
 #include "core.h"
 #include "core/guest_magnitude.h"
+#include "cpu_divide.h"
 #include "lucent/log.h"
+#include "render/field/guest_moby_rotation.h"
 #include "render/field/guest_packet.h"
 #include "render/field/guest_word.h"
 #include "render/terrain/guest_depth_bins.h"
@@ -23,7 +25,6 @@ namespace gte = psx::gte;
 using spyro::guest_word::absolute;
 using spyro::guest_word::asSigned;
 using spyro::guest_word::asWord;
-using spyro::guest_word::quotient;
 using spyro::guest_word::signedHalf;
 using spyro::guest_word::sra;
 using terrain::kRenderGlobals;
@@ -90,77 +91,6 @@ constexpr std::uint32_t kC = 0x14;
 
 std::uint32_t packed(std::uint32_t x, std::uint32_t y) {
   return (y << 16) | (x & 0xFFFFu);
-}
-
-// RotVec8ToMatrix 0x80016D2C from the identity: three byte angles, a turn in 256, applied third
-// byte first, each as two MVMVAs of the resident rotation.
-gte::RotationWords rotationFromAngles(psx::cpu::Gte &gte, Core &core, std::uint32_t angles) {
-  const auto sine = [&core](std::uint32_t index) {
-    return std::uint32_t{core.mem_r16(guest::kSinTable + index)};
-  };
-  const auto cosine = [&core](std::uint32_t index) {
-    return std::uint32_t{core.mem_r16(guest::kCosTable + index)};
-  };
-  gte::RotationWords r{kFullAmount, 0, kFullAmount, 0, kFullAmount};
-  gte.loadRotation(r);
-  gte.loadTranslation({});
-  if (const std::uint32_t index = (angles >> 15) & 0x1FEu; index != 0) {
-    const std::uint32_t c = cosine(index);
-    const std::uint32_t s = sine(index);
-    gte.writeData(gte::kVxy0, c);
-    gte.writeData(gte::kVz0, s);
-    gte.execute(gte::kMvmvaRtV0);
-    const std::uint32_t ir1 = gte.readData(gte::kIr1);
-    const std::uint32_t ir2 = gte.readData(gte::kIr2);
-    const std::uint32_t ir3 = gte.readData(gte::kIr3);
-    gte.writeData(gte::kVxy0, (0u - s) & 0xFFFFu);
-    gte.writeData(gte::kVz0, c);
-    gte.execute(gte::kMvmvaRtV0);
-    r[0] = (r[0] & 0xFFFF0000u) + (ir1 & 0xFFFFu);
-    r[3] = (r[3] & 0xFFFF0000u) + (ir3 & 0xFFFFu);
-    r[1] = (gte.readData(gte::kIr1) & 0xFFFFu) + (ir2 << 16);
-    r[2] = (r[2] & 0xFFFFu) + (gte.readData(gte::kIr2) << 16);
-    r[4] = gte.readData(gte::kIr3) & 0xFFFFu;
-    gte.loadRotation(r);
-  }
-  if (const std::uint32_t index = ((angles & 0xFF00u) >> 8) << 1; index != 0) {
-    const std::uint32_t c = cosine(index);
-    const std::uint32_t s = sine(index);
-    gte.writeData(gte::kVxy0, c << 16);
-    gte.writeData(gte::kVz0, s);
-    gte.execute(gte::kMvmvaRtV0);
-    const std::uint32_t ir1 = gte.readData(gte::kIr1);
-    const std::uint32_t ir2 = gte.readData(gte::kIr2);
-    const std::uint32_t ir3 = gte.readData(gte::kIr3);
-    gte.writeData(gte::kVxy0, 0u - (s << 16));
-    gte.writeData(gte::kVz0, c);
-    gte.execute(gte::kMvmvaRtV0);
-    r[0] = (r[0] & 0xFFFFu) + (ir1 << 16);
-    r[3] = (r[3] & 0xFFFFu) + (ir3 << 16);
-    r[1] = (r[1] & 0xFFFF0000u) + (gte.readData(gte::kIr1) & 0xFFFFu);
-    r[2] = (gte.readData(gte::kIr2) << 16) + (ir2 & 0xFFFFu);
-    r[4] = gte.readData(gte::kIr3) & 0xFFFFu;
-    gte.loadRotation(r);
-  }
-  if (const std::uint32_t index = (angles & 0xFFu) << 1; index != 0) {
-    const std::uint32_t c = cosine(index);
-    const std::uint32_t s = sine(index);
-    gte.writeData(gte::kVz0, 0);
-    gte.writeData(gte::kVxy0, (s << 16) + c);
-    gte.execute(gte::kMvmvaRtV0);
-    const std::uint32_t ir1 = gte.readData(gte::kIr1);
-    const std::uint32_t ir2 = gte.readData(gte::kIr2);
-    const std::uint32_t ir3 = gte.readData(gte::kIr3);
-    gte.writeData(gte::kVxy0, ((0u - s) & 0xFFFFu) + (c << 16));
-    gte.writeData(gte::kVz0, 0);
-    gte.execute(gte::kMvmvaRtV0);
-    r[1] = (r[1] & 0xFFFFu) + (ir2 << 16);
-    r[2] = (r[2] & 0xFFFF0000u) + (gte.readData(gte::kIr2) & 0xFFFFu);
-    r[0] = (gte.readData(gte::kIr1) << 16) + (ir1 & 0xFFFFu);
-    r[3] = (gte.readData(gte::kIr3) << 16) + (ir3 & 0xFFFFu);
-    gte.loadRotation(r);
-  }
-  return r;
 }
 
 } // namespace
@@ -244,7 +174,11 @@ bool Portals::facesCamera(const std::array<std::uint32_t, 3> &centre) const {
               << (axis * 8);
   }
   auto &gte = core_.gte();
-  gte.loadRotation(rotationFromAngles(gte, core_, angles));
+  // RotVec8ToMatrix 0x80016D2C from the identity.
+  gte::RotationWords rotation{kFullAmount, 0, kFullAmount, 0, kFullAmount};
+  gte.loadRotation(rotation);
+  gte.loadTranslation({});
+  (void)spyro::guest_moby_rotation::composeTabled(core_, guest::kSinTable, {.angles = angles}, rotation);
   gte.writeData(gte::kIr3, kFullAmount);
   gte.writeData(gte::kIr1, 0);
   gte.writeData(gte::kIr2, 0);
@@ -345,7 +279,7 @@ std::optional<Approach> Portals::drawFar(std::uint32_t index) {
     approach.centre[2] += z;
   }
   for (std::uint32_t &component : approach.centre) {
-    component = quotient(component, count);
+    component = psx::cpu::quotient({component, count});
   }
 
   // 80051168..80051214: which way round the outline runs, from the camera's side of its plane.
@@ -390,8 +324,8 @@ std::optional<Approach> Portals::drawFar(std::uint32_t index) {
   if ((narrowX || narrowY) && edges != 0) {
     return std::nullopt;
   }
-  approach.average = {quotient(sum[0], count), quotient(sum[1], count)};
-  std::int32_t bin = asSigned(sra(quotient(memory_.mem_r32(kBin), count), kBinShift));
+  approach.average = {psx::cpu::quotient({sum[0], count}), psx::cpu::quotient({sum[1], count})};
+  std::int32_t bin = asSigned(sra(psx::cpu::quotient({memory_.mem_r32(kBin), count}), kBinShift));
   if (bin >= kNearBins) {
     bin += static_cast<std::int32_t>(kBinPush);
   }
@@ -725,7 +659,7 @@ Portals::Corner Portals::crossing(Corner inside, Corner outside, std::uint32_t a
     return Corner{.point = x0, .colour = y0 | dy};
   }
   const std::uint32_t side = ((a * x0 + c + b * y0) << kCrossingShift) + kCrossingRound;
-  gte.writeData(gte::kIr0, ((0u - quotient(side, along)) << kFractionShift) + kFractionRound);
+  gte.writeData(gte::kIr0, ((0u - psx::cpu::quotient({side, along})) << kFractionShift) + kFractionRound);
   gte.execute(gte::kGplSf);
   const std::uint32_t point =
       (gte.readData(gte::kMac2) << 16) | (gte.readData(gte::kMac1) & 0xFFFFu);

@@ -33,7 +33,7 @@ Every Spyro 1 horizontal cull and HUD placement sits inside a whole guest routin
 | glows | `0x80058BA8` (C) calls the fans `0x800580F4` and sparkles `0x800584C4` | native, x outcodes widened, producer per emitter and per sparkle (`spyro1::glows`) |
 | sky | cyclorama `0x8004EBA8`, the tail of `0x80050BD0` | native, x outcodes widened, producer (`spyro1::sky::Cyclorama`) |
 | portals | `0x80050BD0`: fill `0x8004FEA0`, near sky `0x8004F4BC` / `0x80050240` | native, producer per portal (`spyro1::portals::Portals`); fill and window on retail's 512x240 |
-| moby shadows | RenderMobyShadows `0x80059F8C` | native, producer per record (`spyro1::shadows::MobyShadows`) |
+| moby shadows | RenderMobyShadows `0x80059F8C` | native, x tests widened, producer per record (`spyro1::shadows::MobyShadows`) |
 | other effects | horn trails `0x80058D64`, motion trails `0x800189F0`, demo overlay `0x80018908`, `0x80058864` | guest, no producer |
 
 A widened draw leaves guest state as retail's 4:3 window writes it: a particle's seen byte and a
@@ -75,7 +75,8 @@ Proof (fps60, 16:9, hidden window, `PSXPORT_PRODUCERS=1`): on `warp` 10, 11 and 
 level 10's portal (`gate-teleport 0 0`, near sky drawn), the census after gameplay starts adds only
 keyed primitives with a render (the 17 unkeyed are the level-entry transition, before gameplay);
 40 presents while turning have even adjacent differences and a steady image shift; real frames are
-pixel-identical to the guest-drawn run. A temporary in-process differential (removed) matched the
+pixel-identical to the guest-drawn run while no shadowed moby sits in a side margin, where the
+native shadow cull on the widened window draws what retail's 512-wide test culled. A temporary in-process differential (removed) matched the
 near sky's packets against `0x8004F4BC` beside all five of level 10's gates, and its packets and
 faded table against `0x80050240` with a forced fade beside two of them. Captures: `scratch/interp/final{10,11,20,near,hud}/`.
 

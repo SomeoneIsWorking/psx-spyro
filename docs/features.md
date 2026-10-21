@@ -75,6 +75,7 @@ S2 and S3 take the BIOS pad path.
 | 7 | S1 | title | `titles/spyro1/render/hud_anchor.cpp` — HUD records in the sprite queue and the life-orb and egg quads (`0x8001919C`) through `spyro::ui_anchor` |
 | 8 | S1 | psxport F-WIDE.2 | `titles/spyro1/render/sky.cpp`, `titles/spyro1/render/glows.cpp`, `titles/spyro1/render/particles.cpp` — the cyclorama (`0x8004EBA8`), glows (`0x800580F4`, `0x800584C4`) and particles (`0x800573C8`) test x on the widened window; the seen and fade bytes they write follow `titles/spyro1/render/screen.h:kRetailBounds` |
 | 9 | S1 | psxport F-WIDE.2 | `titles/spyro1/render/actor_emitter_vertices.cpp:ActorEmitter::keepScreen` — the moby emitters (`0x8001F798`, `0x80020F34`) outcode a straddling moby's vertices on `spyro::presentedBounds` (`guest_view_slope.h`) |
+| 10 | S1 | psxport F-WIDE.2 | `titles/spyro1/render/moby_shadows.cpp:MobyShadows::draw` — the moby shadows (`0x80059F8C`) cull the shadow centre on `spyro::presentedBounds` instead of retail's 512-wide window (`8005A330..8005A354`), so a shadow in a side margin is drawn |
 
 The portal fill and near sky of `0x80050BD0` stay on retail's 512-wide window: the fill covers the screen triangles at `0x8006CB8C` and the outline window is clamped to [0, 512] (issue 0186).
 
