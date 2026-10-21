@@ -1,14 +1,15 @@
 #include "spyro1/render/glows.h"
 
-#include "guest_memory_map.h"
 #include "core.h"
 #include "cpu_divide.h"
 #include "gte_registers.h"
+#include "guest_memory_map.h"
 #include "render/field/guest_packet.h"
 #include "render/field/guest_render_globals.h"
 #include "render/field/guest_word.h"
 #include "spyro1/render/screen.h"
 #include "spyro1/render/terrain_facts.h"
+#include "state_producer.h"
 
 namespace spyro1::glows {
 namespace {
@@ -35,8 +36,9 @@ std::uint32_t slotOf(std::uint32_t table, std::uint32_t bin) {
 
 GlowFans::GlowFans(Core &core,
                    const psx::present::EmitMemory &memory,
-                   const spyro::guest_terrain::ScreenBounds &bounds)
-    : core_(core), memory_(memory), bounds_(bounds) {}
+                   const spyro::guest_terrain::ScreenBounds &bounds,
+                   psx::present::PrimitiveSink *places)
+    : core_(core), memory_(memory), bounds_(bounds), places_(places) {}
 
 void GlowFans::begin() {
   auto &gte = core_.gte();
@@ -101,6 +103,7 @@ std::optional<std::uint32_t> GlowFans::draw(std::uint32_t entry) {
   memory_.mem_w32(cursor_ + 4, kAdditiveMode);
   memory_.mem_w32(cursor_ + 8, 0);
   const std::uint32_t centre = gte.readData(gte::kSxy2);
+  const GtePlace centrePlace = gte.projectedPlace(2);
   const std::uint32_t depth = gte.readData(gte::kMac3) << (shift & 31u);
   const std::uint32_t centreY = sra(centre, 16);
   const std::uint32_t centreX = signedHalf(centre);
@@ -156,6 +159,12 @@ std::optional<std::uint32_t> GlowFans::draw(std::uint32_t entry) {
     const std::uint32_t next = (pointX & 0xFFFFu) | (pointY << 16);
     memory_.mem_w32(cursor_ + 0x18, next);
     if (asSigned(centreEdges & edges & nextEdges) <= 0) {
+      if (places_ != nullptr) {
+        places_->placeCorners(cursor_,
+                              {{centrePlace,
+                                psx::present::placeOffset(centrePlace, centre, point),
+                                psx::present::placeOffset(centrePlace, centre, next)}});
+      }
       link(slot, cursor_);
       cursor_ += 0x1C;
     }
