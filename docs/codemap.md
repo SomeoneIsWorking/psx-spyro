@@ -6,7 +6,7 @@ Dependency direction: `titles/<title>/` (one image's facts and natives) → `gam
 - `game/core/runtime.*` — Spyro runtime base: session, state producers, presentation pacing, widescreen projection policy, panel logo, run report
 - `game/core/session.*` — per-Core title state: archive transfer, field owner, HUD draw context, terrain visibility, state producers
 - `game/core/field_owner.*` — display field / VSync delivery sequence: pad, clock, VBlank root counter, observers, snapshot, presentation fence, audio, host turn
-- `game/core/boot_prefix_runtime.*`, `boot_prefix_frame_driver.*` — S2/S3 boot: crt0, stock libraries, the retail boot prefix as a resumable call, then update and draw one field per step
+- `game/core/boot_prefix_runtime.*`, `boot_prefix_frame_driver.*` — S2/S3 boot: crt0, stock libraries, the retail boot prefix as a resumable call, then update and draw one field per step, each logic frame presented when its draw returns
 - `game/core/frame_cut.*` — cut detection for 60 fps in-betweens: gamestate, level, camera jump
 - `game/core/native_execution.h` — nested guest call return address `$ra` and lowered stack frame
 - `game/core/archive_transfer*` — WAD archive / CD file transfer with per-Core completion and refusal

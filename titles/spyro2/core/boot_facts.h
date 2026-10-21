@@ -25,9 +25,11 @@ inline constexpr spyro::BootPrefixFacts kBootPrefixFacts{
         {
             .titleName = "Spyro 2",
             .fieldCounter = 0,
-            // The libetc vblank callback is the BIOS HookEntryInt continuation (0x80054A78), resumed by
-            // the framework's interrupt path.
+            // The libetc vblank callback is the BIOS HookEntryInt continuation (0x80054A78),
+            // resumed by the framework's interrupt path.
             .rootHandlerSlot = 0,
+            // Read before the wait loop of the draw 0x800156FC.
+            .drawWaitFlag = 0x80067044u,
         },
     .cut =
         {

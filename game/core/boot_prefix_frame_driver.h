@@ -32,10 +32,11 @@ struct BootPrefixFacts {
 };
 
 // One product step of a title whose retail executable IS its boot. The host owns the FIELD: every
-// guest VSync comes back as a frame-boundary exit this driver satisfies with one delivered field,
-// so one step presents exactly one field. The host-turn clock stays unarmed because the guest's
-// own VSync is the only field source the boot uses. The call in flight is machine state: a save
-// taken while it is suspended resumes it, not the live one.
+// guest VSync comes back as a frame-boundary exit this driver satisfies with one delivered field.
+// A boot step presents its last field. A main-loop step ends at a field or at the return of the
+// frame's draw, which presents the frame over its fields. The host-turn clock stays unarmed because
+// the guest's own VSync is the only field source the boot uses. The call in flight is machine
+// state: a save taken while it is suspended resumes it, not the live one.
 class BootPrefixFrameDriver final : public psx::game::FrameDriver,
                                     public psx::state::NativeStatePort {
 public:
@@ -67,6 +68,9 @@ private:
   enum class Phase : std::uint8_t { Boot, MainLoop };
   // Why one retail call ended: it returned, ran out of host turns, or hit the field bound.
   enum class CallProgress : std::uint8_t { Returned, TurnBudgetReached, FieldBoundReached };
+  // Where a main-loop step stopped: at the return of the frame's draw, or at a field inside the
+  // frame.
+  enum class LoopStop : std::uint8_t { FrameDrawn, Field };
   // The two retail calls of one main-loop iteration, in the order game main runs them.
   enum class LoopCall : std::uint8_t { Update, Draw };
   // What a loaded state replaces once every machine section is in place.
@@ -89,7 +93,11 @@ private:
   bool enterCall(std::uint32_t entry);
   void deliverField(const char *site, bool present, bool pace);
   void stepBoot(Core &core);
-  void stepMainLoop(Core &core);
+  [[nodiscard]] LoopStop stepMainLoop(Core &core);
+  // The step's field shows the frame drawn so far.
+  void presentField(Core &core, std::uint32_t frame, const char *site);
+  // The step's field passes unpresented; the step still crosses its presentation fence.
+  void deferField(Core &core, const char *site);
   [[nodiscard]] std::uint32_t entryOf(LoopCall call) const;
   [[nodiscard]] const char *siteOf(LoopCall call) const;
   void reportStop(Core &core,
