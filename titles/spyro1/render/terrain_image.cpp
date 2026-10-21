@@ -70,11 +70,13 @@ void drawTerrain(Core *core) {
 } // namespace
 
 void registerOverrides(Core &core) {
-  spyro::installProducerOverride(core,
-                                 kSharedFacts.entry,
-                                 kSharedFacts.overrideName,
-                                 drawTerrain,
-                                 std::make_unique<spyro::guest_terrain::TerrainStateProducer>(core, kTerrainImage));
+  spyro::installProducerOverride(
+      core,
+      kSharedFacts.entry,
+      kSharedFacts.overrideName,
+      drawTerrain,
+      std::make_unique<spyro::guest_terrain::TerrainStateProducer>(core, kTerrainImage),
+      psx::present::Arg::None);
 }
 
 } // namespace spyro1::terrain
