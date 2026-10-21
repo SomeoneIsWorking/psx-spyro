@@ -27,4 +27,8 @@ bool BootPrefixRuntime::sealedFrameIsCut(Core &core) const {
   return core.game->frameDriver == nullptr || core.game->frameDriverAs<BootPrefixFrameDriver>().cut().isCut();
 }
 
+psx::state::NativeStatePort *BootPrefixRuntime::nativeState(Core &core) const {
+  return &core.game->frameDriverAs<BootPrefixFrameDriver>();
+}
+
 } // namespace spyro
