@@ -3,6 +3,7 @@
 #pragma once
 
 #include "guest_memory_map.h"
+#include "render/field/keyframe_blend.h"
 #include "spyro1/core/guest_globals.h"
 #include "spyro1/render/terrain_facts.h"
 
@@ -65,6 +66,8 @@ inline constexpr std::uint32_t kAngles = 0x0C;     // a word of three angle byte
 inline constexpr std::uint32_t kAnimations = 0x18; // per part: animation, partner animation
 inline constexpr std::uint32_t kFrames = 0x1E;     // per part: frame, partner frame
 inline constexpr std::uint32_t kBlends = 0x24;     // per part: weight toward the partner frame
+// A part's weight is sixteenths (weight << 8 into the 0x1000 INTPL scale).
+inline constexpr spyro::keyframe_blend::Progress kPartProgress{16};
 inline constexpr std::uint32_t kDepthBias = 0x27;
 inline constexpr std::uint32_t kTint = 0x28; // colour, amount in the top byte
 inline constexpr std::uint32_t kWaterLevel =
@@ -80,7 +83,9 @@ namespace moby {
 inline constexpr std::uint32_t kShadowFlag = 0x1C; // negative: stage a drop shadow
 inline constexpr std::uint32_t kFrames = 0x3C;     // frame bytes: 0, 1 and their vertex steps 2, 3
 inline constexpr std::uint32_t kShadowFrame = 0x3E;
-inline constexpr std::uint32_t kBlend = 0x40;         // non-zero blends frame 0 toward frame 1
+inline constexpr std::uint32_t kBlend = 0x40; // non-zero blends frame 0 toward frame 1
+// The weight is 64ths (weight << 6 into the 0x1000 INTPL scale).
+inline constexpr spyro::keyframe_blend::Progress kBlendProgress{64};
 inline constexpr std::uint32_t kDepthBias = 0x4B;     // low six bits
 inline constexpr std::uint32_t kSecondaryWord = 0x4C; // the sprite queue's palette selector
 inline constexpr std::uint32_t kCullDistance = 0x50;  // halfword: low byte <<8, bit 8 adds 0x200

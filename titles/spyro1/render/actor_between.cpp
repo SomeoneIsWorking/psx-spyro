@@ -3,6 +3,8 @@
 #include "core.h"
 #include "guest_memory_map.h"
 #include "packet_chains.h"
+#include "render/field/keyframe_blend.h"
+#include "render/field/record_blend.h"
 #include "render/terrain/guest_depth_bins.h"
 #include "spyro1/render/actor_facts.h"
 #include "spyro1/render/terrain_facts.h"
@@ -22,7 +24,17 @@ recordBetween(const spyro::moby_record::Bytes &from, const spyro::moby_record::B
   if (!spyro::moby_record::sameObject(from, to) || !sameSpace) {
     return to;
   }
-  return spyro::moby_record::between(from, to, t);
+  spyro::moby_record::Bytes shown = spyro::moby_record::between(from, to, t);
+  const auto poseOf = [](const spyro::moby_record::Bytes &bytes) {
+    return spyro::keyframe_blend::Pose{
+        .keyframes = spyro::record_blend::load<std::uint32_t>(bytes, moby::kFrames),
+        .progress = bytes[moby::kBlend]};
+  };
+  const spyro::keyframe_blend::Pose pose =
+      spyro::keyframe_blend::between(poseOf(from), poseOf(to), t, moby::kBlendProgress);
+  spyro::record_blend::store(shown, moby::kFrames, pose.keyframes);
+  shown[moby::kBlend] = pose.progress;
+  return shown;
 }
 
 std::array<GuestSpan, 3> binnedWorkingRanges(Core &core) {

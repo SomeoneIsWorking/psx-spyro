@@ -3,10 +3,12 @@
 #include "core.h"
 #include "guest_memory_map.h"
 #include "render/field/guest_render_globals.h"
+#include "render/field/keyframe_blend.h"
 #include "render/field/record_blend.h"
 #include "render/state_producer_override.h"
 #include "spyro1/render/actor_between.h"
 #include "spyro1/render/paired_actor.h"
+#include "spyro1/render/paired_actor_layout.h"
 #include "spyro1/render/terrain_image.h"
 
 #include <memory>
@@ -57,6 +59,26 @@ spyroBetween(const std::array<std::uint8_t, spyro_record::kBytes> &from,
       const std::uint32_t at = spyro_record::kAngles + 4 * part + axis;
       shown[at] = spyro::record_blend::angleBetween(from[at], to[at], t);
     }
+  }
+  // Each part's animation and frame pairs as one pose: slot A, slot B, frame A, frame B.
+  for (std::uint32_t part = 0; part < paired::kParts; ++part) {
+    const std::uint32_t animations = spyro_record::kAnimations + 2 * part;
+    const std::uint32_t frames = spyro_record::kFrames + 2 * part;
+    const auto poseOf = [animations, frames, part](
+                            const std::array<std::uint8_t, spyro_record::kBytes> &bytes) {
+      return spyro::keyframe_blend::Pose{.keyframes = std::uint32_t{bytes[animations]} |
+                                                      (std::uint32_t{bytes[animations + 1]} << 8) |
+                                                      (std::uint32_t{bytes[frames]} << 16) |
+                                                      (std::uint32_t{bytes[frames + 1]} << 24),
+                                         .progress = bytes[spyro_record::kBlends + part]};
+    };
+    const spyro::keyframe_blend::Pose pose =
+        spyro::keyframe_blend::between(poseOf(from), poseOf(to), t, spyro_record::kPartProgress);
+    shown[animations] = static_cast<std::uint8_t>(pose.keyframes);
+    shown[animations + 1] = static_cast<std::uint8_t>(pose.keyframes >> 8);
+    shown[frames] = static_cast<std::uint8_t>(pose.keyframes >> 16);
+    shown[frames + 1] = static_cast<std::uint8_t>(pose.keyframes >> 24);
+    shown[spyro_record::kBlends + part] = pose.progress;
   }
   return shown;
 }
