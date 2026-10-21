@@ -48,7 +48,7 @@ Start or Cross edge today; "route" is the thing the press has to reach.
 | 13 | title screen fly-in + "PRESS START" platform | **Start** (and Cross in the menu arms) | overlay `OV_5B800` at `0x8007AA38`: `0x8007AC48` (held) and `0x8007B88C` (edge), the latter behind a `0xA000` Circle-or-Start test at `0x8007B894` | the overlay's own sub-state chain to `TSM_Menu` | guest-owned; the driver answers it (`title_prompts.py`) | guest-owned, no native arm, and none is correct | unchanged |
 | 13 | attract flyby card, `TSD_DemoLevel` (what boot reaches after the idle timeout) | **none on the card** | the card's own update reads no pad word; the *demo playback* it enters does | `0x8003314C` (`g_DemoMode=1`), `0x80033154` (`g_DemoFadeTimer=0`), `0x80033158 jal 0x8004AC24`, `0x80033160 jal 0x80015370` | would have to reproduce the two demo stores | deliberately absent, and the reason is measured: widening the predicate to `TSD_DemoLevel` would load the *demo's* level as if it were a new game (issue 0129) | unchanged |
 | 0 | attract demo playback (`g_DemoMode` set, inside `GS_Playing`) | **ANY button**, after 16 game ticks | `func_800334D4` at **`0x800334D4`**, called once from the play dispatch at `0x80033A78`; `PadDemoUpdate()` then a test on the recorded pad buffer | the `g_DemoFadeTimer == 16` block inside the same function: kills audio, clears, reloads the title overlay synchronously, `func_8002D170()`, `g_StateSwitch = 1` | guest-owned and complete | guest-owned; no native arm, and none is correct | unchanged; **not reached** by any run this session — the census names `demo` as never reached |
-| 13 | new-game flyby, `TSD_Cutscene` — the 384-tick card before the intro | **none** | the card's own update reads no pad word | `0x8003304C..0x800330E8`: inline `RECT` on the guest stack, `0x80033070 jal 0x8005F8F8` (ClearImage), `0x80033078 jal 0x8005F764` (DrawSync), `0x80033098 jal 0x8005B6F8` (AllocateBuffers(1)), a blocking `0x80014564` (LoadCutscene) + `0x8002BBE0` (CDMusicUpdate) loop to `g_LoadStage == 10`, `0x800330D0 jal 0x8002D338` (StartCutscenePlayback), `0x800330D8` (`g_StateSwitch = 1`) | **no dispatchable route** — see "the one that cannot be dispatched" below | absent | unchanged; the reason is now measured rather than asserted |
+| 13 | new-game flyby, `TSD_Cutscene` — the 384-tick card before the intro | **none** | the card's own update reads no pad word | `0x8003304C..0x800330E8`: inline `RECT` on the guest stack, `0x80033070 jal 0x8005F8F8` (ClearImage), `0x80033078 jal 0x8005F764` (DrawSync), `0x80033098 jal 0x8005B6F8` (AllocateBuffers(1)), a blocking `0x80014564` (LoadCutscene) + `0x8002BBE0` (CDMusicUpdate) loop to `g_LoadStage == 10`, `0x800330D0 jal 0x8002D338` (StartCutscenePlayback), `0x800330D8` (`g_StateSwitch = 1`) | entered inside its function's frame (issue 0198) | port arm `CutsceneTransitionIntroCard` | done in issue 0198 |
 | 14 | **intro cutscene** ("In the World of Dragons", `g_CutsceneIdx == 1`) | **Start or Cross, HELD** | `0x80033348 lui $v0,0x8007` / `0x8003334C lw $v0,0x7380($v0)` = `g_Pad.m_Held`, then **`0x80033354 andi $v0,$v0,0x840`**; `0x80033374 slti $v0,$v1,0xf1` (tick ≥ 241), `0x8003338C addiu $v0,$v0,-0x20` (before the last 32), `0x80033398 sra $v0,$v1,1` + `0x8003339C addiu $v0,$v0,0x10` → `g_CutsceneLayout->m_Duration = (tick>>1)+16` | `0x800333C4 jal 0x8002D440` = `EndCutscenePlayback` | guest-owned, and it is an *acceleration toward* the natural terminal, not a jump | **unmeasured** — no driver could press during it, and `--skip-transitions` pressed only Start as a 4-field edge, which lands before the 241-tick gate and changes nothing | `--skip-transitions` now holds the button for 400 fields, and `--skip-button cross` chooses which; **the held Cross fired live** (`press: cross while in GS_Cutscene at frame 2480`, arrival at 3520); the Start leg and the baseline it is differenced against are queued |
 | 13 | "THE ADVENTURE BEGINS…" flyby, `TSD_Level` | none in retail (port enhancement) | — | `0x80033158 jal 0x8004AC24` + `0x80033160 jal 0x80015370`, gated on `m_Tick >= 384` **and** `g_LoadStage == 13` | port arm `CutsceneTransitionFlyby` | done; live-measured once, 760 fields earlier | unchanged |
 | 1 | level-transition gem tally (portal in and out) | none in retail (port enhancement) | — | `0x8002DA74`: once `g_LevelTransTicks > 416` it clears `g_LevelTransHudActive` (`0x800756B0`) and does nothing else | port arm `LevelTransitionTally` | done; **never observed live** — both routes into stage 1 sit behind a portal | reachable now: `--press-after 1:start` / `1:cross`; **not run** — the leg is queued behind the host blocker below |
@@ -129,7 +129,7 @@ every writer is the pause-menu draw, the pause-menu enter/exit, or the glide's o
 the phase write the rules forbid; and the alternative — waiting for the guest's own wrap — is not a
 skip, it is the screen finishing. So the arm stays, and the divergence is stated.
 
-## Finding 3 — the card before the intro cannot be dispatched, and now there is a measurement for it
+## Finding 3 — the card before the intro cannot be dispatched as a call (resolved by issue 0198)
 
 `TSD_Cutscene`'s terminal is a straight-line block at `0x8003304C..0x800330E8` that ends with
 `0x800330E4 j 0x80033190`, the **epilogue of the function it lives in**. Dispatching into the middle
@@ -142,7 +142,8 @@ inline.
 So the screen stays uncancellable, and now for a stated reason rather than an assertion. What would
 unblock it, precisely: either a framework entry point that can run a mid-function guest block with a
 synthesised frame (psxport, outside this repository), or a guest-owned full-screen clear this game
-does not have. Both are named so the next person does not re-derive them.
+does not have. Issue 0198 took the first: the block is entered inside the frame its function's
+prologue builds and leaves through that epilogue (`docs/findings/start-skip-map.md`).
 
 ## The harness gap this session closed
 
@@ -306,8 +307,7 @@ same module directory at the same time; the third, once it was quiet, succeeded.
   claim otherwise and neither does this.
 - No drivable route reaches a death, so the game-over spiral's held-Start route is recovered from
   bytes and unobserved — it is a guest route, so it needs a driver that can die, not a port change.
-- `GS_EntranceAnimation` (9) and the `TSD_Cutscene` card remain without a cancellation, for the two
-  measured reasons above.
+- `GS_EntranceAnimation` (9) remains without a cancellation, for the measured reasons above.
 - **The three arms that sit between two levels — the level-transition tally, the entrance sweep and
   the return-home glide — are still unit-tested and unobserved.** Every leg in this issue is a title
   route that stops at arrival, and each leg's census names them as never reached. Their driver routes

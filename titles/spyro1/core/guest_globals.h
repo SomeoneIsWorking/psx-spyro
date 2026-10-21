@@ -53,6 +53,7 @@ inline constexpr std::uint32_t kTitleModeInit = 0u;                             
 inline constexpr std::uint32_t kTitleModeDemo = 3u;                              // TSM_Demo
 inline constexpr std::uint32_t kTitleStageSetup = 0u;                            // TSS_Setup
 inline constexpr std::uint32_t kTitleStageActive = 2u;                           // TSS_Active
+inline constexpr std::uint32_t kDemoTypeCutscene = 0u;                           // TSD_Cutscene
 inline constexpr std::uint32_t kDemoTypeLevel = 1u;                              // TSD_Level
 
 // g_CutsceneLayout (loaders.c), written once at 0x80014A38; m_CurrentTick is its first word.

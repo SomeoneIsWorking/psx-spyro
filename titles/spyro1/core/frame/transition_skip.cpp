@@ -1,15 +1,22 @@
 #include "spyro1/core/frame/transition_skip.h"
+#include "spyro1/core/frame/guest_update_budget.h"
 #include "spyro1/core/guest_globals.h"
 
 #include "core.h"
 #include "core/field_owner.h"
+#include "guest_abi.h"
 #include "guest_call.h"
+#include "native_dispatch.h"
+
+#include <array>
+#include <cstdlib>
 
 #include <lucent/log.h>
 
 namespace spyro1 {
 namespace {
 
+using guest::kDemoTypeCutscene;
 using guest::kDemoTypeLevel;
 using guest::kGamestate;
 using guest::kGamestateTitleScreen;
@@ -36,11 +43,47 @@ constexpr std::uint32_t kLoadLevel = 0x80015370u;
 constexpr std::uint32_t kLoadStageLevelReady = 13u;
 constexpr std::uint64_t kFlybyTerminalCycles = 32u << 20;
 
+// The TSD_Cutscene card's terminal is inline in GamestateCutsceneTransition (0x80032B08): from the
+// delay slot at 0x8003304C through its epilogue, in the frame its prologue builds
+// (docs/issues/0198).
+constexpr psx::cpu::GuestCallSite kCutsceneTransitionCall =
+    psx::cpu::GuestCallSite::fromJal(0x800339ECu, 0x80032B08u);
+constexpr std::uint32_t kIntroCardTerminal = 0x8003304Cu;
+constexpr std::uint32_t kCutsceneTransitionFrame = 0x38u;
+constexpr std::array<GuestFrameSpill, 4> kCutsceneTransitionSpills{{
+    {psx::cpu::kRa, 0x34},
+    {psx::cpu::kS2, 0x30},
+    {psx::cpu::kS1, 0x2C},
+    {psx::cpu::kS0, 0x28},
+}};
+constexpr std::uint32_t kLoadStageCutsceneReady = 7u;
+
+// Leaves through the function's own epilogue back to the frame update's call site.
+void runIntroCardTerminal(Core &core) {
+  const std::uint32_t entrySp = core.r[psx::cpu::kSp];
+  core.r[psx::cpu::kRa] = kCutsceneTransitionCall.returnPc;
+  core.r[psx::cpu::kSp] = entrySp - kCutsceneTransitionFrame;
+  for (const GuestFrameSpill &spill : kCutsceneTransitionSpills) {
+    core.mem_w32(core.r[psx::cpu::kSp] + static_cast<std::uint32_t>(spill.offset),
+                 core.r[spill.reg]);
+  }
+  const psx::cpu::ExecutionResult result =
+      psx::cpu::resumeGuestToReturn(core,
+                                    kCutsceneTransitionCall,
+                                    kIntroCardTerminal,
+                                    psx::cpu::ExecutionBudget::fromCycles(kGuestUpdateCycles));
+  if (!psx::cpu::requireGuestReturn(result, "transition-intro-card") ||
+      core.r[psx::cpu::kSp] != entrySp) {
+    std::abort();
+  }
+}
+
 } // namespace
 
 bool flybyCardUp(const TransitionState &state) {
   return state.stage == kGamestateTitleScreen && state.titleMode == kTitleModeDemo &&
-         state.titleState == kTitleStageActive && state.demoType == kDemoTypeLevel;
+         state.titleState == kTitleStageActive &&
+         (state.demoType == kDemoTypeLevel || state.demoType == kDemoTypeCutscene);
 }
 
 Cancellation classify(const TransitionState &state) {
@@ -54,9 +97,14 @@ Cancellation classify(const TransitionState &state) {
   if (state.stage == kStageExitLevel) {
     return Cancellation::ReturnHomeSequence;
   }
-  // GamestateCutsceneTransition runs its terminal only once g_LoadStage reaches 13.
-  if (flybyCardUp(state) && state.loadStage == kLoadStageLevelReady) {
+  // GamestateCutsceneTransition runs a card's terminal only once that card's load reaches its gate.
+  if (flybyCardUp(state) && state.demoType == kDemoTypeLevel &&
+      state.loadStage == kLoadStageLevelReady) {
     return Cancellation::CutsceneTransitionFlyby;
+  }
+  if (flybyCardUp(state) && state.demoType == kDemoTypeCutscene &&
+      state.loadStage == kLoadStageCutsceneReady) {
+    return Cancellation::CutsceneTransitionIntroCard;
   }
   return Cancellation::None;
 }
@@ -72,7 +120,7 @@ void TransitionSkip::observe(Core &core) {
                         .loadStage = core.mem_r32(kLoadStage),
                         .skipPressed = fields_.presentationSkipPressed()};
 
-  // The flyby's load can outlast the one-field edge by hundreds of frames.
+  // A card's load can outlast the one-field edge by hundreds of frames.
   if (!flybyCardUp(state)) {
     flybyPress_.clear();
   } else {
@@ -132,6 +180,17 @@ void TransitionSkip::observe(Core &core) {
                  core.mem_r32(kLoadStage),
                  core.mem_r32(kTitlescreenMode),
                  core.mem_r32(kTitlescreenStage));
+    return;
+  case Cancellation::CutsceneTransitionIntroCard:
+    flybyPress_.clear();
+    runIntroCardTerminal(core);
+    ++cancellations_;
+    lucent::info("transition",
+                 "intro card cancelled ({}); guest terminal 0x{:08X} left stage {} load stage {}",
+                 cancellations_,
+                 kIntroCardTerminal,
+                 core.mem_r32(kGamestate),
+                 core.mem_r32(kLoadStage));
     return;
   }
 }
