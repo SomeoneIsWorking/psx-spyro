@@ -260,6 +260,24 @@ and the in-between draws with the later field's, as before.
 Proof (`scratch/judder-boot/live14`): over 110 presents of the same route no in-between matches a neighbour on
 more than 59% of changed pixels, and those (p0066..p0074) sit at half the neighbours' shift (-1 of -2 4x pixels).
 
+## Boot walk, 2026-10-21
+Each screen from boot through 20 s of `warp 10`, fps60, 16:9, shipping settings; stepped and live captures
+at `PSXPORT_IRES=4` under `scratch/judder-boot/`.
+- Logos (native boot, one field per present): fades step evenly. Open: fence ~226 lands 2..12 ms late at the
+  second logo's load stage (`0x80014564`, 18 ms of guest work over fences 226..229) on unchanged pixels.
+- Boot to frame loop (fences 436..438): 5..16 ms late on black and the first fade frame, the first Lightrec
+  turn of `0x8001ED5C`. Open, same gap: guest work over one field's budget.
+- Flag intro: fixed above. Title screen: the logo and PRESS START are title sprites (issue 0206); PRESS START
+  is a brightness toggle. Title Spyro's in-between pose is exactly half way (64ths); his head moves under one
+  4x pixel per present, so the in-between lands on one neighbour's pixels.
+- Save picker: fixed above (animation switch). The picker and new-game screens run one field per logic frame,
+  so they need no in-between.
+- New-game intro: the dragon and the camera move about one 4x pixel per present; 2.4% and 1.2% of moving
+  blocks sit within 15% of a neighbour, no whole-object holds.
+- `warp 10`: fixed above (terrain identity); 0.9% stuck while turning.
+- Real speed (`rt3`, load average 47 at boot falling to 21): 8106 presents, 3448 in-betweens, all composed,
+  repeats 0, backwards 0; p99 39 ms is the loaded host and is no pacing evidence.
+
 ## Next
 Spyro 2: the opening conversation box is linked by logic before the dispatcher, so the redraw
 keeps n+1's box; moving it needs its drawer (FUN_8004D2D8 / FUN_8004A374) re-run at the in-between
