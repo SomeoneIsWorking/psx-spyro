@@ -298,7 +298,7 @@ void DetailPass::drawQuad(const PackedIndices &vertices) {
   std::uint32_t record = (draw & kTextureRecordMask) * kTextureRecordSize;
 
   const ShadedVertex first = shadeVertex({colours.first, depths[0]});
-  memory_.mem_w32(prim + packet::kColour0, first.colour | kOpaqueQuadCode);
+  memory_.mem_w32(prim + packet::kColour0, first.colour | guest_packet::kGt4Code);
   brightest_ = first.shade == Shade::Near  ? kBrightest
                : first.shade == Shade::Far ? 0u
                                            : first.fade;
@@ -313,17 +313,17 @@ void DetailPass::drawQuad(const PackedIndices &vertices) {
   record += finish.recordStep + frame_.textures;
   const std::uint32_t uv = memory_.mem_r32(record) + (finish.darken << 22);
   const std::uint32_t page = memory_.mem_r32(record + 4);
-  memory_.mem_w32(prim, kQuadTag);
+  memory_.mem_w32(prim, guest_packet::kGt4Tag);
   memory_.mem_w32(prim + packet::kUv0, uv);
   if (asSigned(page) < 0) {
-    memory_.mem_w8(prim + packet::kCode, static_cast<std::uint8_t>(kSemiQuadCode >> 24));
+    memory_.mem_w8(prim + packet::kCode, static_cast<std::uint8_t>(guest_packet::kSemiGt4Code >> 24));
   }
   memory_.mem_w32(prim + packet::kUv1, page - 0x1F00u);
   memory_.mem_w32(prim + packet::kUv2, uv + 0x1F00u);
   memory_.mem_w16(prim + packet::kUv3, static_cast<std::uint16_t>(page));
   frame_.v1 = uv + 0x1F00u;
   frame_.v0 = prim >> 16;
-  frame_.linkAndAdvance(bin, PacketSize{kQuadBytes});
+  frame_.linkAndAdvance(bin, PacketSize{guest_packet::kGt4Bytes});
 }
 
 // 80024F8C.
@@ -372,7 +372,7 @@ void DetailPass::drawTriangle(const PackedIndices &vertices) {
   std::uint32_t record = (draw & kTextureRecordMask) * kTextureRecordSize;
 
   const ShadedVertex first = shadeVertex({colours.first, depths[0]});
-  memory_.mem_w32(prim + packet::kColour0, first.colour | kOpaqueTriangleCode);
+  memory_.mem_w32(prim + packet::kColour0, first.colour | guest_packet::kGt3Code);
   brightest_ = first.shade == Shade::Near  ? kBrightest
                : first.shade == Shade::Far ? 0u
                                            : first.fade;
@@ -384,13 +384,13 @@ void DetailPass::drawTriangle(const PackedIndices &vertices) {
   record += finish.recordStep + frame_.textures;
   const std::uint32_t uv = memory_.mem_r32(record) + (finish.darken << 22);
   const std::uint32_t page = memory_.mem_r32(record + 4);
-  memory_.mem_w32(prim, kTriangleTag);
+  memory_.mem_w32(prim, guest_packet::kGt3Tag);
   if (asSigned(page) < 0) {
-    memory_.mem_w8(prim + packet::kCode, static_cast<std::uint8_t>(kSemiTriangleCode >> 24));
+    memory_.mem_w8(prim + packet::kCode, static_cast<std::uint8_t>(guest_packet::kSemiGt3Code >> 24));
   }
   frame_.v1 = writeTriangleUvs(memory_, prim, {.uv = uv, .page = page}, draw & kTriangleCornerMask);
   frame_.v0 = prim >> 16;
-  frame_.linkAndAdvance(bin, PacketSize{kTriangleBytes});
+  frame_.linkAndAdvance(bin, PacketSize{guest_packet::kGt3Bytes});
 }
 
 } // namespace

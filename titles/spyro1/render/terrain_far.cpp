@@ -20,15 +20,16 @@ namespace spyro1::terrain {
 namespace {
 
 namespace gte = psx::gte;
+namespace guest_packet = spyro::guest_packet;
 using psx::present::EmitMemory;
 using spyro::guest_terrain::FarHeight;
-using spyro::guest_terrain::kG3Bytes;
-using spyro::guest_terrain::kG3Code;
-using spyro::guest_terrain::kG3Tag;
-using spyro::guest_terrain::kG4Bytes;
-using spyro::guest_terrain::kG4Code;
-using spyro::guest_terrain::kG4Tag;
-using spyro::guest_terrain::kSemiCode;
+using spyro::guest_packet::kG3Bytes;
+using spyro::guest_packet::kG3Code;
+using spyro::guest_packet::kG3Tag;
+using spyro::guest_packet::kG4Bytes;
+using spyro::guest_packet::kG4Code;
+using spyro::guest_packet::kG4Tag;
+using spyro::guest_packet::kSemiCode;
 using spyro::guest_terrain::kFarOutcodeShift;
 using spyro::guest_terrain::kScratchpad;
 using spyro::guest_terrain::Linked;
@@ -258,9 +259,9 @@ void FarPass::emit(std::uint32_t second,
                    std::span<const std::uint32_t> screens) {
   const bool triangle = screens.size() == 3;
   const std::uint32_t bin = depthSum + (second & kBinBiasMask) + kBinBase;
-  std::uint32_t code = triangle ? kG3Code : kG4Code;
+  std::uint32_t code = triangle ? guest_packet::kG3Code : guest_packet::kG4Code;
   if ((second & kDrawMode) != 0) {
-    code += kSemiCode;
+    code += guest_packet::kSemiCode;
     const std::uint32_t mode = frame_.primitive;
     memory_.mem_w32(mode, kDrawModeTag);
     memory_.mem_w32(mode + 8, 0);
@@ -270,7 +271,7 @@ void FarPass::emit(std::uint32_t second,
   }
   constexpr std::array<std::uint32_t, 4> kColourShifts = {24, 18, 12, 6};
   const std::uint32_t prim = frame_.primitive;
-  memory_.mem_w32(prim, triangle ? kG3Tag : kG4Tag);
+  memory_.mem_w32(prim, triangle ? guest_packet::kG3Tag : guest_packet::kG4Tag);
   for (std::size_t i = 0; i < screens.size(); ++i) {
     std::uint32_t colour = memory_.mem_r32(colours_ + ((second >> kColourShifts[i]) & 0xFCu));
     if (i == 0) {
@@ -279,7 +280,7 @@ void FarPass::emit(std::uint32_t second,
     memory_.mem_w32(prim + 4 + 8 * static_cast<std::uint32_t>(i), colour);
     memory_.mem_w32(prim + 8 + 8 * static_cast<std::uint32_t>(i), screens[i]);
   }
-  const Linked linked = frame_.linkAndAdvance(bin, PacketSize{triangle ? kG3Bytes : kG4Bytes});
+  const Linked linked = frame_.linkAndAdvance(bin, PacketSize{triangle ? guest_packet::kG3Bytes : guest_packet::kG4Bytes});
   static_cast<void>(linked);
 }
 

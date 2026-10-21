@@ -1,8 +1,8 @@
 #include "spyro1/render/drop_shadow.h"
 
-#include "gp0_command.h"
 #include "core.h"
 #include "gte_registers.h"
+#include "render/field/guest_packet.h"
 #include "render/field/guest_render_globals.h"
 #include "render/field/guest_word.h"
 #include "render/terrain/guest_depth_bins.h"
@@ -33,7 +33,6 @@ constexpr std::uint32_t kPoints = 16;
 // A segment: a draw-mode packet (subtractive, dithered), then a POLY_G3 from the centre.
 constexpr std::uint32_t kModeTag = 0x82000000u;
 constexpr std::uint32_t kDrawMode = 0xE1000640u;
-constexpr std::uint32_t kTriangleTag = psx::gpu::Gp0Command::packetTag(psx::gpu::kPolyG3);
 constexpr std::uint32_t kTriangleCentre = 0x32608080u;
 constexpr std::uint32_t kSegmentBytes = 0x28u;
 
@@ -74,9 +73,7 @@ void DropShadow::placeCentre() {
   const std::uint32_t z = memory_.mem_r32(position + 8) - memory_.mem_r32(shadow_block::kAnchor + 8);
   const psx::gte::RotationWords camera = spyro::guest_memory::rotationAt(memory_, kRenderGlobals.cameraRotation);
   gte.loadRotation(camera);
-  for (std::uint32_t i = 0; i < 3; ++i) {
-    gte.writeControl(gte::kTranslationX + i, 0);
-  }
+  gte.loadTranslation({});
   gte.writeData(gte::kVz0, x);
   gte.writeData(gte::kVxy0, (y & 0xFFFFu) + (z << 16));
   gte.execute(gte::kRtps);
@@ -213,7 +210,7 @@ void DropShadow::drawSegments() {
     memory_.mem_w32(cursor + 0x08, 0);
     memory_.mem_w32(cursor + 0x04, kDrawMode);
     memory_.mem_w32(cursor, (kModeTag ^ cursor) + 0xC);
-    memory_.mem_w32(cursor + 0x0C, kTriangleTag);
+    memory_.mem_w32(cursor + 0x0C, spyro::guest_packet::kG3Tag);
     const std::uint32_t bin = ((rimDepth + (rimDepth >> 1) + centreDepth_) >> 9) - bias;
     if (asSigned(bin) < 0) {
       continue;

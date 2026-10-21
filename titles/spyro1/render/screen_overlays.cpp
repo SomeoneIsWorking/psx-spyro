@@ -6,6 +6,7 @@
 #include "gp0_primitive_decode.h"
 #include "lucent/log.h"
 #include "gp0_command.h"
+#include "render/field/guest_packet.h"
 #include "native_dispatch.h"
 #include "render/state_producer_override.h"
 #include "spyro1/render/terrain_facts.h"
@@ -18,17 +19,15 @@
 namespace spyro1 {
 namespace {
 
+namespace guest_packet = spyro::guest_packet;
+
 constexpr psx::present::OtSlot kOverlaySlot{OrderingTable::kOverlayTable, 0};
 constexpr std::uint32_t kScreenWidth = 0x200;
 constexpr std::uint32_t kScreenHeight = 0xF0;
 constexpr std::uint32_t kTintTop = 8;
 constexpr std::uint32_t kTintBottom = 0xE8;
 // The tint's POLY_F4 follows its 3-word DR_MODE; each letterbox bar is a 6-word POLY_F4.
-constexpr std::uint32_t kBarBytes = 0x18;
-using psx::gpu::Gp0Command;
-constexpr std::uint32_t kFlatQuad = Gp0Command::opcodeWord(Gp0Command::polygonOpcode({.quad = true}));
-constexpr std::uint32_t kFlatQuadSemiTransparent =
-    Gp0Command::opcodeWord(Gp0Command::polygonOpcode({.quad = true, .semiTransparent = true}));
+constexpr std::uint32_t kBarBytes = guest_packet::kF4Bytes;
 
 constexpr std::uint32_t position(std::uint32_t x, std::uint32_t y) {
   return ((y & 0xFFFFu) << 16) | (x & 0xFFFFu);
@@ -78,7 +77,7 @@ void FullscreenTint::render(const psx::present::StateInterval &states,
     shown.g = static_cast<std::uint8_t>(psx::present::lerpInt(before.g, after.g, t));
     shown.b = static_cast<std::uint8_t>(psx::present::lerpInt(before.b, after.b, t));
   }
-  const std::uint32_t colour = kFlatQuadSemiTransparent | (std::uint32_t{shown.b} << 16) |
+  const std::uint32_t colour = (guest_packet::kF4Code | guest_packet::kSemiCode) | (std::uint32_t{shown.b} << 16) |
                                (std::uint32_t{shown.g} << 8) | shown.r;
   psx::present::DrawPrimitive primitive = quad({colour,
                                                 position(0, kTintTop),
@@ -97,12 +96,12 @@ void CinematicLetterbox::render(const psx::present::StateInterval &states,
   const auto height = static_cast<std::uint32_t>(after.height);
   const float shown =
       static_cast<float>(before.height) + static_cast<float>(after.height - before.height) * t;
-  psx::present::DrawPrimitive top = quad({kFlatQuad,
+  psx::present::DrawPrimitive top = quad({guest_packet::kF4Code,
                                           position(0, 0),
                                           position(kScreenWidth, 0),
                                           position(0, height),
                                           position(kScreenWidth, height)});
-  psx::present::DrawPrimitive bottom = quad({kFlatQuad,
+  psx::present::DrawPrimitive bottom = quad({guest_packet::kF4Code,
                                              position(0, kScreenHeight - height),
                                              position(kScreenWidth, kScreenHeight - height),
                                              position(0, kScreenHeight),

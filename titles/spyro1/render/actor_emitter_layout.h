@@ -28,13 +28,6 @@ inline constexpr std::uint32_t kPatchSaves = kWorkBlock + 0x2A00u;
 inline constexpr std::uint32_t kScratchDepthVertices = 0x80u;
 inline constexpr std::uint32_t kWorkDepths = kWorkBlock + 0x900u;
 
-// The packet commands the emitters write, in the colour word's top byte.
-inline constexpr std::uint32_t kGouraudTriangle = psx::gpu::Gp0Command::opcodeWord(psx::gpu::kPolyG3);
-inline constexpr std::uint32_t kGouraudTexturedTriangle = psx::gpu::Gp0Command::opcodeWord(psx::gpu::kPolyGt3);
-inline constexpr std::uint32_t kGouraudQuad = psx::gpu::Gp0Command::opcodeWord(psx::gpu::kPolyG4);
-inline constexpr std::uint32_t kGouraudTexturedQuad = psx::gpu::Gp0Command::opcodeWord(psx::gpu::kPolyGt4);
-inline constexpr std::uint32_t kTexturedSprite = psx::gpu::Gp0Command::opcodeWord(psx::gpu::kPolyFt4);
-
 // A frame, as the draw entry's kFrame points at it.
 namespace frame {
 inline constexpr std::uint32_t kColourCount = 0x02; // halfword

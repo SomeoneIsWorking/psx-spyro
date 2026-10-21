@@ -20,6 +20,7 @@ namespace spyro1::terrain {
 namespace {
 
 namespace gte = psx::gte;
+namespace guest_packet = spyro::guest_packet;
 namespace polygon = spyro::guest_terrain::polygon;
 namespace packet = spyro::guest_terrain::packet;
 using spyro::guest_terrain::fadeColour;
@@ -28,10 +29,10 @@ using psx::present::EmitMemory;
 using spyro::guest_terrain::deferToSplitList;
 using spyro::guest_terrain::kCoarseHeaderWritten;
 using spyro::guest_terrain::kFineHeaderWritten;
-using spyro::guest_terrain::kG3Bytes;
-using spyro::guest_terrain::kG3Tag;
-using spyro::guest_terrain::kG4Bytes;
-using spyro::guest_terrain::kG4Tag;
+using guest_packet::kG3Bytes;
+using guest_packet::kG3Tag;
+using guest_packet::kG4Bytes;
+using guest_packet::kG4Tag;
 using spyro::guest_terrain::kScratchpad;
 using spyro::guest_terrain::kSectorClassMask;
 using spyro::guest_terrain::kSplitTriangle;
@@ -313,7 +314,7 @@ void DetailPass::drawQuad(const PackedIndices &vertices) {
   const PackedIndices colours(memory_.mem_r32(record_ + polygon::kColours));
   memory_.mem_w32(prim + packet::kColour0,
               shade({.colourIndex = colours.first, .depth = depths[0]}) |
-                  spyro::guest_terrain::kOpaqueQuadCode);
+                  guest_packet::kGt4Code);
   memory_.mem_w32(prim + packet::kColour1, shade({.colourIndex = colours.second, .depth = depths[1]}));
   memory_.mem_w32(prim + packet::kColour3, shade({.colourIndex = colours.third, .depth = depths[2]}));
   memory_.mem_w32(prim + packet::kColour2, shade({.colourIndex = colours.fourth, .depth = depths[3]}));
@@ -321,7 +322,7 @@ void DetailPass::drawQuad(const PackedIndices &vertices) {
 
   const std::uint32_t texture = textureIndex(memory_.mem_r8(record_ + polygon::kLinks));
   if ((texture & kSemiTextured) != 0) {
-    memory_.mem_w8(prim + packet::kCode, psx::gpu::Gp0Command(spyro::guest_terrain::kSemiQuadCode).opcodeByte());
+    memory_.mem_w8(prim + packet::kCode, psx::gpu::Gp0Command(guest_packet::kSemiGt4Code).opcodeByte());
   }
   if (texture == kUntextured) {
     // 800270F8: the GT4's colour and xy words packed down into a G4.
@@ -338,10 +339,10 @@ void DetailPass::drawQuad(const PackedIndices &vertices) {
     memory_.mem_w32(prim + 0x14, c2);
     memory_.mem_w32(prim + 0x1C, c3);
     memory_.mem_w8(prim + packet::kCode, psx::gpu::kPolyG4);
-    memory_.mem_w32(prim, kG4Tag);
+    memory_.mem_w32(prim, guest_packet::kG4Tag);
     frame_.v0 = prim >> 16;
     frame_.v1 = xy3;
-    frame_.linkAndAdvance(bin, PacketSize{kG4Bytes});
+    frame_.linkAndAdvance(bin, PacketSize{guest_packet::kG4Bytes});
     return;
   }
   const TexturePick pick = pickTexture(candidate, texture);
@@ -351,10 +352,10 @@ void DetailPass::drawQuad(const PackedIndices &vertices) {
   memory_.mem_w32(prim + packet::kUv1, page);
   memory_.mem_w32(prim + packet::kUv2, uv + 0x1F00u);
   memory_.mem_w32(prim + packet::kUv3, uv + 0x1F1Fu);
-  memory_.mem_w32(prim, spyro::guest_terrain::kQuadTag);
+  memory_.mem_w32(prim, guest_packet::kGt4Tag);
   frame_.v0 = prim >> 16;
   frame_.v1 = uv + 0x1F00u;
-  frame_.linkAndAdvance(bin, PacketSize{spyro::guest_terrain::kQuadBytes});
+  frame_.linkAndAdvance(bin, PacketSize{guest_packet::kGt4Bytes});
 }
 
 // 80027168.
@@ -396,7 +397,7 @@ void DetailPass::drawTriangle(const PackedIndices &vertices) {
   const PackedIndices colours(memory_.mem_r32(record_ + polygon::kColours));
   memory_.mem_w32(prim + packet::kColour0,
               shade({.colourIndex = colours.first, .depth = depths[0]}) |
-                  spyro::guest_terrain::kOpaqueTriangleCode);
+                  guest_packet::kGt3Code);
   memory_.mem_w32(prim + packet::kColour1, shade({.colourIndex = colours.second, .depth = depths[1]}));
   memory_.mem_w32(prim + packet::kColour2, shade({.colourIndex = colours.third, .depth = depths[2]}));
   memory_.mem_w8(flagCursor_ - 1, kDrawnWhole);
@@ -404,7 +405,7 @@ void DetailPass::drawTriangle(const PackedIndices &vertices) {
   const std::uint32_t textureWord = memory_.mem_r32(record_ + polygon::kLinks);
   const std::uint32_t texture = textureIndex(textureWord & 0xFFu);
   if ((texture & kSemiTextured) != 0) {
-    memory_.mem_w8(prim + packet::kCode, psx::gpu::Gp0Command(spyro::guest_terrain::kSemiTriangleCode).opcodeByte());
+    memory_.mem_w8(prim + packet::kCode, psx::gpu::Gp0Command(guest_packet::kSemiGt3Code).opcodeByte());
   }
   if (texture == kUntextured) {
     // 80027628: packed down into a G3.
@@ -417,10 +418,10 @@ void DetailPass::drawTriangle(const PackedIndices &vertices) {
     memory_.mem_w32(prim + 0x0C, c1);
     memory_.mem_w32(prim + 0x14, c2);
     memory_.mem_w8(prim + packet::kCode, psx::gpu::kPolyG3);
-    memory_.mem_w32(prim, kG3Tag);
+    memory_.mem_w32(prim, guest_packet::kG3Tag);
     frame_.v0 = prim >> 16;
     frame_.v1 = c1;
-    frame_.linkAndAdvance(bin, PacketSize{kG3Bytes});
+    frame_.linkAndAdvance(bin, PacketSize{guest_packet::kG3Bytes});
     return;
   }
   const TexturePick pick = pickTexture(candidate, texture);
@@ -449,9 +450,9 @@ void DetailPass::drawTriangle(const PackedIndices &vertices) {
   memory_.mem_w32(prim + packet::kUv0, uvs[0]);
   memory_.mem_w32(prim + packet::kUv1, uvs[1]);
   memory_.mem_w32(prim + packet::kUv2, uvs[2]);
-  memory_.mem_w32(prim, spyro::guest_terrain::kTriangleTag);
+  memory_.mem_w32(prim, guest_packet::kGt3Tag);
   frame_.v0 = prim >> 16;
-  frame_.linkAndAdvance(bin, PacketSize{spyro::guest_terrain::kTriangleBytes});
+  frame_.linkAndAdvance(bin, PacketSize{guest_packet::kGt3Bytes});
 }
 
 } // namespace

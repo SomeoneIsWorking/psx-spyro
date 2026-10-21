@@ -3,11 +3,13 @@
 #include "spyro1/render/actor_emitter.h"
 
 #include "core.h"
+#include "render/field/guest_packet.h"
 #include "spyro1/render/actor_emitter_layout.h"
 
 namespace spyro1::actors {
 
 using namespace emitter;
+namespace guest_packet = spyro::guest_packet;
 
 namespace {
 
@@ -155,7 +157,7 @@ void ActorEmitter::drawWholeQuad(const Quad &quad) {
   const std::uint32_t bias = (sra(s0, 28) << 1) << shift;
   std::uint32_t sum = depths[0] - depthBase_ + depths[1] + depths[2];
   if (!quad.textured) {
-    memory_.mem_w32(t8 + 0x04, colour + kGouraudQuad);
+    memory_.mem_w32(t8 + 0x04, colour + guest_packet::kG4Code);
     memory_.mem_w32(t8 + 0x0C, second);
     memory_.mem_w32(t8 + 0x14, third);
     memory_.mem_w32(t8 + 0x1C, fourth);
@@ -163,7 +165,7 @@ void ActorEmitter::drawWholeQuad(const Quad &quad) {
     if (asSigned(sum) < 0) {
       return;
     }
-    memory_.mem_w32(t8, 0x08000000u);
+    memory_.mem_w32(t8, guest_packet::kG4Tag);
     sum += bias;
     if (asSigned(sum) < 0) {
       return;
@@ -185,8 +187,8 @@ void ActorEmitter::drawWholeQuad(const Quad &quad) {
   memory_.mem_w32(t8 + 0x28, fourth);
   memory_.mem_w32(t8 + 0x1C, third);
   memory_.mem_w32(t8 + 0x10, second);
-  memory_.mem_w32(t8 + 0x04, colour + kGouraudTexturedQuad + ((s0 & 1u) << 25));
-  memory_.mem_w32(t8, 0x0C000000u);
+  memory_.mem_w32(t8 + 0x04, colour + guest_packet::kGt4Code + ((s0 & 1u) << 25));
+  memory_.mem_w32(t8, guest_packet::kGt4Tag);
   memory_.mem_w32(t8 + 0x0C, uv0 + fogClut_);
   memory_.mem_w32(t8 + 0x18, uv1);
   memory_.mem_w32(t8 + 0x24, uv2);
@@ -284,7 +286,7 @@ void ActorEmitter::linkTriangle(const Triangle &triangle, const TriangleColours 
   const std::uint32_t bias = sra(s0, 28) << 1;
   std::uint32_t sum = d0 + (d0 >> 1) - depthBase_ + d1 + (d1 >> 1) + d2;
   if (!triangle.textured) {
-    memory_.mem_w32(t8 + 0x04, colours.first + kGouraudTriangle);
+    memory_.mem_w32(t8 + 0x04, colours.first + guest_packet::kG3Code);
     memory_.mem_w32(t8 + 0x0C, colours.second);
     memory_.mem_w32(t8 + 0x14, colours.third);
     if (asSigned(sum) < 0) {
@@ -294,7 +296,7 @@ void ActorEmitter::linkTriangle(const Triangle &triangle, const TriangleColours 
     if (asSigned(sum) < 0) {
       return;
     }
-    memory_.mem_w32(t8, 0x06000000u);
+    memory_.mem_w32(t8, guest_packet::kG3Tag);
     v1_ = bins_.link((sum << 3) + binsBase_);
     return;
   }
@@ -310,12 +312,12 @@ void ActorEmitter::linkTriangle(const Triangle &triangle, const TriangleColours 
   const std::uint32_t uv2 = memory_.mem_r32(polygon_ - 4);
   memory_.mem_w32(t8 + 0x1C, colours.third);
   memory_.mem_w32(t8 + 0x10, colours.second);
-  memory_.mem_w32(t8 + 0x04, colours.first + kGouraudTexturedTriangle + ((s0 & 1u) << 25));
+  memory_.mem_w32(t8 + 0x04, colours.first + guest_packet::kGt3Code + ((s0 & 1u) << 25));
   memory_.mem_w32(t8 + 0x0C, uv0 + fogClut_);
   if (triangle.backHalf) {
     memory_.mem_w16(t8 + 0x0C, static_cast<std::uint16_t>(uv2 >> 16));
   }
-  memory_.mem_w32(t8, 0x09000000u);
+  memory_.mem_w32(t8, guest_packet::kGt3Tag);
   memory_.mem_w32(t8 + 0x18, uv1);
   memory_.mem_w32(t8 + 0x24, uv2);
   v1_ = bins_.link((sum << 3) + binsBase_);
@@ -362,7 +364,7 @@ void ActorEmitter::drawSprite(std::uint32_t colourWord) {
   gte.writeData(gte::kIr0, cue >> 12);
   colour = withoutCommand(colour);
   gte.execute(gte::kGpf);
-  colour += kTexturedSprite + ((colourWord & 1u) << 25);
+  colour += guest_packet::kFt4Code + ((colourWord & 1u) << 25);
   const std::uint32_t sizeX = gte.readData(gte::kMac1) >> 11;
   const std::uint32_t sizeY = gte.readData(gte::kMac2) >> 11;
   const std::uint32_t uv0 = memory_.mem_r32(polygon_ - 0xC);
@@ -388,7 +390,7 @@ void ActorEmitter::drawSprite(std::uint32_t colourWord) {
   memory_.mem_w16(t8 + 0x1A, half(bottom));
   memory_.mem_w16(t8 + 0x20, half(right));
   memory_.mem_w16(t8 + 0x22, half(bottom));
-  memory_.mem_w32(t8, 0x09000000u);
+  memory_.mem_w32(t8, guest_packet::kFt4Tag);
   v1_ = bins_.link(bin);
 }
 

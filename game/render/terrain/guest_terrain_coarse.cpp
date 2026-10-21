@@ -95,7 +95,7 @@ void CoarseSplitPass::quad(const SplitSector &sector, const SplitPolygon &polygo
   const PackedIndices colourIndices(memory_.mem_r32(polygon.record + polygon::kColours));
   const std::uint32_t texture = textureRecord(frame_, draw);
   const std::uint32_t page = memory_.mem_r32(texture + 4);
-  const std::uint32_t code = asSigned(page) > 0 ? kOpaqueQuadCode : kSemiQuadCode;
+  const std::uint32_t code = asSigned(page) > 0 ? guest_packet::kGt4Code : guest_packet::kSemiGt4Code;
   std::array<std::uint32_t, 4> colours = {memory_.mem_r32(sector.colours + colourIndices.first) + code,
                                           memory_.mem_r32(sector.colours + colourIndices.second) + code,
                                           memory_.mem_r32(sector.colours + colourIndices.fourth) + code,
@@ -189,7 +189,7 @@ void CoarseSplitPass::triangle(const SplitSector &sector, const SplitPolygon &po
   const PackedIndices colourIndices(colourWord);
   const std::uint32_t texture = textureRecord(frame_, draw);
   const std::uint32_t page = memory_.mem_r32(texture + 4);
-  const std::uint32_t code = asSigned(page) > 0 ? kOpaqueTriangleCode : kSemiTriangleCode;
+  const std::uint32_t code = asSigned(page) > 0 ? guest_packet::kGt3Code : guest_packet::kSemiGt3Code;
   std::array<std::uint32_t, 3> colours = {memory_.mem_r32(sector.colours + colourIndices.first) + code,
                                           memory_.mem_r32(sector.colours + colourIndices.second) + code,
                                           memory_.mem_r32(sector.colours + colourIndices.third) + code};

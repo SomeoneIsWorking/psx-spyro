@@ -18,7 +18,8 @@ Dependency direction: `titles/<title>/` (one image's facts and natives) → `gam
 - `game/render/field/guest_view_slope.*` — horizontal frustum slope, screen margin and outcode window at 4:3 or widened 16:9
 - `game/render/field/guest_render_globals.h` — camera, ordering-table and packet-cursor guest words per image
 - `game/render/field/guest_working_memory.h` — in-between packet arena window, packet tag link, rotation words, saved draws
-- `game/render/field/guest_word.h` — MIPS word arithmetic: signed view, `sra`, sign-extended halfword
+- `game/render/field/guest_word.h` — MIPS word arithmetic: signed view, `sra`, absolute value, sign-extended halfword
+- `game/render/field/guest_packet.h` — GP0 packet tags, packet sizes and command words the emitters write
 - `game/render/state_producer_override.h` — native draw override installed with the state producer that renders its saved draw
 - `game/render/hud/ui_anchor.*` — HUD / screen-space UI horizontal anchoring on a widened canvas
 - `game/render/terrain/guest_terrain_drawer.*`, `guest_terrain_facts.h`, `guest_terrain_frame.h`, `guest_terrain_passes.h` — terrain / world / level geometry drawer: entry and exit, one image's facts, per-call state, pass order, field windows

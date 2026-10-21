@@ -125,7 +125,7 @@ void ResplitPass::run() {
     queue += 4;
     const auto length = static_cast<std::int8_t>(memory_.mem_r8(primitive + kTagLengthByte));
     memory_.mem_w8(primitive + kTagLengthByte, 0);
-    if (length == static_cast<std::int8_t>(kQuadTag >> 24)) {
+    if (length == static_cast<std::int8_t>(guest_packet::kGt4Tag >> 24)) {
       loadPoints(primitive, kQuadCorners, kQuadMidpoints, kGt4ToGt3);
       classifyPoints(kQuadPoints);
       emitPieces(primitive, {.address = frame_.facts.resplit.quadPieces, .count = kQuadPieceCount});
@@ -231,10 +231,10 @@ void ResplitPass::emitPieces(std::uint32_t primitive, PieceTable pieces) {
     for (std::size_t i = 0; i < cells.size(); ++i) {
       memory_.mem_w32(prim + kPacketScreens[i], screens[i]);
     }
-    memory_.mem_w32(prim, kTriangleTag);
+    memory_.mem_w32(prim, guest_packet::kGt3Tag);
     guest_memory::linkAfter(memory_, tail, prim);
     tail = prim;
-    frame_.primitive += kTriangleBytes;
+    frame_.primitive += guest_packet::kGt3Bytes;
   }
   if (next != 0) {
     guest_memory::linkAfter(memory_, tail, next);

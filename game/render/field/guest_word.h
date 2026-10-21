@@ -18,6 +18,11 @@ namespace spyro::guest_word {
   return static_cast<std::uint32_t>(asSigned(value) >> bits);
 }
 
+// The magnitude of a signed word, as `bgez`/`negu` take it.
+[[nodiscard]] constexpr std::uint32_t absolute(std::uint32_t value) {
+  return asSigned(value) < 0 ? 0u - value : value;
+}
+
 // The low halfword sign-extended, as `lh` loads it.
 [[nodiscard]] constexpr std::uint32_t signedHalf(std::uint32_t word) {
   return sra(word << 16, 16);

@@ -165,9 +165,7 @@ bool PairedActor::placeCentre() {
   const std::uint32_t y = memory_.mem_r32(position + 4) - memory_.mem_r32(kSpyroRecord + 4);
   const std::uint32_t z = memory_.mem_r32(position + 8) - memory_.mem_r32(kSpyroRecord + 8);
   gte.loadRotation(spyro::guest_memory::rotationAt(memory_, camera));
-  for (std::uint32_t i = 0; i < 3; ++i) {
-    gte.writeControl(gte::kTranslationX + i, 0);
-  }
+  gte.loadTranslation({});
   gte.writeData(gte::kIr3, x);
   gte.writeData(gte::kIr1, y);
   gte.writeData(gte::kIr2, z);
@@ -210,8 +208,8 @@ void PairedActor::orientParts(const Offsets &offsets) {
     memory_.mem_w32(kPartTable + kPartOffsets + 0xC + 4 * i, offsets.first[i]);
     memory_.mem_w32(kPartTable + kPartOffsets + 0x18 + 4 * i, offsets.second[i]);
   }
+  gte.loadTranslation(centre_);
   for (std::uint32_t i = 0; i < 3; ++i) {
-    gte.writeControl(gte::kTranslationX + i, centre_[i]);
     memory_.mem_w32(kPartTable + part_entry::kTranslation + 4 * i, centre_[i]);
   }
   rotation_ = gte.storeRotation();

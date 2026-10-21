@@ -258,13 +258,13 @@ void storePieceColours(TerrainFrame &frame, std::span<const std::uint32_t> cells
 }
 
 Linked linkQuadPiece(TerrainFrame &frame, std::uint32_t bin) {
-  frame.memory.mem_w32(frame.primitive, kQuadTag);
-  return frame.linkAndAdvance(bin, PacketSize{kQuadBytes});
+  frame.memory.mem_w32(frame.primitive, guest_packet::kGt4Tag);
+  return frame.linkAndAdvance(bin, PacketSize{guest_packet::kGt4Bytes});
 }
 
 Linked linkTrianglePiece(TerrainFrame &frame, std::uint32_t bin) {
-  frame.memory.mem_w32(frame.primitive, kTriangleTag);
-  return frame.linkAndAdvance(bin, PacketSize{kTriangleBytes});
+  frame.memory.mem_w32(frame.primitive, guest_packet::kGt3Tag);
+  return frame.linkAndAdvance(bin, PacketSize{guest_packet::kGt3Bytes});
 }
 
 GpuSpan gpuSpan(std::span<const std::uint32_t> screens) {
