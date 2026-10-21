@@ -135,9 +135,59 @@ Left on Spyro 3: the Atlas (Select) is not a gameplay field; its frames show who
 grows while it is open). The trail pool was not seen drawing on these routes, so its pairing is
 read from the drawer.
 
+## Spyro 1 poses and the intro (2026-10-21)
+Observed (USER): the judder is strongest in the intro where the green figure climbs the mountain and
+plants the flag (the boot logo intro, gamestate 13 before the title screen). Real speed, fps60,
+16:9, shipping settings, unmapped window (`PSXPORT_SHOW_WINDOW=0` read from `/proc/<pid>/environ`),
+`PSXPORT_DEBUG=presentseq,compose`: presents strictly alternate in-between and real, no repeated or
+backward record, fields 2/2, every in-between composed, intervals even (new-game cutscene: 2939
+presents, p50 16.68 ms, p99 16.79 ms). The pacing is not the judder. A stepped capture of the
+new-game cutscene shows adjacent differences 0.0 and 4.0 alternating: each in-between equals its
+own real frame.
+
+Cause: `titles/spyro1/render/actor_between.cpp:recordBetween` (mobys, their emitters, sprites and
+shadows) and `paired_actor_producer.cpp:spyroBetween` (Spyro and his shadow) moved position and
+angles but not the pose, so every animated mesh drew frame n's keyframe pair and progress at the
+in-between. In the intros the camera is still and the motion is pose animation, so they judder at
+30 fps with an exact 60 fps cadence.
+
+Fix: both blend the pose through the shared `spyro::keyframe_blend`, which now takes the progress
+encoding: Spyro 1 counts a moby's progress (+0x40, pair at +0x3C) in 64ths (weight k << 6,
+0x8001F158) and each of Spyro's three parts (+0x18/+0x1E/+0x24) in 16ths (weight k << 8,
+0x80023AC4); Spyro 2/3 keep the nibble form.
+
+Proof (same route, stepped preseq): new-game cutscene adjacent differences even (2.5..2.7 against
+0.0/4.0), each in-between as far from its previous present as from its next; real presents
+pixel-identical to before (max 0.0), only in-betweens changed. Boot logo intro: 2.2/7.3 alternating
+became an even 3..5. Gameplay `warp 10` while turning, Spyro's region: |in-between - previous|
+12.01 and |in-between - next| 8.47 before, 10.71 and 10.43 after. Real speed, final build, boot to
+the title screen: `[playcheck] presents: intervals=2445 p50=16.75ms p99=17.00ms worst=47.71ms
+missed=4 (0.16%)`, `records: repeats=0 backwards=0`. New-game cutscene after: p50 16.69 ms, p99
+17.27 ms, irregular intervals only at the cutscene's end and the level load. fps60 off for
+comparison: intro p50 33.37 ms, gameplay 608 presents in 20.25 s, all 33..34 ms.
+
+Also found on these runs:
+- "THE ADVENTURE BEGINS" card runs logic every field and still got an in-between, so it presented
+  at 120 Hz (8.3 ms). psxport `FramePresenter::presentRecords` now gives a one-field logic frame
+  one present (psxport issue 0168); the card presents at 16.7 ms.
+- The title screen after the flag shows every in-between whole (211 in-betweens in the final boot
+  run; packets 0x80187BB4/0x801A3BB4 from the title overlay's logo sprite drawer): issue 0206.
+- Gameplay `warp 10` while turning at real speed: logic held 28.2 Hz (missed 3.91%, intervals 9..35
+  ms). The main thread was the limit: composition 43%, of it HostMemory's `std::map` lookups 23%
+  self time. With `HostMemory` on a sorted vector and a last-range cache, 29.95 Hz, missed 1.08%,
+  but intervals still spread 8..30 ms: the in-between half (guest logic, draw, compose, build) runs
+  past its 16.7 ms deadline (462 of 620 in-between presents had no wait left) while the real half
+  has 6.9 ms spare. Owner and proposed fix: psxport issue 0168.
+
+Not measurable from a tool run: the unmapped surface is never scanned out, so where each present
+lands against the display's vblank, and any repeat/skip from pacing to 59.94 Hz on a 60.00 Hz
+display under MAILBOX, cannot be seen. The operator's real-window check is still the only test of
+that.
+
 ## Next
 Spyro 2: the opening conversation box is linked by logic before the dispatcher, so the redraw
 keeps n+1's box; moving it needs its drawer (FUN_8004D2D8 / FUN_8004A374) re-run at the in-between
 in place of logic's packets. Spyro 1's horn and motion trails and demo overlay (issue 0186)
-show their frames whole when drawn. A real-time check by the operator is still to do: these runs
+show their frames whole when drawn; so does its title screen (issue 0206).
+A real-time check by the operator is still to do: these runs
 measure the composed images, not the play feel.
