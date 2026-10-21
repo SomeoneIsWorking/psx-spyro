@@ -1,12 +1,12 @@
 #include "spyro1/render/lit_actor_emitter.h"
 
 #include "core.h"
+#include "core/guest_magnitude.h"
+#include "cpu_divide.h"
+#include "render/field/guest_packet.h"
 #include "render/field/guest_render_globals.h"
 #include "render/field/guest_word.h"
-#include "cpu_divide.h"
 #include "spyro1/core/guest_globals.h"
-#include "core/guest_magnitude.h"
-#include "render/field/guest_packet.h"
 #include "spyro1/render/actor_emitter_layout.h"
 
 namespace spyro1::actors {
@@ -27,7 +27,6 @@ constexpr std::uint32_t kArcSine = 0x8006D808u;
 constexpr std::uint32_t kReflectionTexture = 0x800756F0u;
 // The reflection's packed uv once worked out, in place of the vertex's view x.
 constexpr std::uint32_t kUvKept = 0x4000u;
-
 
 constexpr std::uint32_t signedByte(std::uint8_t value) {
   return static_cast<std::uint32_t>(std::int32_t{static_cast<std::int8_t>(value)});
@@ -81,7 +80,8 @@ std::uint32_t turn(const Direction &direction, std::uint32_t entry) {
 // 80021EB4..80021F0C, 80022370..800223D0: the length whose square `sum` is, through the
 // reciprocal-magnitude table; 0 for 0.
 std::uint32_t length(Core &core, std::uint32_t sum, const psx::present::EmitMemory &memory) {
-  return spyro::guest_magnitude::magnitude(core.gte(), memory, spyro1::guest::kMagnitudeTable, sum).length();
+  return spyro::guest_magnitude::magnitude(core.gte(), memory, spyro1::guest::kMagnitudeTable, sum)
+      .length();
 }
 
 std::uint32_t squaredSum(psx::cpu::Gte &gte) {
@@ -133,7 +133,9 @@ void LitActorEmitter::aimReflection() {
   const std::uint32_t x = gte.readControl(gte::kTranslationX);
   const Direction bearing{.first = z, .second = x};
   const std::uint32_t entry = memory_.mem_r8(kArcTangent + steepness(bearing));
-  const std::uint32_t yaw = memory_.mem_r32(spyro1::guest::kCameraRotationZ);
+  // Retail's lw; only the yaw halfword's bits survive the mask, and an in-between maps just the
+  // halfwords.
+  const std::uint32_t yaw = memory_.mem_r16(spyro1::guest::kCameraRotationZ);
   light_ += (sra(yaw, 3) - (turn(bearing, entry) << 1)) & 0x1FFu;
 }
 
@@ -230,13 +232,13 @@ void LitActorEmitter::drawReflection(const Triangle &triangle, const TriangleCol
     for (std::uint32_t i = 0; i < 3; ++i) {
       const std::uint32_t red = (words[i] & 0xFFu) + tint;
       memory_.mem_w8(t8 + 4 + 0xC * i,
-                 static_cast<std::uint8_t>(asSigned(red - 0x100u) < 0 ? red : 0xFFu));
+                     static_cast<std::uint8_t>(asSigned(red - 0x100u) < 0 ? red : 0xFFu));
     }
     for (std::uint32_t channel = 1; channel < 3; ++channel) {
       for (std::uint32_t i = 0; i < 3; ++i) {
         const std::uint32_t value = ((words[i] >> (8 * channel)) & 0xFFu) - tint;
         memory_.mem_w8(t8 + 4 + 0xC * i + channel,
-                   static_cast<std::uint8_t>(asSigned(value) < 0 ? 0u : value));
+                       static_cast<std::uint8_t>(asSigned(value) < 0 ? 0u : value));
       }
     }
     memory_.mem_w8(t8 + 7, 0x34);
@@ -349,7 +351,8 @@ std::uint32_t LitActorEmitter::directionUv(std::uint32_t x, std::uint32_t y, std
   }
   const std::uint32_t sine = spyro1::guest::kSinTable + (u << 1);
   gte.writeData(gte::kIr0, v);
-  gte.writeData(gte::kIr1, signedHalf(memory_.mem_r16(sine + spyro::guest_render_globals::kCosineOffset)));
+  gte.writeData(gte::kIr1,
+                signedHalf(memory_.mem_r16(sine + spyro::guest_render_globals::kCosineOffset)));
   gte.writeData(gte::kIr2, signedHalf(memory_.mem_r16(sine)));
   gte.execute(gte::kGpf);
   const std::uint32_t right = sra(gte.readData(gte::kMac1), 12) + 0x40u;

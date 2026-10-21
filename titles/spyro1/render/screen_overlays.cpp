@@ -14,6 +14,7 @@
 
 #include <array>
 #include <cstdlib>
+#include <cstring>
 #include <memory>
 
 namespace spyro1 {
@@ -28,6 +29,9 @@ constexpr std::uint32_t kTintTop = 8;
 constexpr std::uint32_t kTintBottom = 0xE8;
 // The tint's POLY_F4 follows its 3-word DR_MODE; each letterbox bar is a 6-word POLY_F4.
 constexpr std::uint32_t kBarBytes = guest_packet::kF4Bytes;
+// The semi-transparency modes in which colour 0 leaves the screen as it is.
+constexpr std::uint32_t kAdditive = 1;
+constexpr std::uint32_t kSubtractive = 2;
 
 constexpr std::uint32_t position(std::uint32_t x, std::uint32_t y) {
   return ((y & 0xFFFFu) << 16) | (x & 0xFFFFu);
@@ -87,6 +91,18 @@ void FullscreenTint::render(const psx::present::StateInterval &states,
                                                 position(kScreenWidth, kTintBottom)});
   psx::gpu::applyTexPageAttribute(primitive.state, static_cast<std::uint16_t>(after.blend << 5));
   sink.emit(kOverlaySlot, primitive);
+}
+
+bool FullscreenTint::rests(std::span<const std::byte> drawn, std::span<std::byte> into) const {
+  State rest = psx::present::stateAs<State>(drawn);
+  if (rest.blend != kAdditive && rest.blend != kSubtractive) {
+    return false;
+  }
+  rest.r = 0;
+  rest.g = 0;
+  rest.b = 0;
+  std::memcpy(into.data(), &rest, sizeof(rest));
+  return true;
 }
 
 void CinematicLetterbox::render(const psx::present::StateInterval &states,

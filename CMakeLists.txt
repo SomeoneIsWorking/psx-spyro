@@ -167,6 +167,8 @@ set(SPYRO_RUNTIME_SOURCES
   titles/spyro1/render/drop_shadow_producer.cpp
   titles/spyro1/render/flame.cpp
   titles/spyro1/render/flame_producer.cpp
+  titles/spyro1/render/rescue_star.cpp
+  titles/spyro1/render/rescue_star_producer.cpp
   titles/spyro1/render/moby_shadows.cpp
   titles/spyro1/render/moby_shadow_producer.cpp
   titles/spyro1/render/glow_producers.cpp

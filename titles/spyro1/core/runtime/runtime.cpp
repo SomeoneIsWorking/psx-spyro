@@ -47,6 +47,7 @@
 #include "spyro1/render/paired_actor_producer.h"
 #include "spyro1/render/particle_producer.h"
 #include "spyro1/render/portal_producer.h"
+#include "spyro1/render/rescue_star_producer.h"
 #include "spyro1/render/screen_overlays.h"
 #include "spyro1/render/sky_producer.h"
 #include "spyro1/render/sprite_queue_producer.h"
@@ -165,6 +166,7 @@ void Runtime::registerOverrides(Game &game) {
   sky::registerSkyOverrides(game.core);
   shadow::registerDropShadowOverrides(game.core);
   flame::registerFlameOverrides(game.core);
+  rescue_star::registerRescueStarOverrides(game.core);
   shadows::registerMobyShadowOverrides(game.core);
   portals::registerPortalOverrides(game.core);
   glows::registerGlowOverrides(game.core);
