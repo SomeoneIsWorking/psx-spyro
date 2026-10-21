@@ -71,10 +71,7 @@ archive_transfer::Decision ArchiveTransfer::read(Core &core,
   }
   if (!bytes.empty()) {
     const auto content = psx::code_module::digest(bytes);
-    for (std::uint32_t offset = 0; offset < request.length; ++offset) {
-      // mem_w8 owns executable invalidation and diagnostic write guards.
-      core.mem_w8(request.destination + offset, bytes[offset]);
-    }
+    core.mem_write(request.destination, bytes, psx::cpu::ExecutableWriteSource::ModuleLoad);
     psx::code_module::activate(core, "WAD", {destination, destination + request.length}, content);
   }
   const auto decision = archive_transfer::decide(request.length, request.length);
