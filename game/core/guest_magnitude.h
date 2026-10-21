@@ -1,5 +1,8 @@
 #pragma once
 
+#include "gte.h"
+#include "gte_registers.h"
+
 #include <cstdint>
 
 namespace spyro::guest_magnitude {
@@ -34,5 +37,27 @@ std::uint32_t scaled(std::int16_t tableEntry, std::uint32_t exponent);
 // when it is not. A caller holding a Core reads the real register instead; this is for the pure
 // paths, and it must follow the same rule, because a sum of squares can carry into bit 31.
 std::uint32_t lzcr(std::uint32_t value);
+
+// The whole lookup: `value` written to LZCS, then 0 for 0, else the table entry at `table` scaled back
+// up and the step that reached it.
+struct Magnitude {
+  std::uint32_t scaled = 0;
+  Normalization step;
+
+  // The integer magnitude the guest keeps.
+  [[nodiscard]] std::uint32_t length() const {
+    return scaled >> 12;
+  }
+};
+template <typename Memory>
+[[nodiscard]] Magnitude magnitude(psx::cpu::Gte &gte, Memory &memory, std::uint32_t table, std::uint32_t value) {
+  gte.writeData(psx::gte::kLzcs, value);
+  if (value == 0) {
+    return {};
+  }
+  const Normalization step = normalize({.value = value, .leadingZeros = gte.readData(psx::gte::kLzcr)});
+  const auto entry = static_cast<std::int16_t>(memory.mem_r16(table + step.tableByteOffset));
+  return {.scaled = scaled(entry, step.exponent), .step = step};
+}
 
 } // namespace spyro::guest_magnitude

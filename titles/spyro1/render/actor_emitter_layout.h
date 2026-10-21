@@ -2,6 +2,7 @@
 // 0x8001F798 and 0x80020F34 read, shared by their halves (actor_emitter*.cpp).
 #pragma once
 
+#include "gp0_command.h"
 #include "gte_registers.h"
 #include "render/field/guest_word.h"
 #include "spyro1/render/actor_facts.h"
@@ -16,8 +17,6 @@ using spyro::guest_word::asSigned;
 using spyro::guest_word::sra;
 using terrain::kRenderGlobals;
 
-// 8001F7F0: non-zero turns distance fog on; parked in ZSF3.
-inline constexpr std::uint32_t kFogSwitch = 0x8007591Cu;
 // 8001FEEC: the fog colour.
 inline constexpr std::uint32_t kFogColour = 0x80078A50u;
 // 8001F8A0: a scaled record farther than this is not drawn.
@@ -30,11 +29,11 @@ inline constexpr std::uint32_t kScratchDepthVertices = 0x80u;
 inline constexpr std::uint32_t kWorkDepths = kWorkBlock + 0x900u;
 
 // The packet commands the emitters write, in the colour word's top byte.
-inline constexpr std::uint32_t kGouraudTriangle = 0x30000000u;
-inline constexpr std::uint32_t kGouraudTexturedTriangle = 0x34000000u;
-inline constexpr std::uint32_t kGouraudQuad = 0x38000000u;
-inline constexpr std::uint32_t kGouraudTexturedQuad = 0x3C000000u;
-inline constexpr std::uint32_t kTexturedSprite = 0x2C000000u;
+inline constexpr std::uint32_t kGouraudTriangle = psx::gpu::Gp0Command::opcodeWord(psx::gpu::kPolyG3);
+inline constexpr std::uint32_t kGouraudTexturedTriangle = psx::gpu::Gp0Command::opcodeWord(psx::gpu::kPolyGt3);
+inline constexpr std::uint32_t kGouraudQuad = psx::gpu::Gp0Command::opcodeWord(psx::gpu::kPolyG4);
+inline constexpr std::uint32_t kGouraudTexturedQuad = psx::gpu::Gp0Command::opcodeWord(psx::gpu::kPolyGt4);
+inline constexpr std::uint32_t kTexturedSprite = psx::gpu::Gp0Command::opcodeWord(psx::gpu::kPolyFt4);
 
 // A frame, as the draw entry's kFrame points at it.
 namespace frame {
@@ -66,10 +65,6 @@ constexpr void addHalf(Position &position, std::uint32_t half, std::uint32_t shi
   position[0] += sra(half, 11) << shift;
   position[1] -= sra(half << 21, 27) << shift;
   position[2] -= sra(half << 26, 27) << shift;
-}
-
-constexpr std::uint32_t signedHalf(std::uint16_t half) {
-  return static_cast<std::uint32_t>(static_cast<std::int32_t>(static_cast<std::int16_t>(half)));
 }
 
 // The GTE's VXY0 word for a decoded position.

@@ -43,7 +43,7 @@ struct QueuedChain {
 
 class SpriteQueue {
 public:
-  SpriteQueue(Core &core, spyro::guest_memory::WorkingMemory &memory, const QueueView &view);
+  SpriteQueue(Core &core, const psx::present::EmitMemory &memory, const QueueView &view);
 
   // 80022A64..80022B04: the camera into the scratchpad, the light into the colour matrix.
   void begin();
@@ -95,7 +95,7 @@ private:
   [[nodiscard]] std::optional<QueuedChain> chainLocalBins();
 
   Core &core_;
-  spyro::guest_memory::WorkingMemory &memory_;
+  const psx::present::EmitMemory &memory_;
   QueueView view_;
   // Retail's registers that outlive one step: v0, v1, the shadow cursor (sp), the edge class and
   // draw mode (s7), the mesh (s6), the angles (s4), the depth bin (t9) and bias (t8), the packet
@@ -107,7 +107,7 @@ private:
   std::uint32_t edge_ = 0;
   std::uint32_t mesh_ = 0;
   std::uint32_t angles_ = 0;
-  spyro::guest_moby_rotation::RotationWords rotation_{};
+  psx::gte::RotationWords rotation_{};
   std::uint32_t depthBin_ = 0;
   std::uint32_t depthBias_ = 0;
   std::uint32_t vertexColours_ = 0;

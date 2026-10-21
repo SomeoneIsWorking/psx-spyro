@@ -2,6 +2,8 @@
 // layouts the list builders, the sprite queue and the paired actor read and write.
 #pragma once
 
+#include "guest_memory_map.h"
+#include "spyro1/core/guest_globals.h"
 #include "spyro1/render/terrain_facts.h"
 
 #include <cstdint>
@@ -35,13 +37,12 @@ inline constexpr std::uint32_t kWorkBlockBytes = 0x2A00u + kColourTableBytes;
 
 // The scratchpad the sprite queue projects into: a screen word per vertex, its depth 0x200 on,
 // and the camera copied to 0x3E0 (position x, y, z, then the five rotation words).
-inline constexpr std::uint32_t kVertexScreens = 0x1F800000u;
+inline constexpr std::uint32_t kVertexScreens = psx::kScratchpadPhysicalBase;
 inline constexpr std::uint32_t kVertexDepths = kVertexScreens + 0x200u;
 inline constexpr std::uint32_t kCameraCopy = kVertexScreens + 0x3E0u;
-inline constexpr std::uint32_t kScratchpadBytes = 0x400u;
 
 // g_anWorldLightDirVec: three words the sprite queue builds its light matrix from (80022AC8).
-inline constexpr std::uint32_t kLightVector = 0x800770C8u;
+inline constexpr std::uint32_t kLightVector = guest::kSpecularLightDirection;
 // A record's +0x4C word picks its base colour here (>> 22) and its flat-shaded pair (>> 21).
 inline constexpr std::uint32_t kPalette = 0x8006E3D8u;
 inline constexpr std::uint32_t kFlatPalette = 0x8006E44Cu;
@@ -49,8 +50,8 @@ inline constexpr std::uint32_t kFlatPalette = 0x8006E44Cu;
 // RasterizePairedActor 0x80023AC4 draws Spyro from his record and model, staging in the work block:
 // a 16-byte entry per vertex (depth, VXY, VZ, height), three 0x44-byte part entries followed by
 // each part's offset, and the tinted vertex colours.
-inline constexpr std::uint32_t kSpyroRecord = 0x80078A58u; // g_anSpyroWorldPos
-inline constexpr std::uint32_t kSpyroModel = 0x80076378u;  // the model pointer (mesh table entry 0)
+inline constexpr std::uint32_t kSpyroRecord = guest::kSpyro;
+inline constexpr std::uint32_t kSpyroModel = guest::kModels; // the model pointer (mesh table entry 0)
 inline constexpr std::uint32_t kHornAnchor = 0x800786C8u;  // g_anSpyroHornStrikeAnchorPos
 inline constexpr std::uint32_t kVertexDeltas = 0x8006D614u; // 128 packed delta words
 inline constexpr std::uint32_t kVertexTable = kWorkBlock + 0x900u;

@@ -1,5 +1,7 @@
 #include "render/terrain/guest_depth_bins.h"
 
+#include "render/field/guest_working_memory.h"
+
 #include "core.h"
 #include "lucent/log.h"
 #include "ordering_table.h"
@@ -13,11 +15,6 @@ namespace {
 // The bin count both draws ask the flatten for (0x580); its start clamps to the mark's bin.
 constexpr std::int32_t kScanBins = 0x580;
 constexpr std::uint32_t kMarkSlack = kBinStride;
-
-// A packet's tag: GP0 word count in the high byte, the next packet's RAM offset in the low 24
-// bits, zero ending a bin's chain until the flatten links it. A bin's chain starts at the second
-// word of its pair (the first packet linked) and ends at the head.
-constexpr std::uint32_t kNextMask = 0x00FFFFFFu;
 
 // Assigns `slot` to the chain of the (head, first) pair at `pair`, first-linked packet to head.
 void assignPair(Core &core, std::uint32_t pair, psx::present::OtSlot slot) {
@@ -35,8 +32,9 @@ void assignPair(Core &core, std::uint32_t pair, psx::present::OtSlot slot) {
       std::abort();
     }
     core.otTables.assign(packet, slot);
-    const std::uint32_t next = core.mem_r32(packet) & kNextMask;
-    packet = packet == head || next == 0 ? 0 : psx::gpu::guestAddressOf(next);
+    // Until the flatten links them, a bin's chain runs from its first packet to the head and ends in a zero link.
+    const psx::gpu::OtNode tag(psx::gpu::mainRamOffsetOf(packet), psx::gpu::OtHeaderWord{core.mem_r32(packet)});
+    packet = packet == head || tag.endsChain() ? 0 : psx::gpu::guestAddressOf(tag.nextRamOffset());
   }
 }
 
@@ -57,6 +55,17 @@ void assignBins(Core &core, const Bins &bins) {
   for (std::uint32_t bin = 0; bin < bins.linked; ++bin) {
     assignPair(core, bins.base + bin * kBinStride, psx::present::OtSlot{bins.table, bin});
   }
+}
+
+std::uint32_t linkIntoBin(const psx::present::EmitMemory &memory, std::uint32_t slot, std::uint32_t first, std::uint32_t last) {
+  const std::uint32_t head = memory.mem_r32(slot);
+  memory.mem_w32(slot, last);
+  if (head == 0) {
+    memory.mem_w32(slot + kBinFirstOffset, first);
+  } else {
+    guest_memory::linkAfter(memory, head, first);
+  }
+  return head;
 }
 
 } // namespace spyro::depth_bins

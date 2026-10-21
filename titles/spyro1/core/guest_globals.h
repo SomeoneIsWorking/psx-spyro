@@ -98,6 +98,9 @@ inline constexpr std::uint32_t kDeltaTime = 0x800756CCu;
 inline constexpr std::uint32_t kFrameLag = 0x800756C4u;
 inline constexpr std::uint32_t kStateSwitch = 0x8007579Cu;
 
+// g_SkipLowPolyWorld: non-zero skips the far terrain pass; the actor emitter parks it in ZSF3 for fog.
+inline constexpr std::uint32_t kSkipLowPolyWorld = 0x8007591Cu;
+
 // g_DemoMode (gamepad.h): DEMO_MODE_NONE/PLAY/RECORD.
 inline constexpr std::uint32_t kDemoMode = 0x80075714u;
 

@@ -1,11 +1,5 @@
-// render_facts.h — SCUS_944.25's own render-routine facts, read out of its bytes, plus the
-// native overrides that bind them.
-//
-// The routines themselves live in game/render/ and are shared with SCUS_944.67: the two images'
-// terrain drawer, moby visibility walk and flatten decompile to the same C with only their
-// addresses (and one `gp` spill) different. Everything here is what THIS image says, so a reader
-// can re-derive each address rather than trust a table, and so the shared routines carry no title's
-// addresses at all.
+// render_facts.h — SCUS_944.25's addresses for the render routines it shares with SCUS_944.67
+// (game/render/), each read at the instruction its comment names, and the overrides that bind them.
 #pragma once
 
 #include "render/engine_render_overrides.h"
@@ -28,17 +22,8 @@ namespace spyro2 {
 //   80067EAC  the camera position x, y, z, read at 800438FC.
 //   8006B300  one visibility byte per terrain sector, written by the classification pass (800244F0)
 //             and read by the walk for each moby's group byte.
-//
-// The camera's OWN state, and the builder that reads it. FUN_800156FC — this family's per-field
-// body, called from the game main at 80011AFC — opens with two calls before it does anything else:
-//
-//   FUN_8001C2F8(&80067EC8, &80067E98, &80067E84)   the camera builder, out of three angles
-//   FUN_8001BDB0(&80067EB8, &80067EAC)              last field's position <- this one's
-//
-// So 80067EC8 is three signed 16-bit ANGLES and 80067E84/80067E98 are what the builder WRITES from
-// them: the classification matrix first, then the same matrix with row 1 by 0x140>>9 for the
-// drawer. MEASURED by otattr last-writer provenance on 80067E84..80067EA8, which names 800156FC for
-// both, and by rebuilding both from the angles (game/render/guest_camera_builder.cpp).
+//   80067EC8  three signed 16-bit camera angles, which FUN_8001C2F8 (called first by the per-field
+//             body FUN_800156FC) turns into the rotations at 80067E98 and 80067E84.
 inline constexpr spyro::guest_render_globals::Globals kRenderGlobals{
     .registerSaveArea = 0x8006A9ECu,
     .scratchBaseWord = 0x80067034u,
@@ -48,11 +33,8 @@ inline constexpr spyro::guest_render_globals::Globals kRenderGlobals{
     .cameraRotation = 0x80067E84u,
     .cameraPosition = 0x80067EACu,
     .cameraAngles = 0x80067EC8u,
-    // 80061BD8 / 80061C58: the two 256-entry 16-bit tables the builder's own two helpers read, each
-    // named at its use inside FUN_8001B61C and FUN_8001B664 (0x8001B61C indexes 80061BD8 with
-    // `&DAT_80061bd8 + 2*index`, 0x8001B664 indexes 80061C58 the same way).
+    // 80061BD8: the sine table FUN_8001B61C indexes; FUN_8001B664 reads its cosine a quarter turn on.
     .cameraSineTable = 0x80061BD8u,
-    .cameraCosineTable = 0x80061C58u,
     .visibilityGroups = 0x8006B300u,
 };
 
@@ -152,7 +134,6 @@ inline constexpr spyro::guest_moby::Facts kMobyFacts{
     .overlayTable = 0x80062868u,
     .closeCursorHome = 0x80068214u,
     .exitV0 = 0x8006820Cu,
-    .sineTable = 0x80061BD8u,
 };
 
 // The flatten, FUN_8001B2A8, called by the draw at 800159A4 and by three other draws (800146AC,

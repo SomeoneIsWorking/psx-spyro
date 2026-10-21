@@ -1,9 +1,7 @@
 #include "render/terrain/terrain_state_producer.h"
 
 #include "core/session.h"
-#include "gp0_primitive_decode.h"
 #include "lucent/log.h"
-#include "render/terrain/guest_depth_bins.h"
 
 #include <algorithm>
 #include <cstdlib>
@@ -29,7 +27,7 @@ void drawField(Core &core, const TerrainImage &image) {
   FieldState state;
   state.camera = readCamera(core, image.globals());
   state.argument = core.r[4];
-  const std::vector<guest_memory::LevelWord> read = draw(core, image);
+  const std::vector<psx::present::LevelWord> read = draw(core, image);
   const std::vector<std::uint8_t> &visible = spyro::session(core).terrainVisibility;
   if (visible.size() > kScratchpadBytes) {
     lucent::error("terrstate",
@@ -42,8 +40,7 @@ void drawField(Core &core, const TerrainImage &image) {
   state.packetBudget = spyro::session(core).terrainPacketBudget;
   state.sectorCount = static_cast<std::uint32_t>(visible.size());
   std::copy(visible.begin(), visible.end(), state.visible);
-  const std::vector<std::byte> bytes = guest_memory::packDraw(state, read);
-  core.frameStates.save(core.emission.current(), std::span<const std::byte>(bytes));
+  guest_memory::saveDraw(core, state, std::span<const psx::present::LevelWord>(read));
 }
 
 void TerrainStateProducer::render(const psx::present::StateInterval &states,
@@ -51,7 +48,7 @@ void TerrainStateProducer::render(const psx::present::StateInterval &states,
   const SavedField before = readField(states.from);
   const SavedField after = readField(states.to);
   const InBetweenCamera camera = cameraBetween(
-      core_, image_, before.header.camera, after.header.camera, static_cast<double>(states.t));
+      core_, image_, before.header.camera, after.header.camera, states.t);
   const std::vector<std::uint8_t> visible =
       unionVisibility(std::span(before.header.visible, before.header.sectorCount),
                       std::span(after.header.visible, after.header.sectorCount));
@@ -62,25 +59,7 @@ void TerrainStateProducer::render(const psx::present::StateInterval &states,
                               .readWords = after.reads,
                               .argument = after.header.argument,
                               .packetBudget = after.header.packetBudget});
-  guest_memory::DrawMode drawMode;
-  rebuild.forEachPacket([&sink, &drawMode](std::uint32_t bin,
-                                           std::uint32_t packet,
-                                           std::span<const std::uint32_t> words) {
-    if (drawMode.take(words)) {
-      return;
-    }
-    auto primitive = psx::gpu::decodePacketPrimitive(words);
-    if (!primitive) {
-      lucent::error("terrstate",
-                    "the {}-word packet at 0x{:08X} in bin {} is not a polygon",
-                    words.size(),
-                    packet,
-                    bin);
-      std::abort();
-    }
-    drawMode.apply(*primitive);
-    sink.emit(psx::present::OtSlot{depth_bins::kTable, bin}, *primitive);
-  });
+  rebuild.emit(sink);
 }
 
 } // namespace spyro::guest_terrain

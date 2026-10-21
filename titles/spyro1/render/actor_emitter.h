@@ -22,7 +22,7 @@ namespace spyro1::actors {
 class ActorEmitter {
 public:
   ActorEmitter(Core &core,
-               spyro::guest_memory::WorkingMemory &memory,
+               const psx::present::EmitMemory &memory,
                const spyro::guest_terrain::ScreenBounds &bounds);
   virtual ~ActorEmitter() = default;
   ActorEmitter(const ActorEmitter &) = delete;
@@ -83,7 +83,7 @@ protected:
   void linkTriangle(const Triangle &triangle, const TriangleColours &colours);
 
   Core &core_;
-  spyro::guest_memory::WorkingMemory &memory_;
+  const psx::present::EmitMemory &memory_;
   spyro::guest_terrain::ScreenBounds bounds_;
   LocalBins bins_;
 

@@ -3,11 +3,13 @@
 #include "spyro1/render/actor_emitter.h"
 
 #include "core.h"
+#include "render/field/guest_word.h"
 #include "spyro1/render/actor_emitter_layout.h"
 
 namespace spyro1::actors {
 
 using namespace emitter;
+using spyro::guest_word::signedHalf;
 
 ActorEmitter::Projected ActorEmitter::readProjected() {
   auto &gte = core_.gte();
@@ -24,7 +26,7 @@ std::uint32_t ActorEmitter::depthTable(std::uint32_t count) const {
 
 void ActorEmitter::keepDepth(const Projected &vertex) {
   depth_ += 4;
-  memory_.w32(depth_ - 4, vertex.depth);
+  memory_.mem_w32(depth_ - 4, vertex.depth);
 }
 
 // 8001FC70..8001FCA8: a straddling record keeps the screen word shifted up past four outcodes, and
@@ -37,9 +39,9 @@ bool ActorEmitter::keepScreen(std::uint32_t screen) {
     code |= bounds_.atOrLeftOfLeft(screen) ? 4u : 0u;
     code |= bounds_.atOrRightOfRight(screen) ? 8u : 0u;
     outside_ &= code;
-    memory_.w32(screen_ - 4, code);
+    memory_.mem_w32(screen_ - 4, code);
   } else {
-    memory_.w32(screen_ - 4, screen);
+    memory_.mem_w32(screen_ - 4, screen);
   }
   return screen_ == screenEnd_;
 }
@@ -69,11 +71,11 @@ void ActorEmitter::projectPlain(std::uint32_t first) {
   for (;;) {
     gte.execute(gte::kRtps);
     if ((source & 1u) != 0) {
-      source = signedHalf(memory_.r16(halves_));
+      source = signedHalf(memory_.mem_r16(halves_));
       halves_ += 2;
       addHalf(position, source, halfShift_);
     } else {
-      source = memory_.r32(words_);
+      source = memory_.mem_r32(words_);
       words_ += 4;
       position = decodeWord(source);
     }
@@ -105,11 +107,11 @@ void ActorEmitter::projectBlended(std::uint32_t first) {
     gte.writeData(gte::kVxy0, gte.readData(gte::kMac2) + (gte.readData(gte::kMac3) << 16));
   };
   const auto next = [&](std::uint32_t source) {
-    return (source & 1u) != 0 ? signedHalf(memory_.r16(halves_)) : memory_.r32(words_);
+    return (source & 1u) != 0 ? signedHalf(memory_.mem_r16(halves_)) : memory_.mem_r32(words_);
   };
 
   Position position = decodeWord(first);
-  const std::uint32_t partnerFirst = memory_.r32(partnerWords_);
+  const std::uint32_t partnerFirst = memory_.mem_r32(partnerWords_);
   partnerWords_ += 4;
   Position partner = decodeWord(partnerFirst);
   blend(position, partner);
@@ -121,8 +123,8 @@ void ActorEmitter::projectBlended(std::uint32_t first) {
   for (;;) {
     gte.execute(gte::kRtps);
     const std::uint32_t partnerNext = (partnerSource & 1u) != 0
-                                          ? signedHalf(memory_.r16(partnerHalves_))
-                                          : memory_.r32(partnerWords_);
+                                          ? signedHalf(memory_.mem_r16(partnerHalves_))
+                                          : memory_.mem_r32(partnerWords_);
     if ((source & 1u) != 0) {
       addHalf(position, pending, halfShift_);
       halves_ += 2;

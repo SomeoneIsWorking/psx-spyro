@@ -1,5 +1,6 @@
 #include "spyro1/render/sprite_queue.h"
 
+#include "gp0_command.h"
 #include "core.h"
 #include "spyro1/core/guest_globals.h"
 #include "gte_registers.h"
@@ -7,7 +8,8 @@
 #include "render/field/guest_moby_rotation.h"
 #include "render/field/guest_view_slope.h"
 #include "render/field/guest_word.h"
-#include "spyro1/core/frame/ordering_table.h"
+#include "render/terrain/guest_depth_bins.h"
+#include "spyro1/render/ordering_table.h"
 #include "spyro1/render/terrain_facts.h"
 
 #include <cstdlib>
@@ -23,10 +25,6 @@ using terrain::kRenderGlobals;
 using spyro::guest_word::asSigned;
 using spyro::guest_word::sra;
 
-// cop2 control 16..20: the colour matrix, which this routine fills from the light vector.
-constexpr std::uint32_t kColourMatrix = 16;
-// 800237C0: LCM * IR, unscaled.
-constexpr std::uint32_t kMvmvaColourIr = 0x4A45E012u;
 
 // 80022C04..80022CC4: the sphere margins are constants here, not the mesh's radius.
 constexpr frustum::SphereMargins kMargins{.horizontalLateral = 0x66,
@@ -37,18 +35,19 @@ constexpr std::int32_t kNearPlane = 0x80;
 // Closer than this a record with a negative +0x1C stages its drop shadow (80022C30).
 constexpr std::int32_t kShadowDepth = 0x1100;
 // 80022D64: a HUD record's rotation before its own angles.
-constexpr rotation::RotationWords kScreenRotation = {0x1000u, 0u, 0xA00u, 0u, 0x1000u};
+constexpr psx::gte::RotationWords kScreenRotation = {0x1000u, 0u, 0xA00u, 0u, 0x1000u};
 // 8002395C: the offsets every record but a HUD one draws with.
 constexpr std::uint32_t kScreenOffsetX = 0x1000000u;
 constexpr std::uint32_t kScreenOffsetY = 0x780000u;
 // Closer than this a flat polygon's back face is drawn too (80023734).
 constexpr std::int32_t kTwoSidedDepth = 0x800;
 
-constexpr std::uint32_t kGouraudQuad = 0x38000000u;
-constexpr std::uint32_t kGouraudTriangle = 0x30000000u;
-constexpr std::uint32_t kFlatQuad = 0x28000000u;
-constexpr std::uint32_t kFlatTriangle = 0x20000000u;
-constexpr std::uint32_t kSemiTransparent = 0x02000000u;
+using psx::gpu::Gp0Command;
+constexpr std::uint32_t kGouraudQuad = Gp0Command::opcodeWord(psx::gpu::kPolyG4);
+constexpr std::uint32_t kGouraudTriangle = Gp0Command::opcodeWord(psx::gpu::kPolyG3);
+constexpr std::uint32_t kFlatQuad = Gp0Command::opcodeWord(psx::gpu::kPolyF4);
+constexpr std::uint32_t kFlatTriangle = Gp0Command::opcodeWord(psx::gpu::kPolyF3);
+constexpr std::uint32_t kSemiTransparent = Gp0Command::opcodeWord(Gp0Command::kFlagSemiTransparent);
 
 // 80023214..80023250: a channel past 0x1000 saturates, otherwise drops its fraction.
 constexpr std::uint32_t saturate(std::uint32_t channel) {
@@ -93,35 +92,35 @@ QueueView presentedQueueView(const Core &core) {
 }
 
 SpriteQueue::SpriteQueue(Core &core,
-                         spyro::guest_memory::WorkingMemory &memory,
+                         const psx::present::EmitMemory &memory,
                          const QueueView &view)
     : core_(core), memory_(memory), view_(view), bins_(memory) {}
 
 void SpriteQueue::begin() {
-  shadows_ = memory_.r32(kShadowListEnd);
+  shadows_ = memory_.mem_r32(kShadowListEnd);
   const std::uint32_t camera = kRenderGlobals.cameraRotation;
   for (std::uint32_t i = 0; i < 3; ++i) {
-    memory_.w32(kCameraCopy + i * 4, memory_.r32(kRenderGlobals.cameraPosition + i * 4));
+    memory_.mem_w32(kCameraCopy + i * 4, memory_.mem_r32(kRenderGlobals.cameraPosition + i * 4));
   }
   for (std::uint32_t i = 0; i < gte::kRotationWords; ++i) {
-    memory_.w32(kCameraCopy + 0xC + i * 4, memory_.r32(camera + i * 4));
+    memory_.mem_w32(kCameraCopy + 0xC + i * 4, memory_.mem_r32(camera + i * 4));
   }
-  v0_ = memory_.r32(kRenderGlobals.cameraPosition);
-  const std::uint32_t x = memory_.r32(kLightVector);
-  const std::uint32_t y = memory_.r32(kLightVector + 4);
-  const std::uint32_t z = memory_.r32(kLightVector + 8);
-  core_.gte().writeControl(kColourMatrix + 0, (y << 16) + x);
-  core_.gte().writeControl(kColourMatrix + 3, (y << 16) + x);
-  core_.gte().writeControl(kColourMatrix + 1, (x << 16) + z);
-  core_.gte().writeControl(kColourMatrix + 2, (z << 16) + y);
-  core_.gte().writeControl(kColourMatrix + 4, z);
+  v0_ = memory_.mem_r32(kRenderGlobals.cameraPosition);
+  const std::uint32_t x = memory_.mem_r32(kLightVector);
+  const std::uint32_t y = memory_.mem_r32(kLightVector + 4);
+  const std::uint32_t z = memory_.mem_r32(kLightVector + 8);
+  core_.gte().writeControl(psx::gte::kLightColour + 0, (y << 16) + x);
+  core_.gte().writeControl(psx::gte::kLightColour + 3, (y << 16) + x);
+  core_.gte().writeControl(psx::gte::kLightColour + 1, (x << 16) + z);
+  core_.gte().writeControl(psx::gte::kLightColour + 2, (z << 16) + y);
+  core_.gte().writeControl(psx::gte::kLightColour + 4, z);
   v1_ = kLightVector;
 }
 
 std::optional<QueuedChain> SpriteQueue::draw(std::uint32_t record, std::int32_t hudShift) {
-  const std::uint32_t cull = memory_.r16(record + moby::kCullDistance);
-  const std::uint32_t x = memory_.r32(record + moby::kX);
-  memory_.w8(record + moby::kDrawn, 0);
+  const std::uint32_t cull = memory_.mem_r16(record + moby::kCullDistance);
+  const std::uint32_t x = memory_.mem_r32(record + moby::kX);
+  memory_.mem_w8(record + moby::kDrawn, 0);
   std::optional<Centre> centre;
   if ((cull & moby::kScreenSpace) != 0) {
     centre = placeOnScreen({.record = record, .cull = cull, .x = x}, hudShift);
@@ -137,31 +136,31 @@ std::optional<QueuedChain> SpriteQueue::draw(std::uint32_t record, std::int32_t 
   }
 
   // 800230EC: a mesh whose vertices start past its header has a normal per vertex and is lit.
-  const std::uint32_t vertices = memory_.r32(mesh_ + queued_mesh::kVertices) & 0x7FFFFFFFu;
-  vertexColours_ = memory_.r32(mesh_ + queued_mesh::kColours);
+  const std::uint32_t vertices = memory_.mem_r32(mesh_ + queued_mesh::kVertices) & 0x7FFFFFFFu;
+  vertexColours_ = memory_.mem_r32(mesh_ + queued_mesh::kColours);
   if (mesh_ + queued_mesh::kNormals != vertices) {
     lightVertices(record);
   }
 
   // 80023268: the polygons, into the local bins.
-  paletteWord_ = memory_.r32(record + moby::kSecondaryWord);
-  const std::uint32_t polygonCount = memory_.r8(mesh_ + queued_mesh::kPolygonCount);
-  const std::uint32_t polygons = memory_.r32(mesh_ + queued_mesh::kPolygons);
+  paletteWord_ = memory_.mem_r32(record + moby::kSecondaryWord);
+  const std::uint32_t polygonCount = memory_.mem_r8(mesh_ + queued_mesh::kPolygonCount);
+  const std::uint32_t polygons = memory_.mem_r32(mesh_ + queued_mesh::kPolygons);
   v0_ = polygonCount << 3;
   core_.gte().writeControl(gte::kDqb, depthBin_);
-  bins_.begin({.base = kLocalBins, .cursor = memory_.r32(kRenderGlobals.primitiveCursor)});
+  bins_.begin({.base = kLocalBins, .cursor = memory_.mem_r32(kRenderGlobals.primitiveCursor)});
   const std::uint32_t end = polygons + polygonCount * 8;
-  std::uint32_t word = memory_.r32(polygons);
+  std::uint32_t word = memory_.mem_r32(polygons);
   for (std::uint32_t polygon = polygons; polygon != end; polygon += 8) {
-    const std::uint32_t colours = memory_.r32(polygon + 4);
+    const std::uint32_t colours = memory_.mem_r32(polygon + 4);
     drawPolygon({.corners = word, .colours = colours});
-    word = memory_.r32(polygon + 8);
+    word = memory_.mem_r32(polygon + 8);
   }
 
   // 80023958
   core_.gte().writeControl(gte::kOfx, kScreenOffsetX);
   core_.gte().writeControl(gte::kOfy, kScreenOffsetY);
-  memory_.w32(kRenderGlobals.primitiveCursor, bins_.cursor());
+  memory_.mem_w32(kRenderGlobals.primitiveCursor, bins_.cursor());
   v0_ = bins_.highest() - bins_.lowest();
   if (asSigned(v0_) < 0) {
     return std::nullopt;
@@ -172,11 +171,11 @@ std::optional<QueuedChain> SpriteQueue::draw(std::uint32_t record, std::int32_t 
 // 80022B40..80022D18
 std::optional<SpriteQueue::Centre> SpriteQueue::placeInWorld(const Placement &placement) {
   const auto [record, cull, worldX] = placement;
-  const std::uint32_t cameraX = memory_.r32(kCameraCopy);
-  const std::uint32_t cameraY = memory_.r32(kCameraCopy + 4);
-  const std::uint32_t cameraZ = memory_.r32(kCameraCopy + 8);
+  const std::uint32_t cameraX = memory_.mem_r32(kCameraCopy);
+  const std::uint32_t cameraY = memory_.mem_r32(kCameraCopy + 4);
+  const std::uint32_t cameraZ = memory_.mem_r32(kCameraCopy + 8);
   const std::int32_t reach = asSigned(((cull & 0xFFu) << 8) + ((cull & 0x100u) << 1));
-  v0_ = memory_.r32(record + moby::kY);
+  v0_ = memory_.mem_r32(record + moby::kY);
   const std::int32_t dx = asSigned(worldX - cameraX) >> 2;
   if (dx + reach <= 0) {
     return std::nullopt;
@@ -185,7 +184,7 @@ std::optional<SpriteQueue::Centre> SpriteQueue::placeInWorld(const Placement &pl
   if (dx - reach >= 0) {
     return std::nullopt;
   }
-  v1_ = memory_.r32(record + moby::kZ);
+  v1_ = memory_.mem_r32(record + moby::kZ);
   v0_ = sra(v0_, 2);
   const std::int32_t dy = asSigned(v0_);
   if (dy + reach <= 0) {
@@ -201,15 +200,13 @@ std::optional<SpriteQueue::Centre> SpriteQueue::placeInWorld(const Placement &pl
     return std::nullopt;
   }
 
-  for (std::uint32_t i = 0; i < gte::kRotationWords; ++i) {
-    rotation_[i] = memory_.r32(kCameraCopy + 0xC + i * 4);
-    core_.gte().writeControl(gte::kRotation + i, rotation_[i]);
-  }
+  rotation_ = spyro::guest_memory::rotationAt(memory_, kCameraCopy + 0xC);
+  core_.gte().loadRotation(rotation_);
   core_.gte().writeData(gte::kIr3, static_cast<std::uint32_t>(dx));
   core_.gte().writeData(gte::kIr1, static_cast<std::uint32_t>(dy));
   core_.gte().writeData(gte::kIr2, static_cast<std::uint32_t>(dz));
   core_.gte().execute(gte::kMvmvaRtIr);
-  const std::uint32_t meshIndex = memory_.r16(record + moby::kMesh);
+  const std::uint32_t meshIndex = memory_.mem_r16(record + moby::kMesh);
   v1_ = core_.gte().readData(gte::kMac3);
   v0_ = core_.gte().readData(gte::kMac2);
   const frustum::ViewPoint view{
@@ -217,28 +214,28 @@ std::optional<SpriteQueue::Centre> SpriteQueue::placeInWorld(const Placement &pl
   if (view.z - reach >= 0 || frustum::behindEye(view, kNearPlane)) {
     return std::nullopt;
   }
-  const std::uint32_t shadowFlag = memory_.r32(record + moby::kShadowFlag);
+  const std::uint32_t shadowFlag = memory_.mem_r32(record + moby::kShadowFlag);
   if (frustum::outsideHorizontal(view, kMargins, view_.slope)) {
     return std::nullopt;
   }
-  mesh_ = memory_.r32(spyro1::guest::kModels + meshIndex * 4);
+  mesh_ = memory_.mem_r32(spyro1::guest::kModels + meshIndex * 4);
   // 80022C38: the record is written to the cursor whenever the flag is set; only a near one
   // keeps it.
   if (asSigned(shadowFlag) < 0) {
-    memory_.w32(shadows_, record);
+    memory_.mem_w32(shadows_, record);
     if (view.z - kShadowDepth < 0) {
       shadows_ += 8;
       const auto shadowByte =
-          static_cast<std::int8_t>(memory_.r8(mesh_ + queued_mesh::kShadowByte));
-      memory_.w32(shadows_ - 4, static_cast<std::uint32_t>(std::int32_t{shadowByte}));
+          static_cast<std::int8_t>(memory_.mem_r8(mesh_ + queued_mesh::kShadowByte));
+      memory_.mem_w32(shadows_ - 4, static_cast<std::uint32_t>(std::int32_t{shadowByte}));
     }
   }
   if (frustum::outsideVertical(view, kMargins)) {
     return std::nullopt;
   }
   edge_ = frustum::insideFrustum(view, kMargins, view_.slope) ? 0u : kStraddlesView;
-  angles_ = memory_.r32(record + moby::kRotation);
-  const std::uint32_t tint = memory_.r8(record + moby::kTint);
+  angles_ = memory_.mem_r32(record + moby::kRotation);
+  const std::uint32_t tint = memory_.mem_r8(record + moby::kTint);
 
   // 80022CCC: the centre doubled; a tinted record scales it toward the eye.
   Centre centre{.x = static_cast<std::uint32_t>(view.x) << 1,
@@ -267,8 +264,8 @@ std::optional<SpriteQueue::Centre> SpriteQueue::placeInWorld(const Placement &pl
 SpriteQueue::Centre SpriteQueue::placeOnScreen(const Placement &placement, std::int32_t shift) {
   const std::uint32_t record = placement.record;
   const std::uint32_t screenX = placement.x;
-  const std::uint32_t screenY = memory_.r32(record + moby::kY);
-  v1_ = memory_.r32(record + moby::kZ);
+  const std::uint32_t screenY = memory_.mem_r32(record + moby::kY);
+  v1_ = memory_.mem_r32(record + moby::kZ);
   const std::uint32_t column = screenX + static_cast<std::uint32_t>(shift);
   core_.gte().writeControl(gte::kOfx, column << 16);
   core_.gte().writeControl(gte::kOfy, screenY << 16);
@@ -276,13 +273,11 @@ SpriteQueue::Centre SpriteQueue::placeOnScreen(const Placement &placement, std::
   v1_ = sra(v1_, 1);
   depthBin_ = sra(v1_, 6);
   edge_ = 0;
-  const std::uint32_t meshIndex = memory_.r16(record + moby::kMesh);
-  angles_ = memory_.r32(record + moby::kRotation);
-  mesh_ = memory_.r32(spyro1::guest::kModels + meshIndex * 4);
+  const std::uint32_t meshIndex = memory_.mem_r16(record + moby::kMesh);
+  angles_ = memory_.mem_r32(record + moby::kRotation);
+  mesh_ = memory_.mem_r32(spyro1::guest::kModels + meshIndex * 4);
   rotation_ = kScreenRotation;
-  for (std::uint32_t i = 0; i < gte::kRotationWords; ++i) {
-    core_.gte().writeControl(gte::kRotation + i, rotation_[i]);
-  }
+  core_.gte().loadRotation(rotation_);
   return Centre{.x = 0, .y = 0, .z = v1_, .screenSpace = 1};
 }
 
@@ -291,7 +286,7 @@ SpriteQueue::Centre SpriteQueue::placeOnScreen(const Placement &placement, std::
 void SpriteQueue::orient(const Centre &centre, std::uint32_t record) {
   core_.gte().writeControl(gte::kDqa, centre.screenSpace);
   if (centre.seenAtRetail) {
-    memory_.w8(record + moby::kDrawn, 1);
+    memory_.mem_w8(record + moby::kDrawn, 1);
   }
   depthBin_ -= sra(angles_, 24);
   if (asSigned(depthBin_) < 0) {
@@ -308,28 +303,28 @@ void SpriteQueue::orient(const Centre &centre, std::uint32_t record) {
 // 80022FEC..800230E8: every vertex projected; a straddling record keeps an outcode per vertex and
 // is dropped when all share an edge.
 bool SpriteQueue::projectVertices() {
-  const std::uint32_t vertices = memory_.r32(mesh_ + queued_mesh::kVertices);
-  const auto count = static_cast<std::int8_t>(memory_.r8(mesh_ + queued_mesh::kVertexCount));
+  const std::uint32_t vertices = memory_.mem_r32(mesh_ + queued_mesh::kVertices);
+  const auto count = static_cast<std::int8_t>(memory_.mem_r8(mesh_ + queued_mesh::kVertexCount));
   if (count <= 0) {
     lucent::error("spritequeue", "mesh 0x{:08X} declares {} vertices", mesh_, count);
     std::abort();
   }
-  v1_ = loadVertex(core_, memory_.r32(vertices));
+  v1_ = loadVertex(core_, memory_.mem_r32(vertices));
   std::uint32_t next = vertices + 3;
   std::uint32_t shared = 0xFFFFFFFFu;
   for (std::uint32_t i = 0; i < static_cast<std::uint32_t>(count); ++i) {
     core_.gte().execute(gte::kRtps);
-    const std::uint32_t word = memory_.r8(next) | (std::uint32_t{memory_.r8(next + 1)} << 8) |
-                               (std::uint32_t{memory_.r8(next + 2)} << 16) |
-                               (std::uint32_t{memory_.r8(next + 3)} << 24);
+    const std::uint32_t word = memory_.mem_r8(next) | (std::uint32_t{memory_.mem_r8(next + 1)} << 8) |
+                               (std::uint32_t{memory_.mem_r8(next + 2)} << 16) |
+                               (std::uint32_t{memory_.mem_r8(next + 3)} << 24);
     next += 3;
     v1_ = loadVertex(core_, word);
     const std::uint32_t screen = core_.gte().readData(gte::kSxy2);
     v0_ = core_.gte().readData(gte::kSz3);
     const std::uint32_t slot = kVertexScreens + i * 4;
-    memory_.w32(slot + (kVertexDepths - kVertexScreens), v0_);
+    memory_.mem_w32(slot + (kVertexDepths - kVertexScreens), v0_);
     if (edge_ == 0) {
-      memory_.w32(slot, screen);
+      memory_.mem_w32(slot, screen);
       continue;
     }
     std::uint32_t code = screen << 5;
@@ -339,7 +334,7 @@ bool SpriteQueue::projectVertices() {
     code |= bounds.atOrLeftOfLeft(screen) ? 4u : 0u;
     code |= bounds.atOrRightOfRight(screen) ? 8u : 0u;
     shared &= code;
-    memory_.w32(slot, code);
+    memory_.mem_w32(slot, code);
     v1_ = code;
   }
   return edge_ == 0 || (shared & 0xFu) == 0;
@@ -348,15 +343,15 @@ bool SpriteQueue::projectVertices() {
 // 80023100..80023264: each vertex normal rotated and lit against the record's palette colour.
 void SpriteQueue::lightVertices(std::uint32_t record) {
   // projectVertices refused a count that is not positive.
-  const std::uint32_t count = memory_.r8(mesh_ + queued_mesh::kVertexCount);
-  const std::uint32_t palette = sra(memory_.r32(record + moby::kSecondaryWord), 22);
-  const std::uint32_t base = memory_.r32(kPalette + palette);
+  const std::uint32_t count = memory_.mem_r8(mesh_ + queued_mesh::kVertexCount);
+  const std::uint32_t palette = sra(memory_.mem_r32(record + moby::kSecondaryWord), 22);
+  const std::uint32_t base = memory_.mem_r32(kPalette + palette);
   const std::uint32_t floor = base & 0x00FFFFFFu;
   const BackColour back = backColour(base);
   const std::uint32_t boost = base >> 28;
   std::uint32_t normal = mesh_ + queued_mesh::kNormals;
   auto component = [this](std::uint32_t address) {
-    return static_cast<std::uint32_t>(std::int32_t{static_cast<std::int8_t>(memory_.r8(address))});
+    return static_cast<std::uint32_t>(std::int32_t{static_cast<std::int8_t>(memory_.mem_r8(address))});
   };
   std::uint32_t nx = component(normal);
   std::uint32_t ny = component(normal + 1);
@@ -391,7 +386,7 @@ void SpriteQueue::lightVertices(std::uint32_t record) {
                  (saturate(core_.gte().readData(gte::kIr3) + lift) << 16);
       }
     }
-    memory_.w32(out, colour);
+    memory_.mem_w32(out, colour);
   }
   v0_ = ny;
   v1_ = nz;
@@ -405,10 +400,10 @@ void SpriteQueue::drawPolygon(const PolygonWords &polygon) {
   v1_ = kVertexScreens + ((word >> 14) & 0x1FCu);
   const std::uint32_t a0 = kVertexScreens + ((word >> 7) & 0x1FCu);
   const std::uint32_t a1 = kVertexScreens + (word & 0x1FCu);
-  screen_[0] = memory_.r32(v0_);
-  screen_[1] = memory_.r32(v1_);
-  screen_[2] = memory_.r32(a0);
-  screen_[3] = memory_.r32(a1);
+  screen_[0] = memory_.mem_r32(v0_);
+  screen_[1] = memory_.mem_r32(v1_);
+  screen_[2] = memory_.mem_r32(a0);
+  screen_[3] = memory_.mem_r32(a1);
   if (asSigned(edge_) < 0) {
     if ((screen_[0] & screen_[1] & screen_[2] & screen_[3] & 0xFu) != 0) {
       return;
@@ -434,7 +429,7 @@ void SpriteQueue::drawPolygon(const PolygonWords &polygon) {
 void SpriteQueue::drawGouraud(const PolygonTail &tail) {
   const auto [colours, a0, a1] = tail;
   auto colour = [this](std::uint32_t index) {
-    return memory_.r32(vertexColours_ + (index & 0x1FCu));
+    return memory_.mem_r32(vertexColours_ + (index & 0x1FCu));
   };
   const std::uint32_t t9 = bins_.cursor();
   if (a0 != a1) {
@@ -450,25 +445,25 @@ void SpriteQueue::drawGouraud(const PolygonTail &tail) {
     const std::uint32_t c1 = colour(colours >> 14);
     const std::uint32_t c2 = colour(colours >> 7);
     const std::uint32_t c3 = colour(colours);
-    v0_ = memory_.r32(v0_ + 0x200u);
-    v1_ = memory_.r32(v1_ + 0x200u);
-    const std::uint32_t d2 = memory_.r32(a0 + 0x200u);
-    const std::uint32_t d3 = memory_.r32(a1 + 0x200u);
-    memory_.w32(t9 + 0x08, screen_[0]);
-    memory_.w32(t9 + 0x10, screen_[1]);
-    memory_.w32(t9 + 0x18, screen_[2]);
-    memory_.w32(t9 + 0x20, screen_[3]);
+    v0_ = memory_.mem_r32(v0_ + 0x200u);
+    v1_ = memory_.mem_r32(v1_ + 0x200u);
+    const std::uint32_t d2 = memory_.mem_r32(a0 + 0x200u);
+    const std::uint32_t d3 = memory_.mem_r32(a1 + 0x200u);
+    memory_.mem_w32(t9 + 0x08, screen_[0]);
+    memory_.mem_w32(t9 + 0x10, screen_[1]);
+    memory_.mem_w32(t9 + 0x18, screen_[2]);
+    memory_.mem_w32(t9 + 0x20, screen_[3]);
     const std::uint32_t depth = v0_ + v1_ + d2 + d3 - depthBias_;
     v0_ = sra(depth, 5);
     if (asSigned(depth) <= 0) {
       return;
     }
     v0_ += colours & 3u;
-    memory_.w32(t9 + 0x04, c0);
-    memory_.w32(t9 + 0x0C, c1);
-    memory_.w32(t9 + 0x14, c2);
-    memory_.w32(t9 + 0x1C, c3);
-    memory_.w32(t9, 0x08000000u);
+    memory_.mem_w32(t9 + 0x04, c0);
+    memory_.mem_w32(t9 + 0x0C, c1);
+    memory_.mem_w32(t9 + 0x14, c2);
+    memory_.mem_w32(t9 + 0x1C, c3);
+    memory_.mem_w32(t9, 0x08000000u);
     v1_ = bins_.link(kLocalBins + (v0_ << 3));
     v0_ = kLocalBins + (v0_ << 3);
     return;
@@ -479,21 +474,21 @@ void SpriteQueue::drawGouraud(const PolygonTail &tail) {
   const std::uint32_t c0 = colour(colours >> 21);
   const std::uint32_t c1 = colour(colours >> 14);
   const std::uint32_t c2 = colour(colours >> 7);
-  v0_ = memory_.r32(v0_ + 0x200u);
-  v1_ = memory_.r32(v1_ + 0x200u);
-  const std::uint32_t d2 = memory_.r32(a0 + 0x200u);
-  memory_.w32(t9 + 0x08, screen_[0]);
-  memory_.w32(t9 + 0x10, screen_[1]);
-  memory_.w32(t9 + 0x18, screen_[2]);
+  v0_ = memory_.mem_r32(v0_ + 0x200u);
+  v1_ = memory_.mem_r32(v1_ + 0x200u);
+  const std::uint32_t d2 = memory_.mem_r32(a0 + 0x200u);
+  memory_.mem_w32(t9 + 0x08, screen_[0]);
+  memory_.mem_w32(t9 + 0x10, screen_[1]);
+  memory_.mem_w32(t9 + 0x18, screen_[2]);
   v0_ = v0_ + v1_ + d2 + d2 - depthBias_;
-  memory_.w32(t9 + 0x04, c0 + kGouraudTriangle);
+  memory_.mem_w32(t9 + 0x04, c0 + kGouraudTriangle);
   if (asSigned(v0_) <= 0) {
     return;
   }
-  memory_.w32(t9 + 0x0C, c1);
-  memory_.w32(t9 + 0x14, c2);
+  memory_.mem_w32(t9 + 0x0C, c1);
+  memory_.mem_w32(t9 + 0x14, c2);
   v0_ = sra(v0_, 5) + (colours & 3u);
-  memory_.w32(t9, 0x06000000u);
+  memory_.mem_w32(t9, 0x06000000u);
   v1_ = bins_.link(kLocalBins + (v0_ << 3));
   v0_ = kLocalBins + (v0_ << 3);
 }
@@ -513,16 +508,16 @@ void SpriteQueue::drawLit(const PolygonTail &tail) {
       return;
     }
   }
-  const std::uint32_t base = memory_.r32(palette);
+  const std::uint32_t base = memory_.mem_r32(palette);
   const std::uint32_t t9 = bins_.cursor();
   core_.gte().writeData(gte::kIr3, sra(colours, 24));
   core_.gte().writeData(gte::kIr1, sra(colours << 8, 24));
   core_.gte().writeData(gte::kIr2, sra(colours << 16, 24));
-  memory_.w32(t9 + 0x08, screen_[0]);
-  memory_.w32(t9 + 0x0C, screen_[1]);
+  memory_.mem_w32(t9 + 0x08, screen_[0]);
+  memory_.mem_w32(t9 + 0x0C, screen_[1]);
   core_.gte().execute(gte::kMvmvaRtIr);
-  memory_.w32(t9 + 0x10, screen_[2]);
-  memory_.w32(t9 + 0x14, screen_[3]);
+  memory_.mem_w32(t9 + 0x10, screen_[2]);
+  memory_.mem_w32(t9 + 0x14, screen_[3]);
   const BackColour back = backColour(base);
   core_.gte().writeData(gte::kIr0, (base >> 23) & 0x1Eu);
   core_.gte().execute(gte::kGpf);
@@ -530,11 +525,11 @@ void SpriteQueue::drawLit(const PolygonTail &tail) {
   core_.gte().writeControl(gte::kBackGreen, back.green);
   core_.gte().writeControl(gte::kBackBlue, back.blue);
   core_.gte().writeData(gte::kRgbc, 0x00FFFFFFu);
-  const std::uint32_t d0 = memory_.r32(v0_ + 0x200u);
-  const std::uint32_t d1 = memory_.r32(v1_ + 0x200u);
+  const std::uint32_t d0 = memory_.mem_r32(v0_ + 0x200u);
+  const std::uint32_t d1 = memory_.mem_r32(v1_ + 0x200u);
   core_.gte().execute(gte::kCc);
-  const std::uint32_t d2 = memory_.r32(a0 + 0x200u);
-  const std::uint32_t d3 = memory_.r32(a1 + 0x200u);
+  const std::uint32_t d2 = memory_.mem_r32(a0 + 0x200u);
+  const std::uint32_t d3 = memory_.mem_r32(a1 + 0x200u);
   const std::uint32_t depth = d0 + d1 + d2 + d3 - depthBias_;
   if (asSigned(depth) <= 0) {
     return;
@@ -551,7 +546,7 @@ void SpriteQueue::drawLit(const PolygonTail &tail) {
     edge_ |= 1u;
   }
   std::uint32_t colour = core_.gte().readData(gte::kRgb2);
-  memory_.w32(t9, v0_);
+  memory_.mem_w32(t9, v0_);
   if (const std::uint32_t boost = base >> 28; boost != 0) {
     const std::uint32_t ir1 = core_.gte().readData(gte::kIr1);
     std::uint32_t lift = ir1 - (boost << 7) - core_.gte().readControl(gte::kBackRed);
@@ -561,7 +556,7 @@ void SpriteQueue::drawLit(const PolygonTail &tail) {
                (saturate(core_.gte().readData(gte::kIr3) + lift) << 16);
     }
   }
-  memory_.w32(t9 + 0x04, colour | v1_);
+  memory_.mem_w32(t9 + 0x04, colour | v1_);
   (void)bins_.link(kLocalBins + (sra(depth, 5) << 3));
 }
 
@@ -588,20 +583,20 @@ void SpriteQueue::drawFlat(const PolygonTail &tail) {
     }
   }
   const std::uint32_t t9 = bins_.cursor();
-  memory_.w32(t9 + 0x08, screen_[0]);
-  memory_.w32(t9 + 0x0C, screen_[1]);
-  memory_.w32(t9 + 0x10, screen_[2]);
-  memory_.w32(t9 + 0x14, screen_[3]);
+  memory_.mem_w32(t9 + 0x08, screen_[0]);
+  memory_.mem_w32(t9 + 0x0C, screen_[1]);
+  memory_.mem_w32(t9 + 0x10, screen_[2]);
+  memory_.mem_w32(t9 + 0x14, screen_[3]);
   core_.gte().writeData(gte::kIr3, sra(colours, 24));
   core_.gte().writeData(gte::kIr1, sra(colours << 8, 24));
   core_.gte().writeData(gte::kIr2, sra(colours << 16, 24));
-  v0_ = memory_.r32(v0_ + 0x200u);
-  v1_ = memory_.r32(v1_ + 0x200u);
+  v0_ = memory_.mem_r32(v0_ + 0x200u);
+  v1_ = memory_.mem_r32(v1_ + 0x200u);
   core_.gte().execute(gte::kMvmvaRtIr);
-  std::uint32_t lit = memory_.r32(pair);
-  const std::uint32_t shade = memory_.r32(pair + 4);
+  std::uint32_t lit = memory_.mem_r32(pair);
+  const std::uint32_t shade = memory_.mem_r32(pair + 4);
   v0_ = v0_ + v1_ - depthBias_;
-  core_.gte().execute(kMvmvaColourIr);
+  core_.gte().execute(psx::gte::kMvmvaLcmIr);
   edge_ |= 2u;
   const BackColour shadeChannels = backColour(shade);
   std::uint32_t intensity = core_.gte().readData(gte::kMac1);
@@ -634,11 +629,11 @@ void SpriteQueue::drawFlat(const PolygonTail &tail) {
     tag = 0x05000000u;
     command = kFlatQuad + kSemiTransparent;
   }
-  const std::uint32_t d2 = memory_.r32(a0 + 0x200u);
-  const std::uint32_t d3 = memory_.r32(a1 + 0x200u);
+  const std::uint32_t d2 = memory_.mem_r32(a0 + 0x200u);
+  const std::uint32_t d3 = memory_.mem_r32(a1 + 0x200u);
   command = command - opaque + red + (green << 8) + (blue << 16);
-  memory_.w32(t9, tag);
-  memory_.w32(t9 + 0x04, command);
+  memory_.mem_w32(t9, tag);
+  memory_.mem_w32(t9 + 0x04, command);
   const std::uint32_t depth = v0_ + d2 + d3;
   v0_ = sra(depth, 5);
   if (asSigned(depth) <= 0) {
@@ -651,29 +646,28 @@ void SpriteQueue::drawFlat(const PolygonTail &tail) {
 // 8002397C..800239B4: the bins the record reached, deepest first, into one chain; each emptied.
 std::optional<QueuedChain> SpriteQueue::chainLocalBins() {
   std::uint32_t at = bins_.highest();
-  QueuedChain chain{.first = memory_.r32(at + 4),
-                    .last = memory_.r32(at),
+  QueuedChain chain{.first = memory_.mem_r32(at + 4),
+                    .last = memory_.mem_r32(at),
                     .depthBin = depthBin_,
                     .overlay = false,
                     .drawMode = 0};
   v0_ = chain.first;
-  memory_.w32(at, 0);
-  memory_.w32(at + 4, 0);
+  memory_.mem_w32(at, 0);
+  memory_.mem_w32(at + 4, 0);
   for (;;) {
     if (bins_.lowest() == at) {
-      v1_ = memory_.r32(at - 4);
+      v1_ = memory_.mem_r32(at - 4);
       break;
     }
-    v1_ = memory_.r32(at - 4);
+    v1_ = memory_.mem_r32(at - 4);
     at -= 8;
     if (v1_ == 0) {
       continue;
     }
-    memory_.w16(chain.last, static_cast<std::uint16_t>(v1_));
-    memory_.w8(chain.last + 2, static_cast<std::uint8_t>(v1_ >> 16));
-    chain.last = memory_.r32(at);
-    memory_.w32(at, 0);
-    memory_.w32(at + 4, 0);
+    spyro::guest_memory::linkAfter(memory_, chain.last, v1_);
+    chain.last = memory_.mem_r32(at);
+    memory_.mem_w32(at, 0);
+    memory_.mem_w32(at + 4, 0);
     if (bins_.lowest() == at) {
       break;
     }
@@ -684,37 +678,24 @@ std::optional<QueuedChain> SpriteQueue::chainLocalBins() {
 }
 
 void SpriteQueue::link(const QueuedChain &chain) {
-  v1_ = chain.overlay ? memory_.r32(OrderingTable::kOverlayPairPointer)
-                      : memory_.r32(kRenderGlobals.orderingTable) + (chain.depthBin << 3);
-  std::uint32_t tail = memory_.r32(v1_);
+  v1_ = chain.overlay ? memory_.mem_r32(OrderingTable::kOverlayPairPointer)
+                      : memory_.mem_r32(kRenderGlobals.orderingTable) + (chain.depthBin << 3);
   if (chain.drawMode != 0) {
     const std::uint32_t packet = bins_.cursor();
-    memory_.w32(packet, 0x02000000u);
-    memory_.w32(packet + 4, chain.modeCommand());
-    memory_.w32(packet + 8, 0);
+    memory_.mem_w32(packet, 0x02000000u);
+    memory_.mem_w32(packet + 4, chain.modeCommand());
+    memory_.mem_w32(packet + 8, 0);
     bins_.take();
-    memory_.w32(kRenderGlobals.primitiveCursor, bins_.cursor());
-    memory_.w32(v1_, packet);
-    if (tail == 0) {
-      memory_.w32(v1_ + 4, packet);
-    } else {
-      memory_.w16(tail, static_cast<std::uint16_t>(packet));
-      memory_.w8(tail + 2, static_cast<std::uint8_t>(packet >> 16));
-    }
-    tail = packet;
+    memory_.mem_w32(kRenderGlobals.primitiveCursor, bins_.cursor());
+    spyro::depth_bins::linkIntoBin(memory_, v1_, packet, packet);
   }
-  memory_.w32(v1_, chain.last);
-  if (tail == 0) {
-    memory_.w32(v1_ + 4, chain.first);
-    return;
+  if (spyro::depth_bins::linkIntoBin(memory_, v1_, chain.first, chain.last) != 0) {
+    v0_ = chain.first >> 16;
   }
-  memory_.w16(tail, static_cast<std::uint16_t>(chain.first));
-  v0_ = chain.first >> 16;
-  memory_.w8(tail + 2, static_cast<std::uint8_t>(v0_));
 }
 
 void SpriteQueue::end() {
-  memory_.w32(kShadowListEnd, shadows_);
+  memory_.mem_w32(kShadowListEnd, shadows_);
   core_.r[2] = v0_;
   core_.r[3] = v1_;
 }

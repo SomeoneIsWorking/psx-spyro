@@ -3,6 +3,8 @@
 // Runs over guest memory for the real field and over host memory for an in-between.
 #pragma once
 
+#include "guest_memory_map.h"
+
 #include "gte_registers.h"
 #include "render/field/guest_working_memory.h"
 #include "render/terrain/guest_terrain_screen.h"
@@ -20,18 +22,16 @@ inline constexpr std::uint32_t kCyclorama = 0x80078A40u;
 // Where the sectors in front of the camera are listed, zero-ended (8004EC20).
 inline constexpr std::uint32_t kSectorList = 0x8006FCF4u;
 inline constexpr std::uint32_t kSectorListBytes = 0x1C00u;
-// Set when the packet pool is within 0x400 bytes of its end (8004EF68).
-inline constexpr std::uint32_t kPoolExhausted = 0x800758B0u;
 // The outcode word per vertex, `sxy << 5 | edges`.
-inline constexpr std::uint32_t kOutcodes = 0x1F800000u;
-inline constexpr std::uint32_t kOutcodesBytes = 0x400u;
+inline constexpr std::uint32_t kOutcodes = psx::kScratchpadPhysicalBase;
+inline constexpr std::uint32_t kOutcodesBytes = psx::kScratchpadBytes;
 // The deepest of the 0x800 depth bins.
 inline constexpr std::uint32_t kSkyBin = 0x7FFu;
 
 // The view rotation sectors are culled with and the projection rotation vertices are drawn with.
 struct Rotations {
-  std::array<std::uint32_t, psx::gte::kRotationWords> view{};
-  std::array<std::uint32_t, psx::gte::kRotationWords> projection{};
+  psx::gte::RotationWords view{};
+  psx::gte::RotationWords projection{};
 };
 
 // The packets one draw linked, first to last.
@@ -43,7 +43,7 @@ struct SkyChain {
 class Cyclorama {
 public:
   Cyclorama(Core &core,
-            spyro::guest_memory::WorkingMemory &memory,
+            const psx::present::EmitMemory &memory,
             const spyro::guest_terrain::ScreenBounds &bounds);
 
   // The whole routine for sector group `group` (negative: every sector). Nullopt when nothing was
@@ -62,7 +62,7 @@ private:
   std::optional<SkyChain> link();
 
   Core &core_;
-  spyro::guest_memory::WorkingMemory &memory_;
+  const psx::present::EmitMemory &memory_;
   spyro::guest_terrain::ScreenBounds bounds_;
   std::uint32_t v0_ = 0;
   std::uint32_t v1_ = 0;

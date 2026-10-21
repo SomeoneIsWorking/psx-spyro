@@ -8,6 +8,7 @@
 #include "render/field/guest_render_globals.h"
 #include "render/field/guest_view_slope.h"
 #include "render/field/guest_word.h"
+#include "render/field/guest_working_memory.h"
 
 #include <array>
 
@@ -17,7 +18,7 @@ namespace {
 namespace gte = guest_moby_gte;
 using guest_moby_frustum::HorizontalSlope;
 using guest_moby_frustum::ViewPoint;
-using guest_moby_rotation::RotationWords;
+using psx::gte::RotationWords;
 
 // The scratch block's regions, as offsets below [globals_.scratchBaseWord]
 // (SCUS_944.25 800438B4..800438E0; SCUS_944.67 800304D4..80030500).
@@ -86,12 +87,7 @@ constexpr std::uint32_t kDeferredUnbounded = 0xFFFF;
 constexpr std::uint32_t kNegativeTextureBits = 0xFC000000u;
 
 using spyro::guest_word::asSigned;
-
-constexpr std::uint32_t asWord(std::int32_t value) {
-  return static_cast<std::uint32_t>(value);
-}
-
-// The register numbers retail saves, in save-area order.
+using spyro::guest_word::asWord;
 
 class MobyWalk {
 public:
@@ -183,9 +179,7 @@ void MobyWalk::run() {
   cameraX_ = asSigned(core_.mem_r32(globals_.cameraPosition));
   cameraY_ = asSigned(core_.mem_r32(globals_.cameraPosition + 4));
   cameraZ_ = asSigned(core_.mem_r32(globals_.cameraPosition + 8));
-  for (std::uint32_t i = 0; i < gte::kRotationWords; ++i) {
-    camera_[i] = core_.mem_r32(globals_.cameraRotation + 4 * i);
-  }
+  camera_ = guest_memory::rotationAt(psx::present::EmitMemory(core_), globals_.cameraRotation);
 
   std::uint32_t rec = firstRecord;
   while (visit(rec) == Step::Next) {
@@ -295,9 +289,7 @@ MobyWalk::Step MobyWalk::drawCandidate(std::uint32_t rec,
   const Candidate candidate{
       .rec = rec, .mesh = core_.mem_r32(slots.slot() + kSlotMesh), .slots = slots};
   const std::uint32_t mesh = candidate.mesh;
-  for (std::uint32_t i = 0; i < gte::kRotationWords; ++i) {
-    core_.gte().writeControl(gte::kRotation + i, camera_[i]);
-  }
+  core_.gte().loadRotation(camera_);
   const std::uint32_t radius = static_cast<std::uint32_t>(core_.mem_r8(mesh + kMeshRadius)) << 4;
   core_.gte().writeData(gte::kIr3, asWord(offset.dx));
   core_.gte().writeData(gte::kIr1, asWord(offset.dy));
@@ -357,10 +349,10 @@ RotationWords MobyWalk::orient(std::uint32_t rec) {
   const std::uint32_t flags = core_.mem_r32(rec + record::kFlags);
   const std::uint32_t angles = core_.mem_r32(rec + record::kAngles);
   RotationWords rotation = camera_;
-  v1_ = facts_.sineTable;
+  v1_ = globals_.cameraSineTable;
   core_.mem_w32(entry_ + entry::kFlags, flags);
   if ((flags & kInterpolatedAngles) == 0) {
-    guest_moby_rotation::composeTabled(core_, facts_.sineTable, {.angles = angles}, rotation);
+    guest_moby_rotation::composeTabled(core_, globals_.cameraSineTable, {.angles = angles}, rotation);
     return rotation;
   }
   if ((flags & kMirrored) == 0) {
@@ -371,7 +363,7 @@ RotationWords MobyWalk::orient(std::uint32_t rec) {
   core_.gte().writeControl(gte::kParkedCursor, closeCursor_);
   core_.gte().writeControl(gte::kParkedListEnd, listEnd_);
   guest_moby_rotation::composeInterpolated(
-      core_, facts_.sineTable, {.angles = angles, .flags = flags}, rotation);
+      core_, globals_.cameraSineTable, {.angles = angles, .flags = flags}, rotation);
   if ((flags & kMirrored) == 0) {
     v1_ = rotation[0] & 0xFFFFu;
     return rotation;

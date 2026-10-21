@@ -10,6 +10,7 @@
 #include "native_dispatch.h"
 #include "render/field/guest_moby_visibility.h"
 #include "render/field/guest_render_globals.h"
+#include "render/state_producer_override.h"
 #include "render/terrain/engine_terrain_image.h"
 #include "render/terrain/guest_depth_bins.h"
 #include "render/terrain/guest_terrain_facts.h"
@@ -59,14 +60,13 @@ template <const EngineRenderFacts &facts> void flatten(Core *core) {
 // The drawer's one caller passes $a1 = 0, its one object; $a0 is the scratch block's end, which
 // alternates with the double-buffered packet pool.
 template <const EngineRenderFacts &facts> void registerEngineRenderOverrides(Core &core) {
-  session(core).stateProducers.install(facts.terrain.entry,
-                                       std::make_unique<guest_terrain::TerrainStateProducer>(
-                                           core, engine_render::kTerrainImage<facts>));
-  psx::cpu::installNativeOverride(core,
-                                  facts.terrain.entry,
-                                  facts.terrain.overrideName,
-                                  engine_render::drawTerrain<facts>,
-                                  psx::present::Producer{psx::present::Arg::A1});
+  installProducerOverride(
+      core,
+      facts.terrain.entry,
+      facts.terrain.overrideName,
+      engine_render::drawTerrain<facts>,
+      std::make_unique<guest_terrain::TerrainStateProducer>(core, engine_render::kTerrainImage<facts>),
+      psx::present::Arg::A1);
   psx::cpu::installNativeOverride(
       core, facts.moby.entry, facts.moby.overrideName, engine_render::walkMobys<facts>);
   psx::cpu::installNativeOverride(

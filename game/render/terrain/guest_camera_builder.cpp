@@ -2,10 +2,10 @@
 
 #include "render/terrain/guest_camera_builder.h"
 
+#include "blend.h"
 #include "gte_registers.h"
 
 #include <algorithm>
-#include <cmath>
 
 namespace spyro::guest_camera {
 namespace {
@@ -89,30 +89,10 @@ Rotation aroundX(SinCos t) {
   return out;
 }
 
-struct AnglePair {
-  std::int32_t from = 0;
-  std::int32_t to = 0;
-};
-
-std::int32_t wrapOne(AnglePair pair, double f) {
-  const auto a = static_cast<std::int64_t>(pair.from) & (kTurn - 1);
-  // Take the short way round: an angle pair 4095 and 1 is one step apart in the space the tables
-  // cover, and the long way would turn the camera most of a full circle inside one field.
-  const std::int64_t turn = static_cast<std::int64_t>(kTurn);
-  std::int64_t step = ((static_cast<std::int64_t>(pair.to) - a) % turn + turn) % turn;
-  if (step > turn / 2) {
-    step -= turn;
-  }
-  return static_cast<std::int32_t>(
-      (a + static_cast<std::int64_t>(std::llround(static_cast<double>(step) * f))) & (kTurn - 1));
-}
-
 } // namespace
 
 std::int32_t AngleTable::entry(std::uint32_t index) const {
-  const std::uint32_t half = core_.mem_r32(base_ + 2 * index) & 0xFFFFu;
-  return half >= 0x8000u ? static_cast<std::int32_t>(half) - 0x10000
-                         : static_cast<std::int32_t>(half);
+  return core_.mem_r16s(base_ + 2 * index);
 }
 
 std::int32_t AngleTable::at(std::uint32_t angle) const {
@@ -143,12 +123,13 @@ Matrices Builder::build(const Angles &angles) const {
   return out;
 }
 
-Angles interpolate(const Angles &from, const Angles &to, double f) {
-  Angles out{};
-  out.aroundX = wrapOne({.from = from.aroundX, .to = to.aroundX}, f);
-  out.aroundY = wrapOne({.from = from.aroundY, .to = to.aroundY}, f);
-  out.aroundZ = wrapOne({.from = from.aroundZ, .to = to.aroundZ}, f);
-  return out;
+Angles interpolate(const Angles &from, const Angles &to, float t) {
+  // The short way: 4095 and 1 are one step apart in the space the tables cover.
+  const auto angle = [t](std::int32_t a, std::int32_t b) {
+    return static_cast<std::int32_t>(psx::present::lerpTurn(
+        static_cast<std::uint32_t>(a), static_cast<std::uint32_t>(b), kTurnBits, t));
+  };
+  return Angles{angle(from.aroundX, to.aroundX), angle(from.aroundY, to.aroundY), angle(from.aroundZ, to.aroundZ)};
 }
 
 } // namespace spyro::guest_camera

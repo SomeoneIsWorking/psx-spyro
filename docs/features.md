@@ -72,7 +72,7 @@ S2 and S3 take the BIOS pad path.
 | 4 | S2, S3 | title | `titles/spyro2/render/hud_anchor.cpp`, `titles/spyro3/render/hud_anchor.cpp` — edge HUD widgets through `spyro::ui_anchor` |
 | 5 | S1 | psxport F-WIDE.2 | `titles/spyro1/render/terrain_sectors.cpp` — RenderWorldChunks' sector plane on `presentedSlope`, its sector marks (`0x800771C8`) and animation on retail's; its face clip on the widened window through the shared passes |
 | 6 | S1 | psxport F-WIDE.2 | `titles/spyro1/render/actor_list.cpp`, `titles/spyro1/render/sprite_queue.cpp` — the moby list planes (`0x8001F158`, `0x800208FC`) on `presentedSlope`; the sprite queue (`0x80022A2C`) culled and outcoded on the widened window; both set the drawn byte +0x51, which level code reads, on retail's plane |
-| 7 | S1 | title | `titles/spyro1/core/hud/hud_anchor.cpp` — HUD records in the sprite queue and the life-orb and egg quads (`0x8001919C`) through `spyro::ui_anchor` |
+| 7 | S1 | title | `titles/spyro1/render/hud_anchor.cpp` — HUD records in the sprite queue and the life-orb and egg quads (`0x8001919C`) through `spyro::ui_anchor` |
 | 8 | S1 | psxport F-WIDE.2 | `titles/spyro1/render/sky.cpp`, `titles/spyro1/render/glows.cpp`, `titles/spyro1/render/particles.cpp` — the cyclorama (`0x8004EBA8`), glows (`0x800580F4`, `0x800584C4`) and particles (`0x800573C8`) test x on the widened window; the seen and fade bytes they write follow `titles/spyro1/render/screen.h:kRetailBounds` |
 | 9 | S1 | psxport F-WIDE.2 | `titles/spyro1/render/actor_emitter_vertices.cpp:ActorEmitter::keepScreen` — the moby emitters (`0x8001F798`, `0x80020F34`) outcode a straddling moby's vertices on `spyro::presentedBounds` (`guest_view_slope.h`) |
 
@@ -85,8 +85,8 @@ The portal bodies of `0x80050BD0` clip at 512 (issue 0186).
 | 1 | all | psxport F-FPS60.1 | `game/core/runtime.cpp:spyro::Runtime::stateProducer` — `spyro::Session::stateProducers` |
 | 2 | S2, S3 | psxport F-FPS60.1 | `game/render/terrain/terrain_state_producer.cpp:TerrainStateProducer` — the terrain drawer (`0x80023BB4`, `0x80022378`) redrawn over the field's saved words at t |
 | 3 | S2, S3 | psxport F-FPS60.1 | `game/render/engine_render_overrides.h:engine_render::flatten` — every packet's bin through `depth_bins::assignBins`, from the flatten (`0x8001B2A8`, `0x8004E664`) |
-| 4 | S1 | psxport F-FPS60.1 | `s1/hud/screen_overlays.cpp:FullscreenTint`, `CinematicLetterbox` — `0x800190D4` and `0x80018F30` |
-| 5 | S1 | psxport F-FPS60.1 | `titles/spyro1/core/frame/ordering_table.cpp:OrderingTable` — LinkOTPrimitives `0x80016784` gives each linked packet its slot |
+| 4 | S1 | psxport F-FPS60.1 | `titles/spyro1/render/screen_overlays.cpp:FullscreenTint`, `CinematicLetterbox` — `0x800190D4` and `0x80018F30` |
+| 5 | S1 | psxport F-FPS60.1 | `titles/spyro1/render/ordering_table.cpp:OrderingTable` — LinkOTPrimitives `0x80016784` gives each linked packet its slot |
 | 7 | S1 | psxport F-FPS60.1 | `titles/spyro1/render/terrain_image.cpp:TerrainImage` — RenderWorldChunks `0x800258F0` redrawn over the field's saved words at t, camera from `CameraBuilder` (`0x80033C50`) |
 | 8 | S1 | psxport F-FPS60.1 | `titles/spyro1/render/sprite_queue_producer.cpp:SpriteQueueProducer`, `titles/spyro1/render/paired_actor_producer.cpp:PairedActorProducer` — each queued record (`0x80022A2C`) and Spyro (`0x80023AC4`) redrawn at t, position and angles moved |
 | 9 | S1 | psxport F-FPS60.1 | `titles/spyro1/render/sky_producer.cpp:SkyProducer`, `titles/spyro1/render/drop_shadow_producer.cpp:DropShadowProducer`, `titles/spyro1/render/glow_producers.cpp:GlowFanProducer`, `SparkleProducer`, `titles/spyro1/render/particle_producer.cpp:ParticleProducer` — the sky (`0x8004EBA8`), drop shadow (`0x80059A48`), each glow emitter, sparkle and particle record redrawn at t |

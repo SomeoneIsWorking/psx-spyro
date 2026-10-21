@@ -31,10 +31,10 @@ constexpr std::uint32_t withoutCommand(std::uint32_t colour) {
 // 8001FF64..8002074C
 void ActorEmitter::drawPolygons() {
   const std::uint32_t sign = core_.gte().readControl(gte::kZsf4) >> 31;
-  const std::uint32_t count = memory_.r8(frame_ + frame::kVertexCounts + sign);
+  const std::uint32_t count = memory_.mem_r8(frame_ + frame::kVertexCounts + sign);
   beginPolygons(depthTable(count));
   for (;;) {
-    const std::uint32_t colourWord = memory_.r32(polygon_ + 4);
+    const std::uint32_t colourWord = memory_.mem_r32(polygon_ + 4);
     if (polygon_ == polygonEnd_) {
       return;
     }
@@ -57,7 +57,7 @@ ActorEmitter::screens(const std::array<std::uint32_t, 4> &slots, std::uint32_t c
   std::array<std::uint32_t, 4> words{};
   std::uint32_t shared = 0xFFFFFFFFu;
   for (std::uint32_t i = 0; i < corners; ++i) {
-    words[i] = memory_.r32(slots[i] + kVertexScreens);
+    words[i] = memory_.mem_r32(slots[i] + kVertexScreens);
     shared &= words[i];
   }
   if (asSigned(binShift_) >= 0) {
@@ -77,7 +77,7 @@ void ActorEmitter::drawQuad(std::uint32_t colourWord) {
   auto &gte = core_.gte();
   const std::uint32_t word = word_;
   const std::uint32_t t8 = bins_.cursor();
-  std::uint32_t fourthWord = memory_.r32(polygon_ + 8);
+  std::uint32_t fourthWord = memory_.mem_r32(polygon_ + 8);
   const std::array<std::uint32_t, 4> slots = {
       slot(word, 20), slot(word, 11), slot(word, 2), fourthWord & 0x7FCu};
   const bool textured = (word & kTextured) != 0;
@@ -89,25 +89,25 @@ void ActorEmitter::drawQuad(std::uint32_t colourWord) {
   }
   if (!corners || (word & kHidden) != 0) {
     polygon_ += textured ? 0x18 : 0xC;
-    word_ = memory_.r32(polygon_);
+    word_ = memory_.mem_r32(polygon_);
     return;
   }
   const auto [a2, a3, t0, t1] = *corners;
   gte.execute(gte::kNclip);
-  memory_.w32(t8 + 0x08, a2);
+  memory_.mem_w32(t8 + 0x08, a2);
   if (textured) {
     polygon_ += 0xC;
-    memory_.w32(t8 + 0x14, a3);
-    memory_.w32(t8 + 0x20, t0);
-    memory_.w32(t8 + 0x2C, t1);
+    memory_.mem_w32(t8 + 0x14, a3);
+    memory_.mem_w32(t8 + 0x20, t0);
+    memory_.mem_w32(t8 + 0x2C, t1);
   } else {
-    memory_.w32(t8 + 0x10, a3);
-    memory_.w32(t8 + 0x18, t0);
-    memory_.w32(t8 + 0x20, t1);
+    memory_.mem_w32(t8 + 0x10, a3);
+    memory_.mem_w32(t8 + 0x18, t0);
+    memory_.mem_w32(t8 + 0x20, t1);
   }
   const QuadFaces faces = faceQuad((word & kTwoSided) != 0, t1);
   const std::uint32_t firstColour = slot(colourWord, 17) + colours_;
-  word_ = memory_.r32(polygon_ + 0xC);
+  word_ = memory_.mem_r32(polygon_ + 0xC);
   polygon_ += 0xC;
   const std::uint32_t fourthColour = ((fourthWord >> 9) & 0x7FCu) + colours_;
   const Triangle shared{.colourWord = colourWord,
@@ -120,7 +120,7 @@ void ActorEmitter::drawQuad(std::uint32_t colourWord) {
   }
   if (faces == QuadFaces::Back) {
     // 80020114: only the back half faces; it is drawn from the fourth corner.
-    memory_.w32(t8 + 0x08, t1);
+    memory_.mem_w32(t8 + 0x08, t1);
     Triangle backHalf = shared;
     backHalf.slots[0] = slots[3];
     backHalf.firstColour = fourthColour;
@@ -142,28 +142,28 @@ void ActorEmitter::drawQuad(std::uint32_t colourWord) {
 void ActorEmitter::drawWholeQuad(const Quad &quad) {
   const std::uint32_t t8 = bins_.cursor();
   const std::uint32_t s0 = quad.colourWord;
-  std::uint32_t colour = memory_.r32(quad.colours[0]);
-  const std::uint32_t second = memory_.r32(slot(s0, 8) + colours_);
-  const std::uint32_t third = memory_.r32(((s0 << 1) & 0x7FCu) + colours_);
+  std::uint32_t colour = memory_.mem_r32(quad.colours[0]);
+  const std::uint32_t second = memory_.mem_r32(slot(s0, 8) + colours_);
+  const std::uint32_t third = memory_.mem_r32(((s0 << 1) & 0x7FCu) + colours_);
   std::array<std::uint32_t, 4> depths{};
   for (std::uint32_t i = 0; i < 4; ++i) {
     depths[i] = depthAt(quad.slots[i]);
   }
-  const std::uint32_t fourth = memory_.r32(quad.colours[1]);
+  const std::uint32_t fourth = memory_.mem_r32(quad.colours[1]);
   colour = withoutCommand(colour);
   const std::uint32_t shift = binShift_ & 31u;
   const std::uint32_t bias = (sra(s0, 28) << 1) << shift;
   std::uint32_t sum = depths[0] - depthBase_ + depths[1] + depths[2];
   if (!quad.textured) {
-    memory_.w32(t8 + 0x04, colour + kGouraudQuad);
-    memory_.w32(t8 + 0x0C, second);
-    memory_.w32(t8 + 0x14, third);
-    memory_.w32(t8 + 0x1C, fourth);
+    memory_.mem_w32(t8 + 0x04, colour + kGouraudQuad);
+    memory_.mem_w32(t8 + 0x0C, second);
+    memory_.mem_w32(t8 + 0x14, third);
+    memory_.mem_w32(t8 + 0x1C, fourth);
     sum += depths[3];
     if (asSigned(sum) < 0) {
       return;
     }
-    memory_.w32(t8, 0x08000000u);
+    memory_.mem_w32(t8, 0x08000000u);
     sum += bias;
     if (asSigned(sum) < 0) {
       return;
@@ -179,18 +179,18 @@ void ActorEmitter::drawWholeQuad(const Quad &quad) {
   if (asSigned(sum) < 0) {
     return;
   }
-  const std::uint32_t uv0 = memory_.r32(polygon_ - 0xC);
-  const std::uint32_t uv1 = memory_.r32(polygon_ - 8);
-  const std::uint32_t uv2 = memory_.r32(polygon_ - 4);
-  memory_.w32(t8 + 0x28, fourth);
-  memory_.w32(t8 + 0x1C, third);
-  memory_.w32(t8 + 0x10, second);
-  memory_.w32(t8 + 0x04, colour + kGouraudTexturedQuad + ((s0 & 1u) << 25));
-  memory_.w32(t8, 0x0C000000u);
-  memory_.w32(t8 + 0x0C, uv0 + fogClut_);
-  memory_.w32(t8 + 0x18, uv1);
-  memory_.w32(t8 + 0x24, uv2);
-  memory_.w32(t8 + 0x30, uv2 >> 16);
+  const std::uint32_t uv0 = memory_.mem_r32(polygon_ - 0xC);
+  const std::uint32_t uv1 = memory_.mem_r32(polygon_ - 8);
+  const std::uint32_t uv2 = memory_.mem_r32(polygon_ - 4);
+  memory_.mem_w32(t8 + 0x28, fourth);
+  memory_.mem_w32(t8 + 0x1C, third);
+  memory_.mem_w32(t8 + 0x10, second);
+  memory_.mem_w32(t8 + 0x04, colour + kGouraudTexturedQuad + ((s0 & 1u) << 25));
+  memory_.mem_w32(t8, 0x0C000000u);
+  memory_.mem_w32(t8 + 0x0C, uv0 + fogClut_);
+  memory_.mem_w32(t8 + 0x18, uv1);
+  memory_.mem_w32(t8 + 0x24, uv2);
+  memory_.mem_w32(t8 + 0x30, uv2 >> 16);
   v1_ = bins_.link((sra(sum, shift) << 3) + binsBase_);
 }
 
@@ -224,7 +224,7 @@ void ActorEmitter::drawTriangle(std::uint32_t colourWord) {
   const auto corners = screens(slots, 3);
   if (!corners) {
     polygon_ += textured ? 0x14 : 0x8;
-    word_ = memory_.r32(polygon_);
+    word_ = memory_.mem_r32(polygon_);
     return;
   }
   const auto [a2, a3, t0, unused] = *corners;
@@ -232,17 +232,17 @@ void ActorEmitter::drawTriangle(std::uint32_t colourWord) {
   gte.writeData(gte::kSxy1, a3);
   gte.writeData(gte::kSxy2, t0);
   gte.execute(gte::kNclip);
-  memory_.w32(t8 + 0x08, a2);
+  memory_.mem_w32(t8 + 0x08, a2);
   if (textured) {
     polygon_ += 0xC;
-    memory_.w32(t8 + 0x14, a3);
-    memory_.w32(t8 + 0x20, t0);
+    memory_.mem_w32(t8 + 0x14, a3);
+    memory_.mem_w32(t8 + 0x20, t0);
   } else {
-    memory_.w32(t8 + 0x10, a3);
-    memory_.w32(t8 + 0x18, t0);
+    memory_.mem_w32(t8 + 0x10, a3);
+    memory_.mem_w32(t8 + 0x18, t0);
   }
   polygon_ += 8;
-  word_ = memory_.r32(polygon_);
+  word_ = memory_.mem_r32(polygon_);
   if ((word & kHidden) != 0) {
     return;
   }
@@ -259,7 +259,7 @@ void ActorEmitter::drawTriangle(std::uint32_t colourWord) {
 }
 
 std::uint32_t ActorEmitter::depthAt(std::uint32_t slot) const {
-  return memory_.r32(slot + depths_);
+  return memory_.mem_r32(slot + depths_);
 }
 
 void ActorEmitter::drawTriangleTail(const Triangle &triangle) {
@@ -268,9 +268,9 @@ void ActorEmitter::drawTriangleTail(const Triangle &triangle) {
 
 ActorEmitter::TriangleColours ActorEmitter::readColours(const Triangle &triangle) const {
   const std::uint32_t s0 = triangle.colourWord;
-  return {.first = withoutCommand(memory_.r32(triangle.firstColour)),
-          .second = memory_.r32(slot(s0, 8) + colours_),
-          .third = memory_.r32(((s0 << 1) & 0x7FCu) + colours_)};
+  return {.first = withoutCommand(memory_.mem_r32(triangle.firstColour)),
+          .second = memory_.mem_r32(slot(s0, 8) + colours_),
+          .third = memory_.mem_r32(((s0 << 1) & 0x7FCu) + colours_)};
 }
 
 // 800203F4..800205A4
@@ -284,9 +284,9 @@ void ActorEmitter::linkTriangle(const Triangle &triangle, const TriangleColours 
   const std::uint32_t bias = sra(s0, 28) << 1;
   std::uint32_t sum = d0 + (d0 >> 1) - depthBase_ + d1 + (d1 >> 1) + d2;
   if (!triangle.textured) {
-    memory_.w32(t8 + 0x04, colours.first + kGouraudTriangle);
-    memory_.w32(t8 + 0x0C, colours.second);
-    memory_.w32(t8 + 0x14, colours.third);
+    memory_.mem_w32(t8 + 0x04, colours.first + kGouraudTriangle);
+    memory_.mem_w32(t8 + 0x0C, colours.second);
+    memory_.mem_w32(t8 + 0x14, colours.third);
     if (asSigned(sum) < 0) {
       return;
     }
@@ -294,7 +294,7 @@ void ActorEmitter::linkTriangle(const Triangle &triangle, const TriangleColours 
     if (asSigned(sum) < 0) {
       return;
     }
-    memory_.w32(t8, 0x06000000u);
+    memory_.mem_w32(t8, 0x06000000u);
     v1_ = bins_.link((sum << 3) + binsBase_);
     return;
   }
@@ -305,19 +305,19 @@ void ActorEmitter::linkTriangle(const Triangle &triangle, const TriangleColours 
   if (asSigned(sum) < 0) {
     return;
   }
-  const std::uint32_t uv0 = memory_.r32(polygon_ - 0xC);
-  const std::uint32_t uv1 = memory_.r32(polygon_ - 8);
-  const std::uint32_t uv2 = memory_.r32(polygon_ - 4);
-  memory_.w32(t8 + 0x1C, colours.third);
-  memory_.w32(t8 + 0x10, colours.second);
-  memory_.w32(t8 + 0x04, colours.first + kGouraudTexturedTriangle + ((s0 & 1u) << 25));
-  memory_.w32(t8 + 0x0C, uv0 + fogClut_);
+  const std::uint32_t uv0 = memory_.mem_r32(polygon_ - 0xC);
+  const std::uint32_t uv1 = memory_.mem_r32(polygon_ - 8);
+  const std::uint32_t uv2 = memory_.mem_r32(polygon_ - 4);
+  memory_.mem_w32(t8 + 0x1C, colours.third);
+  memory_.mem_w32(t8 + 0x10, colours.second);
+  memory_.mem_w32(t8 + 0x04, colours.first + kGouraudTexturedTriangle + ((s0 & 1u) << 25));
+  memory_.mem_w32(t8 + 0x0C, uv0 + fogClut_);
   if (triangle.backHalf) {
-    memory_.w16(t8 + 0x0C, static_cast<std::uint16_t>(uv2 >> 16));
+    memory_.mem_w16(t8 + 0x0C, static_cast<std::uint16_t>(uv2 >> 16));
   }
-  memory_.w32(t8, 0x09000000u);
-  memory_.w32(t8 + 0x18, uv1);
-  memory_.w32(t8 + 0x24, uv2);
+  memory_.mem_w32(t8, 0x09000000u);
+  memory_.mem_w32(t8 + 0x18, uv1);
+  memory_.mem_w32(t8 + 0x24, uv2);
   v1_ = bins_.link((sum << 3) + binsBase_);
 }
 
@@ -328,10 +328,10 @@ void ActorEmitter::drawSprite(std::uint32_t colourWord) {
   const std::uint32_t word = word_;
   const std::uint32_t t8 = bins_.cursor();
   const std::uint32_t corner = slot(word, 20);
-  std::uint32_t screen = memory_.r32(corner + kVertexScreens);
+  std::uint32_t screen = memory_.mem_r32(corner + kVertexScreens);
   if (asSigned(binShift_) < 0) {
     if ((screen & 0x1Fu) != 0) {
-      word_ = memory_.r32(polygon_ + 0x14);
+      word_ = memory_.mem_r32(polygon_ + 0x14);
       polygon_ += 0x14;
       return;
     }
@@ -347,9 +347,9 @@ void ActorEmitter::drawSprite(std::uint32_t colourWord) {
   gte.writeControl(gte::kTranslationZ, depth);
   const std::uint32_t height = (colourWord >> 1) & 0x1FFu;
   gte.execute(gte::kRtps);
-  std::uint32_t colour = memory_.r32(colourAt);
+  std::uint32_t colour = memory_.mem_r32(colourAt);
   std::uint32_t sum = (depth << 2) + (word & kHidden) - depthBase_;
-  word_ = memory_.r32(polygon_ + 0x14);
+  word_ = memory_.mem_r32(polygon_ + 0x14);
   polygon_ += 0x14;
   if (asSigned(sum) <= 0) {
     return;
@@ -365,30 +365,30 @@ void ActorEmitter::drawSprite(std::uint32_t colourWord) {
   colour += kTexturedSprite + ((colourWord & 1u) << 25);
   const std::uint32_t sizeX = gte.readData(gte::kMac1) >> 11;
   const std::uint32_t sizeY = gte.readData(gte::kMac2) >> 11;
-  const std::uint32_t uv0 = memory_.r32(polygon_ - 0xC);
-  const std::uint32_t uv1 = memory_.r32(polygon_ - 8);
-  const std::uint32_t uv2 = memory_.r32(polygon_ - 4);
+  const std::uint32_t uv0 = memory_.mem_r32(polygon_ - 0xC);
+  const std::uint32_t uv1 = memory_.mem_r32(polygon_ - 8);
+  const std::uint32_t uv2 = memory_.mem_r32(polygon_ - 4);
   const std::uint32_t right = (screen & 0xFFFFu) + (sizeX >> 1);
   const std::uint32_t left = right - sizeX;
-  memory_.w32(t8 + 0x04, colour);
-  memory_.w32(t8 + 0x0C, uv0);
-  memory_.w32(t8 + 0x14, uv1);
-  memory_.w32(t8 + 0x1C, uv2);
-  memory_.w32(t8 + 0x24, uv2 >> 16);
+  memory_.mem_w32(t8 + 0x04, colour);
+  memory_.mem_w32(t8 + 0x0C, uv0);
+  memory_.mem_w32(t8 + 0x14, uv1);
+  memory_.mem_w32(t8 + 0x1C, uv2);
+  memory_.mem_w32(t8 + 0x24, uv2 >> 16);
   const std::uint32_t bottom = (screen >> 16) + (sizeY >> 1);
   const std::uint32_t top = bottom - sizeY;
   const auto half = [](std::uint32_t value) {
     return static_cast<std::uint16_t>(value);
   };
-  memory_.w16(t8 + 0x08, half(left));
-  memory_.w16(t8 + 0x0A, half(top));
-  memory_.w16(t8 + 0x10, half(right));
-  memory_.w16(t8 + 0x12, half(top));
-  memory_.w16(t8 + 0x18, half(left));
-  memory_.w16(t8 + 0x1A, half(bottom));
-  memory_.w16(t8 + 0x20, half(right));
-  memory_.w16(t8 + 0x22, half(bottom));
-  memory_.w32(t8, 0x09000000u);
+  memory_.mem_w16(t8 + 0x08, half(left));
+  memory_.mem_w16(t8 + 0x0A, half(top));
+  memory_.mem_w16(t8 + 0x10, half(right));
+  memory_.mem_w16(t8 + 0x12, half(top));
+  memory_.mem_w16(t8 + 0x18, half(left));
+  memory_.mem_w16(t8 + 0x1A, half(bottom));
+  memory_.mem_w16(t8 + 0x20, half(right));
+  memory_.mem_w16(t8 + 0x22, half(bottom));
+  memory_.mem_w32(t8, 0x09000000u);
   v1_ = bins_.link(bin);
 }
 

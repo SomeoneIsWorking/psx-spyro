@@ -14,7 +14,7 @@ namespace spyro1::terrain {
 namespace {
 
 namespace gte = psx::gte;
-using spyro::guest_memory::WorkingMemory;
+using psx::present::EmitMemory;
 using spyro::guest_terrain::SectorSphere;
 using spyro::guest_terrain::SphereCamera;
 
@@ -54,7 +54,7 @@ private:
   TerrainFrame &frame_;
   const Facts &facts_;
   Core &core_;
-  WorkingMemory &memory_;
+  const EmitMemory &memory_;
   SphereCamera camera_;
   spyro::guest_moby_frustum::HorizontalSlope slope_;
   std::uint32_t nearDepth_ = 0;
@@ -64,9 +64,7 @@ private:
 };
 
 void SectorLister::run(std::int32_t group) {
-  for (std::uint32_t i = 0; i < gte::kRotationWords; ++i) {
-    core_.gte().writeControl(gte::kRotation + i, frame_.classificationRotationWord(i));
-  }
+  core_.gte().loadRotation(frame_.classificationRotation());
   core_.gte().writeControl(gte::kTranslationX, 0);
   core_.gte().writeControl(gte::kTranslationY, 0);
   core_.gte().writeControl(gte::kTranslationZ, 0);
@@ -80,15 +78,15 @@ void SectorLister::run(std::int32_t group) {
       core_.mem_w32(facts_.sectorMarks + offset, 0);
     }
   }
-  nearDepth_ = memory_.r32(facts_.lodTable + lod::kNearDepth) >> 4;
+  nearDepth_ = memory_.mem_r32(facts_.lodTable + lod::kNearDepth) >> 4;
   nearCursor_ = frame_.scratch + kNearList;
   farCursor_ = frame_.scratch + kFarList;
-  sectors_ = memory_.r32(facts_.lodTable + lod::kSectors);
+  sectors_ = memory_.mem_r32(facts_.lodTable + lod::kSectors);
   if (group >= 0) {
-    const std::uint32_t lists = memory_.r32(facts_.lodTable + lod::kGroupLists);
-    std::uint32_t entry = memory_.r32(lists + static_cast<std::uint32_t>(group) * 4);
+    const std::uint32_t lists = memory_.mem_r32(facts_.lodTable + lod::kGroupLists);
+    std::uint32_t entry = memory_.mem_r32(lists + static_cast<std::uint32_t>(group) * 4);
     for (;;) {
-      const std::uint32_t index = memory_.r8(entry);
+      const std::uint32_t index = memory_.mem_r8(entry);
       entry += 1;
       if (index == kGroupListEnd) {
         break;
@@ -96,20 +94,20 @@ void SectorLister::run(std::int32_t group) {
       list(index);
     }
   } else {
-    const std::uint32_t count = memory_.r32(facts_.lodTable + lod::kSectorCount);
+    const std::uint32_t count = memory_.mem_r32(facts_.lodTable + lod::kSectorCount);
     for (std::uint32_t index = 0; index < count; ++index) {
       list(index);
     }
   }
-  memory_.w32(farCursor_, 0);
-  memory_.w32(nearCursor_, 0);
+  memory_.mem_w32(farCursor_, 0);
+  memory_.mem_w32(nearCursor_, 0);
 }
 
 // 80025A30.
 void SectorLister::list(std::uint32_t index) {
-  const std::uint32_t sector = memory_.r32(sectors_ + index * 4);
-  const std::uint32_t centreXY = memory_.r32(sector + sector::kCentreXY);
-  const std::uint32_t centreZ = memory_.r32(sector + sector::kCentreZ);
+  const std::uint32_t sector = memory_.mem_r32(sectors_ + index * 4);
+  const std::uint32_t centreXY = memory_.mem_r32(sector + sector::kCentreXY);
+  const std::uint32_t centreZ = memory_.mem_r32(sector + sector::kCentreZ);
   const std::uint32_t flags = centreZ & kFlagMask;
   const std::uint32_t r = centreZ & kRadiusMask;
   const spyro::guest_terrain::SphereWords words{
@@ -123,7 +121,7 @@ void SectorLister::list(std::uint32_t index) {
       slope_ == spyro::guest_moby_frustum::kRetailSlope ||
       testSectorSphere(core_, words, camera_, spyro::guest_moby_frustum::kRetailSlope).visible;
   const std::uint32_t z = sphere.z;
-  std::uint32_t marks = memory_.r32(sector + sector::kAnimationMarks);
+  std::uint32_t marks = memory_.mem_r32(sector + sector::kAnimationMarks);
   std::uint32_t entry = sector | kEdgeTouching;
   if (sphere.inside) {
     entry ^= kEdgeTouching;
@@ -135,7 +133,7 @@ void SectorLister::list(std::uint32_t index) {
   // 80025B4C: the far list's slot is written whether or not the sector takes it.
   std::uint32_t claim = 0xFFFFFFFFu;
   if ((flags & kNoFarList) == 0) {
-    memory_.w32(farCursor_, entry);
+    memory_.mem_w32(farCursor_, entry);
     if ((flags & kAlwaysFar) != 0 || asSigned(nearDepth_ - (z + r + kFarMargin)) < 0) {
       farCursor_ += 4;
       claim <<= 16;
@@ -148,7 +146,7 @@ void SectorLister::list(std::uint32_t index) {
       if (asSigned(nearSide - kCloseDepth) < 0) {
         entry += kClose;
       }
-      memory_.w32(nearCursor_, entry);
+      memory_.mem_w32(nearCursor_, entry);
       nearCursor_ += 4;
     }
   }

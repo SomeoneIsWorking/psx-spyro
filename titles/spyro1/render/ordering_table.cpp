@@ -1,10 +1,9 @@
-#include "spyro1/core/frame/ordering_table.h"
+#include "spyro1/render/ordering_table.h"
 
 #include "core.h"
-#include "core/native_execution.h"
-#include "execution_control.h"
 #include "native_dispatch.h"
 #include "render/terrain/guest_depth_bins.h"
+#include "spyro1/render/terrain_facts.h"
 
 namespace spyro1 {
 namespace {
@@ -20,7 +19,7 @@ void OrderingTable::assignSlots(Core &core, std::uint32_t bins) {
   namespace depth_bins = spyro::depth_bins;
   depth_bins::assignBins(core,
                          {.table = depth_bins::kTable,
-                          .base = core.mem_r32(kBinTablePointer),
+                          .base = core.mem_r32(terrain::kRenderGlobals.orderingTable),
                           .named = bins,
                           .linked = bins});
   depth_bins::assignBins(

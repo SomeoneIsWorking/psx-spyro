@@ -22,6 +22,7 @@
 #include "render/terrain/guest_terrain_fog.h"
 #include "render/terrain/guest_terrain_frame.h"
 #include "render/terrain/guest_terrain_passes.h"
+#include "render/terrain/guest_terrain_polygon.h"
 #include "render/terrain/guest_terrain_screen.h"
 
 #include <array>
@@ -29,8 +30,6 @@
 namespace spyro::guest_terrain {
 namespace {
 
-// The GTE register and command numbers are shared vocabulary (psxport gte_registers.h), not this
-// pass's.
 namespace gte = psx::gte;
 
 using spyro::guest_word::asSigned;
@@ -67,12 +66,6 @@ constexpr std::uint32_t kBinBiasMask = 0xF;
 
 constexpr std::uint32_t kOutcodeMask = 0xF;
 
-constexpr std::uint32_t kG4Tag = 0x08000000u;
-constexpr std::uint32_t kG4Code = 0x38000000u;
-constexpr std::uint32_t kG4Bytes = 0x24;
-constexpr std::uint32_t kG3Tag = 0x06000000u;
-constexpr std::uint32_t kG3Code = 0x30000000u;
-constexpr std::uint32_t kG3Bytes = 0x1C;
 
 enum class Sector : std::uint8_t { Drawn, BufferFull };
 
@@ -89,7 +82,7 @@ private:
 
   TerrainFrame &frame_;
   Core &core_;
-  guest_memory::WorkingMemory &memory_;
+  const psx::present::EmitMemory &memory_;
   std::uint32_t lastBin_ = 0;   // s2
   std::uint32_t bufferEnd_ = 0; // LO
   // s3: the deepest bin any primitive has started in, as an ORDINAL. Retail holds the bin's slot
@@ -107,15 +100,15 @@ private:
 
 // 80028B14.
 void FarPass::run() {
-  lastBin_ = (memory_.r32(frame_.facts.far.farDepth) >> 7) - 1;
+  lastBin_ = (memory_.mem_r32(frame_.facts.far.farDepth) >> 7) - 1;
   bufferEnd_ = frame_.primitiveLimit();
-  markBin_ = frame_.markBinFrom(memory_.r32(frame_.globals.orderingTableMark));
+  markBin_ = frame_.markBinFrom(memory_.mem_r32(frame_.globals.orderingTableMark));
   for (std::uint32_t i = 0; i < camera_.size(); ++i) {
     camera_[i] = frame_.positionWord(i) >> 4;
   }
   std::uint32_t list = frame_.scratch + kFarList;
   for (;;) {
-    const std::uint32_t word = memory_.r32(list);
+    const std::uint32_t word = memory_.mem_r32(list);
     list += 4;
     if (word == 0 || drawSector(word) == Sector::BufferFull) {
       break;
@@ -132,11 +125,11 @@ void FarPass::run() {
 Sector FarPass::drawSector(std::uint32_t listWord) {
   sectorClass_ = listWord & 3u;
   const std::uint32_t sector = listWord ^ sectorClass_;
-  const std::uint32_t originWord = memory_.r32(sector + far_sector::kOrigin);
+  const std::uint32_t originWord = memory_.mem_r32(sector + far_sector::kOrigin);
   origin_ = {(originWord >> 16) - camera_[0],
              camera_[1] - (originWord & 0xFFFFu),
-             camera_[2] - memory_.r16(sector + far_sector::kOriginY)};
-  const FarLayout layout(memory_.r32(sector + far_sector::kLayout));
+             camera_[2] - memory_.mem_r16(sector + far_sector::kOriginY)};
+  const FarLayout layout(memory_.mem_r32(sector + far_sector::kLayout));
   const std::uint32_t data = sector + far_sector::kData;
   const FarClip clip{
       .clipped = sectorClass_ != 0, .edge = (sectorClass_ & 1u) != 0, .nearBias = layout.nearBias};
@@ -170,8 +163,8 @@ Sector FarPass::drawSector(std::uint32_t listWord) {
 Sector FarPass::drawPolygon(std::uint32_t record) {
   const std::uint32_t colours = colours_;
   const bool clipped = sectorClass_ != 0;
-  const std::uint32_t vertices = memory_.r32(record);
-  const std::uint32_t colourWord = memory_.r32(record + 4);
+  const std::uint32_t vertices = memory_.mem_r32(record);
+  const std::uint32_t colourWord = memory_.mem_r32(record + 4);
   const std::array<std::uint32_t, 4> cells = {kScratchpad + ((vertices >> 21) & 0x3F8u),
                                               kScratchpad + ((vertices >> 14) & 0x3F8u),
                                               kScratchpad + ((vertices >> 7) & 0x3F8u),
@@ -181,7 +174,7 @@ Sector FarPass::drawPolygon(std::uint32_t record) {
   std::array<std::uint32_t, 4> screens{};
   std::uint32_t shared = 0xFFFFFFFFu;
   for (std::uint32_t i = 0; i < corners; ++i) {
-    screens[i] = memory_.r32(cells[i]);
+    screens[i] = memory_.mem_r32(cells[i]);
     shared &= screens[i];
   }
   frame_.v0 = screens[1];
@@ -202,7 +195,7 @@ Sector FarPass::drawPolygon(std::uint32_t record) {
   core_.gte().execute(gte::kNclip);
   std::uint32_t depth = 0;
   for (std::uint32_t i = 0; i < corners; ++i) {
-    depth += memory_.r32(cells[i] + 4);
+    depth += memory_.mem_r32(cells[i] + 4);
   }
   const bool twoSided = (vertices & kTwoSided) != 0;
   std::uint32_t bin = 0;
@@ -211,7 +204,7 @@ Sector FarPass::drawPolygon(std::uint32_t record) {
     if (!twoSided && asSigned(core_.gte().readData(gte::kMac0)) <= 0) {
       return Sector::Drawn;
     }
-    depth += memory_.r32(cells[2] + 4);
+    depth += memory_.mem_r32(cells[2] + 4);
     bin = (depth >> 5) + (colourWord & kBinBiasMask) + kBinBase;
   } else {
     // 80028ECC: a quad facing away gets a second test on its other half, (fourth, second, third).
@@ -234,14 +227,14 @@ Sector FarPass::drawPolygon(std::uint32_t record) {
   constexpr std::array<std::uint32_t, 4> kColourShifts = {23, 16, 9, 2};
   const std::uint32_t prim = frame_.primitive;
   for (std::uint32_t i = 0; i < corners; ++i) {
-    std::uint32_t colour = memory_.r32(colours + ((colourWord >> kColourShifts[i]) & 0x1FCu));
+    std::uint32_t colour = memory_.mem_r32(colours + ((colourWord >> kColourShifts[i]) & 0x1FCu));
     if (i == 0) {
       colour += triangle ? kG3Code : kG4Code;
     }
-    memory_.w32(prim + 4 + 8 * i, colour);
-    memory_.w32(prim + 8 + 8 * i, screens[i]);
+    memory_.mem_w32(prim + 4 + 8 * i, colour);
+    memory_.mem_w32(prim + 8 + 8 * i, screens[i]);
   }
-  memory_.w32(prim, triangle ? kG3Tag : kG4Tag);
+  memory_.mem_w32(prim, triangle ? kG3Tag : kG4Tag);
   return link(bin, triangle ? kG3Bytes : kG4Bytes) ? Sector::Drawn : Sector::BufferFull;
 }
 

@@ -16,6 +16,7 @@
 // once-per-sector header word the subdivision passes use to find the sector again.
 #pragma once
 
+#include "gp0_command.h"
 #include "render/field/guest_word.h"
 #include "render/terrain/guest_terrain_cull.h"
 #include "render/terrain/guest_terrain_frame.h"
@@ -50,15 +51,25 @@ inline constexpr std::uint32_t kXy3 = 0x2C;
 inline constexpr std::uint32_t kUv3 = 0x30;
 } // namespace packet
 
-// The packets' GP0 tags (word count in the top byte) and command codes.
-inline constexpr std::uint32_t kQuadTag = 0x0C000000u;
-inline constexpr std::uint32_t kQuadBytes = 0x34;
-inline constexpr std::uint32_t kTriangleTag = 0x09000000u;
-inline constexpr std::uint32_t kTriangleBytes = 0x28;
-inline constexpr std::uint32_t kOpaqueQuadCode = 0x3C000000u;     // GT4
-inline constexpr std::uint32_t kOpaqueTriangleCode = 0x34000000u; // GT3
-inline constexpr std::uint32_t kSemiQuadCode = 0x3E000000u;       // GT4, semi-transparent
-inline constexpr std::uint32_t kSemiTriangleCode = 0x36000000u;   // GT3, semi-transparent
+// The packets' tags (word count in the top byte), sizes and command words.
+using psx::gpu::Gp0Command;
+inline constexpr std::uint32_t kQuadTag = Gp0Command::packetTag(psx::gpu::kPolyGt4);
+inline constexpr std::uint32_t kQuadBytes = Gp0Command::packetBytes(psx::gpu::kPolyGt4);
+inline constexpr std::uint32_t kTriangleTag = Gp0Command::packetTag(psx::gpu::kPolyGt3);
+inline constexpr std::uint32_t kTriangleBytes = Gp0Command::packetBytes(psx::gpu::kPolyGt3);
+inline constexpr std::uint32_t kG4Tag = Gp0Command::packetTag(psx::gpu::kPolyG4);
+inline constexpr std::uint32_t kG4Bytes = Gp0Command::packetBytes(psx::gpu::kPolyG4);
+inline constexpr std::uint32_t kG3Tag = Gp0Command::packetTag(psx::gpu::kPolyG3);
+inline constexpr std::uint32_t kG3Bytes = Gp0Command::packetBytes(psx::gpu::kPolyG3);
+inline constexpr std::uint32_t kSemiCode = Gp0Command::opcodeWord(Gp0Command::kFlagSemiTransparent);
+inline constexpr std::uint32_t kOpaqueQuadCode = Gp0Command::opcodeWord(psx::gpu::kPolyGt4);
+inline constexpr std::uint32_t kOpaqueTriangleCode = Gp0Command::opcodeWord(psx::gpu::kPolyGt3);
+inline constexpr std::uint32_t kSemiQuadCode = kOpaqueQuadCode | kSemiCode;
+inline constexpr std::uint32_t kSemiTriangleCode = kOpaqueTriangleCode | kSemiCode;
+inline constexpr std::uint32_t kG4Code = Gp0Command::opcodeWord(psx::gpu::kPolyG4);
+inline constexpr std::uint32_t kG3Code = Gp0Command::opcodeWord(psx::gpu::kPolyG3);
+// Added to a GT4 colour word, it names the GT3 a crack triangle is drawn as.
+inline constexpr std::uint32_t kGt4ToGt3 = Gp0Command::opcodeWord(Gp0Command::kFlagQuadOrPolyLine);
 
 // The draw word's fields.
 inline constexpr std::uint32_t kTextureRecordMask = 0x7Fu;
@@ -109,16 +120,16 @@ struct SplitEntry {
 };
 
 // Append the entry, first writing the header if this sector has not yet put anything on the list.
-inline void deferToSplitList(guest_memory::WorkingMemory &memory,
+inline void deferToSplitList(const psx::present::EmitMemory &memory,
                              SplitList list,
                              std::uint32_t &sectorWord,
                              SplitEntry entry) {
   if ((sectorWord & list.headerBit) == 0) {
-    memory.w32(list.cursor, entry.header);
+    memory.mem_w32(list.cursor, entry.header);
     list.cursor += 4;
   }
   sectorWord |= list.headerBit;
-  memory.w32(list.cursor, entry.entry);
+  memory.mem_w32(list.cursor, entry.entry);
   list.cursor += 4;
 }
 
@@ -131,7 +142,7 @@ struct TextureWords {
 
 // 80025378 / 80025C14: a textured triangle's three UV words over a record's 32-texel square; the
 // triangle drops the corner its draw word names. Returns the value retail leaves in v1.
-inline std::uint32_t writeTriangleUvs(guest_memory::WorkingMemory &memory,
+inline std::uint32_t writeTriangleUvs(const psx::present::EmitMemory &memory,
                                       std::uint32_t primitive,
                                       TextureWords texture,
                                       std::uint32_t corner) {
@@ -139,24 +150,24 @@ inline std::uint32_t writeTriangleUvs(guest_memory::WorkingMemory &memory,
   const std::uint32_t page = texture.page;
   switch (corner) {
   case 0x0000u:
-    memory.w32(primitive + 0x0C, uv);
-    memory.w32(primitive + 0x18, page - 0x1F00u);
-    memory.w32(primitive + 0x24, uv + 0x1F00u);
+    memory.mem_w32(primitive + 0x0C, uv);
+    memory.mem_w32(primitive + 0x18, page - 0x1F00u);
+    memory.mem_w32(primitive + 0x24, uv + 0x1F00u);
     return uv + 0x1F00u;
   case 0x1000u:
-    memory.w32(primitive + 0x0C, uv + 0x1Fu);
-    memory.w32(primitive + 0x18, page);
-    memory.w32(primitive + 0x24, uv);
+    memory.mem_w32(primitive + 0x0C, uv + 0x1Fu);
+    memory.mem_w32(primitive + 0x18, page);
+    memory.mem_w32(primitive + 0x24, uv);
     return uv + 0x1Fu;
   case 0x2000u:
-    memory.w32(primitive + 0x0C, uv + 0x1F1Fu);
-    memory.w32(primitive + 0x18, page - 0x1Fu);
-    memory.w32(primitive + 0x24, uv + 0x1Fu);
+    memory.mem_w32(primitive + 0x0C, uv + 0x1F1Fu);
+    memory.mem_w32(primitive + 0x18, page - 0x1Fu);
+    memory.mem_w32(primitive + 0x24, uv + 0x1Fu);
     return uv + 0x1Fu;
   default:
-    memory.w32(primitive + 0x0C, uv + 0x1F00u);
-    memory.w32(primitive + 0x18, page - 0x1F1Fu);
-    memory.w32(primitive + 0x24, page);
+    memory.mem_w32(primitive + 0x0C, uv + 0x1F00u);
+    memory.mem_w32(primitive + 0x18, page - 0x1F1Fu);
+    memory.mem_w32(primitive + 0x24, page);
     return page - 0x1F1Fu;
   }
 }
@@ -177,18 +188,18 @@ struct PieceUvs {
 
 // A GT3 piece's three UV words (SCUS_944.25 80026AD0 / 80028248, SCUS_942.28 80028408): the texture
 // pair's corner moved by the table's deltas.
-inline void writePieceTriangleUvs(guest_memory::WorkingMemory &memory,
+inline void writePieceTriangleUvs(const psx::present::EmitMemory &memory,
                                   std::uint32_t primitive,
                                   TextureWords pair,
                                   PieceUvs uvs,
                                   PieceUvLayout layout) {
   const std::uint32_t deltas = uvs.table + ((uvs.turn & 3u) << layout.turnShift) +
                                ((pair.page >> 25) & layout.pageClassMask);
-  const std::uint32_t delta = memory.r32(deltas);
-  const auto third = static_cast<std::int16_t>(memory.r16(deltas + 4));
-  memory.w32(primitive + packet::kUv0, (delta & 0xFFFFu) + pair.uv);
-  memory.w32(primitive + packet::kUv1, guest_word::sra(delta, 16) + pair.page);
-  memory.w32(primitive + packet::kUv2, static_cast<std::uint32_t>(std::int32_t{third}) + pair.uv);
+  const std::uint32_t delta = memory.mem_r32(deltas);
+  const auto third = static_cast<std::int16_t>(memory.mem_r16(deltas + 4));
+  memory.mem_w32(primitive + packet::kUv0, (delta & 0xFFFFu) + pair.uv);
+  memory.mem_w32(primitive + packet::kUv1, guest_word::sra(delta, 16) + pair.page);
+  memory.mem_w32(primitive + packet::kUv2, static_cast<std::uint32_t>(std::int32_t{third}) + pair.uv);
 }
 
 // The draw word's sides, as the subdivision passes' backface tests take them.
@@ -201,9 +212,9 @@ inline std::uint32_t binBias(std::uint32_t draw) {
   return (draw & kBinBiasMask) >> 5;
 }
 
-// The ordering-table bin of a polygon whose vertex depths sum to `depthSum`.
-inline std::uint32_t polygonBin(std::uint32_t depthSum, std::uint32_t draw) {
-  return (depthSum >> 7) + binBias(draw);
+// The ordering-table bin of a polygon whose vertex depths sum to `depthSum`, moved back `bias` bins.
+inline std::uint32_t polygonBin(std::uint32_t depthSum, std::uint32_t bias) {
+  return (depthSum >> 7) + bias;
 }
 
 } // namespace spyro::guest_terrain

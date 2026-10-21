@@ -24,7 +24,7 @@ struct FieldWindows {
   std::uint32_t tableBase = 0;
   std::uint32_t arenaEnd = 0; // where the real field's packet pool ends
   guest_memory::PacketArena inBetweenArena;
-  std::array<guest_memory::GuestRange, 5> owned{};
+  std::array<GuestSpan, 5> owned{};
 };
 
 // The owned ranges' sizes. The flag window is the 64 KB a sector's flag-byte offset reaches from
@@ -65,7 +65,7 @@ class Drawer {
 public:
   Drawer(Core &core,
          const TerrainImage &image,
-         guest_memory::WorkingMemory &memory,
+         const psx::present::EmitMemory &memory,
          FrameMode mode,
          const InBetweenWindow &inBetween = {});
 
@@ -77,7 +77,7 @@ public:
 private:
   Core &core_;
   const TerrainImage &image_;
-  guest_memory::WorkingMemory &memory_;
+  const psx::present::EmitMemory &memory_;
   const FrameMode mode_;
   // Held, not returned from a local: the frame is what a caller walks the ordering table with.
   std::optional<TerrainFrame> frame_;
@@ -85,9 +85,7 @@ private:
   InBetweenWindow inBetween_;
 };
 
-// The override entry: it owns a `GuestMemory` for its own length and runs in
-// `FrameMode::RealField`, so every guard inside the passes is open. Returns every guest word the
-// field read, as first read.
-std::vector<guest_memory::LevelWord> draw(Core &core, const TerrainImage &image);
+// The override entry: one real field over the guest. Returns every level word it read, as first read.
+std::vector<psx::present::LevelWord> draw(Core &core, const TerrainImage &image);
 
 } // namespace spyro::guest_terrain

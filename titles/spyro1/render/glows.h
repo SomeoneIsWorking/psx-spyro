@@ -44,13 +44,10 @@ inline constexpr std::uint32_t kCommand = 0x10;
 inline constexpr std::uint32_t kSizeDepth = 0x14;
 } // namespace sparkle
 
-// g_DeltaTime, the fields since the last frame, which 0x80058BA8 hands the sparkles.
-inline constexpr std::uint32_t kDeltaTime = 0x800756CCu;
-
 class GlowFans {
 public:
   GlowFans(Core &core,
-           spyro::guest_memory::WorkingMemory &memory,
+           const psx::present::EmitMemory &memory,
            const spyro::guest_terrain::ScreenBounds &bounds);
 
   // 800580F4..80058190: the camera into the GTE and the cursor and table read.
@@ -70,7 +67,7 @@ private:
   void link(std::uint32_t slot, std::uint32_t packet);
 
   Core &core_;
-  spyro::guest_memory::WorkingMemory &memory_;
+  const psx::present::EmitMemory &memory_;
   spyro::guest_terrain::ScreenBounds bounds_;
   std::uint32_t camera_[3] = {};
   std::uint32_t table_ = 0;
@@ -80,7 +77,7 @@ private:
 class Sparkles {
 public:
   Sparkles(Core &core,
-           spyro::guest_memory::WorkingMemory &memory,
+           const psx::present::EmitMemory &memory,
            const spyro::guest_terrain::ScreenBounds &bounds);
 
   // 800584C4..80058550: the camera into the rotation and light matrices, `delta` taken.
@@ -96,7 +93,7 @@ public:
 
 private:
   Core &core_;
-  spyro::guest_memory::WorkingMemory &memory_;
+  const psx::present::EmitMemory &memory_;
   spyro::guest_terrain::ScreenBounds bounds_;
   bool retiring_ = false;
   std::uint32_t delta_ = 0;

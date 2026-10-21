@@ -19,7 +19,7 @@ namespace spyro1::actors {
 
 class PairedActor {
 public:
-  PairedActor(Core &core, spyro::guest_memory::WorkingMemory &memory);
+  PairedActor(Core &core, const psx::present::EmitMemory &memory);
 
   // 80023AFC..800258AC. False when the centre was culled or no polygon reached a bin.
   bool draw();
@@ -89,7 +89,7 @@ private:
   [[nodiscard]] bool mergeBins();
 
   Core &core_;
-  spyro::guest_memory::WorkingMemory &memory_;
+  const psx::present::EmitMemory &memory_;
 
   // Retail's registers that outlive one step.
   std::uint32_t v0_ = 0;

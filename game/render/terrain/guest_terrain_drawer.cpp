@@ -13,7 +13,7 @@
 namespace spyro::guest_terrain {
 Drawer::Drawer(Core &core,
                const TerrainImage &image,
-               guest_memory::WorkingMemory &memory,
+               const psx::present::EmitMemory &memory,
                FrameMode mode,
                const InBetweenWindow &inBetween)
     : core_(core), image_(image), memory_(memory), mode_(mode), inBetween_(inBetween) {
@@ -63,17 +63,18 @@ const TerrainFrame &Drawer::run() {
   return frame;
 }
 
-std::vector<guest_memory::LevelWord> draw(Core &core, const TerrainImage &image) {
+std::vector<psx::present::LevelWord> draw(Core &core, const TerrainImage &image) {
   const FieldWindows windows = image.windows(core);
   // The real field's packets run from the guest's cursor to the arena's end.
   const std::uint32_t cursor = core.mem_r32(image.globals().primitiveCursor);
   const std::uint32_t arenaEnd = windows.arenaEnd;
-  std::array<guest_memory::GuestRange, std::tuple_size_v<decltype(windows.owned)> + 1> working{};
+  std::array<GuestSpan, std::tuple_size_v<decltype(windows.owned)> + 1> working{};
   std::copy(windows.owned.begin(), windows.owned.end(), working.begin());
-  working.back() = guest_memory::GuestRange{cursor, cursor < arenaEnd ? arenaEnd - cursor : 0u};
-  guest_memory::GuestMemory memory(core, working);
+  working.back() = GuestSpan{cursor, cursor < arenaEnd ? arenaEnd - cursor : 0u};
+  psx::present::LevelReads reads;
+  const psx::present::EmitMemory memory(core, reads, working);
   Drawer(core, image, memory, FrameMode::RealField).run();
-  return memory.firstReads();
+  return reads.words();
 }
 
 } // namespace spyro::guest_terrain

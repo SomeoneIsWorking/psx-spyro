@@ -55,10 +55,22 @@ struct SphereMargins {
   std::int32_t verticalDepth = 0;     // r/4 + r/16
 };
 
+// The horizontal pair alone, which the terrain sector test and Spyro 1's list builder share.
+struct HorizontalMargins {
+  std::uint32_t lateral = 0;
+  std::uint32_t depth = 0;
+};
+
+constexpr HorizontalMargins horizontalMargins(std::uint32_t radius) {
+  return HorizontalMargins{.lateral = (radius >> 1) + (radius >> 2) + (radius >> 5),
+                           .depth = (radius >> 1) + (radius >> 4) + (radius >> 5)};
+}
+
 constexpr SphereMargins sphereMargins(std::uint32_t radius) {
+  const HorizontalMargins horizontal = horizontalMargins(radius);
   return SphereMargins{
-      .horizontalLateral = static_cast<std::int32_t>((radius >> 1) + (radius >> 2) + (radius >> 5)),
-      .horizontalDepth = static_cast<std::int32_t>((radius >> 1) + (radius >> 4) + (radius >> 5)),
+      .horizontalLateral = static_cast<std::int32_t>(horizontal.lateral),
+      .horizontalDepth = static_cast<std::int32_t>(horizontal.depth),
       .verticalLateral = static_cast<std::int32_t>((radius >> 1) + (radius >> 4)),
       .verticalDepth = static_cast<std::int32_t>((radius >> 2) + (radius >> 4)),
   };

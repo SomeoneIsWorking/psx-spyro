@@ -2,11 +2,13 @@
 
 #include "core.h"
 #include "render/field/guest_moby_gte.h"
+#include "render/field/guest_render_globals.h"
 
 namespace spyro::guest_moby_rotation {
 namespace {
 
 namespace gte = guest_moby_gte;
+using guest_render_globals::kCosineOffset;
 
 constexpr std::uint32_t kLow = 0x0000FFFFu;
 constexpr std::uint32_t kHigh = 0xFFFF0000u;
@@ -34,19 +36,13 @@ Product rotateV0(Core &core, std::uint32_t vxy0, std::uint32_t vz0) {
                  core.gte().readData(gte::kIr3)};
 }
 
-void load(Core &core, const RotationWords &rotation) {
-  for (std::uint32_t i = 0; i < gte::kRotationWords; ++i) {
-    core.gte().writeControl(gte::kRotation + i, rotation[i]);
-  }
-}
-
 // Each axis feeds two V0 vectors built from (sin, cos) and repacks the two products into the RT
 // words that axis touches. The vectors and the repacking are retail's, word for word:
 //   byte 2  80043BAC..80043C34 / 800441D8..800442B0
 //   byte 1  80043C44..80043CD4 / 800442D0..800443B0
 //   byte 0  80043CE4..80043D7C / 800443CC..800444B0
 // Returns what retail leaves in $v1: the second product's IR3, shifted up on the byte-0 axis.
-std::uint32_t rotate(Core &core, Axis axis, AngleWords angle, RotationWords &m, Byte0Result byte0) {
+std::uint32_t rotate(Core &core, Axis axis, AngleWords angle, psx::gte::RotationWords &m, Byte0Result byte0) {
   const std::uint32_t s = angle.sine;
   const std::uint32_t c = angle.cosine;
   std::uint32_t ir3 = 0;
@@ -88,7 +84,7 @@ std::uint32_t rotate(Core &core, Axis axis, AngleWords angle, RotationWords &m, 
   }
   }
   if (loads) {
-    load(core, m);
+    core.gte().loadRotation(m);
   }
   return ir3;
 }
@@ -130,7 +126,7 @@ std::int32_t interpolate(Core &core, const TableStep &step) {
 std::optional<std::uint32_t> composeTabled(Core &core,
                                            std::uint32_t sineTable,
                                            const MobyAngles &angles,
-                                           RotationWords &rotation,
+                                           psx::gte::RotationWords &rotation,
                                            Byte0Result byte0) {
   std::optional<std::uint32_t> last;
   for (const Channel &channel : kChannels) {
@@ -151,7 +147,7 @@ std::optional<std::uint32_t> composeTabled(Core &core,
 void composeInterpolated(Core &core,
                          std::uint32_t sineTable,
                          const MobyAngles &angles,
-                         RotationWords &rotation) {
+                         psx::gte::RotationWords &rotation) {
   for (const Channel &channel : kChannels) {
     const std::uint32_t angle = (angles.angles >> channel.angleShift) & 0xFFu;
     const std::uint32_t fraction = (angles.flags >> channel.fractionShift) & 0xFu;
@@ -170,7 +166,7 @@ void composeInterpolated(Core &core,
   }
 }
 
-void mirror(RotationWords &rotation) {
+void mirror(psx::gte::RotationWords &rotation) {
   rotation[0] = (0u - (rotation[0] & kHigh)) | (rotation[0] & kLow);
   rotation[2] = (rotation[2] & kHigh) | ((0u - (rotation[2] & kLow)) & kLow);
   rotation[3] = (0u - (rotation[3] & kHigh)) | (rotation[3] & kLow);

@@ -32,17 +32,16 @@ FieldWindows EngineTerrainImage::windows(Core &core) const {
       .tableBase = tableBase,
       .arenaEnd = scratch + kPrimitiveArenaBytes,
       .inBetweenArena = guest_memory::packetArenaWindow(frameTop),
-      .owned = {guest_memory::GuestRange{kScratchpad, kScratchpadBytes},
-                guest_memory::GuestRange{scratch, frameTop - scratch},
-                guest_memory::GuestRange{scratch, kFlagWindowBytes},
-                guest_memory::GuestRange{tableBase, kOrderingWindowBytes},
-                guest_memory::GuestRange{facts_.foggedColours, kFoggedColourBytes}}};
+      .owned = {GuestSpan{kScratchpad, kScratchpadBytes},
+                GuestSpan{scratch, frameTop - scratch},
+                GuestSpan{scratch, kFlagWindowBytes},
+                GuestSpan{tableBase, kOrderingWindowBytes},
+                GuestSpan{facts_.foggedColours, kFoggedColourBytes}}};
 }
 
 guest_camera::Matrices EngineTerrainImage::camera(Core &core,
                                                   const guest_camera::Angles &angles) const {
-  return guest_camera::EngineBuilder(
-             core, {.sine = globals_.cameraSineTable, .cosine = globals_.cameraCosineTable})
+  return guest_camera::EngineBuilder(core, globals_.cameraSineTable)
       .build(angles);
 }
 
@@ -68,7 +67,7 @@ void EngineTerrainImage::drawPasses(TerrainFrame &frame) const {
     const std::uint32_t count = core.mem_r32(facts_.classify.sectorCount);
     std::vector<std::uint8_t> visible(count);
     for (std::uint32_t i = 0; i < count; ++i) {
-      visible[i] = frame.memory.r8(kScratchpad + i);
+      visible[i] = frame.memory.mem_r8(kScratchpad + i);
     }
     spyro::session(core).terrainVisibility = std::move(visible);
   }

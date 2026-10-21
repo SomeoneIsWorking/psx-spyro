@@ -1,15 +1,4 @@
-// guest_render_globals.h — the guest globals the hand-written render routines of this engine family
-// share, as a per-title fact table.
-//
-// The moby visibility walk and the terrain drawer are both hand-written assembly that borrow every
-// general register, so both spill the callee-saved set (and gp, sp, fp, ra) to the SAME save area
-// on entry and reload it on exit. They also share the frame's scratch block, the camera, the
-// ordering table the drawn primitives are linked into, and the per-sector visibility bytes.
-//
-// Every address here is a property of ONE image, so it arrives as data rather than as a constant
-// baked into the routine that reads it. That is what lets two titles of this family share the
-// routines themselves: the arithmetic and the traversal are one implementation, and the addresses
-// it touches are stated once per title in that title's own facts header.
+// guest_render_globals.h — the guest globals this engine family's render routines share, as one image's facts.
 #pragma once
 
 #include "core.h"
@@ -27,24 +16,21 @@ struct Globals {
   std::uint32_t orderingTableMark = 0; // deepest bin a far prim reached
   std::uint32_t cameraRotation = 0;    // five RT words
   std::uint32_t cameraPosition = 0;    // x, y, z words
-  // THE CAMERA'S OWN STATE: the three signed 16-bit angles the guest's camera builder reads, at the
-  // head of the object it takes (0x80067EC8 on SCUS_944.25). The five rotation words above are
-  // what that builder WRITES from these, one field earlier in the frame, which is why they are
-  // derived output and these are the input an in-between interpolates.
+  // The three signed 16-bit angles the camera builder writes the rotation from (0x80067EC8 on SCUS_944.25).
   std::uint32_t cameraAngles = 0;
-  // The two 256-entry 16-bit tables the builder reads its sine and cosine out of.
+  // 16-bit sine entries; cosine reads the same table kCosineOffset on.
   std::uint32_t cameraSineTable = 0;
-  std::uint32_t cameraCosineTable = 0;
   std::uint32_t visibilityGroups = 0; // one byte per terrain sector
 };
 
-// The register numbers retail saves, in save-area order. Measured, not assumed: the prologues of
-// the two routines in this family spill exactly these twelve words at 4 bytes apart.
+// A quarter turn of 256 halfword sine entries.
+inline constexpr std::uint32_t kCosineOffset = 0x80u;
+
+// The registers both routines' prologues spill, in save-area order.
 inline constexpr std::array<std::uint32_t, 12> kSavedRegisters = {
     16, 17, 18, 19, 20, 21, 22, 23, 28, 29, 30, 31};
 
-// Retail's prologue: spill the borrowed registers. Neither routine changes them in its native form,
-// so the matching epilogue reloads exactly these values and needs no native counterpart.
+// Retail's prologue; the native bodies never change these, so the epilogue needs no counterpart.
 inline void spillBorrowedRegisters(Core &core, const Globals &globals) {
   for (std::size_t i = 0; i < kSavedRegisters.size(); ++i) {
     core.mem_w32(globals.registerSaveArea + static_cast<std::uint32_t>(4 * i),

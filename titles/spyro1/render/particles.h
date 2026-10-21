@@ -6,6 +6,8 @@
 // a time.
 #pragma once
 
+#include "guest_memory_map.h"
+
 #include "render/field/guest_working_memory.h"
 #include "render/terrain/guest_terrain_screen.h"
 
@@ -20,10 +22,8 @@ inline constexpr std::uint32_t kListBase = 0x80075824u;
 inline constexpr std::uint32_t kRecordBytes = 0x20u;
 // Per texture group, a table of 8-byte frames whose +4 and +8 words are a quad's UV words.
 inline constexpr std::uint32_t kTextureGroups = 0x80076278u;
-// Set when the packet pool comes within 0x400 bytes of its end (8005809C).
-inline constexpr std::uint32_t kPoolExhausted = 0x800758B0u;
 // Where the prologue spills the borrowed registers.
-inline constexpr std::uint32_t kRegisterSpill = 0x1F800000u;
+inline constexpr std::uint32_t kRegisterSpill = psx::kScratchpadPhysicalBase;
 
 namespace record {
 inline constexpr std::uint32_t kKind = 0x00; // halfword: kind << 8 | texture group
@@ -50,7 +50,7 @@ enum class Packet : std::uint8_t {
 class EmitList {
 public:
   EmitList(Core &core,
-           spyro::guest_memory::WorkingMemory &memory,
+           const psx::present::EmitMemory &memory,
            const spyro::guest_terrain::ScreenBounds &bounds);
 
   // 800573FC..800574BC: the camera into the GTE, the pool limit, cursor and table read.
@@ -85,7 +85,7 @@ private:
   [[nodiscard]] bool rightOf(std::uint32_t sxy) const;
 
   Core &core_;
-  spyro::guest_memory::WorkingMemory &memory_;
+  const psx::present::EmitMemory &memory_;
   std::uint32_t leftEdge_ = 0;   // the left bound << 16
   std::uint32_t rightEdge_ = 0;  // the right bound << 16, retail's $s6
   std::uint32_t camera_[3] = {}; // $s7, $t8, $t9: the camera position / 4

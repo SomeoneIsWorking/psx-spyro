@@ -24,10 +24,14 @@ namespace polygon = spyro::guest_terrain::polygon;
 namespace packet = spyro::guest_terrain::packet;
 using spyro::guest_terrain::fadeColour;
 namespace near_sector = spyro::guest_terrain::near_sector;
-using spyro::guest_memory::WorkingMemory;
+using psx::present::EmitMemory;
 using spyro::guest_terrain::deferToSplitList;
 using spyro::guest_terrain::kCoarseHeaderWritten;
 using spyro::guest_terrain::kFineHeaderWritten;
+using spyro::guest_terrain::kG3Bytes;
+using spyro::guest_terrain::kG3Tag;
+using spyro::guest_terrain::kG4Bytes;
+using spyro::guest_terrain::kG4Tag;
 using spyro::guest_terrain::kScratchpad;
 using spyro::guest_terrain::kSectorClassMask;
 using spyro::guest_terrain::kSplitTriangle;
@@ -87,14 +91,6 @@ constexpr std::uint8_t kDeferredFine = 4;
 constexpr std::uint32_t kUntextured = 0xFFFFFFFFu; // the texture byte, sign-extended
 constexpr std::uint32_t kSemiTextured = 0x80;
 
-constexpr std::uint8_t kSemiQuadCode = 0x3E;
-constexpr std::uint8_t kSemiTriangleCode = 0x36;
-constexpr std::uint8_t kG4Code = 0x38;
-constexpr std::uint8_t kG3Code = 0x30;
-constexpr std::uint32_t kG4Tag = 0x08000000u;
-constexpr std::uint32_t kG4Bytes = 0x24;
-constexpr std::uint32_t kG3Tag = 0x06000000u;
-constexpr std::uint32_t kG3Bytes = 0x1C;
 
 // 80026F70: the texture record and how many CLUT rows its UV word is darkened by, from how far the
 // polygon's mean depth is into the fade; an undarkened polygon reads the record's second pair.
@@ -133,10 +129,10 @@ private:
   void drawQuad(const PackedIndices &vertices);
   void drawTriangle(const PackedIndices &vertices);
   [[nodiscard]] std::uint32_t screenWord(std::uint32_t index) const {
-    return memory_.r32(kScratchpad + index);
+    return memory_.mem_r32(kScratchpad + index);
   }
   [[nodiscard]] std::uint32_t depth(std::uint32_t index) const {
-    return memory_.r16(kVertexDepths + (index >> 1));
+    return memory_.mem_r16(kVertexDepths + (index >> 1));
   }
   // False when the polygon was deferred or dropped instead of drawn.
   bool drawsWhole(std::span<const std::uint32_t> depths, const Candidate &candidate);
@@ -146,7 +142,7 @@ private:
   TerrainFrame &frame_;
   const Facts &facts_;
   Core &core_;
-  WorkingMemory &memory_;
+  const EmitMemory &memory_;
   std::uint32_t depthLimit_ = 0; // s5
   std::uint32_t textures_ = 0;   // s3
   std::uint32_t sectorWord_ = 0; // t9: the sector, plus the split headers it has written
@@ -160,8 +156,8 @@ private:
 void DetailPass::run() {
   frame_.fineSplitCursor = frame_.scratch + kFineSplitList;
   frame_.coarseSplitCursor = frame_.scratch + kCoarseSplitList;
-  depthLimit_ = memory_.r32(facts_.lodTable + lod::kNearDepth);
-  textures_ = memory_.r32(facts_.lodTable + lod::kDetailTextures);
+  depthLimit_ = memory_.mem_r32(facts_.lodTable + lod::kNearDepth);
+  textures_ = memory_.mem_r32(facts_.lodTable + lod::kDetailTextures);
   frame_.v0 = frame_.positionWord(1) >> 2;
   frame_.v1 = frame_.positionWord(2) >> 2;
   core_.gte().writeControl(gte::kBackRed, frame_.positionWord(0) >> 2);
@@ -169,15 +165,15 @@ void DetailPass::run() {
   core_.gte().writeControl(gte::kBackBlue, frame_.v1);
   std::uint32_t list = frame_.scratch + kNearList;
   for (;;) {
-    const std::uint32_t entry = memory_.r32(list);
+    const std::uint32_t entry = memory_.mem_r32(list);
     list += 4;
     if (entry == 0) {
       break;
     }
     drawSector(entry);
   }
-  memory_.w32(frame_.coarseSplitCursor, 0);
-  memory_.w32(frame_.fineSplitCursor, 0);
+  memory_.mem_w32(frame_.coarseSplitCursor, 0);
+  memory_.mem_w32(frame_.fineSplitCursor, 0);
 }
 
 // 800267F0.
@@ -185,7 +181,7 @@ void DetailPass::drawSector(std::uint32_t entry) {
   const std::uint32_t sectorClass = entry & kSectorClassMask;
   sectorWord_ = entry ^ sectorClass;
   const std::uint32_t sector = sectorWord_;
-  flagCursor_ = frame_.scratch + (memory_.r32(sector + near_sector::kOriginY) & 0xFFFFu);
+  flagCursor_ = frame_.scratch + (memory_.mem_r32(sector + near_sector::kOriginY) & 0xFFFFu);
   const ProjectedSector projected = DetailProjector(frame_).project(entry);
   if (!projected.drawn) {
     return;
@@ -194,14 +190,14 @@ void DetailPass::drawSector(std::uint32_t entry) {
     flagCursor_ = (flagCursor_ << 1) >> 1;
   }
   // 80026B48: near colours, far colours, then the records.
-  const std::uint32_t layout = memory_.r32(sector + near_sector::kLayout);
+  const std::uint32_t layout = memory_.mem_r32(sector + near_sector::kLayout);
   const std::uint32_t colourBytes = (layout >> 6) & 0x3FCu;
   nearColours_ = projected.vertexEnd - 8;
   farColours_ = nearColours_ + colourBytes;
   const std::uint32_t records = farColours_ + colourBytes;
   const std::uint32_t end = records + ((layout >> 12) & 0xFF0u);
   for (record_ = records; record_ != end; record_ += polygon::kSize) {
-    const PackedIndices vertices(memory_.r32(record_ + polygon::kIndices));
+    const PackedIndices vertices(memory_.mem_r32(record_ + polygon::kIndices));
     frame_.v0 = vertices.second;
     frame_.v1 = vertices.third;
     if (vertices.triangle()) {
@@ -237,13 +233,13 @@ bool DetailPass::drawsWhole(std::span<const std::uint32_t> depths, const Candida
                      {.cursor = frame_.fineSplitCursor, .headerBit = kFineHeaderWritten},
                      sectorWord_,
                      {.header = header, .entry = entry});
-    memory_.w8(flagCursor_ - 1, kDeferredFine);
+    memory_.mem_w8(flagCursor_ - 1, kDeferredFine);
   } else {
     deferToSplitList(memory_,
                      {.cursor = frame_.coarseSplitCursor, .headerBit = kCoarseHeaderWritten},
                      sectorWord_,
                      {.header = header, .entry = entry});
-    memory_.w8(flagCursor_ - 1, kDeferredCoarse);
+    memory_.mem_w8(flagCursor_ - 1, kDeferredCoarse);
   }
   return false;
 }
@@ -252,12 +248,12 @@ bool DetailPass::drawsWhole(std::span<const std::uint32_t> depths, const Candida
 // colour, and one between is faded.
 std::uint32_t DetailPass::shade(const CornerShade &corner) const {
   const auto [colourIndex, vertexDepth] = corner;
-  const std::uint32_t nearColour = memory_.r32(nearColours_ + colourIndex);
+  const std::uint32_t nearColour = memory_.mem_r32(nearColours_ + colourIndex);
   const std::uint32_t fade = fadeBase_ - vertexDepth;
   if (asSigned(fade - kFullBright) >= 0) {
     return nearColour;
   }
-  const std::uint32_t farColour = memory_.r32(farColours_ + colourIndex);
+  const std::uint32_t farColour = memory_.mem_r32(farColours_ + colourIndex);
   if (asSigned(fade) <= 0) {
     return farColour;
   }
@@ -292,7 +288,7 @@ void DetailPass::drawQuad(const PackedIndices &vertices) {
     return;
   }
   const auto [xy, overflow] = *corners;
-  const std::uint32_t draw = memory_.r32(record_ + polygon::kDraw);
+  const std::uint32_t draw = memory_.mem_r32(record_ + polygon::kDraw);
   const std::array<std::uint32_t, 4> depths = {
       depth(vertices.first), depth(vertices.second), depth(vertices.third), depth(vertices.fourth)};
   frame_.v0 = depths[1];
@@ -308,54 +304,54 @@ void DetailPass::drawQuad(const PackedIndices &vertices) {
 
   // 80026DB8: one GT4 (or G4), xy and colours in (first, second, fourth, third) order.
   const std::uint32_t prim = frame_.primitive;
-  const std::uint32_t bin = (sum >> 7) + binBias(draw);
-  memory_.w32(prim + packet::kXy0, xy[0]);
-  memory_.w32(prim + packet::kXy1, xy[1]);
-  memory_.w32(prim + packet::kXy2, xy[3]);
-  memory_.w32(prim + packet::kXy3, xy[2]);
+  const std::uint32_t bin = spyro::guest_terrain::polygonBin(sum, binBias(draw));
+  memory_.mem_w32(prim + packet::kXy0, xy[0]);
+  memory_.mem_w32(prim + packet::kXy1, xy[1]);
+  memory_.mem_w32(prim + packet::kXy2, xy[3]);
+  memory_.mem_w32(prim + packet::kXy3, xy[2]);
   fadeBase_ = (depthLimit_ >> 2) + ((draw & kFarFade) != 0 ? kFarFadeShift : 0u);
-  const PackedIndices colours(memory_.r32(record_ + polygon::kColours));
-  memory_.w32(prim + packet::kColour0,
+  const PackedIndices colours(memory_.mem_r32(record_ + polygon::kColours));
+  memory_.mem_w32(prim + packet::kColour0,
               shade({.colourIndex = colours.first, .depth = depths[0]}) |
                   spyro::guest_terrain::kOpaqueQuadCode);
-  memory_.w32(prim + packet::kColour1, shade({.colourIndex = colours.second, .depth = depths[1]}));
-  memory_.w32(prim + packet::kColour3, shade({.colourIndex = colours.third, .depth = depths[2]}));
-  memory_.w32(prim + packet::kColour2, shade({.colourIndex = colours.fourth, .depth = depths[3]}));
-  memory_.w8(flagCursor_ - 1, kDrawnWhole);
+  memory_.mem_w32(prim + packet::kColour1, shade({.colourIndex = colours.second, .depth = depths[1]}));
+  memory_.mem_w32(prim + packet::kColour3, shade({.colourIndex = colours.third, .depth = depths[2]}));
+  memory_.mem_w32(prim + packet::kColour2, shade({.colourIndex = colours.fourth, .depth = depths[3]}));
+  memory_.mem_w8(flagCursor_ - 1, kDrawnWhole);
 
-  const std::uint32_t texture = textureIndex(memory_.r8(record_ + polygon::kLinks));
+  const std::uint32_t texture = textureIndex(memory_.mem_r8(record_ + polygon::kLinks));
   if ((texture & kSemiTextured) != 0) {
-    memory_.w8(prim + packet::kCode, kSemiQuadCode);
+    memory_.mem_w8(prim + packet::kCode, psx::gpu::Gp0Command(spyro::guest_terrain::kSemiQuadCode).opcodeByte());
   }
   if (texture == kUntextured) {
     // 800270F8: the GT4's colour and xy words packed down into a G4.
-    const std::uint32_t xy1 = memory_.r32(prim + packet::kXy1);
-    const std::uint32_t xy2 = memory_.r32(prim + packet::kXy2);
-    const std::uint32_t xy3 = memory_.r32(prim + packet::kXy3);
-    const std::uint32_t c1 = memory_.r32(prim + packet::kColour1);
-    const std::uint32_t c2 = memory_.r32(prim + packet::kColour2);
-    const std::uint32_t c3 = memory_.r32(prim + packet::kColour3);
-    memory_.w32(prim + 0x10, xy1);
-    memory_.w32(prim + 0x18, xy2);
-    memory_.w32(prim + 0x20, xy3);
-    memory_.w32(prim + 0x0C, c1);
-    memory_.w32(prim + 0x14, c2);
-    memory_.w32(prim + 0x1C, c3);
-    memory_.w8(prim + packet::kCode, kG4Code);
-    memory_.w32(prim, kG4Tag);
+    const std::uint32_t xy1 = memory_.mem_r32(prim + packet::kXy1);
+    const std::uint32_t xy2 = memory_.mem_r32(prim + packet::kXy2);
+    const std::uint32_t xy3 = memory_.mem_r32(prim + packet::kXy3);
+    const std::uint32_t c1 = memory_.mem_r32(prim + packet::kColour1);
+    const std::uint32_t c2 = memory_.mem_r32(prim + packet::kColour2);
+    const std::uint32_t c3 = memory_.mem_r32(prim + packet::kColour3);
+    memory_.mem_w32(prim + 0x10, xy1);
+    memory_.mem_w32(prim + 0x18, xy2);
+    memory_.mem_w32(prim + 0x20, xy3);
+    memory_.mem_w32(prim + 0x0C, c1);
+    memory_.mem_w32(prim + 0x14, c2);
+    memory_.mem_w32(prim + 0x1C, c3);
+    memory_.mem_w8(prim + packet::kCode, psx::gpu::kPolyG4);
+    memory_.mem_w32(prim, kG4Tag);
     frame_.v0 = prim >> 16;
     frame_.v1 = xy3;
     frame_.linkAndAdvance(bin, PacketSize{kG4Bytes});
     return;
   }
   const TexturePick pick = pickTexture(candidate, texture);
-  const std::uint32_t uv = memory_.r32(pick.record) + (pick.darken << 22);
-  const std::uint32_t page = memory_.r32(pick.record + 4);
-  memory_.w32(prim + packet::kUv0, uv);
-  memory_.w32(prim + packet::kUv1, page);
-  memory_.w32(prim + packet::kUv2, uv + 0x1F00u);
-  memory_.w32(prim + packet::kUv3, uv + 0x1F1Fu);
-  memory_.w32(prim, spyro::guest_terrain::kQuadTag);
+  const std::uint32_t uv = memory_.mem_r32(pick.record) + (pick.darken << 22);
+  const std::uint32_t page = memory_.mem_r32(pick.record + 4);
+  memory_.mem_w32(prim + packet::kUv0, uv);
+  memory_.mem_w32(prim + packet::kUv1, page);
+  memory_.mem_w32(prim + packet::kUv2, uv + 0x1F00u);
+  memory_.mem_w32(prim + packet::kUv3, uv + 0x1F1Fu);
+  memory_.mem_w32(prim, spyro::guest_terrain::kQuadTag);
   frame_.v0 = prim >> 16;
   frame_.v1 = uv + 0x1F00u;
   frame_.linkAndAdvance(bin, PacketSize{spyro::guest_terrain::kQuadBytes});
@@ -373,7 +369,7 @@ void DetailPass::drawTriangle(const PackedIndices &vertices) {
     return;
   }
   const auto [xy, overflow] = *corners;
-  const std::uint32_t draw = memory_.r32(record_ + polygon::kDraw);
+  const std::uint32_t draw = memory_.mem_r32(record_ + polygon::kDraw);
   const std::array<std::uint32_t, 3> depths = {
       depth(vertices.first), depth(vertices.second), depth(vertices.third)};
   if (!nearTriangleFacesCamera(frame_, xy, sidedness(draw), overflow != 0)) {
@@ -392,44 +388,44 @@ void DetailPass::drawTriangle(const PackedIndices &vertices) {
 
   // 80027310: one GT3 (or G3).
   const std::uint32_t prim = frame_.primitive;
-  const std::uint32_t bin = (sum >> 7) + binBias(draw);
-  memory_.w32(prim + packet::kXy0, xy[0]);
-  memory_.w32(prim + packet::kXy1, xy[1]);
-  memory_.w32(prim + packet::kXy2, xy[2]);
+  const std::uint32_t bin = spyro::guest_terrain::polygonBin(sum, binBias(draw));
+  memory_.mem_w32(prim + packet::kXy0, xy[0]);
+  memory_.mem_w32(prim + packet::kXy1, xy[1]);
+  memory_.mem_w32(prim + packet::kXy2, xy[2]);
   fadeBase_ = (depthLimit_ >> 2) + ((draw & kFarFade) != 0 ? kFarFadeShift : 0u);
-  const PackedIndices colours(memory_.r32(record_ + polygon::kColours));
-  memory_.w32(prim + packet::kColour0,
+  const PackedIndices colours(memory_.mem_r32(record_ + polygon::kColours));
+  memory_.mem_w32(prim + packet::kColour0,
               shade({.colourIndex = colours.first, .depth = depths[0]}) |
                   spyro::guest_terrain::kOpaqueTriangleCode);
-  memory_.w32(prim + packet::kColour1, shade({.colourIndex = colours.second, .depth = depths[1]}));
-  memory_.w32(prim + packet::kColour2, shade({.colourIndex = colours.third, .depth = depths[2]}));
-  memory_.w8(flagCursor_ - 1, kDrawnWhole);
+  memory_.mem_w32(prim + packet::kColour1, shade({.colourIndex = colours.second, .depth = depths[1]}));
+  memory_.mem_w32(prim + packet::kColour2, shade({.colourIndex = colours.third, .depth = depths[2]}));
+  memory_.mem_w8(flagCursor_ - 1, kDrawnWhole);
 
-  const std::uint32_t textureWord = memory_.r32(record_ + polygon::kLinks);
+  const std::uint32_t textureWord = memory_.mem_r32(record_ + polygon::kLinks);
   const std::uint32_t texture = textureIndex(textureWord & 0xFFu);
   if ((texture & kSemiTextured) != 0) {
-    memory_.w8(prim + packet::kCode, kSemiTriangleCode);
+    memory_.mem_w8(prim + packet::kCode, psx::gpu::Gp0Command(spyro::guest_terrain::kSemiTriangleCode).opcodeByte());
   }
   if (texture == kUntextured) {
     // 80027628: packed down into a G3.
-    const std::uint32_t xy1 = memory_.r32(prim + packet::kXy1);
-    const std::uint32_t xy2 = memory_.r32(prim + packet::kXy2);
-    const std::uint32_t c1 = memory_.r32(prim + packet::kColour1);
-    const std::uint32_t c2 = memory_.r32(prim + packet::kColour2);
-    memory_.w32(prim + 0x10, xy1);
-    memory_.w32(prim + 0x18, xy2);
-    memory_.w32(prim + 0x0C, c1);
-    memory_.w32(prim + 0x14, c2);
-    memory_.w8(prim + packet::kCode, kG3Code);
-    memory_.w32(prim, kG3Tag);
+    const std::uint32_t xy1 = memory_.mem_r32(prim + packet::kXy1);
+    const std::uint32_t xy2 = memory_.mem_r32(prim + packet::kXy2);
+    const std::uint32_t c1 = memory_.mem_r32(prim + packet::kColour1);
+    const std::uint32_t c2 = memory_.mem_r32(prim + packet::kColour2);
+    memory_.mem_w32(prim + 0x10, xy1);
+    memory_.mem_w32(prim + 0x18, xy2);
+    memory_.mem_w32(prim + 0x0C, c1);
+    memory_.mem_w32(prim + 0x14, c2);
+    memory_.mem_w8(prim + packet::kCode, psx::gpu::kPolyG3);
+    memory_.mem_w32(prim, kG3Tag);
     frame_.v0 = prim >> 16;
     frame_.v1 = c1;
     frame_.linkAndAdvance(bin, PacketSize{kG3Bytes});
     return;
   }
   const TexturePick pick = pickTexture(candidate, texture);
-  const std::uint32_t uv = memory_.r32(pick.record) + (pick.darken << 22);
-  const std::uint32_t page = memory_.r32(pick.record + 4);
+  const std::uint32_t uv = memory_.mem_r32(pick.record) + (pick.darken << 22);
+  const std::uint32_t page = memory_.mem_r32(pick.record + 4);
   // 80027574: the corner the triangle drops from the record's square.
   std::array<std::uint32_t, 3> uvs{};
   switch (textureWord & 0x300u) {
@@ -450,10 +446,10 @@ void DetailPass::drawTriangle(const PackedIndices &vertices) {
     frame_.v1 = uv + 0x1F00u;
     break;
   }
-  memory_.w32(prim + packet::kUv0, uvs[0]);
-  memory_.w32(prim + packet::kUv1, uvs[1]);
-  memory_.w32(prim + packet::kUv2, uvs[2]);
-  memory_.w32(prim, spyro::guest_terrain::kTriangleTag);
+  memory_.mem_w32(prim + packet::kUv0, uvs[0]);
+  memory_.mem_w32(prim + packet::kUv1, uvs[1]);
+  memory_.mem_w32(prim + packet::kUv2, uvs[2]);
+  memory_.mem_w32(prim, spyro::guest_terrain::kTriangleTag);
   frame_.v0 = prim >> 16;
   frame_.linkAndAdvance(bin, PacketSize{spyro::guest_terrain::kTriangleBytes});
 }

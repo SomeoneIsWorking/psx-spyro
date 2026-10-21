@@ -1,15 +1,5 @@
-// render_facts.h — SCUS_944.67's own render-routine facts, read out of its bytes, plus the
-// native overrides that bind them.
-//
-// The routines themselves live in game/render/ and are shared with SCUS_944.25. That is a measured
-// claim, not an assumed one: the terrain drawer (0x80022378 here, 0x80023BB4 there) is 5,487
-// instructions in BOTH images and the two decompilations differ in exactly one line; the moby
-// visibility walk (0x80030478 here, 0x80043858 there) is 811 instructions in both and the two
-// decompilations differ only in their addresses and one `gp` spill. Every address below was then
-// located in THIS image's own bytes, either at the instruction the comment names or at the
-// offset-aligned counterpart of the Spyro 2 site (the two routines are instruction-identical, so
-// instruction N of one is instruction N of the other, and each address below was read out of that
-// instruction in this image rather than derived by arithmetic).
+// render_facts.h — SCUS_944.67's addresses for the render routines it shares with SCUS_944.25
+// (game/render/), each read at the instruction its comment names, and the overrides that bind them.
 #pragma once
 
 #include "render/engine_render_overrides.h"
@@ -35,17 +25,8 @@ namespace spyro3 {
 //   8006E020  the camera position x, y, z.
 //   80072330  one visibility byte per terrain sector, written by the classification pass and read
 //             by the walk for each moby's group byte.
-//
-// The camera's OWN state and the builder that reads it, the structural twin of Spyro 2's. This
-// family's per-field body is 0x8001E638, and it opens with the same two calls:
-//
-//   FUN_8004F6C4(&8006E03C, &8006E00C, &8006DFF8)   the camera builder, out of three angles
-//   FUN_8004F178(&8006E02C, &8006E020)              last field's position <- this one's
-//
-// FUN_8004F6C4 is byte for byte the same body as SCUS_944.25's 0x8001C2F8 — the same halfword
-// indices, the same two GTE products, the same 0x140>>9 on halfwords 6, 8 and 10 — with the
-// trigonometry two leaves over at 0x8004E9E4 and 0x8004EA2C. MEASURED by otattr last-writer
-// provenance on 8006DFF8, which names 0x8001E638.
+//   8006E03C  three signed 16-bit camera angles, which FUN_8004F6C4 (called first by the per-field
+//             body 0x8001E638) turns into the rotations at 8006E00C and 8006DFF8.
 inline constexpr spyro::guest_render_globals::Globals kRenderGlobals{
     .registerSaveArea = 0x80071540u,
     .scratchBaseWord = 0x8006C668u,
@@ -55,10 +36,8 @@ inline constexpr spyro::guest_render_globals::Globals kRenderGlobals{
     .cameraRotation = 0x8006DFF8u,
     .cameraPosition = 0x8006E020u,
     .cameraAngles = 0x8006E03Cu,
-    // The two 256-entry 16-bit tables, named at their use inside the two leaves: 0x8004E9E4 reads
-    // 800658A0 (`&DAT_800658a0 + 2*index`) and 0x8004EA2C reads 80065920.
+    // 800658A0: the sine table 0x8004E9E4 indexes; 0x8004EA2C reads its cosine a quarter turn on.
     .cameraSineTable = 0x800658A0u,
-    .cameraCosineTable = 0x80065920u,
     .visibilityGroups = 0x80072330u,
 };
 
@@ -162,7 +141,6 @@ inline constexpr spyro::guest_moby::Facts kMobyFacts{
     .overlayTable = 0x80066530u,
     .closeCursorHome = 0x8006E390u,
     .exitV0 = 0x8006E388u,
-    .sineTable = 0x800658A0u,
 };
 
 // The flatten, FUN_8004E664: FUN_8001B2A8's body over this image's table (8006C634) and mark
