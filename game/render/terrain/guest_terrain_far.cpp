@@ -18,6 +18,7 @@
 #include "gte_registers.h"
 #include "render/field/guest_render_globals.h"
 #include "render/field/guest_word.h"
+#include "render/terrain/guest_depth_bins.h"
 #include "render/terrain/guest_terrain_far_vertices.h"
 #include "render/terrain/guest_terrain_fog.h"
 #include "render/terrain/guest_terrain_frame.h"
@@ -66,7 +67,6 @@ constexpr std::uint32_t kBinBiasMask = 0xF;
 
 constexpr std::uint32_t kOutcodeMask = 0xF;
 
-
 enum class Sector : std::uint8_t { Drawn, BufferFull };
 
 class FarPass {
@@ -100,7 +100,7 @@ private:
 
 // 80028B14.
 void FarPass::run() {
-  lastBin_ = (memory_.mem_r32(frame_.facts.far.farDepth) >> 7) - 1;
+  lastBin_ = farBinLimit(memory_.mem_r32(frame_.facts.far.farDepth));
   bufferEnd_ = frame_.primitiveLimit();
   markBin_ = frame_.markBinFrom(memory_.mem_r32(frame_.globals.orderingTableMark));
   for (std::uint32_t i = 0; i < camera_.size(); ++i) {
@@ -236,7 +236,8 @@ Sector FarPass::drawPolygon(std::uint32_t record) {
   }
   memory_.mem_w32(prim, triangle ? guest_packet::kG3Tag : guest_packet::kG4Tag);
   frame_.declarePlaces(prim, std::span(cells).first(corners));
-  return link(bin, triangle ? guest_packet::kG3Bytes : guest_packet::kG4Bytes) ? Sector::Drawn : Sector::BufferFull;
+  return link(bin, triangle ? guest_packet::kG3Bytes : guest_packet::kG4Bytes) ? Sector::Drawn
+                                                                               : Sector::BufferFull;
 }
 
 // 80028F9C: link the packet just written, unless the buffer is already past its end (then retail
@@ -258,6 +259,16 @@ bool FarPass::link(std::uint32_t bin, std::uint32_t bytes) {
 
 void drawFarSectors(TerrainFrame &frame) {
   FarPass(frame).run();
+}
+
+std::uint32_t farBinLimit(std::uint32_t farDepth) {
+  return (farDepth >> 7) - 1;
+}
+
+std::uint32_t
+deepestFarMark(Core &core, const Facts &facts, const guest_render_globals::Globals &globals) {
+  const std::uint32_t deepest = farBinLimit(core.mem_r32(facts.far.farDepth)) - 1;
+  return core.mem_r32(globals.orderingTable) + deepest * depth_bins::kBinStride;
 }
 
 } // namespace spyro::guest_terrain

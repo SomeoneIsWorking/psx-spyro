@@ -13,8 +13,10 @@
 #include "render/field/keyframe_blend.h"
 #include "render/field/record_blend.h"
 #include "render/terrain/guest_depth_bins.h"
+#include "render/terrain/guest_terrain_passes.h"
 
 #include <algorithm>
+#include <array>
 #include <cstdlib>
 #include <cstring>
 #include <optional>
@@ -192,6 +194,10 @@ void writeInBetween(Core &core,
   run.writeWord(globals.cameraAngles, half(camera.angles[0]) | (half(camera.angles[1]) << 16));
   run.writeWord(globals.cameraAngles + 4,
                 (core.mem_r32(globals.cameraAngles + 4) & 0xFFFF0000u) | half(camera.angles[2]));
+  // The sky links one bin past the mark the terrain raises, and the terrain is not redrawn here.
+  run.writeWord(globals.orderingTableMark,
+                std::max(core.mem_r32(globals.orderingTableMark),
+                         guest_terrain::deepestFarMark(core, image.terrain.facts(), globals)));
 
   if (from.mobyArray == to.mobyArray) {
     const std::size_t paired = std::min(from.mobys.size(), to.mobys.size());
@@ -239,11 +245,13 @@ void writeInBetween(Core &core,
   effect_pools::writeBetween(run, facts.effects, from.effects, to.effects, t);
 }
 
-// The dispatcher run at `t` with `flags` less the terrain's, the packets it linked appended to
-// `state` in the flatten's order: the bins deepest first, then the overlay pair. False when the run
-// or its packets cannot stand for the in-between.
+// `entry` run at `t` with `arguments`, the packets it linked appended to `state` in the flatten's
+// order: the bins deepest first, then the overlay pair. False when the run or its packets cannot
+// stand for the in-between.
 bool redraw(Core &core,
             const Image &image,
+            std::uint32_t entry,
+            std::span<const std::uint32_t> arguments,
             const Inputs &from,
             const Inputs &to,
             float t,
@@ -251,8 +259,11 @@ bool redraw(Core &core,
   psx::present::GuestRedraw run(core);
   writeInBetween(core, run, image, from, to, t);
   const guest_render_globals::Globals &globals = image.terrain.globals();
-  const std::uint32_t flags = core.r[psx::cpu::kA0] & ~image.field.terrainFlag;
-  if (!run.run(image.field.entry, std::span(&flags, 1))) {
+  History &history = session(core).fieldRedraw;
+  history.redrawing = true;
+  const bool ran = run.run(entry, arguments);
+  history.redrawing = false;
+  if (!ran) {
     return false;
   }
   const psx::present::EmitMemory memory(core);
@@ -273,7 +284,7 @@ bool redraw(Core &core,
     }
     lucent::warn("redraw",
                  "the redraw of 0x{:08X} linked a packet that is not a primitive into slot {}:{}",
-                 image.field.entry,
+                 entry,
                  slot.table,
                  slot.index);
     return false;
@@ -290,9 +301,11 @@ bool redraw(Core &core,
   return true;
 }
 
-} // namespace
-
-void redrawField(Core &core, const Image &image) {
+// The redraws of `entry` for each in-between of the frame being drawn, waiting for its flatten.
+void redrawFrame(Core &core,
+                 const Image &image,
+                 std::uint32_t entry,
+                 std::span<const std::uint32_t> arguments) {
   History &history = session(core).fieldRedraw;
   readInputs(core, image, history.now);
   history.state.resize(sizeof(Header));
@@ -306,6 +319,8 @@ void redrawField(Core &core, const Image &image) {
     history.redrawn =
         redraw(core,
                image,
+               entry,
+               arguments,
                history.last,
                history.now,
                psx::present::inBetweenAt(static_cast<int>(field), static_cast<int>(history.fields)),
@@ -321,7 +336,28 @@ void redrawField(Core &core, const Image &image) {
   history.lerpedFrom = history.last.serial;
   std::swap(history.last, history.now);
   history.pending = true;
+}
+
+} // namespace
+
+void redrawField(Core &core, const Image &image) {
+  History &history = session(core).fieldRedraw;
+  if (history.redrawing) {
+    // The terrain has its own producer, so a screen draw's redraw draws the field without it.
+    core.r[psx::cpu::kA0] &= ~image.field.terrainFlag;
+  } else if (!history.screen) {
+    const std::uint32_t flags = core.r[psx::cpu::kA0] & ~image.field.terrainFlag;
+    redrawFrame(core, image, image.field.entry, std::span(&flags, 1));
+  }
   (void)psx::cpu::callOriginalOrPropagate(core, image.field.entry);
+}
+
+void redrawScreen(Core &core, const Image &image, std::uint32_t entry) {
+  const std::array<std::uint32_t, 4> arguments{
+      core.r[psx::cpu::kA0], core.r[psx::cpu::kA1], core.r[psx::cpu::kA2], core.r[psx::cpu::kA3]};
+  redrawFrame(core, image, entry, arguments);
+  session(core).fieldRedraw.screen = true;
+  (void)psx::cpu::callOriginalOrPropagate(core, entry);
 }
 
 void endField(Core &core, const Image &image) {
@@ -330,9 +366,13 @@ void endField(Core &core, const Image &image) {
   }
 }
 
-depth_bins::Claim fieldClaim(Core &core) {
+depth_bins::Claim fieldClaim(Core &core, const guest_render_globals::Globals &globals) {
   const History &history = session(core).fieldRedraw;
-  return depth_bins::Claim{.below = history.pending ? history.packetsEnd : 0};
+  if (!history.pending) {
+    return depth_bins::Claim{};
+  }
+  return depth_bins::Claim{.below = history.screen ? core.mem_r32(globals.primitiveCursor)
+                                                   : history.packetsEnd};
 }
 
 void saveField(Core &core) {
@@ -349,6 +389,7 @@ void saveField(Core &core) {
   core.frameStates.save(scope, std::span<const std::byte>(history.state));
   history.last.serial = scope.serial;
   history.pending = false;
+  history.screen = false;
 }
 
 void FieldRedrawProducer::render(const psx::present::StateInterval &states,

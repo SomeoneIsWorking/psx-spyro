@@ -20,6 +20,8 @@ public:
 
 protected:
   BootPrefixRuntime(const psx::game::Crt0Image &crt0, const BootPrefixFacts &facts);
+  // A published stock read: the title's overrides in the code it loaded.
+  virtual void codeLanded(Core &core, const psx::cd::StockReadLanding &landing);
 
 private:
   psx::game::Crt0Image crt0_;

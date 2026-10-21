@@ -20,11 +20,16 @@ std::unique_ptr<psx::game::FrameDriver> BootPrefixRuntime::createFrameDriver(Gam
 
 void BootPrefixRuntime::stockCdReadLanded(Core &core, const psx::cd::StockReadLanding &landing) {
   psx::code_module::publishStockReadLanding(core, landing);
+  codeLanded(core, landing);
+}
+
+void BootPrefixRuntime::codeLanded(Core & /*core*/, const psx::cd::StockReadLanding & /*landing*/) {
 }
 
 bool BootPrefixRuntime::sealedFrameIsCut(Core &core) const {
   // A session's first record, sealed before its driver exists, is a cut.
-  return core.game->frameDriver == nullptr || core.game->frameDriverAs<BootPrefixFrameDriver>().cut().isCut();
+  return core.game->frameDriver == nullptr ||
+         core.game->frameDriverAs<BootPrefixFrameDriver>().cut().isCut();
 }
 
 psx::state::NativeStatePort *BootPrefixRuntime::nativeState(Core &core) const {

@@ -3,14 +3,17 @@
 // bins, bound to one image's facts.
 #pragma once
 
+#include "cd_stock_read_completion.h"
 #include "core.h"
 #include "core/native_execution.h"
 #include "core/session.h"
 #include "execution_control.h"
+#include "guest_code_module.h"
 #include "native_dispatch.h"
 #include "render/field/field_redraw.h"
 #include "render/field/guest_moby_visibility.h"
 #include "render/field/guest_render_globals.h"
+#include "render/field/loading_picture.h"
 #include "render/state_producer_override.h"
 #include "render/terrain/engine_terrain_image.h"
 #include "render/terrain/guest_depth_bins.h"
@@ -20,7 +23,9 @@
 #include <algorithm>
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <span>
+#include <utility>
 
 namespace spyro {
 
@@ -34,6 +39,7 @@ struct EngineRenderFacts {
   const char *flattenName = "";
   // Flatten calls, by return address, whose pass is chained after the first and keeps no bins.
   std::span<const std::uint32_t> unbinnedFlattens;
+  loading_picture::Facts loadingPicture;
 };
 
 namespace engine_render {
@@ -58,14 +64,55 @@ template <const EngineRenderFacts &facts> void endField(Core *core) {
   field_redraw::endField(*core, kFieldImage<facts>);
 }
 
+template <const EngineRenderFacts &facts, std::size_t screen> void redrawScreen(Core *core) {
+  field_redraw::redrawScreen(*core, kFieldImage<facts>, facts.field.screenDraws[screen].entry);
+}
+
+template <const EngineRenderFacts &facts, std::size_t screen>
+void installScreenDraw(Core &core, std::uint64_t overlay) {
+  const field_redraw::ScreenDraw &draw = facts.field.screenDraws[screen];
+  if (draw.overlay == overlay) {
+    psx::cpu::installNativeOverride(
+        core, draw.entry, draw.overrideName, redrawScreen<facts, screen>);
+  }
+}
+
+// The screen draws `overlay` holds; 0 names the executable's.
+template <const EngineRenderFacts &facts, std::size_t... screen>
+void installScreenDraws(Core &core, std::uint64_t overlay, std::index_sequence<screen...>) {
+  (installScreenDraw<facts, screen>(core, overlay), ...);
+}
+
+// A stock read landed: the screen draws of the overlay it loaded, each landing a new image.
+template <const EngineRenderFacts &facts>
+void screenDrawsLanded(Core &core, const psx::cd::StockReadLanding &landing) {
+  const bool holdsOne = std::ranges::any_of(facts.field.screenDraws, [&](const auto &draw) {
+    return draw.overlay != 0 && draw.entry - landing.destination < landing.bytes;
+  });
+  const std::optional<GuestAddressRange> ram =
+      core.mappedMainRamRange(landing.destination, landing.bytes);
+  if (!holdsOne || !ram) {
+    return;
+  }
+  const psx::code_module::Digest content =
+      psx::code_module::digest(std::span<const std::uint8_t>(core.ram + ram->begin, landing.bytes));
+  installScreenDraws<facts>(
+      core, content.identity, std::make_index_sequence<facts.field.screenDraws.size()>{});
+}
+
+template <const EngineRenderFacts &facts> void drawLoadingPicture(Core *core) {
+  loading_picture::draw(*core, facts.loadingPicture, facts.globals);
+}
+
 template <const EngineRenderFacts &facts> void walkMobys(Core *core) {
   guest_moby::walk(*core, facts.moby, facts.globals);
 }
 
 template <const EngineRenderFacts &facts> void flatten(Core *core) {
   if (std::ranges::find(facts.unbinnedFlattens, core->r[31]) == facts.unbinnedFlattens.end()) {
-    const depth_bins::Claim claim =
-        facts.field.entry != 0 ? field_redraw::fieldClaim(*core) : depth_bins::Claim{};
+    const depth_bins::Claim claim = facts.field.entry != 0
+                                        ? field_redraw::fieldClaim(*core, facts.globals)
+                                        : depth_bins::Claim{};
     depth_bins::assignBins(*core, depth_bins::publishedBins(*core, facts.globals), claim);
     depth_bins::assignBins(*core, depth_bins::overlayBins(*core, facts.globals), claim);
     if (facts.field.entry != 0) {
@@ -89,6 +136,15 @@ template <const EngineRenderFacts &facts> void registerEngineRenderOverrides(Cor
                           psx::present::Arg::A1);
   psx::cpu::installNativeOverride(
       core, facts.moby.entry, facts.moby.overrideName, engine_render::walkMobys<facts>);
+  if (facts.loadingPicture.entry != 0) {
+    installProducerOverride(
+        core,
+        facts.loadingPicture.entry,
+        facts.loadingPicture.overrideName,
+        engine_render::drawLoadingPicture<facts>,
+        std::make_unique<loading_picture::LoadingPicture>(core, facts.loadingPicture),
+        psx::present::Arg::None);
+  }
   if (facts.field.entry == 0) {
     psx::cpu::installNativeOverride(
         core, facts.flatten, facts.flattenName, engine_render::flatten<facts>);
@@ -98,6 +154,8 @@ template <const EngineRenderFacts &facts> void registerEngineRenderOverrides(Cor
       core, facts.field.entry, facts.field.overrideName, engine_render::redrawField<facts>);
   psx::cpu::installNativeOverride(
       core, facts.field.lastDrawer, facts.field.lastDrawerName, engine_render::endField<facts>);
+  engine_render::installScreenDraws<facts>(
+      core, 0, std::make_index_sequence<facts.field.screenDraws.size()>{});
   installProducerOverride(core,
                           facts.flatten,
                           facts.flattenName,

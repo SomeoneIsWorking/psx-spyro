@@ -151,6 +151,17 @@ inline constexpr spyro::guest_moby::Facts kMobyFacts{
 //   8001E6D4  FUN_8004F178 copies the camera position to 0x8006E02C before the handler runs
 //   8003CDE8  the Spyro drawer FUN_8003CDA0's base 0x80070328, laid out as SCUS_944.25's 0x80069FF0
 //   8001E5F0  the letterbox FUN_8001FF44, its only call site
+// Game states 0 and 0xE draw through FUN_8001D274: the dispatcher, then in a demo its DEMO MODE
+// box and text. The title screen and its menus, game state 11: the draw 0x8001E638 calls the title
+// overlay's draw 0x80077CFC, which calls the dispatcher and then links its logo, text and menu
+// sprites. The overlay is LBA 570, 27 sectors at 0x800742D0, SHA-256 675044820F58E521...
+inline constexpr std::array<spyro::field_redraw::ScreenDraw, 2> kScreenDraws{{
+    {.entry = 0x8001D274u, .overrideName = "spyro3-play-screen-draw"},
+    {.entry = 0x80077CFCu,
+     .overrideName = "spyro3-title-screen-draw",
+     .overlay = 0x675044820F58E521u},
+}};
+
 inline constexpr spyro::field_redraw::Facts kFieldFacts{
     .entry = 0x8001E460u,
     .overrideName = "spyro3-field-dispatcher",
@@ -174,6 +185,7 @@ inline constexpr spyro::field_redraw::Facts kFieldFacts{
         },
     .lastDrawer = 0x8001FF44u,
     .lastDrawerName = "spyro3-field-letterbox",
+    .screenDraws = kScreenDraws,
 };
 
 // The flatten, FUN_8004E664: FUN_8001B2A8's body over this image's table (8006C634) and mark
@@ -188,6 +200,18 @@ inline constexpr std::uint32_t kFlatten = 0x8004E664u;
 inline constexpr std::array<std::uint32_t, 2> kSecondPassFlattenReturns = {0x8001EA40u,
                                                                            0x8001EB4Cu};
 
+// The loading screen, game state 5: 0x80059038 in its step 0x8006FBC8 = 0 with the fade 0x8006FBC4
+// running draws the picture FUN_80059358, four pages at brightness fade << 4 up to 0x80, then its
+// caption ("THE ADVENTURE CONTINUES", "Entering Demo Mode").
+inline constexpr spyro::loading_picture::Facts kLoadingPicture{
+    .entry = 0x80059038u,
+    .overrideName = "spyro3-loading-picture",
+    .gate = 0x8006FBC8u,
+    .counter = 0x8006FBC4u,
+    .pages = 4,
+    .pageSlot = {spyro::depth_bins::kTable, 0},
+};
+
 inline constexpr spyro::EngineRenderFacts kRenderFacts{
     .globals = kRenderGlobals,
     .terrain = kTerrainFacts,
@@ -196,6 +220,7 @@ inline constexpr spyro::EngineRenderFacts kRenderFacts{
     .flatten = kFlatten,
     .flattenName = "spyro3-depth-bins",
     .unbinnedFlattens = kSecondPassFlattenReturns,
+    .loadingPicture = kLoadingPicture,
 };
 
 } // namespace spyro3

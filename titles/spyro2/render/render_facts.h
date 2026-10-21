@@ -4,6 +4,7 @@
 
 #include "render/engine_render_overrides.h"
 
+#include <array>
 #include <cstdint>
 
 namespace spyro2 {
@@ -151,6 +152,12 @@ inline constexpr spyro::guest_moby::Facts kMobyFacts{
 //             head's at +0x18 and +0x1D
 //   8001C68C  the level start clears the effects pass's pools and names the particle pool at
 //             0x80066F18; each drawer walks its pool from the address below
+// The title screen and its menus, game state 11: FUN_80015560 calls the title overlay's draw
+// (0x8007BFC4), which calls the dispatcher with 0xD, then links its logo, text and menu sprites.
+inline constexpr std::array<spyro::field_redraw::ScreenDraw, 1> kScreenDraws{{
+    {.entry = 0x80015560u, .overrideName = "spyro2-title-screen-draw"},
+}};
+
 inline constexpr spyro::field_redraw::Facts kFieldFacts{
     .entry = 0x800155A0u,
     .overrideName = "spyro2-field-dispatcher",
@@ -172,13 +179,25 @@ inline constexpr spyro::field_redraw::Facts kFieldFacts{
             .meshes = 0x80069F30u,    // 80015618
             .particles = 0x80066F18u, // 800481DC
         },
-    .lastDrawer = 0x8004D604u, // the letterbox, called at 800156D4 and nowhere else
+    .lastDrawer = 0x8004D604u,           // the letterbox, called at 800156D4 and nowhere else
     .lastDrawerName = "spyro2-field-letterbox",
+    .screenDraws = kScreenDraws,
 };
 
 // The flatten, FUN_8001B2A8, called by the draw at 800159A4 and by three other draws (800146AC,
 // 80014A54, 8004D938), each once per table.
 inline constexpr std::uint32_t kFlatten = 0x8001B2A8u;
+
+// The loading screen, game state 5: FUN_800151F0 shows the storybook while 0x800698F0 is 0 and its
+// fade 0x800698EC is not, three pages at brightness fade << 4 up to 0x80, then "Auto Saving".
+inline constexpr spyro::loading_picture::Facts kLoadingPicture{
+    .entry = 0x800151F0u,
+    .overrideName = "spyro2-loading-book",
+    .gate = 0x800698F0u,
+    .counter = 0x800698ECu,
+    .pages = 3,
+    .pageSlot = {spyro::depth_bins::kOverlayTable, 0},
+};
 
 inline constexpr spyro::EngineRenderFacts kRenderFacts{
     .globals = kRenderGlobals,
@@ -187,6 +206,7 @@ inline constexpr spyro::EngineRenderFacts kRenderFacts{
     .field = kFieldFacts,
     .flatten = kFlatten,
     .flattenName = "spyro2-depth-bins",
+    .loadingPicture = kLoadingPicture,
 };
 
 } // namespace spyro2
