@@ -1,9 +1,10 @@
 #include "render/terrain/terrain_rebuild.h"
 
 #include "blend.h"
+#include "core/session.h"
 #include "gte_registers.h"
-#include "render/field/guest_word.h"
 #include "lucent/log.h"
+#include "render/field/guest_word.h"
 
 #include <algorithm>
 #include <cmath>
@@ -39,20 +40,22 @@ InBetweenCamera cameraBetween(Core &core,
                                 {to.angles[0], to.angles[1], to.angles[2]},
                                 at);
   const guest_camera::Matrices matrices = image.camera(core, angles);
-  InBetweenCamera camera{.rotation = matrices.projection,
-                         .viewRotation = matrices.view,
-                         .angles = {static_cast<std::int16_t>(guest_camera::wholeAngle(angles.aroundX)),
-                                    static_cast<std::int16_t>(guest_camera::wholeAngle(angles.aroundY)),
-                                    static_cast<std::int16_t>(guest_camera::wholeAngle(angles.aroundZ))}};
+  InBetweenCamera camera{
+      .rotation = matrices.projection,
+      .viewRotation = matrices.view,
+      .angles = {static_cast<std::int16_t>(guest_camera::wholeAngle(angles.aroundX)),
+                 static_cast<std::int16_t>(guest_camera::wholeAngle(angles.aroundY)),
+                 static_cast<std::int16_t>(guest_camera::wholeAngle(angles.aroundZ))}};
   for (std::uint32_t i = 0; i < 3; ++i) {
     camera.position[i] = psx::present::lerpWord(from.position[i], to.position[i], at);
   }
   return camera;
 }
 
-std::vector<std::uint8_t> unionVisibility(std::span<const std::uint8_t> from,
-                                          std::span<const std::uint8_t> to) {
-  std::vector<std::uint8_t> out(to.size(), 0);
+std::span<const std::uint8_t> unionVisibility(std::span<const std::uint8_t> from,
+                                              std::span<const std::uint8_t> to,
+                                              std::span<std::uint8_t> into) {
+  const std::span<std::uint8_t> out = into.first(to.size());
   for (std::size_t i = 0; i < out.size(); ++i) {
     out[i] = static_cast<std::uint8_t>(to[i] != 0 || (i < from.size() && from[i] != 0));
   }
@@ -64,7 +67,8 @@ Rebuild::Rebuild(Core &core,
                  const InBetweenCamera &camera,
                  const FieldInputs &field,
                  psx::present::PrimitiveSink &places)
-    : gte_(core.gte()), memory_(core, host_), camera_(camera) {
+    : gte_(core.gte()), host_(spyro::session(core).renderMemory), memory_(core, *host_),
+      camera_(camera), linkedBins_(spyro::session(core).terrainBins) {
   const FieldWindows windows = image.windows(core);
   arena_ = windows.inBetweenArena;
   if (arena_.bytes < kMinArenaBytes) {
@@ -79,10 +83,10 @@ Rebuild::Rebuild(Core &core,
 
   // Seeding from the guest would hand the traversal the last real field's lists and bins.
   for (const GuestSpan &range : windows.owned) {
-    host_.zero(range.address, range.bytes);
+    host_->zero(range.address, range.bytes);
   }
-  host_.zero(arena_.address, arena_.bytes);
-  host_.overlay(field.readWords);
+  host_->zero(arena_.address, arena_.bytes);
+  host_->overlay(field.readWords);
 
   for (std::size_t i = 0; i < field.visibleSectors.size(); ++i) {
     if (field.visibleSectors[i] != 0) {
@@ -98,10 +102,10 @@ Rebuild::Rebuild(Core &core,
                                   .places = &places,
                                   .argument = field.argument,
                                   .arenaBase = arena_.address,
-                                  .packetBudget = field.packetBudget});
-  const TerrainFrame &ran = drawer_->run();
+                                  .packetBudget = field.packetBudget,
+                                  .linkedBins = &*linkedBins_});
+  (void)drawer_->run();
   tableBase_ = windows.tableBase;
-  linkedBins_ = &ran.linkedBins();
 }
 
 void Rebuild::emit(psx::present::PrimitiveSink &sink) const {
@@ -109,10 +113,11 @@ void Rebuild::emit(psx::present::PrimitiveSink &sink) const {
   psx::present::DrawModeTracker drawMode;
   for (auto bin = static_cast<std::uint32_t>(linkedBins_->size()); bin-- > 0;) {
     if ((*linkedBins_)[bin] != 0) {
-      walker.emitChain(memory_.mem_r32(tableBase_ + bin * depth_bins::kBinStride + depth_bins::kBinFirstOffset),
-                       psx::present::OtSlot{depth_bins::kTable, bin},
-                       drawMode,
-                       sink);
+      walker.emitChain(
+          memory_.mem_r32(tableBase_ + bin * depth_bins::kBinStride + depth_bins::kBinFirstOffset),
+          psx::present::OtSlot{depth_bins::kTable, bin},
+          drawMode,
+          sink);
     }
   }
 }

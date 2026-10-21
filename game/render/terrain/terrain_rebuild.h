@@ -38,30 +38,30 @@ struct CameraState {
 
 // The camera at `t` between two states: angles the short way round and rebuilt into both matrices
 // by the guest's own builder, positions as signed 32-bit words that wrap as the guest's do.
-[[nodiscard]] InBetweenCamera cameraBetween(Core &core,
-                                            const TerrainImage &image,
-                                            const CameraState &from,
-                                            const CameraState &to,
-                                            float t);
+[[nodiscard]] InBetweenCamera cameraBetween(
+    Core &core, const TerrainImage &image, const CameraState &from, const CameraState &to, float t);
 
-// The sectors visible in either field, so none that enters or leaves between them is dropped.
-[[nodiscard]] std::vector<std::uint8_t> unionVisibility(std::span<const std::uint8_t> from,
-                                                        std::span<const std::uint8_t> to);
+// The sectors visible in either field, so none that enters or leaves between them is dropped,
+// written to the front of `into`.
+[[nodiscard]] std::span<const std::uint8_t> unionVisibility(std::span<const std::uint8_t> from,
+                                                            std::span<const std::uint8_t> to,
+                                                            std::span<std::uint8_t> into);
 
 // What a real field hands the in-betweens drawn from it: the sectors its visibility call named,
 // the guest words it read, the drawer's $a0 and the packet budget its far pass had.
 struct FieldInputs {
   std::span<const std::uint8_t> visibleSectors;
-  std::span<const psx::present::LevelWord> readWords;
+  std::span<const std::byte> readWords; // packed LevelWords
   std::uint32_t argument = 0;
   std::int32_t packetBudget = 0;
 };
 
-// One run of the drawer over host memory; construction does the whole traversal. The GTE is handed back
-// as found when this is destroyed.
+// One run of the drawer over host memory; construction does the whole traversal. The GTE is handed
+// back as found when this is destroyed.
 class Rebuild {
 public:
-  // The traversal declares its packets' unrounded vertex places to `places`, which `emit` is then given.
+  // The traversal declares its packets' unrounded vertex places to `places`, which `emit` is then
+  // given.
   Rebuild(Core &core,
           const TerrainImage &image,
           const InBetweenCamera &camera,
@@ -74,19 +74,20 @@ public:
     return visible_;
   }
 
-  // The packets in retail's flatten order (0x8001B2A8): deepest linked bin first, each from its first packet.
+  // The packets in retail's flatten order (0x8001B2A8): deepest linked bin first, each from its
+  // first packet.
   void emit(psx::present::PrimitiveSink &sink) const;
 
 private:
   psx::present::GteGuard gte_;
-  psx::present::HostMemory host_;
+  psx::present::Kept<psx::present::HostMemory>::Use host_;
   psx::present::EmitMemory memory_;
   InBetweenCamera camera_;
   std::optional<Drawer> drawer_;
   std::uint32_t tableBase_ = 0;
   GuestSpan arena_;
   // The bins the traversal linked: the table's memory still holds the guest's own chains elsewhere.
-  const std::vector<std::uint8_t> *linkedBins_ = nullptr;
+  psx::present::Kept<std::vector<std::uint8_t>>::Use linkedBins_;
   std::uint32_t visible_ = 0;
 };
 

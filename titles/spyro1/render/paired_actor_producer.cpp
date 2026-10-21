@@ -1,6 +1,7 @@
 #include "spyro1/render/paired_actor_producer.h"
 
 #include "core.h"
+#include "core/session.h"
 #include "guest_memory_map.h"
 #include "render/field/guest_render_globals.h"
 #include "render/field/keyframe_blend.h"
@@ -29,15 +30,15 @@ void drawSpyro(Core *core) {
                           GuestSpan{kVertexScreens, psx::kScratchpadBytes},
                           GuestSpan{kWorkBlock, kWorkBlockBytes},
                           GuestSpan{flame_block::kRotation, flame_block::kRotationBytes});
-  psx::present::LevelReads reads;
-  const psx::present::EmitMemory memory(guest, reads, working);
+  const psx::present::Kept<psx::present::LevelReads>::Use reads(spyro::session(guest).drawReads);
+  const psx::present::EmitMemory memory(guest, *reads, working);
   PairedActorState state{.camera = spyro::guest_terrain::readCamera(guest, kRenderGlobals)};
   guest.readBytes(kSpyroRecord, std::as_writable_bytes(std::span(state.record)));
   const auto scope = guest.emission.instance(kSpyroRecord);
   PairedActor actor(guest, memory);
   actor.draw();
   actor.end();
-  memory::saveDraw(guest, state, std::span<const psx::present::LevelWord>(reads.words()));
+  memory::saveDraw(guest, state, reads->words());
 }
 
 } // namespace

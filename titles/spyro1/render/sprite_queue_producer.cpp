@@ -1,6 +1,7 @@
 #include "spyro1/render/sprite_queue_producer.h"
 
 #include "core.h"
+#include "core/session.h"
 #include "guest_memory_map.h"
 #include "render/field/guest_render_globals.h"
 #include "render/hud/ui_anchor.h"
@@ -38,8 +39,8 @@ void drawQueue(Core *core) {
                           GuestSpan{kWorkBlock, kWorkBlockBytes},
                           GuestSpan{guest.mem_r32(terrain::kRenderGlobals.overlayPair), 8},
                           GuestSpan{kShadowListEnd, 4});
-  psx::present::LevelReads reads;
-  const psx::present::EmitMemory memory(guest, reads, working);
+  const psx::present::Kept<psx::present::LevelReads>::Use reads(spyro::session(guest).drawReads);
+  const psx::present::EmitMemory memory(guest, *reads, working);
   SpriteQueue queue(guest, memory, presentedQueueView(guest));
   QueuedRecordState state{.camera = spyro::guest_terrain::readCamera(guest, kRenderGlobals)};
   guest.readBytes(kLightVector, std::as_writable_bytes(std::span(state.light)));
@@ -60,11 +61,11 @@ void drawQueue(Core *core) {
                     : 0;
     guest.readBytes(record, std::as_writable_bytes(std::span(state.bytes)));
     const auto scope = guest.emission.instance(record);
-    reads.clear();
+    reads->clear();
     if (const auto chain = queue.draw(record, state.hudShift)) {
       queue.link(*chain);
     }
-    memory::saveDraw(guest, state, std::span<const psx::present::LevelWord>(reads.words()));
+    memory::saveDraw(guest, state, reads->words());
   }
   queue.end();
 }

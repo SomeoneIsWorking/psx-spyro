@@ -1,15 +1,16 @@
-// guest_terrain_frame.h — the state one call of the terrain drawer carries from pass to pass: the registers
-// retail threads through every pass (fp, the table, the scratch block, the screen window), the v0/v1 its last
-// pass leaves, and whether this is the guest's own field or an in-between over host memory.
+// guest_terrain_frame.h — the state one call of the terrain drawer carries from pass to pass: the
+// registers retail threads through every pass (fp, the table, the scratch block, the screen
+// window), the v0/v1 its last pass leaves, and whether this is the guest's own field or an
+// in-between over host memory.
 #pragma once
 
 #include "core.h"
 #include "gte_registers.h"
 #include "gte_state.h"
+#include "guest_memory_map.h"
 #include "render/field/guest_render_globals.h"
 #include "render/field/guest_working_memory.h"
 #include "render/terrain/guest_depth_bins.h"
-#include "guest_memory_map.h"
 #include "render/terrain/guest_terrain_facts.h"
 #include "render/terrain/guest_terrain_screen.h"
 #include "state_producer.h"
@@ -33,12 +34,14 @@ inline constexpr std::uint32_t kFarList = 0x2A00;         // untextured low-deta
 // Every pass reuses the scratchpad for its vertex cache.
 inline constexpr std::uint32_t kScratchpad = psx::kScratchpadPhysicalBase;
 inline constexpr std::uint32_t kScratchpadBytes = psx::kScratchpadBytes;
-inline constexpr std::uint32_t kVertexDepths = kScratchpad + 0x2A8u; // the detail passes' SZ halfwords
+inline constexpr std::uint32_t kVertexDepths =
+    kScratchpad + 0x2A8u; // the detail passes' SZ halfwords
 // One past the last entry of the queue of primitives too large for the GPU (ResplitFacts::queue).
 inline constexpr std::uint32_t kSplitPrimitiveCursor = kScratchpad + 0x3FCu;
 
-// The camera an in-between draws with, built by the guest's own builder from angles between two fields:
-// the drawer's matrix (row 1 scaled), the classification pass's unscaled one, and the world position.
+// The camera an in-between draws with, built by the guest's own builder from angles between two
+// fields: the drawer's matrix (row 1 scaled), the classification pass's unscaled one, and the world
+// position.
 struct InBetweenCamera {
   psx::gte::RotationWords rotation{};
   psx::gte::RotationWords viewRotation{};
@@ -47,7 +50,8 @@ struct InBetweenCamera {
   std::array<std::int16_t, 3> angles{};
 };
 
-// The drawer's packets stop this far above the scratch block, and the far pass's buffer ends there too.
+// The drawer's packets stop this far above the scratch block, and the far pass's buffer ends there
+// too.
 inline constexpr std::uint32_t kPrimitiveArenaBytes = 0x1000;
 
 // The guest's own field, or one between two of them over host memory with no guest call or write.
@@ -74,22 +78,26 @@ struct TerrainFrame {
                FrameMode mode)
       : core(core), facts(facts), globals(globals), bounds(bounds), memory(memory), mode(mode) {}
 
-  // Links the packet at `primitive` as the head of `bin` in the published table and advances past it.
+  // Links the packet at `primitive` as the head of `bin` in the published table and advances past
+  // it.
   Linked linkAndAdvance(std::uint32_t bin, PacketSize size) {
     const std::uint32_t slot = markSlot(bin);
     if (!realField()) {
-      // The guest's table past 512 bins holds the last field's chains, so an in-between starts each bin empty.
-      if (bin >= linkedBins_.size()) {
-        linkedBins_.resize(bin + 1, 0);
+      // The guest's table past 512 bins holds the last field's chains, so an in-between starts each
+      // bin empty.
+      std::vector<std::uint8_t> &linked = *linkedBins;
+      if (bin >= linked.size()) {
+        linked.resize(bin + 1, 0);
       }
-      if (linkedBins_[bin] == 0) {
+      if (linked[bin] == 0) {
         memory.mem_w32(slot, 0);
-        linkedBins_[bin] = 1;
+        linked[bin] = 1;
       }
       // Host packet bytes are not zeroed by the guest allocator.
       guest_memory::linkAfter(memory, primitive, 0);
     }
-    const Linked linked{depth_bins::linkIntoBin(memory, slot, primitive, primitive), primitive, bin};
+    const Linked linked{
+        depth_bins::linkIntoBin(memory, slot, primitive, primitive), primitive, bin};
     primitive += size.bytes;
     return linked;
   }
@@ -106,7 +114,8 @@ struct TerrainFrame {
   [[nodiscard]] const GtePlace &placeAt(std::uint32_t word) const {
     return scratchPlaces_[(word - kScratchpad) / 4];
   }
-  // The packet at `packet` takes the places of the scratchpad words its corners came from, in packet order.
+  // The packet at `packet` takes the places of the scratchpad words its corners came from, in
+  // packet order.
   void declarePlaces(std::uint32_t packet, std::span<const std::uint32_t> words) const {
     if (places == nullptr) {
       return;
@@ -118,7 +127,8 @@ struct TerrainFrame {
     places->placeCorners(packet, std::span(corners).first(words.size()));
   }
 
-  // Retail publishes the mark as a slot address; the ordinal is the same bin without the table's address.
+  // Retail publishes the mark as a slot address; the ordinal is the same bin without the table's
+  // address.
   [[nodiscard]] std::uint32_t markSlot(std::uint32_t bin) const {
     return orderingTable + bin * depth_bins::kBinStride;
   }
@@ -136,14 +146,16 @@ struct TerrainFrame {
     }
     return guest_memory::rotationAt(psx::present::EmitMemory(core), globals.cameraRotation);
   }
-  // The classification pass's bounding-sphere matrix, a second guest word beside the camera rotation.
+  // The classification pass's bounding-sphere matrix, a second guest word beside the camera
+  // rotation.
   [[nodiscard]] psx::gte::RotationWords classificationRotation() const {
     if (inBetweenCamera != nullptr) {
       return inBetweenCamera->viewRotation;
     }
     return guest_memory::rotationAt(psx::present::EmitMemory(core), facts.classify.viewRotation);
   }
-  // Where the far pass stops linking: the pool's top for a real field, the budget's end for an in-between.
+  // Where the far pass stops linking: the pool's top for a real field, the budget's end for an
+  // in-between.
   [[nodiscard]] std::uint32_t primitiveLimit() const {
     return inBetweenArenaBase != 0
                ? inBetweenArenaBase + static_cast<std::uint32_t>(inBetweenPacketBudget)
@@ -166,6 +178,8 @@ struct TerrainFrame {
   // The packet arena an in-between was given, 0 for a real field.
   std::uint32_t inBetweenArenaBase = 0;
   std::int32_t inBetweenPacketBudget = 0;
+  // Set for an in-between: the bins it linked, grown to the highest it names.
+  std::vector<std::uint8_t> *linkedBins = nullptr;
 
   Core &core;
   const Facts &facts;
@@ -183,15 +197,8 @@ struct TerrainFrame {
   std::uint32_t v0 = 0;
   std::uint32_t v1 = 0;
 
-  // The bins an in-between linked, grown to the highest it names; empty for a real field.
-  std::vector<std::uint8_t> linkedBins_;
   // Each scratchpad word's unrounded projection, kept while `places` is set.
   std::array<GtePlace, kScratchpadBytes / 4> scratchPlaces_{};
-
-public:
-  [[nodiscard]] const std::vector<std::uint8_t> &linkedBins() const {
-    return linkedBins_;
-  }
 };
 
 } // namespace spyro::guest_terrain

@@ -50,6 +50,7 @@ const TerrainFrame &Drawer::run() {
   frame.places = inBetween_.places;
   frame.inBetweenArenaBase = inBetween_.arenaBase;
   frame.inBetweenPacketBudget = inBetween_.packetBudget;
+  frame.linkedBins = inBetween_.linkedBins;
   frame.argument = real ? core_.r[4] : inBetween_.argument;
   frame.scratch = image_.windows(core_).scratch;
   image_.drawPasses(frame);
@@ -64,7 +65,7 @@ const TerrainFrame &Drawer::run() {
   return frame;
 }
 
-std::vector<psx::present::LevelWord> draw(Core &core, const TerrainImage &image) {
+void draw(Core &core, const TerrainImage &image, psx::present::LevelReads &reads) {
   const FieldWindows windows = image.windows(core);
   // The real field's packets run from the guest's cursor to the arena's end.
   const std::uint32_t cursor = core.mem_r32(image.globals().primitiveCursor);
@@ -72,10 +73,8 @@ std::vector<psx::present::LevelWord> draw(Core &core, const TerrainImage &image)
   std::array<GuestSpan, std::tuple_size_v<decltype(windows.owned)> + 1> working{};
   std::copy(windows.owned.begin(), windows.owned.end(), working.begin());
   working.back() = GuestSpan{cursor, cursor < arenaEnd ? arenaEnd - cursor : 0u};
-  psx::present::LevelReads reads;
   const psx::present::EmitMemory memory(core, reads, working);
   Drawer(core, image, memory, FrameMode::RealField).run();
-  return reads.words();
 }
 
 } // namespace spyro::guest_terrain

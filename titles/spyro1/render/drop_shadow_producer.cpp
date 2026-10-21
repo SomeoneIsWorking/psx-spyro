@@ -1,6 +1,7 @@
 #include "spyro1/render/drop_shadow_producer.h"
 
 #include "core.h"
+#include "core/session.h"
 #include "render/field/guest_render_globals.h"
 #include "render/field/record_blend.h"
 #include "render/state_producer_override.h"
@@ -22,8 +23,8 @@ void drawShadow(Core *core) {
   Core &guest = *core;
   const std::array<GuestSpan, 4> working =
       actors::binnedWorkingRanges(guest, GuestSpan{kStaging, kStagingBytes});
-  psx::present::LevelReads reads;
-  const psx::present::EmitMemory memory(guest, reads, working);
+  const psx::present::Kept<psx::present::LevelReads>::Use reads(spyro::session(guest).drawReads);
+  const psx::present::EmitMemory memory(guest, *reads, working);
   ShadowState state{.camera = spyro::guest_terrain::readCamera(guest, kRenderGlobals)};
   guest.readBytes(kSpyroRecord, std::as_writable_bytes(std::span(state.spyro)));
   guest.readBytes(shadow_block::kBlock, std::as_writable_bytes(std::span(state.shadow)));
@@ -31,7 +32,7 @@ void drawShadow(Core *core) {
   DropShadow shadow(guest, memory);
   shadow.draw();
   shadow.end();
-  memory::saveDraw(guest, state, std::span<const psx::present::LevelWord>(reads.words()));
+  memory::saveDraw(guest, state, reads->words());
 }
 
 // The shadow block at `t`: the ground point moved, everything else `to`'s.

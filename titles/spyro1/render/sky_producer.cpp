@@ -1,6 +1,7 @@
 #include "spyro1/render/sky_producer.h"
 
 #include "core.h"
+#include "core/session.h"
 #include "render/field/guest_render_globals.h"
 #include "render/field/guest_view_slope.h"
 #include "render/field/guest_working_memory.h"
@@ -41,8 +42,8 @@ void drawSky(Core *core) {
                                   GuestSpan{kSectorList, kSectorListBytes},
                                   GuestSpan{terrain::kPacketPoolEnd, 4},
                                   GuestSpan{terrain::kPoolExhausted, 4});
-  psx::present::LevelReads reads;
-  const psx::present::EmitMemory memory(guest, reads, working);
+  const psx::present::Kept<psx::present::LevelReads>::Use reads(spyro::session(guest).drawReads);
+  const psx::present::EmitMemory memory(guest, *reads, working);
   const SkyState state{
       .camera = spyro::guest_terrain::readCamera(guest, kRenderGlobals),
       .rotations = readRotations(guest),
@@ -53,7 +54,7 @@ void drawSky(Core *core) {
   Cyclorama sky(guest, memory, spyro::presentedBounds(guest, spyro1::terrain::kSharedFacts));
   sky.draw(state.group, state.rotations);
   sky.end();
-  memory::saveDraw(guest, state, std::span<const psx::present::LevelWord>(reads.words()));
+  memory::saveDraw(guest, state, reads->words());
 }
 
 // The rotations an in-between draws with: the camera's at `t` when the field drew with the camera's
