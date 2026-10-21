@@ -62,7 +62,7 @@ void DropShadowProducer::render(const psx::present::StateInterval &states,
                   actors::spyroBetween(before.header.spyro, after.header.spyro, states.t));
   between.provide(shadow_block::kBlock,
                   shadowBetween(before.header.shadow, after.header.shadow, states.t));
-  DropShadow shadow(core_, between.memory());
+  DropShadow shadow(core_, between.memory(), &sink);
   if (shadow.draw()) {
     between.emitBins(sink);
   }
