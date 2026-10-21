@@ -1,6 +1,7 @@
 #include "render/field/field_redraw.h"
 
 #include "blend.h"
+#include "core/field_owner.h"
 #include "core/session.h"
 #include "game.h"
 #include "guest_redraw.h"
@@ -13,8 +14,10 @@
 #include "render/field/record_blend.h"
 #include "render/terrain/guest_depth_bins.h"
 
+#include <algorithm>
 #include <cstdlib>
 #include <cstring>
+#include <optional>
 #include <span>
 #include <type_traits>
 
@@ -22,13 +25,14 @@ namespace spyro::field_redraw {
 namespace {
 
 namespace record = guest_moby::record;
-using psx::present::kInBetweenAt;
 
-// A saved field: this header, then the redraw's primitives.
+// A saved field: this header, then for each in-between of a frame of `fields` fields, a primitive count and
+// that redraw's primitives.
 struct Header {
   std::uint32_t serial = 0;
-  std::uint32_t redrawn = 0; // 1 when the primitives are the in-between from `lerpedFrom`
+  std::uint32_t redrawn = 0; // 1 when the redraws are the in-betweens from `lerpedFrom`
   std::uint32_t lerpedFrom = 0;
+  std::uint32_t fields = 0;
 };
 
 struct SavedPrimitive {
@@ -37,15 +41,41 @@ struct SavedPrimitive {
 };
 static_assert(std::is_trivially_copyable_v<Header> && std::is_trivially_copyable_v<SavedPrimitive>);
 
+[[noreturn]] void notASavedField(std::span<const std::byte> state) {
+  lucent::error("redraw", "a saved field of {} bytes is not one", state.size());
+  std::abort();
+}
+
 Header headerOf(std::span<const std::byte> state) {
-  if (state.size() < sizeof(Header) ||
-      (state.size() - sizeof(Header)) % sizeof(SavedPrimitive) != 0) {
-    lucent::error("redraw", "a saved field of {} bytes is not one", state.size());
-    std::abort();
+  if (state.size() < sizeof(Header)) {
+    notASavedField(state);
   }
   Header header;
   std::memcpy(&header, state.data(), sizeof(Header));
   return header;
+}
+
+// The primitives the redraw saved for `t`; none when it made no redraw for `t`.
+std::optional<std::span<const std::byte>> redrawAt(std::span<const std::byte> state, float t) {
+  const Header header = headerOf(state);
+  std::size_t at = sizeof(Header);
+  for (std::uint32_t field = 1; header.redrawn != 0 && field < header.fields; ++field) {
+    std::uint32_t count = 0;
+    if (state.size() < at + sizeof(count)) {
+      notASavedField(state);
+    }
+    std::memcpy(&count, state.data() + at, sizeof(count));
+    at += sizeof(count);
+    const std::size_t bytes = std::size_t{count} * sizeof(SavedPrimitive);
+    if (state.size() < at + bytes) {
+      notASavedField(state);
+    }
+    if (psx::present::inBetweenAt(static_cast<int>(field), static_cast<int>(header.fields)) == t) {
+      return state.subspan(at, bytes);
+    }
+    at += bytes;
+  }
+  return std::nullopt;
 }
 
 // Appends each primitive to a saved field.
@@ -140,15 +170,16 @@ void writeRotation(psx::present::GuestRedraw &run,
   }
 }
 
-// The camera, the mobys, Spyro and the effects of the in-between from `from` to `to`.
+// The camera, the mobys, Spyro and the effects `t` of the way from `from` to `to`.
 void writeInBetween(Core &core,
                     psx::present::GuestRedraw &run,
                     const Image &image,
                     const Inputs &from,
-                    const Inputs &to) {
+                    const Inputs &to,
+                    float t) {
   const guest_render_globals::Globals &globals = image.terrain.globals();
   const guest_terrain::InBetweenCamera camera =
-      guest_terrain::cameraBetween(core, image.terrain, from.camera, to.camera, kInBetweenAt);
+      guest_terrain::cameraBetween(core, image.terrain, from.camera, to.camera, t);
   writeRotation(run, globals.cameraRotation, camera.rotation);
   writeRotation(run, image.terrain.facts().classify.viewRotation, camera.viewRotation);
   for (std::uint32_t i = 0; i < 3; ++i) {
@@ -168,7 +199,7 @@ void writeInBetween(Core &core,
       if (!moby_record::sameObject(from.mobys[i], to.mobys[i])) {
         continue;
       }
-      const moby_record::Bytes shown = recordBetween(from.mobys[i], to.mobys[i], kInBetweenAt);
+      const moby_record::Bytes shown = recordBetween(from.mobys[i], to.mobys[i], t);
       const std::uint32_t rec = to.mobyArray + static_cast<std::uint32_t>(i) * moby_record::kBytes;
       for (const std::uint32_t at : {moby_record::kX,
                                      moby_record::kY,
@@ -187,10 +218,10 @@ void writeInBetween(Core &core,
   const Inputs::Spyro &b = to.spyro;
   for (std::uint32_t i = 0; i < 3; ++i) {
     run.writeWord(facts.spyroPosition + 4 * i,
-                  psx::present::lerpWord(a.position[i], b.position[i], kInBetweenAt));
+                  psx::present::lerpWord(a.position[i], b.position[i], t));
   }
-  run.writeWord(facts.spyroAngles, anglesBetween(a.angles, b.angles, kInBetweenAt));
-  run.writeWord(facts.spyroHeadAngles, anglesBetween(a.headAngles, b.headAngles, kInBetweenAt));
+  run.writeWord(facts.spyroAngles, anglesBetween(a.angles, b.angles, t));
+  run.writeWord(facts.spyroHeadAngles, anglesBetween(a.headAngles, b.headAngles, t));
   std::uint32_t progress = b.keyProgress;
   for (std::uint32_t i = 0; i < 2; ++i) {
     const std::uint32_t shift = 8 * i;
@@ -199,25 +230,26 @@ void writeInBetween(Core &core,
                                   .progress =
                                       static_cast<std::uint8_t>(spyro.keyProgress >> shift)};
     };
-    const keyframe_blend::Pose pose = keyframe_blend::between(poseOf(a), poseOf(b), kInBetweenAt);
+    const keyframe_blend::Pose pose = keyframe_blend::between(poseOf(a), poseOf(b), t);
     run.writeWord(facts.spyroKeyframes + 4 * i, pose.keyframes);
     progress = (progress & ~(0xFFu << shift)) | (std::uint32_t{pose.progress} << shift);
   }
   run.writeWord(facts.spyroKeyProgress, progress);
 
-  effect_pools::writeBetween(run, facts.effects, from.effects, to.effects, kInBetweenAt);
+  effect_pools::writeBetween(run, facts.effects, from.effects, to.effects, t);
 }
 
-// The dispatcher run at the in-between with `flags` less the terrain's, the packets it linked
-// appended to `state` in the flatten's order: the bins deepest first, then the overlay pair. False
-// when the run or its packets cannot stand for the in-between.
+// The dispatcher run at `t` with `flags` less the terrain's, the packets it linked appended to `state`
+// in the flatten's order: the bins deepest first, then the overlay pair. False when the run or its
+// packets cannot stand for the in-between.
 bool redraw(Core &core,
             const Image &image,
             const Inputs &from,
             const Inputs &to,
+            float t,
             std::vector<std::byte> &state) {
   psx::present::GuestRedraw run(core);
-  writeInBetween(core, run, image, from, to);
+  writeInBetween(core, run, image, from, to, t);
   const guest_render_globals::Globals &globals = image.terrain.globals();
   const std::uint32_t flags = core.r[psx::cpu::kA0] & ~image.field.terrainFlag;
   if (!run.run(image.field.entry, std::span(&flags, 1))) {
@@ -264,8 +296,22 @@ void redrawField(Core &core, const Image &image) {
   History &history = session(core).fieldRedraw;
   readInputs(core, image, history.now);
   history.state.resize(sizeof(Header));
-  history.redrawn = core.game->mods.fps60 != 0 && history.last.serial != 0 &&
-                    redraw(core, image, history.last, history.now, history.state);
+  // One redraw per in-between of a frame as long as the last; a frame of another length refuses them.
+  history.fields = static_cast<std::uint32_t>(std::max(2, session(core).fieldOwner->lastPacedFields()));
+  history.redrawn = core.game->mods.fps60 != 0 && history.last.serial != 0;
+  for (std::uint32_t field = 1; history.redrawn && field < history.fields; ++field) {
+    const std::size_t count = history.state.size();
+    history.state.resize(count + sizeof(std::uint32_t));
+    history.redrawn = redraw(core,
+                             image,
+                             history.last,
+                             history.now,
+                             psx::present::inBetweenAt(static_cast<int>(field), static_cast<int>(history.fields)),
+                             history.state);
+    const auto primitives =
+        static_cast<std::uint32_t>((history.state.size() - count - sizeof(std::uint32_t)) / sizeof(SavedPrimitive));
+    std::memcpy(history.state.data() + count, &primitives, sizeof(primitives));
+  }
   if (!history.redrawn) {
     history.state.resize(sizeof(Header));
   }
@@ -295,7 +341,8 @@ void saveField(Core &core) {
   const psx::present::RecordKey &scope = core.emission.current();
   const Header header{.serial = scope.serial,
                       .redrawn = history.redrawn ? 1u : 0u,
-                      .lerpedFrom = history.lerpedFrom};
+                      .lerpedFrom = history.lerpedFrom,
+                      .fields = history.fields};
   std::memcpy(history.state.data(), &header, sizeof(Header));
   core.frameStates.save(scope, std::span<const std::byte>(history.state));
   history.last.serial = scope.serial;
@@ -304,10 +351,14 @@ void saveField(Core &core) {
 
 void FieldRedrawProducer::render(const psx::present::StateInterval &states,
                                  psx::present::PrimitiveSink &sink) const {
-  (void)headerOf(states.to);
-  for (std::size_t at = sizeof(Header); at < states.to.size(); at += sizeof(SavedPrimitive)) {
+  const std::optional<std::span<const std::byte>> primitives = redrawAt(states.to, states.t);
+  if (!primitives) {
+    lucent::error("redraw", "no redraw was saved for t={}", states.t);
+    std::abort();
+  }
+  for (std::size_t at = 0; at < primitives->size(); at += sizeof(SavedPrimitive)) {
     SavedPrimitive saved;
-    std::memcpy(&saved, states.to.data() + at, sizeof(saved));
+    std::memcpy(&saved, primitives->data() + at, sizeof(saved));
     sink.emit(saved.slot, saved.primitive);
   }
 }
@@ -319,7 +370,7 @@ FieldRedrawProducer::composition(const psx::present::StateInterval &states) cons
   }
   const Header from = headerOf(states.from);
   const Header to = headerOf(states.to);
-  return to.redrawn != 0 && to.lerpedFrom == from.serial && states.t == kInBetweenAt
+  return to.redrawn != 0 && to.lerpedFrom == from.serial && redrawAt(states.to, states.t)
              ? Composition::Render
              : Composition::Refused;
 }
