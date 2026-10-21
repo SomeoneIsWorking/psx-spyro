@@ -91,9 +91,9 @@ int FieldOwner::takePacedFields(bool pace) {
   if (!pace) {
     return 0;
   }
-  const auto fields = static_cast<int>(fieldsSincePace_);
+  lastPacedFields_ = static_cast<int>(fieldsSincePace_);
   fieldsSincePace_ = 0;
-  return fields;
+  return lastPacedFields_;
 }
 
 bool FieldOwner::deliver(FieldRequest request) {

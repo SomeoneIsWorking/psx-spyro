@@ -3,9 +3,10 @@
 //
 // The dispatcher's override reads what an in-between moves (the camera, each moby record's
 // position, angles and keyframes, Spyro's, and the effects pass's records), runs the dispatcher as
-// a psx::present::GuestRedraw with those inputs half way from the last field's, keeps what the bins
+// a psx::present::GuestRedraw with those inputs at each in-between's t from the last field's, keeps what the bins
 // and the overlay pair then hold (the packets logic linked before the dispatcher and the ones the
-// redraw linked), and then makes the real call. The terrain has its own producer, so the redraw
+// redraw linked), and then makes the real call. It redraws once per in-between of a frame as long
+// as the last one. The terrain has its own producer, so the redraw
 // clears its flag. The real call may run on past the host turn, so the field is owned where its
 // bins are whole: the flatten is the producer, keys every packet linked before the dispatcher's
 // last drawer returned that the terrain did not, and saves the redraw.
@@ -71,6 +72,7 @@ struct History {
   // The primitive cursor once the dispatcher's last drawer returned; 0 until it has.
   std::uint32_t packetsEnd = 0;
   std::uint32_t lerpedFrom = 0;
+  std::uint32_t fields = 0; // the cadence the redraws were made for
   std::vector<std::byte> state;
 };
 

@@ -96,7 +96,7 @@ The portal fill and near sky of `0x80050BD0` stay on retail's 512-wide window: t
 | 12 | S2 | psxport F-FPS60.1 | `game/render/field/field_redraw.cpp:redrawField`, `FieldRedrawProducer` — the draw dispatcher `0x800155A0` re-run less the terrain at the in-between camera, mobys and Spyro; the flatten `0x8001B2A8` claims every unkeyed packet linked before the letterbox `0x8004D604` returns and saves the redraw |
 | 6 | all | psxport F-FPS60.2 | `game/core/frame_cut.cpp:FrameCut::isCut` — game state, level, or (S2, S3) a camera placement inside a scene |
 
-S1's horn and motion trails, demo overlay and `0x80058864` have no producer yet; a present holding one shows the field whole (issue 0186). S2's packets linked after its dispatcher (the attract demo's DEMO MODE text) stay unkeyed and show the field whole; S2 at 20 fps logic gets one in-between per three fields (the presenter's single `kInBetweenAt`). S3 has no field producer yet (issue 0196).
+S1's horn and motion trails, demo overlay and `0x80058864` have no producer yet; a present holding one shows the field whole (issue 0186). S2's packets linked after its dispatcher (the attract demo's DEMO MODE text) stay unkeyed and show the field whole; S2's field redraw runs once per in-between of a frame as long as the last (one for a two-field frame, two for a three-field one); a frame of another length shows whole. S3 has no field producer yet (issue 0196).
 
 ## F-DEBUG
 

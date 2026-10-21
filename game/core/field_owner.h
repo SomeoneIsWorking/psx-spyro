@@ -88,6 +88,11 @@ public:
     return presents_;
   }
 
+  // The fields the last paced present waited out: the last logic frame's cadence.
+  int lastPacedFields() const {
+    return lastPacedFields_;
+  }
+
   // The host-turn entry point: one more physical field, never a second presentation fence.
   static void hostTurnThunk(Core *core);
 
@@ -108,6 +113,7 @@ private:
   std::uint64_t fields_ = 0;
   std::uint64_t paces_ = 0;
   std::uint64_t fieldsSincePace_ = 0;
+  int lastPacedFields_ = 0;
   std::uint64_t presents_ = 0;
 
   // Per owner, so two titles in one process do not share an elapsed time.
