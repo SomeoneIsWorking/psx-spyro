@@ -41,8 +41,14 @@ Product rotateV0(Core &core, std::uint32_t vxy0, std::uint32_t vz0) {
 //   byte 2  80043BAC..80043C34 / 800441D8..800442B0
 //   byte 1  80043C44..80043CD4 / 800442D0..800443B0
 //   byte 0  80043CE4..80043D7C / 800443CC..800444B0
-// Returns what retail leaves in $v1: the second product's IR3, shifted up on the byte-0 axis.
-std::uint32_t rotate(Core &core, Axis axis, AngleWords angle, psx::gte::RotationWords &m, Byte0Result byte0) {
+// `rt12` replaces the byte-1 axis's RT12 product when set. Returns what retail leaves in $v1: the
+// second product's IR3, shifted up on the byte-0 axis.
+std::uint32_t rotate(Core &core,
+                     Axis axis,
+                     AngleWords angle,
+                     psx::gte::RotationWords &m,
+                     Byte0Result byte0,
+                     std::optional<std::uint32_t> rt12) {
   const std::uint32_t s = angle.sine;
   const std::uint32_t c = angle.cosine;
   std::uint32_t ir3 = 0;
@@ -62,7 +68,7 @@ std::uint32_t rotate(Core &core, Axis axis, AngleWords angle, psx::gte::Rotation
   case Axis::Byte1: {
     const Product a = rotateV0(core, c << 16, s);
     const Product b = rotateV0(core, 0u - (s << 16), c);
-    m[0] = (m[0] & kLow) + (a.ir1 << 16);
+    m[0] = (m[0] & kLow) + rt12.value_or(a.ir1 << 16);
     m[3] = (m[3] & kLow) + (a.ir3 << 16);
     m[1] = (m[1] & kHigh) + (b.ir1 & kLow);
     m[2] = (b.ir2 << 16) + (a.ir2 & kLow);
@@ -127,7 +133,12 @@ std::optional<std::uint32_t> composeTabled(Core &core,
                                            std::uint32_t sineTable,
                                            const MobyAngles &angles,
                                            psx::gte::RotationWords &rotation,
-                                           Byte0Result byte0) {
+                                           Byte0Result byte0,
+                                           Byte1Rt12 rt12) {
+  std::optional<std::uint32_t> byte0Offset;
+  if (rt12 == Byte1Rt12::Byte0Offset) {
+    byte0Offset = tableEntry(0, angles.angles & 0xFFu);
+  }
   std::optional<std::uint32_t> last;
   for (const Channel &channel : kChannels) {
     const std::uint32_t angle = (angles.angles >> channel.angleShift) & 0xFFu;
@@ -139,7 +150,8 @@ std::optional<std::uint32_t> composeTabled(Core &core,
                   channel.axis,
                   AngleWords{core.mem_r16(entry), core.mem_r16(entry + kCosineOffset)},
                   rotation,
-                  byte0);
+                  byte0,
+                  byte0Offset);
   }
   return last;
 }
@@ -162,7 +174,8 @@ void composeInterpolated(Core &core,
                  channel.axis,
                  AngleWords{static_cast<std::uint32_t>(sine), static_cast<std::uint32_t>(cosine)},
                  rotation,
-                 Byte0Result::Loaded);
+                 Byte0Result::Loaded,
+                 std::nullopt);
   }
 }
 

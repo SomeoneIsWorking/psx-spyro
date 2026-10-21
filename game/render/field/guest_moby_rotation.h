@@ -29,6 +29,10 @@ struct AngleWords {
 // store it (8001F70C).
 enum class Byte0Result : std::uint8_t { Loaded, Stored };
 
+// What the byte-1 axis leaves in RT12. SCUS_942.28's moby shadows (8005A160) add the byte-0
+// angle's table offset where the product belongs.
+enum class Byte1Rt12 : std::uint8_t { Product, Byte0Offset };
+
 // Rotate `rotation` by `angles.angles`, reading the tables directly; the flags are not read. Loads
 // the result into CR0..CR4 after each angle, as retail does. `rotation` must hold what CR0..CR4
 // hold on entry. Returns what retail leaves in $v1 when an angle applied: the last product's IR3,
@@ -37,7 +41,8 @@ std::optional<std::uint32_t> composeTabled(Core &core,
                                            std::uint32_t sineTable,
                                            const MobyAngles &angles,
                                            psx::gte::RotationWords &rotation,
-                                           Byte0Result byte0 = Byte0Result::Loaded);
+                                           Byte0Result byte0 = Byte0Result::Loaded,
+                                           Byte1Rt12 rt12 = Byte1Rt12::Product);
 
 // The same, with each angle refined by the matching 4-bit fraction of `angles.flags` (bits 16, 8,
 // 0).
