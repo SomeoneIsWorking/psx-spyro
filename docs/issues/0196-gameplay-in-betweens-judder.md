@@ -393,10 +393,65 @@ Same settings and captures as pass 3; `r2-*` under `scratch/judder-pass3/`, each
   no debug route reaches water yet.
 - Timing: every run of this review was at load 13..16 (`uptime`), so no pacing figure here is evidence.
 
+## Pass 4, a 60.00 Hz display (2026-10-21)
+Judgement runs `scratch/judder-pass4/realtime.py`: boot, logos, flag intro, title, menus, save picker, new game,
+intro cutscene, then `warp 10` turning for 20 s. ires=0 (8x on the 3840x2160 sink), fps60=1, the player's aspect
+(settings copied to scratch), `PSXPORT_SHOW_WINDOW=0`, no `PSXPORT_NOPACE` (checked in `/proc/<pid>/environ`).
+`simdisplay.py` shows each vblank of a 60.00 Hz display the newest present before it. A present shown more
+vblanks than its fields is a repeat; fewer is a drop.
+
+- Pacing. Before (`base0`, load 16 falling to 6): repeat clusters every 16.7 s (8.8, 25.6, 42.3, 58.9, 75.5,
+  92.3 s), mean due step 16.68335 ms, playcheck missed=22. Cause: psxport `runtime/psx/frame/pace_plan.h:pacePlan`
+  stepped deadlines at the guest field rate (59.94 Hz), so a 60.00 Hz display got one vblank with no new present
+  every 1/(60-59.94) s. Fix: psxport 189e5fdc. Deadlines step at the display refresh the field rate locks to
+  (`pacedFieldRateMilliHz`), and the audio rate trim absorbs the 0.1%. After: mean due step 16.66667 ms, and the
+  clusters are gone.
+- Census. psxport 0172, fixed by 99b83bb0: the store census arms only under `PSXPORT_PRODUCERS=1`. An armed run
+  and an unarmed run are pixel-identical over 4 presents, and the composed in-between counts match base0
+  (3618/4830 against 3606/4818).
+- Near sky through a portal (`gate-teleport 0 0` in `warp 10`). The owner was not `Portals::cutShaded`. Cause:
+  psxport `runtime/psx/gpu/record_raster_setup.cpp:RecordPlanner::Builder::addTriangle` dropped a triangle
+  whose native 1x walk was empty. These are clip slivers whose two crossings round to one guest word; their places
+  still span area at 8x. Fix: psxport 7936802d draws such a sliver from its places. At 1x the walk is the native
+  walk, so nothing changes there. `c-x4`: the seams are gone. What remains is the portal window clamped at the
+  512-wide retail clip (x 512..549 in place space), a widescreen gap and not this cut.
+- Flame 0x80058D64. Fixed by c88adb6: `render/flame.cpp` `FlameTrails` draws it with declared places, and
+  `render/flame_producer.cpp` saves the block and lerps the position, rotation and growing lengths. Override
+  differential `PSXPORT_OVERRIDE_DIFF=drawFlame` in `warp 10` with circle held: 24/24 calls match in memory and
+  registers. `d-fl`, 24 presents at 8x: every in-between composed (pass 3: 23/23 uncomposed). Flame pixel counts
+  rise through the burst with each in-between between its neighbours (463, 422, 461, 521, 560, 966, 1491, 2277,
+  3571, ...).
+- Sprites. psxport 0169, fixed by ad9d0dd2: above 1x a sprite moves by its declared place. No Spyro 1 producer
+  emits sprite codes yet, so `e-x` and `c-x4` differ by 0 px.
+- First in-between after arrival. psxport 0174, open. On the field after the WAD load, Lightrec compiles the
+  level's code synchronously (`lightrec_executor.cpp:LightrecExecutor::executeWithBoundary`), and the in-between
+  waits for that field's logic. In `fprof`, fence 4083 was presented 16 ms after its due time. Perf put Lightrec
+  compile symbols in 30 of 231 main-thread samples, against 9 of 195 in steady play. The proper fix is to compile
+  at the load commit and is recorded in 0174; no stopgap was added.
+
+Final build (`final`, the run below; load 2.2-2.5 from boot to cutscene end, 2.4 at turn start, 5.0 at turn end).
+playcheck over 8455 intervals: p50 16.75 ms, p99 17.00 ms, missed=6.
+
+| screen | presents | repeats | drops | what it is |
+|---|---|---|---|---|
+| boot | 56 | 0 | 0 | |
+| logos, flag intro, title | 2727 | 2 | 2 | 437/438: boot handover, the guest's due jumps (56 ms hold); 1210/1211 |
+| menus | 320 | 0 | 1 | a 3-field retail frame |
+| save picker | 542 | 1 | 2 | 2/1-field cadence switches, presents 1.6-4 ms late |
+| new game | 12 | 0 | 0 | |
+| intro cutscene | 2924 | 1 | 0 | 3488 |
+| title after cutscene, warp load | 646 | 3 | 0 | 4086 held 4 vblanks: arrival compile (0174) |
+| `warp 10` turning | 1220 | 9 | 8 | all at 133.5-134.3 s, as load rose to 5.0 (invalid) |
+| turn end | 9 | 0 | 0 | |
+
+All 11 products built with Clang (0 warnings) and ran 40 s at real speed, all exit 0, at load 6-20 (no timing
+evidence). Error lines are unchanged from pass 3: Mega Man X4 has 154 x4-vsync, Tekken 3 has 1 card error, and
+Tomba 2 writes no playcheck line in either pass.
+
 ## Next
 Spyro 2: the opening conversation box is linked by logic before the dispatcher, so the redraw
 keeps n+1's box; moving it needs its drawer (FUN_8004D2D8 / FUN_8004A374) re-run at the in-between
-in place of logic's packets. Spyro 1's flame (pass 3 above), motion trails and demo overlay (issue 0186)
-show their frames whole when drawn.
+in place of logic's packets. Spyro 1's motion trails and demo overlay (issue 0186) show their frames whole
+when drawn. psxport 0174 (arrival compile) and the boot handover hold at fence 437.
 A real-time check by the operator is still to do: these runs
 measure the composed images, not the play feel.
