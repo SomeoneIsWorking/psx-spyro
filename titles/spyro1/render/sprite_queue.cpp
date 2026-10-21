@@ -1,11 +1,11 @@
 #include "spyro1/render/sprite_queue.h"
 
-#include "gp0_command.h"
 #include "core.h"
 #include "spyro1/core/guest_globals.h"
 #include "gte_registers.h"
 #include "lucent/log.h"
 #include "render/field/guest_moby_rotation.h"
+#include "render/field/guest_packet.h"
 #include "render/field/guest_view_slope.h"
 #include "render/field/guest_word.h"
 #include "render/terrain/guest_depth_bins.h"
@@ -18,6 +18,7 @@ namespace spyro1::actors {
 namespace {
 
 namespace gte = psx::gte;
+namespace guest_packet = spyro::guest_packet;
 namespace frustum = spyro::guest_moby_frustum;
 namespace rotation = spyro::guest_moby_rotation;
 using terrain::kRenderGlobals;
@@ -42,12 +43,6 @@ constexpr std::uint32_t kScreenOffsetY = 0x780000u;
 // Closer than this a flat polygon's back face is drawn too (80023734).
 constexpr std::int32_t kTwoSidedDepth = 0x800;
 
-using psx::gpu::Gp0Command;
-constexpr std::uint32_t kGouraudQuad = Gp0Command::opcodeWord(psx::gpu::kPolyG4);
-constexpr std::uint32_t kGouraudTriangle = Gp0Command::opcodeWord(psx::gpu::kPolyG3);
-constexpr std::uint32_t kFlatQuad = Gp0Command::opcodeWord(psx::gpu::kPolyF4);
-constexpr std::uint32_t kFlatTriangle = Gp0Command::opcodeWord(psx::gpu::kPolyF3);
-constexpr std::uint32_t kSemiTransparent = Gp0Command::opcodeWord(Gp0Command::kFlagSemiTransparent);
 
 // 80023214..80023250: a channel past 0x1000 saturates, otherwise drops its fraction.
 constexpr std::uint32_t saturate(std::uint32_t channel) {
@@ -441,7 +436,7 @@ void SpriteQueue::drawGouraud(const PolygonTail &tail) {
         return;
       }
     }
-    const std::uint32_t c0 = colour(colours >> 21) + kGouraudQuad;
+    const std::uint32_t c0 = colour(colours >> 21) + guest_packet::kG4Code;
     const std::uint32_t c1 = colour(colours >> 14);
     const std::uint32_t c2 = colour(colours >> 7);
     const std::uint32_t c3 = colour(colours);
@@ -463,7 +458,7 @@ void SpriteQueue::drawGouraud(const PolygonTail &tail) {
     memory_.mem_w32(t9 + 0x0C, c1);
     memory_.mem_w32(t9 + 0x14, c2);
     memory_.mem_w32(t9 + 0x1C, c3);
-    memory_.mem_w32(t9, 0x08000000u);
+    memory_.mem_w32(t9, guest_packet::kG4Tag);
     v1_ = bins_.link(kLocalBins + (v0_ << 3));
     v0_ = kLocalBins + (v0_ << 3);
     return;
@@ -481,14 +476,14 @@ void SpriteQueue::drawGouraud(const PolygonTail &tail) {
   memory_.mem_w32(t9 + 0x10, screen_[1]);
   memory_.mem_w32(t9 + 0x18, screen_[2]);
   v0_ = v0_ + v1_ + d2 + d2 - depthBias_;
-  memory_.mem_w32(t9 + 0x04, c0 + kGouraudTriangle);
+  memory_.mem_w32(t9 + 0x04, c0 + guest_packet::kG3Code);
   if (asSigned(v0_) <= 0) {
     return;
   }
   memory_.mem_w32(t9 + 0x0C, c1);
   memory_.mem_w32(t9 + 0x14, c2);
   v0_ = sra(v0_, 5) + (colours & 3u);
-  memory_.mem_w32(t9, 0x06000000u);
+  memory_.mem_w32(t9, guest_packet::kG3Tag);
   v1_ = bins_.link(kLocalBins + (v0_ << 3));
   v0_ = kLocalBins + (v0_ << 3);
 }
@@ -535,14 +530,14 @@ void SpriteQueue::drawLit(const PolygonTail &tail) {
     return;
   }
   if (a0 != a1) {
-    v0_ = 0x05000000u;
-    v1_ = kFlatQuad;
+    v0_ = guest_packet::kF4Tag;
+    v1_ = guest_packet::kF4Code;
   } else {
-    v0_ = 0x04000000u;
-    v1_ = kFlatTriangle;
+    v0_ = guest_packet::kF3Tag;
+    v1_ = guest_packet::kF3Code;
   }
   if (!opaque) {
-    v1_ += kSemiTransparent;
+    v1_ += guest_packet::kSemiCode;
     edge_ |= 1u;
   }
   std::uint32_t colour = core_.gte().readData(gte::kRgb2);
@@ -569,7 +564,7 @@ void SpriteQueue::drawFlat(const PolygonTail &tail) {
   if (asSigned(core_.gte().readControl(gte::kTranslationZ) - kTwoSidedDepth) < 0) {
     opaque = (face >> 31) << 25;
   } else {
-    opaque = kSemiTransparent;
+    opaque = guest_packet::kSemiCode;
     if (asSigned(face) <= 0) {
       core_.gte().writeData(gte::kSxy0, screen_[3]);
       if (a0 == a1) {
@@ -623,11 +618,11 @@ void SpriteQueue::drawFlat(const PolygonTail &tail) {
   red = clampFlat(red);
   green = clampFlat(green);
   blue = clampFlat(blue);
-  std::uint32_t tag = 0x04000000u;
-  std::uint32_t command = kFlatTriangle + kSemiTransparent;
+  std::uint32_t tag = guest_packet::kF3Tag;
+  std::uint32_t command = guest_packet::kF3Code + guest_packet::kSemiCode;
   if (a0 != a1) {
-    tag = 0x05000000u;
-    command = kFlatQuad + kSemiTransparent;
+    tag = guest_packet::kF4Tag;
+    command = guest_packet::kF4Code + guest_packet::kSemiCode;
   }
   const std::uint32_t d2 = memory_.mem_r32(a0 + 0x200u);
   const std::uint32_t d3 = memory_.mem_r32(a1 + 0x200u);

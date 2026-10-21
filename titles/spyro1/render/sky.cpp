@@ -51,9 +51,7 @@ Cyclorama::Cyclorama(Core &core,
 std::optional<SkyChain> Cyclorama::draw(std::int32_t group, const Rotations &rotations) {
   auto &gte = core_.gte();
   gte.loadRotation(rotations.view);
-  for (std::uint32_t i = 0; i < 3; ++i) {
-    gte.writeControl(gte::kTranslationX + i, 0);
-  }
+  gte.loadTranslation({});
   listSectors(group);
 
   // 8004ECE0..8004ED40

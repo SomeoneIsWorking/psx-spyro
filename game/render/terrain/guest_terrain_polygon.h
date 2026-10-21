@@ -16,7 +16,7 @@
 // once-per-sector header word the subdivision passes use to find the sector again.
 #pragma once
 
-#include "gp0_command.h"
+#include "render/field/guest_packet.h"
 #include "render/field/guest_word.h"
 #include "render/terrain/guest_terrain_cull.h"
 #include "render/terrain/guest_terrain_frame.h"
@@ -51,25 +51,8 @@ inline constexpr std::uint32_t kXy3 = 0x2C;
 inline constexpr std::uint32_t kUv3 = 0x30;
 } // namespace packet
 
-// The packets' tags (word count in the top byte), sizes and command words.
-using psx::gpu::Gp0Command;
-inline constexpr std::uint32_t kQuadTag = Gp0Command::packetTag(psx::gpu::kPolyGt4);
-inline constexpr std::uint32_t kQuadBytes = Gp0Command::packetBytes(psx::gpu::kPolyGt4);
-inline constexpr std::uint32_t kTriangleTag = Gp0Command::packetTag(psx::gpu::kPolyGt3);
-inline constexpr std::uint32_t kTriangleBytes = Gp0Command::packetBytes(psx::gpu::kPolyGt3);
-inline constexpr std::uint32_t kG4Tag = Gp0Command::packetTag(psx::gpu::kPolyG4);
-inline constexpr std::uint32_t kG4Bytes = Gp0Command::packetBytes(psx::gpu::kPolyG4);
-inline constexpr std::uint32_t kG3Tag = Gp0Command::packetTag(psx::gpu::kPolyG3);
-inline constexpr std::uint32_t kG3Bytes = Gp0Command::packetBytes(psx::gpu::kPolyG3);
-inline constexpr std::uint32_t kSemiCode = Gp0Command::opcodeWord(Gp0Command::kFlagSemiTransparent);
-inline constexpr std::uint32_t kOpaqueQuadCode = Gp0Command::opcodeWord(psx::gpu::kPolyGt4);
-inline constexpr std::uint32_t kOpaqueTriangleCode = Gp0Command::opcodeWord(psx::gpu::kPolyGt3);
-inline constexpr std::uint32_t kSemiQuadCode = kOpaqueQuadCode | kSemiCode;
-inline constexpr std::uint32_t kSemiTriangleCode = kOpaqueTriangleCode | kSemiCode;
-inline constexpr std::uint32_t kG4Code = Gp0Command::opcodeWord(psx::gpu::kPolyG4);
-inline constexpr std::uint32_t kG3Code = Gp0Command::opcodeWord(psx::gpu::kPolyG3);
 // Added to a GT4 colour word, it names the GT3 a crack triangle is drawn as.
-inline constexpr std::uint32_t kGt4ToGt3 = Gp0Command::opcodeWord(Gp0Command::kFlagQuadOrPolyLine);
+inline constexpr std::uint32_t kGt4ToGt3 = psx::gpu::Gp0Command::opcodeWord(psx::gpu::Gp0Command::kFlagQuadOrPolyLine);
 
 // The draw word's fields.
 inline constexpr std::uint32_t kTextureRecordMask = 0x7Fu;

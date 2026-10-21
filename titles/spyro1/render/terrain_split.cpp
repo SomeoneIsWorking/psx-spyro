@@ -9,6 +9,7 @@ namespace spyro1::terrain {
 namespace {
 
 namespace gte = psx::gte;
+namespace guest_packet = spyro::guest_packet;
 namespace polygon = spyro::guest_terrain::polygon;
 namespace packet = spyro::guest_terrain::packet;
 using spyro::guest_terrain::PackedIndices;
@@ -65,8 +66,8 @@ SplitRecord SplitPass::record(const SplitPolygon &polygon) const {
 
 std::array<std::uint32_t, 4> SplitPass::quadColours(const SplitSector &sector,
                                                     const SplitRecord &record) const {
-  const std::uint32_t code = (record.links & kSemiTransparent) != 0 ? spyro::guest_terrain::kSemiQuadCode
-                                                                    : spyro::guest_terrain::kOpaqueQuadCode;
+  const std::uint32_t code = (record.links & kSemiTransparent) != 0 ? guest_packet::kSemiGt4Code
+                                                                    : guest_packet::kGt4Code;
   const PackedIndices index(record.colours);
   const psx::present::EmitMemory &memory = frame_.memory;
   return {memory.mem_r32(sector.colours + index.first) + code,
@@ -77,8 +78,8 @@ std::array<std::uint32_t, 4> SplitPass::quadColours(const SplitSector &sector,
 
 std::array<std::uint32_t, 3> SplitPass::triangleColours(const SplitSector &sector,
                                                         const SplitRecord &record) const {
-  const std::uint32_t code = (record.links & kSemiTransparent) != 0 ? spyro::guest_terrain::kSemiTriangleCode
-                                                                    : spyro::guest_terrain::kOpaqueTriangleCode;
+  const std::uint32_t code = (record.links & kSemiTransparent) != 0 ? guest_packet::kSemiGt3Code
+                                                                    : guest_packet::kGt3Code;
   const PackedIndices index(record.colours);
   const psx::present::EmitMemory &memory = frame_.memory;
   return {memory.mem_r32(sector.colours + index.first) + code,

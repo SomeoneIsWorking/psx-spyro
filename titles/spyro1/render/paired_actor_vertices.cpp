@@ -47,10 +47,9 @@ void PairedActor::projectParts() {
   vertex_ = kVertexTable;
   waterLevel_ = memory_.mem_r32(kSpyroRecord + spyro_record::kWaterLevel);
   for (;;) {
-    for (std::uint32_t i = 0; i < 3; ++i) {
-      gte.writeControl(gte::kTranslationX + i,
-                       memory_.mem_r32(part + part_entry::kTranslation + 4 * i));
-    }
+    gte.loadTranslation({memory_.mem_r32(part + part_entry::kTranslation),
+                         memory_.mem_r32(part + part_entry::kTranslation + 4),
+                         memory_.mem_r32(part + part_entry::kTranslation + 8)});
     if (asSigned(flags) < 0) {
       gte.loadRotation(spyro::guest_memory::rotationAt(memory_, part + part_entry::kRotation));
     }
@@ -252,9 +251,7 @@ void PairedActor::measureHeights() {
     gte.writeData(gte::kIr2, 0u - memory_.mem_r32(offset + 8));
     gte.writeData(gte::kIr3, memory_.mem_r32(offset));
     gte.execute(gte::kMvmvaRtIr);
-    for (std::uint32_t i = 0; i < 3; ++i) {
-      gte.writeControl(gte::kTranslationX + i, gte.readData(gte::kMac1 + i));
-    }
+    gte.loadTranslation({gte.readData(gte::kMac1), gte.readData(gte::kMac2), gte.readData(gte::kMac3)});
     gte.writeData(gte::kVxy0, memory_.mem_r32(entry + vertex_entry::kVxy));
     gte.writeData(gte::kVz0, memory_.mem_r32(entry + vertex_entry::kVz));
     entry += vertex_entry::kBytes;

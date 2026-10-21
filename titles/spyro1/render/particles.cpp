@@ -2,6 +2,7 @@
 
 #include "core.h"
 #include "gte_registers.h"
+#include "render/field/guest_packet.h"
 #include "render/field/guest_render_globals.h"
 #include "render/field/guest_word.h"
 #include "render/terrain/guest_depth_bins.h"
@@ -12,6 +13,7 @@ namespace spyro1::particles {
 namespace {
 
 namespace gte = psx::gte;
+namespace guest_packet = spyro::guest_packet;
 using spyro::guest_word::asSigned;
 using spyro::guest_word::signedHalf;
 using spyro::guest_word::sra;
@@ -22,9 +24,6 @@ using spyro::guest_render_globals::kCosineOffset;
 constexpr std::uint32_t kTop = 0x00010000u;    // $s4
 constexpr std::uint32_t kBottom = 0x01000000u; // $s5
 constexpr std::uint32_t kPoolMargin = 0x400u;
-constexpr std::uint32_t kQuadTag = 0x09000000u;
-constexpr std::uint32_t kLineTag = 0x04000000u;
-constexpr std::uint32_t kDotTag = 0x03000000u;
 
 
 bool retailDrops(std::uint32_t sxy) {
@@ -42,9 +41,7 @@ EmitList::EmitList(Core &core,
 void EmitList::begin() {
   auto &gte = core_.gte();
   gte.loadRotation(spyro::guest_memory::rotationAt(memory_, kRenderGlobals.cameraRotation));
-  for (std::uint32_t i = 0; i < 3; ++i) {
-    gte.writeControl(gte::kTranslationX + i, 0);
-  }
+  gte.loadTranslation({});
   for (std::uint32_t i = 0; i < 3; ++i) {
     camera_[i] = sra(memory_.mem_r32(kRenderGlobals.cameraPosition + i * 4), 2);
   }
@@ -169,7 +166,7 @@ Outcome EmitList::quad(std::uint32_t at) {
   std::uint32_t depth = gte.readData(gte::kSz1) + gte.readData(gte::kSz2) + gte.readData(gte::kSz3);
   gte.execute(gte::kRtps);
   memory_.mem_w32(cursor_ + 4, colour);
-  memory_.mem_w32(cursor_, kQuadTag);
+  memory_.mem_w32(cursor_, guest_packet::kFt4Tag);
   writeUvs(first, second);
   const std::uint32_t s3 = gte.readData(gte::kSxy2);
   depth += gte.readData(gte::kSz3);
@@ -267,9 +264,7 @@ Outcome EmitList::placedLine(std::uint32_t at) {
   gte.execute(gte::kRtps);
   const std::uint32_t colour = memory_.mem_r32(at + 0x10);
   std::uint32_t colourBias = memory_.mem_r32(at + 0x14);
-  for (std::uint32_t i = 0; i < 3; ++i) {
-    gte.writeControl(gte::kTranslationX + i, 0);
-  }
+  gte.loadTranslation({});
   const std::uint32_t depth = v0_;
   v1_ = depth - 0x40;
   if (asSigned(v1_) <= 0) {
@@ -310,7 +305,7 @@ Outcome EmitList::placedLine(std::uint32_t at) {
   if (asSigned(v0_) < 0) {
     v0_ = 0;
   }
-  memory_.mem_w32(cursor_, kLineTag);
+  memory_.mem_w32(cursor_, guest_packet::kLineG2Tag);
   v0_ <<= 3;
   v1_ = link(v0_, Packet::Line);
   return Outcome::Drawn;
@@ -372,7 +367,7 @@ Outcome EmitList::scaledQuad(std::uint32_t at) {
   memory_.mem_w32(cursor_ + 0x10, v0 - (height << 16));
   memory_.mem_w32(cursor_ + 0x08, v0 - (height << 16) - width);
   writeUvs(first, second);
-  memory_.mem_w32(cursor_, kQuadTag);
+  memory_.mem_w32(cursor_, guest_packet::kFt4Tag);
   v1_ = link(v1 << 3, Packet::Quad);
   return Outcome::Drawn;
 }
@@ -460,13 +455,11 @@ Outcome EmitList::turnedTail(std::uint32_t at, TurnedQuad quad) {
   memory_.mem_w32(cursor_ + 0x10, v0_);
   memory_.mem_w32(cursor_ + 0x18, s2);
   memory_.mem_w32(cursor_ + 0x04, v1_);
-  memory_.mem_w32(cursor_, kQuadTag);
+  memory_.mem_w32(cursor_, guest_packet::kFt4Tag);
   writeUvs(first, second);
   memory_.mem_w32(cursor_ + 0x20, gte.readData(gte::kSxy2));
   gte.loadRotation(rotation);
-  for (std::uint32_t i = 0; i < 3; ++i) {
-    gte.writeControl(gte::kTranslationX + i, 0);
-  }
+  gte.loadTranslation({});
   link(depth << 3, Packet::Quad);
   return Outcome::Drawn;
 }
@@ -536,7 +529,7 @@ Outcome EmitList::line(std::uint32_t at) {
   if (asSigned(v0_ - 2) <= 0) {
     return Outcome::Skipped;
   }
-  memory_.mem_w32(cursor_, kLineTag);
+  memory_.mem_w32(cursor_, guest_packet::kLineG2Tag);
   markSeen(at, retailDrops(sxy));
   v0_ <<= 3;
   v1_ = link(v0_, Packet::Line);
@@ -577,7 +570,7 @@ Outcome EmitList::dot(std::uint32_t at) {
   memory_.mem_w32(cursor_ + 0x08, sxy);
   v0_ = sxy + 1;
   memory_.mem_w32(cursor_ + 0x0C, v0_);
-  v0_ = kDotTag;
+  v0_ = guest_packet::kLineF2Tag;
   memory_.mem_w32(cursor_, v0_);
   v1_ -= bias;
   v0_ = v1_ - 2;

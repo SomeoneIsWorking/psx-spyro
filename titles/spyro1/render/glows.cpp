@@ -1,9 +1,10 @@
 #include "spyro1/render/glows.h"
 
-#include "gp0_command.h"
+#include "guest_memory_map.h"
 #include "core.h"
 #include "cpu_divide.h"
 #include "gte_registers.h"
+#include "render/field/guest_packet.h"
 #include "render/field/guest_render_globals.h"
 #include "render/field/guest_word.h"
 #include "spyro1/render/screen.h"
@@ -13,6 +14,8 @@ namespace spyro1::glows {
 namespace {
 
 namespace gte = psx::gte;
+namespace guest_packet = spyro::guest_packet;
+using spyro::guest_word::absolute;
 using spyro::guest_word::asSigned;
 using spyro::guest_word::signedHalf;
 using spyro::guest_word::sra;
@@ -20,15 +23,8 @@ using terrain::kRenderGlobals;
 
 constexpr std::uint32_t kModeTag = 0x02000000u;
 constexpr std::uint32_t kAdditiveMode = 0xE1000220u;
-constexpr std::uint32_t kTriangleTag = psx::gpu::Gp0Command::packetTag(psx::gpu::kPolyG3);
-constexpr std::uint32_t kTriangleCommand = 0x32000000u;
-constexpr std::uint32_t kLinePairTag = 0x83000000u;
-constexpr std::uint32_t kLineTag = 0x03000000u;
-constexpr std::uint32_t kLineSemi = 0x40000000u;
-
-std::uint32_t magnitude(std::uint32_t value) {
-  return asSigned(value) < 0 ? 0u - value : value;
-}
+// XORed with a KSEG0 packet address: a line tag linked to that packet.
+constexpr std::uint32_t kLinePairTag = guest_packet::kLineF2Tag | psx::kKseg0Base;
 
 std::uint32_t slotOf(std::uint32_t table, std::uint32_t bin) {
   return (bin << 3) + table;
@@ -45,8 +41,8 @@ GlowFans::GlowFans(Core &core,
 void GlowFans::begin() {
   auto &gte = core_.gte();
   gte.loadRotation(spyro::guest_memory::rotationAt(memory_, kRenderGlobals.cameraRotation));
+  gte.loadTranslation({});
   for (std::uint32_t i = 0; i < 3; ++i) {
-    gte.writeControl(gte::kTranslationX + i, 0);
     camera_[i] = memory_.mem_r32(kRenderGlobals.cameraPosition + i * 4);
   }
   table_ = memory_.mem_r32(kRenderGlobals.orderingTable);
@@ -87,7 +83,7 @@ std::optional<std::uint32_t> GlowFans::draw(std::uint32_t entry) {
       camera_[1] - (memory_.mem_r32(position + 4) + memory_.mem_r32(entry + emitter::kOffset + 4));
   std::uint32_t z =
       camera_[2] - (memory_.mem_r32(position + 8) + memory_.mem_r32(entry + emitter::kOffset + 8));
-  const std::uint32_t reach = magnitude(x) + magnitude(y) + magnitude(z);
+  const std::uint32_t reach = absolute(x) + absolute(y) + absolute(z);
   std::uint32_t shift = 0;
   if (asSigned(reach) > 0) {
     shift = reach >> 13;
@@ -139,7 +135,7 @@ std::optional<std::uint32_t> GlowFans::draw(std::uint32_t entry) {
   --count;
   gte.execute(gte::kGpfSf);
   const std::uint32_t colour =
-      ((memory_.mem_r32(entry + emitter::kColour) << 8) >> 8) | kTriangleCommand;
+      ((memory_.mem_r32(entry + emitter::kColour) << 8) >> 8) | guest_packet::kG3Code | guest_packet::kSemiCode;
   std::uint32_t pointX = gte.readData(gte::kMac1) + centreX;
   std::uint32_t pointY = gte.readData(gte::kMac2) + centreY;
   std::uint32_t edges = outcode({.x = pointX, .y = pointY});
@@ -147,7 +143,7 @@ std::optional<std::uint32_t> GlowFans::draw(std::uint32_t entry) {
   do {
     gte.writeData(gte::kIr1, memory_.mem_r32(rim));
     gte.writeData(gte::kIr2, memory_.mem_r32(rim + 4));
-    memory_.mem_w32(cursor_, kTriangleTag);
+    memory_.mem_w32(cursor_, guest_packet::kG3Tag);
     gte.execute(gte::kGpfSf);
     memory_.mem_w32(cursor_ + 8, centre);
     memory_.mem_w32(cursor_ + 4, colour);
@@ -181,12 +177,8 @@ void Sparkles::begin(std::uint32_t delta) {
   delta_ = delta;
   const psx::gte::RotationWords rotation = spyro::guest_memory::rotationAt(memory_, kRenderGlobals.cameraRotation);
   gte.loadRotation(rotation);
-  for (std::uint32_t i = 0; i < gte::kRotationWords; ++i) {
-    gte.writeControl(gte::kLight0 + i, rotation[i]);
-  }
-  for (std::uint32_t i = 0; i < 3; ++i) {
-    gte.writeControl(gte::kTranslationX + i, 0);
-  }
+  gte.loadLight(rotation);
+  gte.loadTranslation({});
   gte.writeControl(gte::kDqb, 0);
   gte.writeControl(gte::kDqa, 0x100);
   v0_ = rotation[1];
@@ -255,7 +247,7 @@ std::optional<std::uint32_t> Sparkles::draw(std::uint32_t record) {
 
   // 800585F8..80058718: the star's arms scaled by what is left of the fade and turned by the
   // angle, projected around the centre.
-  const std::uint32_t command = v1_ | kLineSemi;
+  const std::uint32_t command = v1_ | guest_packet::kLineF2Code;
   memory_.mem_w32(cursor_ + 4, command);
   memory_.mem_w32(cursor_ + 0x14, command);
   const std::uint32_t reach = (0x100u - worn) * size;
@@ -268,9 +260,7 @@ std::optional<std::uint32_t> Sparkles::draw(std::uint32_t record) {
       gte.readData(gte::kMac1), gte.readData(gte::kMac2), gte.readData(gte::kMac3)};
   gte.execute(gte::kGpf);
   const std::uint32_t scale = asSigned(centre[2] - 0x1000) < 0 ? 0x1000u : centre[2];
-  for (std::uint32_t i = 0; i < 3; ++i) {
-    gte.writeControl(gte::kTranslationX + i, centre[i] << 1);
-  }
+  gte.loadTranslation({centre[0] << 1, centre[1] << 1, centre[2] << 1});
   const std::uint32_t armX = sra(gte.readData(gte::kMac1), 19);
   const std::uint32_t armY = sra(gte.readData(gte::kMac2), 19);
   gte.writeData(gte::kVz0, 0);
@@ -298,7 +288,7 @@ std::optional<std::uint32_t> Sparkles::draw(std::uint32_t record) {
   if (asSigned(bin) < 0) {
     bin = 0;
   }
-  memory_.mem_w32(cursor_, kLineTag);
+  memory_.mem_w32(cursor_, guest_packet::kLineF2Tag);
   if (asSigned(bin - 0x100) > 0) {
     bin += 0x46;
   }
@@ -307,14 +297,9 @@ std::optional<std::uint32_t> Sparkles::draw(std::uint32_t record) {
   memory_.mem_w32(cursor_ + 0xC, gte.readData(gte::kSxy2));
 
   // 800587A8..800587E8: the camera back from the light matrix.
-  psx::gte::RotationWords rotation{};
-  for (std::uint32_t i = 0; i < gte::kRotationWords; ++i) {
-    rotation[i] = gte.readControl(gte::kLight0 + i);
-  }
+  const psx::gte::RotationWords rotation = gte.storeLight();
   gte.loadRotation(rotation);
-  for (std::uint32_t i = 0; i < 3; ++i) {
-    gte.writeControl(gte::kTranslationX + i, 0);
-  }
+  gte.loadTranslation({});
   v1_ = rotation[2];
   const std::uint32_t head = memory_.mem_r32(slot);
   memory_.mem_w32(slot, cursor_);

@@ -8,12 +8,9 @@ namespace {
 
 namespace gte = psx::gte;
 
+using spyro::guest_word::absolute;
 using spyro::guest_word::asSigned;
 using spyro::guest_word::asWord;
-
-std::uint32_t magnitude(std::uint32_t value) {
-  return asSigned(value) < 0 ? 0u - value : value;
-}
 
 } // namespace
 
@@ -40,11 +37,11 @@ SectorSphere testSectorSphere(Core &core,
   if (asSigned(z + r) <= 0) {
     return sphere;
   }
-  const std::uint32_t x = magnitude(core.gte().readData(gte::kIr1));
+  const std::uint32_t x = absolute(core.gte().readData(gte::kIr1));
   if (asSigned((x - horizontalLateral) * xWeight - (z + horizontalDepth) * zWeight) >= 0) {
     return sphere;
   }
-  const std::uint32_t y = magnitude(core.gte().readData(gte::kIr2));
+  const std::uint32_t y = absolute(core.gte().readData(gte::kIr2));
   if (asSigned(((y - verticalLateral) << 5) - (z + verticalDepth) * 17) >= 0) {
     return sphere;
   }

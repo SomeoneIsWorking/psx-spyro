@@ -229,13 +229,13 @@ Sector FarPass::drawPolygon(std::uint32_t record) {
   for (std::uint32_t i = 0; i < corners; ++i) {
     std::uint32_t colour = memory_.mem_r32(colours + ((colourWord >> kColourShifts[i]) & 0x1FCu));
     if (i == 0) {
-      colour += triangle ? kG3Code : kG4Code;
+      colour += triangle ? guest_packet::kG3Code : guest_packet::kG4Code;
     }
     memory_.mem_w32(prim + 4 + 8 * i, colour);
     memory_.mem_w32(prim + 8 + 8 * i, screens[i]);
   }
-  memory_.mem_w32(prim, triangle ? kG3Tag : kG4Tag);
-  return link(bin, triangle ? kG3Bytes : kG4Bytes) ? Sector::Drawn : Sector::BufferFull;
+  memory_.mem_w32(prim, triangle ? guest_packet::kG3Tag : guest_packet::kG4Tag);
+  return link(bin, triangle ? guest_packet::kG3Bytes : guest_packet::kG4Bytes) ? Sector::Drawn : Sector::BufferFull;
 }
 
 // 80028F9C: link the packet just written, unless the buffer is already past its end (then retail

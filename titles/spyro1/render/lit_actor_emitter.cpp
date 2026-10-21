@@ -6,13 +6,16 @@
 #include "cpu_divide.h"
 #include "spyro1/core/guest_globals.h"
 #include "core/guest_magnitude.h"
+#include "render/field/guest_packet.h"
 #include "spyro1/render/actor_emitter_layout.h"
 
 namespace spyro1::actors {
 
+using spyro::guest_word::absolute;
 using spyro::guest_word::signedHalf;
 
 using namespace emitter;
+namespace guest_packet = spyro::guest_packet;
 
 namespace {
 
@@ -30,10 +33,6 @@ constexpr std::uint32_t signedByte(std::uint8_t value) {
   return static_cast<std::uint32_t>(std::int32_t{static_cast<std::int8_t>(value)});
 }
 
-constexpr std::uint32_t negated(std::uint32_t value) {
-  return asSigned(value) < 0 ? 0u - value : value;
-}
-
 // A direction in the plane of two axes.
 struct Direction {
   std::uint32_t first = 0;
@@ -42,8 +41,8 @@ struct Direction {
 
 // 80022744..80022784, 80022328..80022360: the smaller magnitude over the larger, times 64.
 std::uint32_t steepness(const Direction &direction) {
-  std::uint32_t low = negated(direction.first);
-  std::uint32_t high = negated(direction.second);
+  std::uint32_t low = absolute(direction.first);
+  std::uint32_t high = absolute(direction.second);
   if (asSigned(low - high) > 0) {
     const std::uint32_t kept = low;
     low = high;
@@ -129,9 +128,7 @@ void LitActorEmitter::aimReflection() {
   if ((light_ >> 24) != 1) {
     light_ |= 0xFF000000u;
   }
-  for (std::uint32_t i = 0; i < 5; ++i) {
-    gte.writeControl(gte::kLight0 + i, memory_.mem_r32(spyro1::guest::kMetalMatrix + 4 * i));
-  }
+  gte.loadLight(spyro::guest_memory::rotationAt(memory_, spyro1::guest::kMetalMatrix));
   const std::uint32_t z = gte.readControl(gte::kTranslationZ);
   const std::uint32_t x = gte.readControl(gte::kTranslationX);
   const Direction bearing{.first = z, .second = x};
@@ -246,7 +243,7 @@ void LitActorEmitter::drawReflection(const Triangle &triangle, const TriangleCol
   } else {
     memory_.mem_w32(t8 + 0x10, colours.second);
     memory_.mem_w32(t8 + 0x1C, colours.third);
-    memory_.mem_w32(t8 + 0x04, colours.first + kGouraudTexturedTriangle);
+    memory_.mem_w32(t8 + 0x04, colours.first + guest_packet::kGt3Code);
   }
   for (std::uint32_t i = 0; i < 3; ++i) {
     gte.writeControl(gte::kFarRed + i, reflectionUv(vertexAt(triangle.slots[i])));
@@ -284,7 +281,7 @@ void LitActorEmitter::drawReflection(const Triangle &triangle, const TriangleCol
   }
   const std::uint32_t clut = memory_.mem_r32(kReflectionTexture) + fogClut_;
   const std::uint32_t page = memory_.mem_r32(kReflectionTexture + 4);
-  memory_.mem_w32(t8, 0x09000000u);
+  memory_.mem_w32(t8, guest_packet::kGt3Tag);
   memory_.mem_w32(t8 + 0x0C, clut);
   memory_.mem_w32(t8 + 0x18, page);
   memory_.mem_w16(t8 + 0x0C, static_cast<std::uint16_t>(uv[0]));

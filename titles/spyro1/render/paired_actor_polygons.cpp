@@ -2,9 +2,9 @@
 // of those bins into the ordering table.
 #include "spyro1/render/paired_actor.h"
 
-#include "gp0_command.h"
 #include "core.h"
 #include "cpu_divide.h"
+#include "render/field/guest_packet.h"
 #include "spyro1/render/paired_actor_layout.h"
 
 namespace spyro1::actors {
@@ -14,11 +14,7 @@ using namespace paired;
 namespace {
 
 constexpr std::uint32_t kColourMask = 0xFFFFFFu;
-using psx::gpu::Gp0Command;
-constexpr std::uint32_t kGouraudTexturedQuad = Gp0Command::opcodeWord(psx::gpu::kPolyGt4);
-constexpr std::uint32_t kGouraudTexturedTriangle = Gp0Command::opcodeWord(psx::gpu::kPolyGt3);
-constexpr std::uint32_t kQuadTag = Gp0Command::packetTag(psx::gpu::kPolyGt4);
-constexpr std::uint32_t kTriangleTag = Gp0Command::packetTag(psx::gpu::kPolyGt3);
+namespace guest_packet = spyro::guest_packet;
 
 } // namespace
 
@@ -138,7 +134,7 @@ void PairedActor::emitWholeQuad(const WholePolygon &polygon) {
   const auto [t2, t3, t5] = colourAddresses;
   const std::uint32_t depths = kVertexTable;
   const std::uint32_t t4 = memory_.mem_r32(((s0 << 1) & 0x7FCu) + colours_);
-  const std::uint32_t colour = (memory_.mem_r32(t2) & kColourMask) + kGouraudTexturedQuad;
+  const std::uint32_t colour = (memory_.mem_r32(t2) & kColourMask) + guest_packet::kGt4Code;
   v0_ = memory_.mem_r16((v0_ << 2) + depths);
   v1_ = memory_.mem_r16((v1_ << 2) + depths);
   const std::uint32_t c = memory_.mem_r16((a0 << 2) + depths);
@@ -155,7 +151,7 @@ void PairedActor::emitWholeQuad(const WholePolygon &polygon) {
   memory_.mem_w32(bins_.cursor() + 0x1C, t4);
   memory_.mem_w32(bins_.cursor() + 0x28, memory_.mem_r32(t5));
   memory_.mem_w32(bins_.cursor() + 0x04, colour + ((s0 & 1u) << 25));
-  memory_.mem_w32(bins_.cursor(), kQuadTag);
+  memory_.mem_w32(bins_.cursor(), guest_packet::kGt4Tag);
   memory_.mem_w32(bins_.cursor() + 0x0C, memory_.mem_r32(ra - 0xC));
   memory_.mem_w32(bins_.cursor() + 0x18, memory_.mem_r32(ra - 8));
   memory_.mem_w32(bins_.cursor() + 0x24, uv);
@@ -172,7 +168,7 @@ void PairedActor::emitWholeTriangle(const WholePolygon &polygon, bool backHalf) 
   const std::uint32_t ra = polygon.end;
   const std::uint32_t depths = kVertexTable;
   const std::uint32_t t4 = memory_.mem_r32(((s0 << 1) & 0x7FCu) + colours_);
-  const std::uint32_t colour = (memory_.mem_r32(t2) & kColourMask) + kGouraudTexturedTriangle;
+  const std::uint32_t colour = (memory_.mem_r32(t2) & kColourMask) + guest_packet::kGt3Code;
   v0_ = memory_.mem_r16((v0_ << 2) + depths);
   v1_ = memory_.mem_r16((v1_ << 2) + depths);
   const std::uint32_t c = memory_.mem_r16((a0 << 2) + depths);
@@ -193,7 +189,7 @@ void PairedActor::emitWholeTriangle(const WholePolygon &polygon, bool backHalf) 
   if (backHalf) {
     memory_.mem_w16(bins_.cursor() + 0x0C, static_cast<std::uint16_t>(uv >> 16));
   }
-  memory_.mem_w32(bins_.cursor(), kTriangleTag);
+  memory_.mem_w32(bins_.cursor(), guest_packet::kGt3Tag);
   memory_.mem_w32(bins_.cursor() + 0x18, memory_.mem_r32(ra - 8));
   memory_.mem_w32(bins_.cursor() + 0x24, uv);
   v1_ = bins_.link(v0_);
@@ -286,13 +282,13 @@ void PairedActor::cutTriangle(const CutTriangle &triangle) {
     if (!bin) {
       return;
     }
-    memory_.mem_w32(bins_.cursor() + 0x04, ((colours[0] << 8) >> 8) + kGouraudTexturedTriangle);
+    memory_.mem_w32(bins_.cursor() + 0x04, ((colours[0] << 8) >> 8) + guest_packet::kGt3Code);
     memory_.mem_w32(bins_.cursor() + 0x10, colours[1]);
     memory_.mem_w32(bins_.cursor() + 0x1C, colours[2]);
     memory_.mem_w32(bins_.cursor() + 0x0C, uvs[0]);
     memory_.mem_w32(bins_.cursor() + 0x18, uvs[1]);
     memory_.mem_w32(bins_.cursor() + 0x24, uvs[2]);
-    memory_.mem_w32(bins_.cursor(), kTriangleTag);
+    memory_.mem_w32(bins_.cursor(), guest_packet::kGt3Tag);
     bins_.link(*bin);
     return;
   }
@@ -320,8 +316,8 @@ void PairedActor::cutTriangle(const CutTriangle &triangle) {
     }
   }
   if (written_ - bins_.cursor() - 0x30 != 0) {
-    memory_.mem_w8(bins_.cursor() + 7, static_cast<std::uint8_t>(kGouraudTexturedTriangle >> 24));
-    memory_.mem_w32(bins_.cursor(), kTriangleTag);
+    memory_.mem_w8(bins_.cursor() + 7, static_cast<std::uint8_t>(guest_packet::kGt3Code >> 24));
+    memory_.mem_w32(bins_.cursor(), guest_packet::kGt3Tag);
     bins_.link(*bin);
     return;
   }
@@ -335,8 +331,8 @@ void PairedActor::cutTriangle(const CutTriangle &triangle) {
   for (std::uint32_t i = 0; i < 6; ++i) {
     memory_.mem_w32(bins_.cursor() + 0x1C + 4 * i, tail[(i + 3) % 6]);
   }
-  memory_.mem_w8(bins_.cursor() + 7, static_cast<std::uint8_t>(kGouraudTexturedQuad >> 24));
-  memory_.mem_w32(bins_.cursor(), kQuadTag);
+  memory_.mem_w8(bins_.cursor() + 7, static_cast<std::uint8_t>(guest_packet::kGt4Code >> 24));
+  memory_.mem_w32(bins_.cursor(), guest_packet::kGt4Tag);
   bins_.link(*bin);
 }
 

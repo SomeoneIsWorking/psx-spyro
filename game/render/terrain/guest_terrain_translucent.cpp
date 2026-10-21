@@ -191,7 +191,7 @@ void TranslucentPass::drawQuad(const PackedIndices &vertices) {
   const std::uint32_t c0 = fadedColour(d0);
   const std::uint32_t c1 = fadedColour(d1);
   const std::uint32_t c2 = fadedColour(d2);
-  memory_.mem_w32(prim + packet::kColour0, c0 | kSemiQuadCode);
+  memory_.mem_w32(prim + packet::kColour0, c0 | guest_packet::kSemiGt4Code);
   memory_.mem_w32(prim + packet::kColour1, c1);
   memory_.mem_w32(prim + packet::kColour2, c2);
   const std::uint32_t c3 = fadedColour(d3);
@@ -200,14 +200,14 @@ void TranslucentPass::drawQuad(const PackedIndices &vertices) {
   const std::uint32_t record = textureRecord(frame_, draw);
   const std::uint32_t uv = memory_.mem_r32(record);
   const std::uint32_t page = memory_.mem_r32(record + 4);
-  memory_.mem_w32(prim, kQuadTag);
+  memory_.mem_w32(prim, guest_packet::kGt4Tag);
   memory_.mem_w32(prim + packet::kUv0, uv);
   memory_.mem_w32(prim + packet::kUv1, page - 0x1F00u);
   memory_.mem_w32(prim + packet::kUv2, uv + 0x1F00u);
   memory_.mem_w16(prim + packet::kUv3, static_cast<std::uint16_t>(page));
   frame_.v1 = uv + 0x1F00u;
   frame_.v0 = prim >> 16;
-  frame_.linkAndAdvance(bin, PacketSize{kQuadBytes});
+  frame_.linkAndAdvance(bin, PacketSize{guest_packet::kGt4Bytes});
 }
 
 // 80025A4C.
@@ -246,7 +246,7 @@ void TranslucentPass::drawTriangle(const PackedIndices &vertices) {
   memory_.mem_w32(prim + packet::kXy2, xy[2]);
   const std::uint32_t c0 = fadedColour(d0);
   const std::uint32_t c1 = fadedColour(d1);
-  memory_.mem_w32(prim + packet::kColour0, c0 | kSemiTriangleCode);
+  memory_.mem_w32(prim + packet::kColour0, c0 | guest_packet::kSemiGt3Code);
   memory_.mem_w32(prim + packet::kColour1, c1);
   const std::uint32_t c2 = fadedColour(d2);
   memory_.mem_w32(prim + packet::kColour2, c2);
@@ -254,10 +254,10 @@ void TranslucentPass::drawTriangle(const PackedIndices &vertices) {
   const std::uint32_t record = textureRecord(frame_, draw);
   const std::uint32_t uv = memory_.mem_r32(record);
   const std::uint32_t page = memory_.mem_r32(record + 4);
-  memory_.mem_w32(prim, kTriangleTag);
+  memory_.mem_w32(prim, guest_packet::kGt3Tag);
   frame_.v1 = writeTriangleUvs(memory_, prim, {.uv = uv, .page = page}, draw & kTriangleCornerMask);
   frame_.v0 = prim >> 16;
-  frame_.linkAndAdvance(bin, PacketSize{kTriangleBytes});
+  frame_.linkAndAdvance(bin, PacketSize{guest_packet::kGt3Bytes});
 }
 
 } // namespace
