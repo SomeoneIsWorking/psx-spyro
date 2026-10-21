@@ -84,7 +84,8 @@ class Sparkles {
 public:
   Sparkles(Core &core,
            const psx::present::EmitMemory &memory,
-           const spyro::guest_terrain::ScreenBounds &bounds);
+           const spyro::guest_terrain::ScreenBounds &bounds,
+           psx::present::PrimitiveSink *places = nullptr);
 
   // 800584C4..80058550: the camera into the rotation and light matrices, `delta` taken.
   void begin(std::uint32_t delta);
@@ -101,6 +102,7 @@ private:
   Core &core_;
   const psx::present::EmitMemory &memory_;
   spyro::guest_terrain::ScreenBounds bounds_;
+  psx::present::PrimitiveSink *places_ = nullptr;
   bool retiring_ = false;
   std::uint32_t delta_ = 0;
   std::uint32_t camera_[3] = {};

@@ -68,7 +68,7 @@ void drawSparkles(Core *core) {
   sparkles.end();
 }
 
-// A sparkle at `t`: position and angle moved, everything else `to`'s.
+// A sparkle at `t`: position, angle and a fade still counting down moved, everything else `to`'s.
 std::array<std::uint8_t, kSparkleBytes>
 sparkleBetween(const std::array<std::uint8_t, kSparkleBytes> &from,
                const std::array<std::uint8_t, kSparkleBytes> &to,
@@ -79,6 +79,10 @@ sparkleBetween(const std::array<std::uint8_t, kSparkleBytes> &from,
   }
   shown[sparkle::kAngle] =
       spyro::record_blend::angleBetween(from[sparkle::kAngle], to[sparkle::kAngle], t);
+  if (to[sparkle::kFade] < from[sparkle::kFade]) {
+    shown[sparkle::kFade] =
+        spyro::record_blend::byteBetween(from[sparkle::kFade], to[sparkle::kFade], t);
+  }
   return shown;
 }
 
@@ -122,7 +126,7 @@ void SparkleProducer::render(const psx::present::StateInterval &states,
   between.mapTable();
   between.provide(state.record, sparkleBetween(before.header.bytes, state.bytes, states.t));
   Sparkles sparkles(
-      core_, between.memory(), spyro::presentedBounds(core_, spyro1::terrain::kSharedFacts));
+      core_, between.memory(), spyro::presentedBounds(core_, spyro1::terrain::kSharedFacts), &sink);
   sparkles.begin(0);
   if (sparkles.draw(state.record)) {
     between.emitBins(sink);
