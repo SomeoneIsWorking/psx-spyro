@@ -59,9 +59,12 @@ fresh process. Issue 0169.
 - Native owners stay cohesive: frame/field lifecycle, rendering, input, audio, storage, CD/archive and title
   selection are separate owners, not piled into `main.cpp` or `render_frame.cpp`.
 - **Agents never run `./run.sh`.** Run the product with `tools/drive.py`, `tools/title_route.py`, `tools/shot.py`,
-  or the binary through `external/psxport/tools/port/launch_environment.py::agent_environment` (offscreen, silent).
-  Headless button presses go through a forced-input path, not the player's SDL path: when a fix is about input,
-  check it through the live path too.
+  or the binary through `external/psxport/tools/port/launch_environment.py::agent_environment` (silent,
+  `PSXPORT_SHOW_WINDOW=0`: the player's window, never mapped, presenting at real speed; check it in
+  `/proc/<pid>/environ`, never set it to 1). To measure judder, drop `PSXPORT_NOPACE`, keep `fps60=1`, reach the
+  scene (`warp <level>` on the control channel) and read the run-end `[playcheck] presents:` line
+  (p50/p99/missed). Tool button presses go through a forced-input path, not the player's SDL path: when a fix is
+  about input, check it through the live path too.
 - Check work by running the game and looking at the capture. There are no unit tests or gates. Build with
   `CC=clang CXX=clang++ uv run --frozen python external/psxport/tools/port/consumer_build.py --build build/agent --target spyro_port`.
 
