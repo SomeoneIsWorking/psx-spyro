@@ -3,14 +3,14 @@
 #include "blend.h"
 #include "core.h"
 #include "frame_state.h"
+#include "gp0_command.h"
 #include "gp0_primitive_decode.h"
 #include "lucent/log.h"
-#include "gp0_command.h"
-#include "render/field/guest_packet.h"
 #include "native_dispatch.h"
+#include "render/field/guest_packet.h"
 #include "render/state_producer_override.h"
+#include "render/terrain/guest_depth_bins.h"
 #include "spyro1/render/terrain_facts.h"
-#include "spyro1/render/ordering_table.h"
 
 #include <array>
 #include <cstdlib>
@@ -21,7 +21,7 @@ namespace {
 
 namespace guest_packet = spyro::guest_packet;
 
-constexpr psx::present::OtSlot kOverlaySlot{OrderingTable::kOverlayTable, 0};
+constexpr psx::present::OtSlot kOverlaySlot{spyro::depth_bins::kOverlayTable, 0};
 constexpr std::uint32_t kScreenWidth = 0x200;
 constexpr std::uint32_t kScreenHeight = 0xF0;
 constexpr std::uint32_t kTintTop = 8;
@@ -77,8 +77,9 @@ void FullscreenTint::render(const psx::present::StateInterval &states,
     shown.g = static_cast<std::uint8_t>(psx::present::lerpInt(before.g, after.g, t));
     shown.b = static_cast<std::uint8_t>(psx::present::lerpInt(before.b, after.b, t));
   }
-  const std::uint32_t colour = (guest_packet::kF4Code | guest_packet::kSemiCode) | (std::uint32_t{shown.b} << 16) |
-                               (std::uint32_t{shown.g} << 8) | shown.r;
+  const std::uint32_t colour = (guest_packet::kF4Code | guest_packet::kSemiCode) |
+                               (std::uint32_t{shown.b} << 16) | (std::uint32_t{shown.g} << 8) |
+                               shown.r;
   psx::present::DrawPrimitive primitive = quad({colour,
                                                 position(0, kTintTop),
                                                 position(kScreenWidth, kTintTop),
@@ -122,8 +123,11 @@ void CinematicLetterbox::render(const psx::present::StateInterval &states,
 }
 
 void registerScreenOverlayOverrides(Core &core) {
-  spyro::installProducerOverride(
-      core, FullscreenTint::kEntry, "spyro1-fullscreen-tint", tintOverride, std::make_unique<FullscreenTint>());
+  spyro::installProducerOverride(core,
+                                 FullscreenTint::kEntry,
+                                 "spyro1-fullscreen-tint",
+                                 tintOverride,
+                                 std::make_unique<FullscreenTint>());
   spyro::installProducerOverride(core,
                                  CinematicLetterbox::kEntry,
                                  "spyro1-cinematic-letterbox",

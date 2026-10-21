@@ -2,15 +2,15 @@
 
 #include "core.h"
 #include "guest_memory_map.h"
+#include "render/field/guest_render_globals.h"
 #include "render/hud/ui_anchor.h"
 #include "render/state_producer_override.h"
-#include "render/field/guest_render_globals.h"
 #include "render/terrain/guest_depth_bins.h"
 #include "spyro1/render/actor_between.h"
 #include "spyro1/render/actor_facts.h"
 #include "spyro1/render/hud_anchor.h"
-#include "spyro1/render/ordering_table.h"
 #include "spyro1/render/sprite_queue.h"
+#include "spyro1/render/terrain_facts.h"
 #include "spyro1/render/terrain_image.h"
 
 #include <memory>
@@ -36,7 +36,7 @@ void drawQueue(Core *core) {
       binnedWorkingRanges(guest,
                           GuestSpan{kVertexScreens, psx::kScratchpadBytes},
                           GuestSpan{kWorkBlock, kWorkBlockBytes},
-                          GuestSpan{guest.mem_r32(OrderingTable::kOverlayPairPointer), 8},
+                          GuestSpan{guest.mem_r32(terrain::kRenderGlobals.overlayPair), 8},
                           GuestSpan{kShadowListEnd, 4});
   psx::present::LevelReads reads;
   const psx::present::EmitMemory memory(guest, reads, working);
@@ -50,12 +50,14 @@ void drawQueue(Core *core) {
     if (record == 0) {
       break;
     }
-    const bool screenSpace = (guest.mem_r16(record + moby::kCullDistance) & moby::kScreenSpace) != 0;
+    const bool screenSpace =
+        (guest.mem_r16(record + moby::kCullDistance) & moby::kScreenSpace) != 0;
     state.record = record;
     state.hudShift =
-        screenSpace
-            ? spyro::ui_anchor::correction(guest, {.name = "spyro1-hud-record", .index = record}, anchors.next(record))
-            : 0;
+        screenSpace ? spyro::ui_anchor::correction(guest,
+                                                   {.name = "spyro1-hud-record", .index = record},
+                                                   anchors.next(record))
+                    : 0;
     guest.readBytes(record, std::as_writable_bytes(std::span(state.bytes)));
     const auto scope = guest.emission.instance(record);
     reads.clear();
@@ -89,9 +91,9 @@ void SpriteQueueProducer::render(const psx::present::StateInterval &states,
   if (!chain) {
     return;
   }
-  const psx::present::OtSlot slot = chain->overlay
-                                        ? psx::present::OtSlot{OrderingTable::kOverlayTable, 0}
-                                        : psx::present::OtSlot{spyro::depth_bins::kTable, chain->depthBin};
+  const psx::present::OtSlot slot =
+      chain->overlay ? psx::present::OtSlot{spyro::depth_bins::kOverlayTable, 0}
+                     : psx::present::OtSlot{spyro::depth_bins::kTable, chain->depthBin};
   psx::present::DrawModeTracker drawMode;
   if (chain->drawMode != 0) {
     const std::array<std::uint32_t, 1> mode = {chain->modeCommand()};
@@ -101,8 +103,11 @@ void SpriteQueueProducer::render(const psx::present::StateInterval &states,
 }
 
 void registerSpriteQueueOverrides(Core &core) {
-  spyro::installProducerOverride(
-      core, SpriteQueueProducer::kEntry, "spyro1-sprite-queue", drawQueue, std::make_unique<SpriteQueueProducer>(core));
+  spyro::installProducerOverride(core,
+                                 SpriteQueueProducer::kEntry,
+                                 "spyro1-sprite-queue",
+                                 drawQueue,
+                                 std::make_unique<SpriteQueueProducer>(core));
 }
 
 } // namespace spyro1::actors

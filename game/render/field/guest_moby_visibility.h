@@ -48,6 +48,23 @@
 
 namespace spyro::guest_moby {
 
+// The walk's fields of the 0x58-byte record beyond spyro::moby_record's.
+namespace record {
+inline constexpr std::uint32_t kCloseFlag = 0x1C; // negative: listed when near
+inline constexpr std::uint32_t kPacked = 0x3C;    // slot byte, texture and overlay selectors
+inline constexpr std::uint32_t kKind = 0x40;      // u8 index into the overlay table
+inline constexpr std::uint32_t kFlag = 0x48;      // i8: negative skips, -1 ends the walk
+inline constexpr std::uint32_t kReach = 0x4C;     // u16: i8 reach in its low byte
+inline constexpr std::uint32_t kClass =
+    0x4D; // u8 written: 0, 1 edge, 2 inside (high byte of kReach)
+inline constexpr std::uint32_t kDepthBias = 0x4E; // u16: bias byte, GPF scale byte
+inline constexpr std::uint32_t kGroup = 0x52;     // u8 visibility group, >= 0xFE always visible
+inline constexpr std::uint32_t kFlags = 0x54;     // bit 30 interpolated angles, bit 28 mirrored
+inline constexpr std::int8_t kEnd = -1;           // kFlag of the record after the last
+inline constexpr std::uint32_t kInterpolatedAngles = 1u << 30;
+inline constexpr std::uint32_t kMirrored = 1u << 28;
+} // namespace record
+
 struct Facts {
   // The walk's own entry, the address the native override is installed at.
   std::uint32_t entry = 0;

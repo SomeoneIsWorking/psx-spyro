@@ -5,6 +5,7 @@
 #include "render/field/guest_moby_rotation.h"
 #include "render/field/guest_packet.h"
 #include "render/field/guest_word.h"
+#include "render/field/moby_record.h"
 #include "render/terrain/guest_depth_bins.h"
 #include "spyro1/core/guest_globals.h"
 #include "spyro1/render/actor_facts.h"
@@ -16,6 +17,7 @@ namespace {
 namespace gte = psx::gte;
 using spyro::guest_word::asSigned;
 using spyro::guest_word::signedHalf;
+namespace moby_record = spyro::moby_record;
 using terrain::kRenderGlobals;
 
 constexpr std::uint32_t kCameraQuarters = kStaging;
@@ -37,7 +39,8 @@ constexpr std::uint32_t kGrey = 0x808080u;
 // The third vertex's v: 0x1F rows below the first's.
 constexpr std::uint32_t kThirdTexel = 0x1F00u;
 constexpr std::uint32_t kOneRow = 0x10000u;
-// 8005A330..8005A354: the centre must lie above row 240 and within 8 columns of the presented window.
+// 8005A330..8005A354: the centre must lie above row 240 and within 8 columns of the presented
+// window.
 constexpr std::uint32_t kBottomRow = 0xF00000u;
 constexpr std::int32_t kEdgeSlack = 8;
 
@@ -77,10 +80,10 @@ void MobyShadows::draw(std::uint32_t record, std::uint32_t radius) {
   }
   const std::uint32_t height = (memory_.mem_r32(kCameraQuarters + 8) - (ground & 0xFFFFu)) << 16;
   const std::uint32_t across =
-      memory_.mem_r32(kCameraQuarters + 4) - (memory_.mem_r32(record + actors::moby::kY) >> 2);
+      memory_.mem_r32(kCameraQuarters + 4) - (memory_.mem_r32(record + moby_record::kY) >> 2);
   gte.writeData(gte::kVxy0, height + across);
   gte.writeData(gte::kVz0,
-                (memory_.mem_r32(record + actors::moby::kX) >> 2) -
+                (memory_.mem_r32(record + moby_record::kX) >> 2) -
                     memory_.mem_r32(kCameraQuarters));
   gte.execute(gte::kRtps);
   const std::uint32_t slopeX = ((ground >> 16) & 0x3Fu) << 2;
@@ -91,12 +94,13 @@ void MobyShadows::draw(std::uint32_t record, std::uint32_t radius) {
     return;
   }
   // 8005A108..8005A238: tilted by the two slopes, the byte-1 and byte-0 axes of a moby's angles.
-  (void)spyro::guest_moby_rotation::composeTabled(core_,
-                                                  guest::kSinTable,
-                                                  {.angles = (slopeX << 8) | slopeZ},
-                                                  r,
-                                                  spyro::guest_moby_rotation::Byte0Result::Stored,
-                                                  spyro::guest_moby_rotation::Byte1Rt12::Byte0Offset);
+  (void)spyro::guest_moby_rotation::composeTabled(
+      core_,
+      guest::kSinTable,
+      {.angles = (slopeX << 8) | slopeZ},
+      r,
+      spyro::guest_moby_rotation::Byte0Result::Stored,
+      spyro::guest_moby_rotation::Byte1Rt12::Byte0Offset);
   gte.loadRotation(r);
   const std::uint32_t centre = gte.readData(gte::kSxy2);
   const std::uint32_t centreDepth = gte.readData(gte::kSz3);

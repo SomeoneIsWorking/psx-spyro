@@ -7,6 +7,7 @@
 #include "core/debug/warp.h"
 #include "core/field_owner.h"
 #include "game_runtime.h"
+#include "render/field/field_redraw.h"
 #include "state_producer.h"
 
 class Core;
@@ -33,6 +34,8 @@ public:
   // How far the real field's packets could grow before its far pass stopped: the pool's top minus
   // the cursor the drawer started at. An in-between draws within the same budget.
   std::int32_t terrainPacketBudget = 0;
+  // The field dispatcher's last inputs, for the redraw of the next in-between.
+  field_redraw::History fieldRedraw;
   // The state renders this title's producers registered, keyed by producer entry.
   psx::present::StateProducerTable stateProducers;
   // The title's `warp` request, applied by its frame driver.

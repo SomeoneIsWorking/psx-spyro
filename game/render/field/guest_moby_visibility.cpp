@@ -9,6 +9,7 @@
 #include "render/field/guest_view_slope.h"
 #include "render/field/guest_word.h"
 #include "render/field/guest_working_memory.h"
+#include "render/field/moby_record.h"
 
 #include <array>
 
@@ -28,25 +29,6 @@ constexpr std::uint32_t kDeferredBelow = 0x1400;      // CR8
 constexpr std::uint32_t kDeferredEndBelow = 0x1010;   // CR9
 constexpr std::uint32_t kRenderListBelow = 0x1000;    // fp
 constexpr std::uint32_t kRenderListEndBelow = 0x10;   // HI
-
-// ── Moby record (0x58 bytes) ───────────────────────────────────────────────────────────────────
-constexpr std::uint32_t kRecordStride = 0x58;
-namespace record {
-constexpr std::uint32_t kX = 0x0C;
-constexpr std::uint32_t kY = 0x10;
-constexpr std::uint32_t kZ = 0x14;
-constexpr std::uint32_t kCloseFlag = 0x1C; // negative: listed when near
-constexpr std::uint32_t kMeshIndex = 0x36; // u16 index into kMeshSlotTable
-constexpr std::uint32_t kPacked = 0x3C;    // slot byte, texture and overlay selectors
-constexpr std::uint32_t kKind = 0x40;      // u8 index into kOverlayTable
-constexpr std::uint32_t kAngles = 0x44;    // three angle bytes; top byte is the shade bias
-constexpr std::uint32_t kFlag = 0x48;      // i8: negative skips, -1 ends the walk
-constexpr std::uint32_t kReach = 0x4C;     // u16: i8 reach in its low byte
-constexpr std::uint32_t kClass = 0x4D;     // u8 written: 0, 1 edge, 2 inside (high byte of kReach)
-constexpr std::uint32_t kDepthBias = 0x4E; // u16: bias byte, GPF scale byte
-constexpr std::uint32_t kGroup = 0x52;     // u8 visibility group, >= 0xFE always visible
-constexpr std::uint32_t kFlags = 0x54;     // bit 30 interpolated angles, bit 28 mirrored
-} // namespace record
 
 // ── Render-list entry (0x44 bytes) ───────────────────────────────────────────────────────────────
 constexpr std::uint32_t kEntryStride = 0x44;
@@ -79,8 +61,6 @@ constexpr std::uint32_t kMeshSlotsAnimation = 0x34;
 constexpr std::uint32_t kMeshCloseByte = 0x2B;
 constexpr std::uint32_t kSlotMesh = 0x3C;
 
-constexpr std::uint32_t kInterpolatedAngles = 1u << 30;
-constexpr std::uint32_t kMirrored = 1u << 28;
 constexpr std::int32_t kCloseDepth = 0x1200;
 constexpr std::int32_t kFarDepth = 63000;
 constexpr std::uint32_t kDeferredUnbounded = 0xFFFF;
@@ -183,7 +163,7 @@ void MobyWalk::run() {
 
   std::uint32_t rec = firstRecord;
   while (visit(rec) == Step::Next) {
-    rec += kRecordStride;
+    rec += moby_record::kBytes;
   }
 
   core_.mem_w32(facts_.closeCursorHome, closeCursor_);
@@ -197,7 +177,7 @@ void MobyWalk::run() {
 MobyWalk::Step MobyWalk::visit(std::uint32_t rec) {
   const std::int32_t flag = core_.mem_r8s(rec + record::kFlag);
   if (flag < 0) {
-    return flag == -1 ? Step::End : Step::Next;
+    return flag == record::kEnd ? Step::End : Step::Next;
   }
   const std::uint32_t reachWord = core_.mem_r16(rec + record::kReach);
   core_.mem_w8(rec + record::kClass, 0);
@@ -209,24 +189,24 @@ MobyWalk::Step MobyWalk::visit(std::uint32_t rec) {
     if (reach == 0) {
       return Step::Next;
     }
-    const std::uint32_t z = core_.mem_r32(rec + record::kZ);
+    const std::uint32_t z = core_.mem_r32(rec + moby_record::kZ);
     v1_ = z;
     const MeshSlots mesh = meshSlots(rec);
     defer({.rec = rec,
-           .x = core_.mem_r32(rec + record::kX),
-           .y = core_.mem_r32(rec + record::kY),
+           .x = core_.mem_r32(rec + moby_record::kX),
+           .y = core_.mem_r32(rec + moby_record::kY),
            .tail = kDeferredUnbounded,
            .slot = mesh.slot()});
     return Step::Next;
   }
 
-  const std::int32_t dx = asSigned(core_.mem_r32(rec + record::kX) - asWord(cameraX_)) >> 2;
+  const std::int32_t dx = asSigned(core_.mem_r32(rec + moby_record::kX) - asWord(cameraX_)) >> 2;
   if (dx + drawDistance <= 0 || dx - drawDistance >= 0) {
     return Step::Next;
   }
-  const std::uint32_t rawZ = core_.mem_r32(rec + record::kZ);
+  const std::uint32_t rawZ = core_.mem_r32(rec + moby_record::kZ);
   v1_ = rawZ;
-  const std::int32_t dy = asSigned(asWord(cameraY_) - core_.mem_r32(rec + record::kY)) >> 2;
+  const std::int32_t dy = asSigned(asWord(cameraY_) - core_.mem_r32(rec + moby_record::kY)) >> 2;
   if (dy + drawDistance <= 0) {
     return Step::Next;
   }
@@ -258,7 +238,7 @@ MobyWalk::Step MobyWalk::visit(std::uint32_t rec) {
 }
 
 MobyWalk::MeshSlots MobyWalk::meshSlots(std::uint32_t rec) {
-  const std::uint32_t index = core_.mem_r16(rec + record::kMeshIndex);
+  const std::uint32_t index = core_.mem_r16(rec + moby_record::kMesh);
   return MeshSlots{
       .slots = core_.mem_r32(facts_.meshSlotTable + index * 4),
       .packed = core_.mem_r32(rec + record::kPacked),
@@ -347,15 +327,16 @@ void MobyWalk::listClose(const Candidate &candidate, std::int32_t depth) {
 // camera.
 RotationWords MobyWalk::orient(std::uint32_t rec) {
   const std::uint32_t flags = core_.mem_r32(rec + record::kFlags);
-  const std::uint32_t angles = core_.mem_r32(rec + record::kAngles);
+  const std::uint32_t angles = core_.mem_r32(rec + moby_record::kAngles);
   RotationWords rotation = camera_;
   v1_ = globals_.cameraSineTable;
   core_.mem_w32(entry_ + entry::kFlags, flags);
-  if ((flags & kInterpolatedAngles) == 0) {
-    guest_moby_rotation::composeTabled(core_, globals_.cameraSineTable, {.angles = angles}, rotation);
+  if ((flags & record::kInterpolatedAngles) == 0) {
+    guest_moby_rotation::composeTabled(
+        core_, globals_.cameraSineTable, {.angles = angles}, rotation);
     return rotation;
   }
-  if ((flags & kMirrored) == 0) {
+  if ((flags & record::kMirrored) == 0) {
     core_.mem_w32(entry_ + entry::kFlags, 0);
   }
   // Retail's multiplies need HI/LO, so it parks the close-list cursor and the list end in two
@@ -364,7 +345,7 @@ RotationWords MobyWalk::orient(std::uint32_t rec) {
   core_.gte().writeControl(gte::kParkedListEnd, listEnd_);
   guest_moby_rotation::composeInterpolated(
       core_, globals_.cameraSineTable, {.angles = angles, .flags = flags}, rotation);
-  if ((flags & kMirrored) == 0) {
+  if ((flags & record::kMirrored) == 0) {
     v1_ = rotation[0] & 0xFFFFu;
     return rotation;
   }
@@ -436,7 +417,7 @@ MobyWalk::Step MobyWalk::finishEntry(const Candidate &candidate) {
   core_.mem_w8(entry_ + entry::kDetail, static_cast<std::uint8_t>(detail));
   core_.mem_w8(entry_ + entry::kDetailLimit, static_cast<std::uint8_t>(shift + detail));
 
-  const std::int32_t angles = asSigned(core_.mem_r32(rec + record::kAngles));
+  const std::int32_t angles = asSigned(core_.mem_r32(rec + moby_record::kAngles));
   const std::int32_t x4 = asSigned(asWord(cx) << 2);
   const std::int32_t y4 = asSigned(asWord(cy) << 2);
   const std::int32_t z4 = asSigned(asWord(cz) << 2);

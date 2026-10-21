@@ -19,7 +19,7 @@ struct MobyShadowState {
   spyro::guest_terrain::CameraState camera;
   std::uint32_t record = 0;
   std::uint32_t radius = 0;
-  actors::MobyBytes bytes{};
+  spyro::moby_record::Bytes bytes{};
 };
 static_assert(std::is_trivially_copyable_v<MobyShadowState>);
 

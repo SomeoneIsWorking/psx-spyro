@@ -51,8 +51,9 @@ inline constexpr std::uint32_t kFlatPalette = 0x8006E44Cu;
 // a 16-byte entry per vertex (depth, VXY, VZ, height), three 0x44-byte part entries followed by
 // each part's offset, and the tinted vertex colours.
 inline constexpr std::uint32_t kSpyroRecord = guest::kSpyro;
-inline constexpr std::uint32_t kSpyroModel = guest::kModels; // the model pointer (mesh table entry 0)
-inline constexpr std::uint32_t kHornAnchor = 0x800786C8u;  // g_anSpyroHornStrikeAnchorPos
+inline constexpr std::uint32_t kSpyroModel =
+    guest::kModels;                                       // the model pointer (mesh table entry 0)
+inline constexpr std::uint32_t kHornAnchor = 0x800786C8u; // g_anSpyroHornStrikeAnchorPos
 inline constexpr std::uint32_t kVertexDeltas = 0x8006D614u; // 128 packed delta words
 inline constexpr std::uint32_t kVertexTable = kWorkBlock + 0x900u;
 inline constexpr std::uint32_t kPartTable = kWorkBlock + 0x1900u;
@@ -74,16 +75,12 @@ inline constexpr std::uint32_t kBytes = 0x48;
 } // namespace spyro_record
 
 // A moby record, 0x58 bytes.
+// The position, mesh and angle bytes are spyro::moby_record's.
 namespace moby {
-inline constexpr std::uint32_t kX = 0x0C;
-inline constexpr std::uint32_t kY = 0x10;
-inline constexpr std::uint32_t kZ = 0x14;
 inline constexpr std::uint32_t kShadowFlag = 0x1C; // negative: stage a drop shadow
-inline constexpr std::uint32_t kMesh = 0x36;       // halfword index into kMeshTable
 inline constexpr std::uint32_t kFrames = 0x3C;     // frame bytes: 0, 1 and their vertex steps 2, 3
 inline constexpr std::uint32_t kShadowFrame = 0x3E;
 inline constexpr std::uint32_t kBlend = 0x40;         // non-zero blends frame 0 toward frame 1
-inline constexpr std::uint32_t kRotation = 0x44;      // angle bytes 2, 1, 0; byte 3 a depth step
 inline constexpr std::uint32_t kDepthBias = 0x4B;     // low six bits
 inline constexpr std::uint32_t kSecondaryWord = 0x4C; // the sprite queue's palette selector
 inline constexpr std::uint32_t kCullDistance = 0x50;  // halfword: low byte <<8, bit 8 adds 0x200

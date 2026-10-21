@@ -1,15 +1,15 @@
 #include "spyro1/render/sprite_queue.h"
 
 #include "core.h"
-#include "spyro1/core/guest_globals.h"
 #include "gte_registers.h"
 #include "lucent/log.h"
 #include "render/field/guest_moby_rotation.h"
 #include "render/field/guest_packet.h"
 #include "render/field/guest_view_slope.h"
 #include "render/field/guest_word.h"
+#include "render/field/moby_record.h"
 #include "render/terrain/guest_depth_bins.h"
-#include "spyro1/render/ordering_table.h"
+#include "spyro1/core/guest_globals.h"
 #include "spyro1/render/terrain_facts.h"
 
 #include <cstdlib>
@@ -21,11 +21,11 @@ namespace gte = psx::gte;
 namespace guest_packet = spyro::guest_packet;
 namespace frustum = spyro::guest_moby_frustum;
 namespace rotation = spyro::guest_moby_rotation;
+namespace moby_record = spyro::moby_record;
 using terrain::kRenderGlobals;
 
 using spyro::guest_word::asSigned;
 using spyro::guest_word::sra;
-
 
 // 80022C04..80022CC4: the sphere margins are constants here, not the mesh's radius.
 constexpr frustum::SphereMargins kMargins{.horizontalLateral = 0x66,
@@ -42,7 +42,6 @@ constexpr std::uint32_t kScreenOffsetX = 0x1000000u;
 constexpr std::uint32_t kScreenOffsetY = 0x780000u;
 // Closer than this a flat polygon's back face is drawn too (80023734).
 constexpr std::int32_t kTwoSidedDepth = 0x800;
-
 
 // 80023214..80023250: a channel past 0x1000 saturates, otherwise drops its fraction.
 constexpr std::uint32_t saturate(std::uint32_t channel) {
@@ -86,9 +85,7 @@ QueueView presentedQueueView(const Core &core) {
                    .bounds = spyro::presentedBounds(core, spyro1::terrain::kSharedFacts)};
 }
 
-SpriteQueue::SpriteQueue(Core &core,
-                         const psx::present::EmitMemory &memory,
-                         const QueueView &view)
+SpriteQueue::SpriteQueue(Core &core, const psx::present::EmitMemory &memory, const QueueView &view)
     : core_(core), memory_(memory), view_(view), bins_(memory) {}
 
 void SpriteQueue::begin() {
@@ -114,7 +111,7 @@ void SpriteQueue::begin() {
 
 std::optional<QueuedChain> SpriteQueue::draw(std::uint32_t record, std::int32_t hudShift) {
   const std::uint32_t cull = memory_.mem_r16(record + moby::kCullDistance);
-  const std::uint32_t x = memory_.mem_r32(record + moby::kX);
+  const std::uint32_t x = memory_.mem_r32(record + moby_record::kX);
   memory_.mem_w8(record + moby::kDrawn, 0);
   std::optional<Centre> centre;
   if ((cull & moby::kScreenSpace) != 0) {
@@ -170,7 +167,7 @@ std::optional<SpriteQueue::Centre> SpriteQueue::placeInWorld(const Placement &pl
   const std::uint32_t cameraY = memory_.mem_r32(kCameraCopy + 4);
   const std::uint32_t cameraZ = memory_.mem_r32(kCameraCopy + 8);
   const std::int32_t reach = asSigned(((cull & 0xFFu) << 8) + ((cull & 0x100u) << 1));
-  v0_ = memory_.mem_r32(record + moby::kY);
+  v0_ = memory_.mem_r32(record + moby_record::kY);
   const std::int32_t dx = asSigned(worldX - cameraX) >> 2;
   if (dx + reach <= 0) {
     return std::nullopt;
@@ -179,7 +176,7 @@ std::optional<SpriteQueue::Centre> SpriteQueue::placeInWorld(const Placement &pl
   if (dx - reach >= 0) {
     return std::nullopt;
   }
-  v1_ = memory_.mem_r32(record + moby::kZ);
+  v1_ = memory_.mem_r32(record + moby_record::kZ);
   v0_ = sra(v0_, 2);
   const std::int32_t dy = asSigned(v0_);
   if (dy + reach <= 0) {
@@ -201,7 +198,7 @@ std::optional<SpriteQueue::Centre> SpriteQueue::placeInWorld(const Placement &pl
   core_.gte().writeData(gte::kIr1, static_cast<std::uint32_t>(dy));
   core_.gte().writeData(gte::kIr2, static_cast<std::uint32_t>(dz));
   core_.gte().execute(gte::kMvmvaRtIr);
-  const std::uint32_t meshIndex = memory_.mem_r16(record + moby::kMesh);
+  const std::uint32_t meshIndex = memory_.mem_r16(record + moby_record::kMesh);
   v1_ = core_.gte().readData(gte::kMac3);
   v0_ = core_.gte().readData(gte::kMac2);
   const frustum::ViewPoint view{
@@ -229,7 +226,7 @@ std::optional<SpriteQueue::Centre> SpriteQueue::placeInWorld(const Placement &pl
     return std::nullopt;
   }
   edge_ = frustum::insideFrustum(view, kMargins, view_.slope) ? 0u : kStraddlesView;
-  angles_ = memory_.mem_r32(record + moby::kRotation);
+  angles_ = memory_.mem_r32(record + moby_record::kAngles);
   const std::uint32_t tint = memory_.mem_r8(record + moby::kTint);
 
   // 80022CCC: the centre doubled; a tinted record scales it toward the eye.
@@ -259,8 +256,8 @@ std::optional<SpriteQueue::Centre> SpriteQueue::placeInWorld(const Placement &pl
 SpriteQueue::Centre SpriteQueue::placeOnScreen(const Placement &placement, std::int32_t shift) {
   const std::uint32_t record = placement.record;
   const std::uint32_t screenX = placement.x;
-  const std::uint32_t screenY = memory_.mem_r32(record + moby::kY);
-  v1_ = memory_.mem_r32(record + moby::kZ);
+  const std::uint32_t screenY = memory_.mem_r32(record + moby_record::kY);
+  v1_ = memory_.mem_r32(record + moby_record::kZ);
   const std::uint32_t column = screenX + static_cast<std::uint32_t>(shift);
   core_.gte().writeControl(gte::kOfx, column << 16);
   core_.gte().writeControl(gte::kOfy, screenY << 16);
@@ -268,8 +265,8 @@ SpriteQueue::Centre SpriteQueue::placeOnScreen(const Placement &placement, std::
   v1_ = sra(v1_, 1);
   depthBin_ = sra(v1_, 6);
   edge_ = 0;
-  const std::uint32_t meshIndex = memory_.mem_r16(record + moby::kMesh);
-  angles_ = memory_.mem_r32(record + moby::kRotation);
+  const std::uint32_t meshIndex = memory_.mem_r16(record + moby_record::kMesh);
+  angles_ = memory_.mem_r32(record + moby_record::kAngles);
   mesh_ = memory_.mem_r32(spyro1::guest::kModels + meshIndex * 4);
   rotation_ = kScreenRotation;
   core_.gte().loadRotation(rotation_);
@@ -309,7 +306,8 @@ bool SpriteQueue::projectVertices() {
   std::uint32_t shared = 0xFFFFFFFFu;
   for (std::uint32_t i = 0; i < static_cast<std::uint32_t>(count); ++i) {
     core_.gte().execute(gte::kRtps);
-    const std::uint32_t word = memory_.mem_r8(next) | (std::uint32_t{memory_.mem_r8(next + 1)} << 8) |
+    const std::uint32_t word = memory_.mem_r8(next) |
+                               (std::uint32_t{memory_.mem_r8(next + 1)} << 8) |
                                (std::uint32_t{memory_.mem_r8(next + 2)} << 16) |
                                (std::uint32_t{memory_.mem_r8(next + 3)} << 24);
     next += 3;
@@ -346,7 +344,8 @@ void SpriteQueue::lightVertices(std::uint32_t record) {
   const std::uint32_t boost = base >> 28;
   std::uint32_t normal = mesh_ + queued_mesh::kNormals;
   auto component = [this](std::uint32_t address) {
-    return static_cast<std::uint32_t>(std::int32_t{static_cast<std::int8_t>(memory_.mem_r8(address))});
+    return static_cast<std::uint32_t>(
+        std::int32_t{static_cast<std::int8_t>(memory_.mem_r8(address))});
   };
   std::uint32_t nx = component(normal);
   std::uint32_t ny = component(normal + 1);
@@ -673,7 +672,7 @@ std::optional<QueuedChain> SpriteQueue::chainLocalBins() {
 }
 
 void SpriteQueue::link(const QueuedChain &chain) {
-  v1_ = chain.overlay ? memory_.mem_r32(OrderingTable::kOverlayPairPointer)
+  v1_ = chain.overlay ? memory_.mem_r32(terrain::kRenderGlobals.overlayPair)
                       : memory_.mem_r32(kRenderGlobals.orderingTable) + (chain.depthBin << 3);
   if (chain.drawMode != 0) {
     const std::uint32_t packet = bins_.cursor();

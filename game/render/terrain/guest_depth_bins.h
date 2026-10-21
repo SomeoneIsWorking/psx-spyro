@@ -7,8 +7,8 @@
 // hands each packet its bin through `core.otTables`: terrain, mobys and HUD alike.
 #pragma once
 
-#include "frame_record.h"
 #include "emit_memory.h"
+#include "frame_record.h"
 #include "render/field/guest_render_globals.h"
 
 #include <cstdint>
@@ -19,11 +19,13 @@ namespace spyro::depth_bins {
 
 // The ordering table's name in `core.otTables`; the terrain producer emits into its bins.
 inline constexpr std::uint16_t kTable = 0;
-// 512 (head, first) word pairs; a bin's chain starts at its first-linked packet.
-inline constexpr std::uint32_t kBins = 512;
+// The overlay pair's: one slot, drawn after every bin.
+inline constexpr std::uint16_t kOverlayTable = 1;
+// 0x580 (head, first) word pairs, the count both draws clear and ask the flatten for; a bin's chain
+// starts at its first-linked packet.
+inline constexpr std::uint32_t kBins = 0x580;
 inline constexpr std::uint32_t kBinStride = 8;
 inline constexpr std::uint32_t kBinFirstOffset = 4;
-inline constexpr std::uint32_t kTableBytes = kBins * kBinStride;
 
 // One ordering table's (head, first) pairs: `named` from `base`, the first `linked` of them holding
 // this frame's packets.
@@ -37,10 +39,23 @@ struct Bins {
 // The S2/S3 table at the base the guest published, linked up to its mark.
 [[nodiscard]] Bins publishedBins(Core &core, const guest_render_globals::Globals &globals);
 
-// Names the table in `core.otTables` and gives every packet linked into a bin that bin's slot.
-void assignBins(Core &core, const Bins &bins);
+// The overlay pair the guest published.
+[[nodiscard]] Bins overlayBins(Core &core, const guest_render_globals::Globals &globals);
 
-// Links the packets `first`..`last` as the new head of the (head, first) pair at `slot`; returns the old head.
-std::uint32_t linkIntoBin(const psx::present::EmitMemory &memory, std::uint32_t slot, std::uint32_t first, std::uint32_t last);
+// The packets below `below` that no other producer keyed, which the walk keys to the open producer
+// scope.
+struct Claim {
+  std::uint32_t below = 0;
+};
+
+// Names the table in `core.otTables` and gives every packet linked into a bin that bin's slot.
+void assignBins(Core &core, const Bins &bins, Claim claim = {});
+
+// Links the packets `first`..`last` as the new head of the (head, first) pair at `slot`; returns
+// the old head.
+std::uint32_t linkIntoBin(const psx::present::EmitMemory &memory,
+                          std::uint32_t slot,
+                          std::uint32_t first,
+                          std::uint32_t last);
 
 } // namespace spyro::depth_bins

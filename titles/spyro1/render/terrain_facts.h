@@ -69,8 +69,9 @@ inline constexpr Facts kFacts{
 //
 //   80077DD8  the register save area (800258F0)
 //   800757B0  the next free primitive packet, read at 800261F0 and written at exit (8002A6B0)
-//   80075820  the ordering table base (80026208)
-//   80076DD0  the projection rotation, row 1 scaled (800261A8); 80076DE4 the classification one
+//   80075820  the ordering table base (80026208); 8007581C the overlay pair AddPrimToOT 0x800168DC
+//   appends to 80076DD0  the projection rotation, row 1 scaled (800261A8); 80076DE4 the
+//   classification one
 //             (8002592C + 0x14); 80076DF8 the camera position (+0x28)
 //   80076E1C  the three angle halfwords the camera builder 0x80033C50 reads
 //   8006CBF8  its sine table (0x80016C58)
@@ -78,6 +79,7 @@ inline constexpr spyro::guest_render_globals::Globals kRenderGlobals{
     .registerSaveArea = guest::kRegisterSpillArea,
     .primitiveCursor = 0x800757B0u,
     .orderingTable = 0x80075820u,
+    .overlayPair = 0x8007581Cu,
     .cameraRotation = guest::kCamera,
     .cameraPosition = guest::kCameraPosition,
     .cameraAngles = guest::kCameraRotationX,
@@ -88,7 +90,8 @@ inline constexpr spyro::guest_render_globals::Globals kRenderGlobals{
 // (8001EDC4).
 inline constexpr std::uint32_t kPacketPoolEnd = 0x80075780u;
 inline constexpr std::uint32_t kPacketPoolBytes = 0x1C000u;
-// Set by the sky (8004EF68) and the particles (8005809C) when the pool comes within 0x400 bytes of its end.
+// Set by the sky (8004EF68) and the particles (8005809C) when the pool comes within 0x400 bytes of
+// its end.
 inline constexpr std::uint32_t kPoolExhausted = 0x800758B0u;
 // The depth bins it flattens (8001F138), 8 bytes each.
 inline constexpr std::uint32_t kOrderingTableBytes = 0x800u * 8;

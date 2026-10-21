@@ -22,9 +22,7 @@ void OrderingTable::assignSlots(Core &core, std::uint32_t bins) {
                           .base = core.mem_r32(terrain::kRenderGlobals.orderingTable),
                           .named = bins,
                           .linked = bins});
-  depth_bins::assignBins(
-      core,
-      {.table = kOverlayTable, .base = core.mem_r32(kOverlayPairPointer), .named = 1, .linked = 1});
+  depth_bins::assignBins(core, depth_bins::overlayBins(core, terrain::kRenderGlobals));
 }
 
 void OrderingTable::registerOverrides(Core &core) {

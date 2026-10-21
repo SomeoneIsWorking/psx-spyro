@@ -1,7 +1,6 @@
 #include "spyro1/render/actor_list.h"
 
 #include "core.h"
-#include "spyro1/core/guest_globals.h"
 #include "gte_registers.h"
 #include "native_dispatch.h"
 #include "render/field/guest_moby_frustum.h"
@@ -9,6 +8,8 @@
 #include "render/field/guest_render_globals.h"
 #include "render/field/guest_view_slope.h"
 #include "render/field/guest_word.h"
+#include "render/field/moby_record.h"
+#include "spyro1/core/guest_globals.h"
 
 #include <algorithm>
 #include <array>
@@ -19,6 +20,7 @@ namespace {
 namespace gte = psx::gte;
 namespace frustum = spyro::guest_moby_frustum;
 namespace rotation = spyro::guest_moby_rotation;
+namespace moby_record = spyro::moby_record;
 using terrain::kRenderGlobals;
 
 using spyro::guest_word::asSigned;
@@ -107,16 +109,16 @@ void ListBuilder::run() {
 // 8001F1E8..8001F740 (800208FC: 80020994..80020EDC).
 void ListBuilder::visit(std::uint32_t record) {
   const std::uint32_t cull = memory_.mem_r16(record + moby::kCullDistance);
-  const std::uint32_t worldX = memory_.mem_r32(record + moby::kX);
+  const std::uint32_t worldX = memory_.mem_r32(record + moby_record::kX);
   memory_.mem_w8(record + moby::kDrawn, 0);
   const std::int32_t reach = asSigned(((cull & 0xFFu) << 8) + ((cull & 0x100u) << 1));
   const std::int32_t dx = asSigned(worldX - cameraPosition_[0]) >> 2;
   if (dx + reach <= 0 || dx - reach >= 0) {
     return;
   }
-  const std::uint32_t worldY = memory_.mem_r32(record + moby::kY);
+  const std::uint32_t worldY = memory_.mem_r32(record + moby_record::kY);
   const std::int32_t dy = asSigned(cameraPosition_[1] - worldY) >> 2;
-  v1_ = memory_.mem_r32(record + moby::kZ);
+  v1_ = memory_.mem_r32(record + moby_record::kZ);
   if (dy + reach <= 0) {
     return;
   }
@@ -130,8 +132,8 @@ void ListBuilder::visit(std::uint32_t record) {
     return;
   }
 
-  const std::uint32_t mesh = memory_.mem_r32(spyro1::guest::kModels +
-                                         std::uint32_t{memory_.mem_r16(record + moby::kMesh)} * 4);
+  const std::uint32_t mesh = memory_.mem_r32(
+      spyro1::guest::kModels + std::uint32_t{memory_.mem_r16(record + moby_record::kMesh)} * 4);
   const std::uint32_t frames = memory_.mem_r32(record + moby::kFrames);
   const std::uint32_t frame0 = frame(mesh, frames & 0xFFu);
   core_.gte().loadRotation(camera_);
@@ -153,7 +155,8 @@ void ListBuilder::visit(std::uint32_t record) {
   if (asSigned(memory_.mem_r32(record + moby::kShadowFlag)) < 0 && view.z - kShadowDepth < 0) {
     const std::uint32_t shadowFrame = memory_.mem_r8(record + moby::kShadowFrame);
     memory_.mem_w32(shadows_, record);
-    memory_.mem_w32(shadows_ + 4, memory_.mem_r8(frame0 + shadowFrame * 8 + 6 + mesh::kVertexSteps));
+    memory_.mem_w32(shadows_ + 4,
+                    memory_.mem_r8(frame0 + shadowFrame * 8 + 6 + mesh::kVertexSteps));
     shadows_ += 8;
   }
   if (frustum::outsideVertical(view, m)) {
@@ -163,7 +166,7 @@ void ListBuilder::visit(std::uint32_t record) {
   // Level code reads +0x51, so a margin actor gets its entry but keeps retail's mark.
   const bool retailSees = !frustum::outsideHorizontal(view, m, frustum::kRetailSlope);
 
-  const std::uint32_t angles = memory_.mem_r32(record + moby::kRotation);
+  const std::uint32_t angles = memory_.mem_r32(record + moby_record::kAngles);
   const std::uint32_t blend = memory_.mem_r8(record + moby::kBlend);
   const std::uint32_t tint = memory_.mem_r8(record + moby::kTint);
   const std::uint32_t steps = frame0 + mesh::kVertexSteps + ((frames >> 16) & 0xFFu) * 8;

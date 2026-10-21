@@ -1,10 +1,11 @@
 #include "spyro1/render/glow_producers.h"
 
-#include "core.h"
 #include "blend.h"
-#include "render/state_producer_override.h"
+#include "core.h"
 #include "render/field/guest_render_globals.h"
 #include "render/field/guest_view_slope.h"
+#include "render/field/record_blend.h"
+#include "render/state_producer_override.h"
 #include "spyro1/render/actor_between.h"
 #include "spyro1/render/terrain_facts.h"
 #include "spyro1/render/terrain_image.h"
@@ -34,7 +35,8 @@ void drawEmitters(Core *core) {
     }
     state.emitter = entry;
     guest.readBytes(entry, std::as_writable_bytes(std::span(state.bytes)));
-    guest.readBytes(guest.mem_r32(entry + emitter::kPosition), std::as_writable_bytes(std::span(state.position)));
+    guest.readBytes(guest.mem_r32(entry + emitter::kPosition),
+                    std::as_writable_bytes(std::span(state.position)));
     const auto scope = guest.emission.instance(entry);
     reads.clear();
     fans.draw(entry);
@@ -67,14 +69,16 @@ void drawSparkles(Core *core) {
 }
 
 // A sparkle at `t`: position and angle moved, everything else `to`'s.
-std::array<std::uint8_t, kSparkleBytes> sparkleBetween(const std::array<std::uint8_t, kSparkleBytes> &from,
-                                                       const std::array<std::uint8_t, kSparkleBytes> &to,
-                                                       float t) {
+std::array<std::uint8_t, kSparkleBytes>
+sparkleBetween(const std::array<std::uint8_t, kSparkleBytes> &from,
+               const std::array<std::uint8_t, kSparkleBytes> &to,
+               float t) {
   std::array<std::uint8_t, kSparkleBytes> shown = to;
   for (std::uint32_t at = 0; at < 12; at += 4) {
-    actors::wordBetween(shown, from, to, at, t);
+    spyro::record_blend::wordBetween(shown, from, to, at, t);
   }
-  shown[sparkle::kAngle] = actors::angleBetween(from[sparkle::kAngle], to[sparkle::kAngle], t);
+  shown[sparkle::kAngle] =
+      spyro::record_blend::angleBetween(from[sparkle::kAngle], to[sparkle::kAngle], t);
   return shown;
 }
 
@@ -91,11 +95,15 @@ void GlowFanProducer::render(const psx::present::StateInterval &states,
       core_, terrain::kTerrainImage, before.header.camera, state.camera, states.t));
   between.mapTable();
   between.provide(state.emitter, state.bytes);
-  const std::uint32_t position = actors::load<std::uint32_t>(state.bytes, emitter::kPosition);
+  const std::uint32_t position =
+      spyro::record_blend::load<std::uint32_t>(state.bytes, emitter::kPosition);
   for (std::uint32_t i = 0; i < 3; ++i) {
-    between.provideWord(position + i * 4, psx::present::lerpWord(before.header.position[i], state.position[i], states.t));
+    between.provideWord(
+        position + i * 4,
+        psx::present::lerpWord(before.header.position[i], state.position[i], states.t));
   }
-  GlowFans fans(core_, between.memory(), spyro::presentedBounds(core_, spyro1::terrain::kSharedFacts));
+  GlowFans fans(
+      core_, between.memory(), spyro::presentedBounds(core_, spyro1::terrain::kSharedFacts));
   fans.begin();
   if (fans.draw(state.emitter)) {
     between.emitBins(sink);
@@ -113,7 +121,8 @@ void SparkleProducer::render(const psx::present::StateInterval &states,
       core_, terrain::kTerrainImage, before.header.camera, state.camera, states.t));
   between.mapTable();
   between.provide(state.record, sparkleBetween(before.header.bytes, state.bytes, states.t));
-  Sparkles sparkles(core_, between.memory(), spyro::presentedBounds(core_, spyro1::terrain::kSharedFacts));
+  Sparkles sparkles(
+      core_, between.memory(), spyro::presentedBounds(core_, spyro1::terrain::kSharedFacts));
   sparkles.begin(0);
   if (sparkles.draw(state.record)) {
     between.emitBins(sink);
@@ -121,10 +130,16 @@ void SparkleProducer::render(const psx::present::StateInterval &states,
 }
 
 void registerGlowOverrides(Core &core) {
-  spyro::installProducerOverride(
-      core, GlowFanProducer::kEntry, "spyro1-glow-emitters", drawEmitters, std::make_unique<GlowFanProducer>(core));
-  spyro::installProducerOverride(
-      core, SparkleProducer::kEntry, "spyro1-sparkles", drawSparkles, std::make_unique<SparkleProducer>(core));
+  spyro::installProducerOverride(core,
+                                 GlowFanProducer::kEntry,
+                                 "spyro1-glow-emitters",
+                                 drawEmitters,
+                                 std::make_unique<GlowFanProducer>(core));
+  spyro::installProducerOverride(core,
+                                 SparkleProducer::kEntry,
+                                 "spyro1-sparkles",
+                                 drawSparkles,
+                                 std::make_unique<SparkleProducer>(core));
 }
 
 } // namespace spyro1::glows

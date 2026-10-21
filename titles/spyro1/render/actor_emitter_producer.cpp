@@ -3,9 +3,9 @@
 #include "core.h"
 #include "gte_control.h"
 #include "guest_memory_map.h"
-#include "render/state_producer_override.h"
 #include "render/field/guest_render_globals.h"
 #include "render/field/guest_view_slope.h"
+#include "render/state_producer_override.h"
 #include "spyro1/render/actor_emitter.h"
 #include "spyro1/render/actor_emitter_layout.h"
 #include "spyro1/render/lit_actor_emitter.h"
@@ -40,7 +40,7 @@ listReads(Core &guest, const EmitterPass &pass, std::uint32_t record) {
   psx::present::HostMemory probe;
   probe.keepLevelReads();
   probe.mapGuest(guest, kWorkBlock, kWorkBlockBytes);
-  probe.mapGuest(guest, record, static_cast<std::uint32_t>(sizeof(MobyBytes)));
+  probe.mapGuest(guest, record, static_cast<std::uint32_t>(sizeof(spyro::moby_record::Bytes)));
   probe.mapGuest(guest, kShadowListEnd, 4);
   const psx::present::GteGuard gte(guest.gte());
   (void)listRecord(guest, psx::present::EmitMemory(guest, probe), *pass.list, record);
@@ -49,8 +49,10 @@ listReads(Core &guest, const EmitterPass &pass, std::uint32_t record) {
 
 void emitList(Core &guest, const EmitterPass &pass) {
   spyro::guest_render_globals::spillBorrowedRegisters(guest, kRenderGlobals);
-  const std::array<GuestSpan, 5> working = binnedWorkingRanges(
-      guest, GuestSpan{kVertexScreens, psx::kScratchpadBytes}, GuestSpan{kWorkBlock, kWorkBlockBytes});
+  const std::array<GuestSpan, 5> working =
+      binnedWorkingRanges(guest,
+                          GuestSpan{kVertexScreens, psx::kScratchpadBytes},
+                          GuestSpan{kWorkBlock, kWorkBlockBytes});
   psx::present::LevelReads reads;
   const psx::present::EmitMemory memory(guest, reads, working);
   const std::unique_ptr<ActorEmitter> emitter = emitterFor(pass, guest, memory);
@@ -78,8 +80,11 @@ template <const EmitterPass &Pass> void emitterOverride(Core *core) {
 }
 
 template <const EmitterPass &Pass> void registerEmitter(Core &core) {
-  spyro::installProducerOverride(
-      core, Pass.entry, Pass.overrideName, emitterOverride<Pass>, std::make_unique<ActorEmitterProducer>(core, Pass));
+  spyro::installProducerOverride(core,
+                                 Pass.entry,
+                                 Pass.overrideName,
+                                 emitterOverride<Pass>,
+                                 std::make_unique<ActorEmitterProducer>(core, Pass));
 }
 
 } // namespace

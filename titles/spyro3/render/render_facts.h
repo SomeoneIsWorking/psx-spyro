@@ -33,6 +33,7 @@ inline constexpr spyro::guest_render_globals::Globals kRenderGlobals{
     .primitiveCursor = 0x8006C664u,
     .orderingTable = 0x8006C634u,
     .orderingTableMark = 0x8006C7D4u,
+    .overlayPair = 0x8006C638u, // 8002AAE0, beside the table word as in SCUS_944.25
     .cameraRotation = 0x8006DFF8u,
     .cameraPosition = 0x8006E020u,
     .cameraAngles = 0x8006E03Cu,

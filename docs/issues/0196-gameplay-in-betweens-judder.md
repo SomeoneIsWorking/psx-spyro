@@ -50,8 +50,22 @@ against |prev - next| 13.43 on level 10, both parities alike); real frames pixel
 guest-drawn run; no crack in the near sky's in-betweens; the HUD anchored and turning between
 frames. Captures: `scratch/interp/final{10,11,20,near,hud}/` (`spyro1-seq/p*.ppm`).
 
+## Spyro 2 (2026-10-21)
+Cause: everything but the terrain was guest code with no emission scope (issue 0176), so every
+gameplay frame was shown whole.
+
+Fix: `spyro::field_redraw` re-runs the dispatcher `0x800155A0` less the terrain as a guest redraw at
+the in-between's camera, mobys and Spyro, and the flatten keys the field's packets and saves the
+redraw (issue 0176 has the details). psxport gained `GuestRedraw`, `WriteRollback`, the journal's
+`Discard` mode and `StateProducer::composition`.
+
+Proof: fps60, 16:9, hidden window, `warp` 10, 11, 22: no unkeyed primitive after gameplay starts;
+adjacent differences even (level 10 11.5..14.8, level 22 2.3..5.9) against 0/19 alternating before;
+81..95% of each in-between's changing pixels between its neighbours; HUD anchored. Captures
+`scratch/interp2/f{10,11,22}`, `h10`. Level 21 (20 fps logic) shows diff, diff, 0: one in-between per
+three fields.
+
 ## Next
-Spyro 2 `0x800156FC` and `0x80011E9C` plus span misses, Spyro 3 span misses (issue 0176): their
-in-betweens still repeat frame n. Spyro 1's horn and motion trails and demo overlay (issue 0186)
+Spyro 3: no field producer, so its in-betweens still repeat frame n. Spyro 1's horn and motion trails and demo overlay (issue 0186)
 show their frames whole when drawn. A real-time check by the operator is still to do: these runs
 measure the composed images, not the play feel.
