@@ -25,6 +25,8 @@ struct BootPrefixFacts {
   std::uint32_t bootPrefix = 0;
   std::uint32_t frameUpdate = 0;
   std::uint32_t frameDraw = 0;
+  // The fields the update clamps its frame delta to; a logic frame longer than this is a stall.
+  int deltaClampFields = 0;
   FieldOwnerFacts field;
   FrameCutFacts cut;
   std::uint64_t bootStepFieldLimit = kDefaultBootStepFieldLimit;

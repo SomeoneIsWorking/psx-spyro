@@ -23,10 +23,6 @@ constexpr std::uint32_t kFrameTurnsPerStep = 8;
 // A step ends at the first display wait a call stops at, so this only bounds a loop whose
 // iteration waits for nothing.
 constexpr int kMaxLoopCallsPerStep = 4;
-// The longest logic frame presented over all its fields with in-betweens; a longer one is a stall,
-// shown as its last picture each further field so the guest keeps real time. Spyro 1's own frame
-// delta clamps at 4 fields.
-constexpr int kLongestDeferredFrame = 4;
 
 } // namespace
 
@@ -39,6 +35,10 @@ void BootPrefixFrameDriver::initialize() {
     std::abort();
   }
   initialized_ = true;
+  if (facts_.deltaClampFields < 2) {
+    lucent::error("boot-native", "{} names no frame delta clamp", facts_.field.titleName);
+    std::abort();
+  }
   fields_.publish();
   if (!enterCall(facts_.bootPrefix)) {
     // Refused before any guest work; the run is stalled by name rather than aborted.
@@ -204,6 +204,7 @@ BootPrefixFrameDriver::LoopStop BootPrefixFrameDriver::stepMainLoop(Core &core) 
   // update would leave the update unreachable after its first iteration.
   for (int calls = 0; calls < kMaxLoopCallsPerStep; ++calls) {
     if (!call_.pending() && loopCall_ == LoopCall::Update) {
+      fields_.beginLogicFrame();
       session(core).warp->applyArmed(core, static_cast<std::uint32_t>(steps_));
     }
     if (!call_.pending() && !enterCall(entryOf(loopCall_))) {
@@ -294,8 +295,9 @@ void BootPrefixFrameDriver::stepFrame(Core &core, std::uint32_t frame) {
       break;
     case LoopStop::Field:
       // A field inside a logic frame passes unpresented, so the frame is presented over all its
-      // fields with in-betweens; past the longest such frame each field shows the last picture.
-      if (fields_.fieldsSincePace() < kLongestDeferredFrame) {
+      // fields with in-betweens. Past the guest's delta clamp the frame is a stall, and each further
+      // field shows what VRAM holds, as the display would.
+      if (static_cast<int>(fields_.fieldsThisLogicFrame()) < facts_.deltaClampFields) {
         deferField(core, siteOf(loopCall_));
       } else {
         presentField(core, frame, siteOf(loopCall_));

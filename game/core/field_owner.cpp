@@ -132,7 +132,11 @@ bool FieldOwner::deliver(FieldRequest request) {
     core.mem_w32(facts_.fieldCounter, core.mem_r32(facts_.fieldCounter) + 1u);
   }
   cadence_.delivered();
-  ++fieldsSincePace_;
+  if (fieldPacedAhead_) {
+    fieldPacedAhead_ = false;
+  } else {
+    ++fieldsSincePace_;
+  }
   if (observer_ != nullptr) {
     observer_->onField(core, startEdge);
   }
@@ -158,8 +162,14 @@ bool FieldOwner::deliver(FieldRequest request) {
 }
 
 void FieldOwner::presentFrame() {
-  // A frame drawn after its last field was presented shows from the next one.
-  game_.presentation.commit(&game_.core, std::max(1, takePacedFields(true)));
+  int fields = takePacedFields(true);
+  if (fields == 0) {
+    // Drawn after its last field was paced: it shows on the next field, which the next frame's
+    // wait counts and the pacer has then already spent.
+    fields = 1;
+    fieldPacedAhead_ = true;
+  }
+  game_.presentation.commit(&game_.core, fields);
   ++presents_;
   ++paces_;
 }
