@@ -4,8 +4,12 @@
 
 #include "core.h"
 #include "cpu_divide.h"
+#include "guest_memory_map.h"
 #include "render/field/guest_packet.h"
 #include "spyro1/render/paired_actor_layout.h"
+#include "state_producer.h"
+
+#include <utility>
 
 namespace spyro1::actors {
 
@@ -128,11 +132,22 @@ void PairedActor::drawWhole() {
   }
 }
 
+GtePlace PairedActor::placeAt(std::uint32_t slotOffset) const {
+  return vertexPlaces_[slotOffset / 4u];
+}
+
+void PairedActor::declarePlaces(std::uint32_t packet, std::span<const GtePlace> corners) const {
+  for (std::size_t vertex = 0; vertex < corners.size(); ++vertex) {
+    places_->place(psx::kseg0Address(packet), static_cast<int>(vertex), corners[vertex]);
+  }
+}
+
 // 80024D98..80024EA4
 void PairedActor::emitWholeQuad(const WholePolygon &polygon) {
   const auto &[s0, a0, a1, colourAddresses, ra] = polygon;
   const auto [t2, t3, t5] = colourAddresses;
   const std::uint32_t depths = kVertexTable;
+  const std::array<std::uint32_t, 4> slots = {v0_, v1_, a0, a1};
   const std::uint32_t t4 = memory_.mem_r32(((s0 << 1) & 0x7FCu) + colours_);
   const std::uint32_t colour = (memory_.mem_r32(t2) & kColourMask) + guest_packet::kGt4Code;
   v0_ = memory_.mem_r16((v0_ << 2) + depths);
@@ -156,6 +171,10 @@ void PairedActor::emitWholeQuad(const WholePolygon &polygon) {
   memory_.mem_w32(bins_.cursor() + 0x18, memory_.mem_r32(ra - 8));
   memory_.mem_w32(bins_.cursor() + 0x24, uv);
   memory_.mem_w32(bins_.cursor() + 0x30, uv >> 16);
+  if (places_ != nullptr) {
+    declarePlaces(bins_.cursor(),
+                  {{placeAt(slots[0]), placeAt(slots[1]), placeAt(slots[2]), placeAt(slots[3])}});
+  }
   v1_ = bins_.link(v0_);
 }
 
@@ -167,6 +186,7 @@ void PairedActor::emitWholeTriangle(const WholePolygon &polygon, bool backHalf) 
   const std::uint32_t t3 = polygon.colours[1];
   const std::uint32_t ra = polygon.end;
   const std::uint32_t depths = kVertexTable;
+  const std::array<std::uint32_t, 3> slots = {v0_, v1_, a0};
   const std::uint32_t t4 = memory_.mem_r32(((s0 << 1) & 0x7FCu) + colours_);
   const std::uint32_t colour = (memory_.mem_r32(t2) & kColourMask) + guest_packet::kGt3Code;
   v0_ = memory_.mem_r16((v0_ << 2) + depths);
@@ -192,6 +212,9 @@ void PairedActor::emitWholeTriangle(const WholePolygon &polygon, bool backHalf) 
   memory_.mem_w32(bins_.cursor(), guest_packet::kGt3Tag);
   memory_.mem_w32(bins_.cursor() + 0x18, memory_.mem_r32(ra - 8));
   memory_.mem_w32(bins_.cursor() + 0x24, uv);
+  if (places_ != nullptr) {
+    declarePlaces(bins_.cursor(), {{placeAt(slots[0]), placeAt(slots[1]), placeAt(slots[2])}});
+  }
   v1_ = bins_.link(v0_);
 }
 
@@ -248,8 +271,10 @@ void PairedActor::cutTriangle(const CutTriangle &triangle) {
   const std::uint32_t b = memory_.mem_r32(corners[1] + depths);
   const std::uint32_t c = memory_.mem_r32(corners[2] + depths);
   std::array<std::uint32_t, 3> screens{};
+  std::array<GtePlace, 3> places{};
   for (std::uint32_t i = 0; i < 3; ++i) {
     screens[i] = memory_.mem_r32((corners[i] >> 2) + kVertexScreens);
+    places[i] = placeAt(corners[i] >> 2);
   }
   v0_ = screens[1];
   v1_ = screens[2];
@@ -289,6 +314,9 @@ void PairedActor::cutTriangle(const CutTriangle &triangle) {
     memory_.mem_w32(bins_.cursor() + 0x18, uvs[1]);
     memory_.mem_w32(bins_.cursor() + 0x24, uvs[2]);
     memory_.mem_w32(bins_.cursor(), guest_packet::kGt3Tag);
+    if (places_ != nullptr) {
+      declarePlaces(bins_.cursor(), places);
+    }
     bins_.link(*bin);
     return;
   }
@@ -301,6 +329,9 @@ void PairedActor::cutTriangle(const CutTriangle &triangle) {
     return;
   }
   written_ = bins_.cursor();
+  // The written corners' places, in packet order.
+  std::array<GtePlace, 4> cut{};
+  std::size_t count = 0;
   for (std::uint32_t i = 0; i < 3; ++i) {
     const std::uint32_t next = (i + 1) % 3;
     if (asSigned(heights[i]) >= 0) {
@@ -308,16 +339,21 @@ void PairedActor::cutTriangle(const CutTriangle &triangle) {
       memory_.mem_w32(written_ + 8, screens[i]);
       memory_.mem_w16(written_ + 0xC, static_cast<std::uint16_t>(uvs[i]));
       written_ += 0xC;
+      cut[count++] = places[i];
     }
     if (asSigned(heights[i] ^ heights[next]) < 0) {
-      cutEdge({.heights = {heights[i], heights[next]},
-               .from = {colours[i], screens[i], uvs[i]},
-               .to = {colours[next], screens[next], uvs[next]}});
+      cut[count++] = cutEdge({.heights = {heights[i], heights[next]},
+                              .from = {colours[i], screens[i], uvs[i]},
+                              .to = {colours[next], screens[next], uvs[next]},
+                              .places = {places[i], places[next]}});
     }
   }
   if (written_ - bins_.cursor() - 0x30 != 0) {
     memory_.mem_w8(bins_.cursor() + 7, static_cast<std::uint8_t>(guest_packet::kGt3Code >> 24));
     memory_.mem_w32(bins_.cursor(), guest_packet::kGt3Tag);
+    if (places_ != nullptr) {
+      declarePlaces(bins_.cursor(), std::span(cut).first(3));
+    }
     bins_.link(*bin);
     return;
   }
@@ -333,12 +369,16 @@ void PairedActor::cutTriangle(const CutTriangle &triangle) {
   }
   memory_.mem_w8(bins_.cursor() + 7, static_cast<std::uint8_t>(guest_packet::kGt4Code >> 24));
   memory_.mem_w32(bins_.cursor(), guest_packet::kGt4Tag);
+  if (places_ != nullptr) {
+    std::swap(cut[2], cut[3]);
+    declarePlaces(bins_.cursor(), cut);
+  }
   bins_.link(*bin);
 }
 
 // 8002531C..8002542C: the point where an edge crosses the surface, its colour, screen position and
 // uv interpolated by INTPL at height from / (from - to).
-void PairedActor::cutEdge(const CutEdge &edge) {
+GtePlace PairedActor::cutEdge(const CutEdge &edge) {
   auto &gte = core_.gte();
   const auto [from, to] = edge.heights;
   const std::uint32_t weight = psx::cpu::quotient({from << 12, from - to});
@@ -372,6 +412,9 @@ void PairedActor::cutEdge(const CutEdge &edge) {
       written_ + 0xC,
       static_cast<std::uint16_t>(gte.readData(gte::kMac1) + (gte.readData(gte::kMac2) << 8)));
   written_ += 0xC;
+  const float along = static_cast<float>(static_cast<std::int32_t>(weight)) / 4096.0f;
+  const auto [near, far] = edge.places;
+  return {near.x + (far.x - near.x) * along, near.y + (far.y - near.y) * along};
 }
 
 // 800257A0..800258AC: the local bins, nearest first, into the ordering table's bins from the

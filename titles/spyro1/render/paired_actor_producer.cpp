@@ -94,7 +94,7 @@ void PairedActorProducer::render(const psx::present::StateInterval &states,
   between.mapTable();
   between.provide(kSpyroRecord, spyroBetween(before.header.record, after.header.record, states.t));
   between.host().zero(kHornRotation, kHornRotationBytes);
-  PairedActor actor(core_, between.memory());
+  PairedActor actor(core_, between.memory(), &sink);
   if (actor.draw()) {
     between.emitBins(sink);
   }

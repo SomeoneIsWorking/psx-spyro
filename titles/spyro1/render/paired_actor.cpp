@@ -52,8 +52,10 @@ std::array<std::uint32_t, 3> unpackOffset(std::uint32_t word) {
 
 } // namespace
 
-PairedActor::PairedActor(Core &core, const psx::present::EmitMemory &memory)
-    : core_(core), memory_(memory), bins_(memory) {}
+PairedActor::PairedActor(Core &core,
+                         const psx::present::EmitMemory &memory,
+                         psx::present::PrimitiveSink *places)
+    : core_(core), memory_(memory), places_(places), bins_(memory) {}
 
 bool PairedActor::draw() {
   stageParts();
