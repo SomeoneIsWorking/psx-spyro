@@ -80,11 +80,6 @@ constexpr std::optional<spyro::ui_anchor::Anchor> quadAnchor(std::uint32_t retur
   return std::nullopt;
 }
 
-// The columns an element of `anchor` moves from its authored x on the presented frame.
-[[nodiscard]] std::int32_t columns(const Core &core,
-                                   const spyro::ui_anchor::Element &element,
-                                   spyro::ui_anchor::Anchor anchor);
-
 // EmitTexturedQuad's override: the original, then a HUD row's quad moved by its class.
 void registerOverrides(Core &core);
 

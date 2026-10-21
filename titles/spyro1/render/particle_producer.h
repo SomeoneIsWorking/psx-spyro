@@ -38,9 +38,6 @@ private:
   Core &core_;
 };
 
-// A record at `t`: its points and angle moved when both saves hold the same kind, else `to`.
-[[nodiscard]] RecordBytes particleBetween(const RecordBytes &from, const RecordBytes &to, float t);
-
 // The override and its render.
 void registerParticleOverrides(Core &core);
 

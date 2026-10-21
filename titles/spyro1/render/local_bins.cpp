@@ -1,17 +1,14 @@
 #include "spyro1/render/local_bins.h"
 
+#include "render/field/guest_working_memory.h"
 #include "render/field/guest_word.h"
+#include "render/terrain/guest_depth_bins.h"
 #include "spyro1/render/actor_facts.h"
 
 namespace spyro1::actors {
 namespace {
 
 using spyro::guest_word::asSigned;
-
-void linkTag(spyro::guest_memory::WorkingMemory &memory, std::uint32_t tag, std::uint32_t next) {
-  memory.w16(tag, static_cast<std::uint16_t>(next));
-  memory.w8(tag + 2, static_cast<std::uint8_t>(next >> 16));
-}
 
 } // namespace
 
@@ -22,18 +19,15 @@ void LocalBins::begin(const Start &start) {
 }
 
 std::uint32_t LocalBins::link(std::uint32_t slot) {
-  const std::uint32_t head = memory_.r32(slot);
-  memory_.w32(slot, cursor_);
   const std::uint32_t packet = take();
+  const std::uint32_t head = spyro::depth_bins::linkIntoBin(memory_, slot, packet, packet);
   if (head != 0) {
-    linkTag(memory_, head, packet);
     return head;
   }
   if (asSigned(lowest_ - slot) > 0) {
     lowest_ = slot;
   }
   const std::uint32_t above = highest_ - slot;
-  memory_.w32(slot + 4, packet);
   if (asSigned(above) < 0) {
     highest_ = slot;
   }
@@ -42,7 +36,7 @@ std::uint32_t LocalBins::link(std::uint32_t slot) {
 
 std::uint32_t LocalBins::take() {
   const std::uint32_t packet = cursor_;
-  cursor_ += ((memory_.r32(packet) >> 24) + 1) * 4;
+  cursor_ += ((memory_.mem_r32(packet) >> 24) + 1) * 4;
   return packet;
 }
 
@@ -70,7 +64,7 @@ LocalBins::Merged LocalBins::merge(const Target &target) {
   const std::uint32_t lowest = lowest_ - 8;
   at += table;
   for (;;) {
-    std::uint32_t tail = memory_.r32(at);
+    std::uint32_t tail = memory_.mem_r32(at);
     std::uint32_t stop = a0 - merged.stride;
     if (asSigned(lowest - stop) > 0) {
       stop = lowest;
@@ -80,31 +74,31 @@ LocalBins::Merged LocalBins::merge(const Target &target) {
       // The first non-empty local bin becomes the table bin's first packet.
       merging = false;
       while (a0 != stop) {
-        const std::uint32_t first = memory_.r32(a0 + 4);
+        const std::uint32_t first = memory_.mem_r32(a0 + 4);
         a0 -= 8;
         if (first != 0) {
-          tail = memory_.r32(a0 + 8);
-          memory_.w32(at + 4, first);
-          memory_.w32(a0 + 0xC, 0);
-          memory_.w32(a0 + 8, 0);
+          tail = memory_.mem_r32(a0 + 8);
+          memory_.mem_w32(at + 4, first);
+          memory_.mem_w32(a0 + 0xC, 0);
+          memory_.mem_w32(a0 + 8, 0);
           merging = true;
           break;
         }
       }
     }
     while (merging && a0 != stop) {
-      const std::uint32_t first = memory_.r32(a0 + 4);
+      const std::uint32_t first = memory_.mem_r32(a0 + 4);
       a0 -= 8;
       if (first == 0) {
         continue;
       }
-      const std::uint32_t last = memory_.r32(a0 + 8);
-      linkTag(memory_, tail, first);
+      const std::uint32_t last = memory_.mem_r32(a0 + 8);
+      spyro::guest_memory::linkAfter(memory_, tail, first);
       tail = last;
-      memory_.w32(a0 + 8, 0);
-      memory_.w32(a0 + 0xC, 0);
+      memory_.mem_w32(a0 + 8, 0);
+      memory_.mem_w32(a0 + 0xC, 0);
     }
-    memory_.w32(at, tail);
+    memory_.mem_w32(at, tail);
     if (stop == lowest) {
       break;
     }

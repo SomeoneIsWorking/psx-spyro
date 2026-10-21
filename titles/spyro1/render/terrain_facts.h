@@ -4,6 +4,7 @@
 
 #include "render/field/guest_render_globals.h"
 #include "render/terrain/guest_terrain_facts.h"
+#include "spyro1/core/guest_globals.h"
 
 #include <cstdint>
 
@@ -26,8 +27,6 @@ struct Facts {
   std::uint32_t sectorMarks = 0;
   // The fixed block the sector lists and polygon flag bytes live in (800259B4).
   std::uint32_t scratch = 0;
-  // Non-zero skips the far pass (800261D8).
-  std::uint32_t farPassSkip = 0;
 
   // The coarse split pass's tables.
   std::uint32_t coarseQuadCells = 0;          // 80027D7C
@@ -48,10 +47,9 @@ struct Facts {
 };
 
 inline constexpr Facts kFacts{
-    .lodTable = 0x800785A8u,
+    .lodTable = guest::kEnvironment,
     .sectorMarks = 0x800771C8u,
     .scratch = 0x8006FCF4u,
-    .farPassSkip = 0x8007591Cu,
     .coarseQuadCells = 0x8006CF48u,
     .coarseQuadCracks = 0x8006CF98u,
     .pageRemaps = 0x8006D058u,
@@ -75,22 +73,23 @@ inline constexpr Facts kFacts{
 //   80076DD0  the projection rotation, row 1 scaled (800261A8); 80076DE4 the classification one
 //             (8002592C + 0x14); 80076DF8 the camera position (+0x28)
 //   80076E1C  the three angle halfwords the camera builder 0x80033C50 reads
-//   8006CBF8  its sine table (0x80016C58), 8006CC78 its cosine table (0x80016CB0)
+//   8006CBF8  its sine table (0x80016C58)
 inline constexpr spyro::guest_render_globals::Globals kRenderGlobals{
-    .registerSaveArea = 0x80077DD8u,
+    .registerSaveArea = guest::kRegisterSpillArea,
     .primitiveCursor = 0x800757B0u,
     .orderingTable = 0x80075820u,
-    .cameraRotation = 0x80076DD0u,
-    .cameraPosition = 0x80076DF8u,
-    .cameraAngles = 0x80076E1Cu,
-    .cameraSineTable = 0x8006CBF8u,
-    .cameraCosineTable = 0x8006CC78u,
+    .cameraRotation = guest::kCamera,
+    .cameraPosition = guest::kCameraPosition,
+    .cameraAngles = guest::kCameraRotationX,
+    .cameraSineTable = guest::kSinTable,
 };
 
 // The packet pool's end, which GamestateDraw 0x8001ED5C sets kPacketPoolBytes past the cursor
 // (8001EDC4).
 inline constexpr std::uint32_t kPacketPoolEnd = 0x80075780u;
 inline constexpr std::uint32_t kPacketPoolBytes = 0x1C000u;
+// Set by the sky (8004EF68) and the particles (8005809C) when the pool comes within 0x400 bytes of its end.
+inline constexpr std::uint32_t kPoolExhausted = 0x800758B0u;
 // The depth bins it flattens (8001F138), 8 bytes each.
 inline constexpr std::uint32_t kOrderingTableBytes = 0x800u * 8;
 

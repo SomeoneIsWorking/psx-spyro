@@ -69,7 +69,4 @@ inline constexpr std::uint32_t kDepthSpan = 0x200u;
 inline constexpr std::uint32_t kHornArmed = 0x9A;
 inline constexpr std::uint32_t kHornRotation = 0xB8;
 
-// 80024B28: RT * V0 + TR.
-inline constexpr std::uint32_t kMvmvaRtV0Tr = 0x4A480012u;
-
 } // namespace spyro1::actors::paired

@@ -1,15 +1,15 @@
-#include "spyro1/core/hud/screen_overlays.h"
+#include "spyro1/render/screen_overlays.h"
 
 #include "blend.h"
 #include "core.h"
-#include "core/native_execution.h"
-#include "core/session.h"
-#include "execution_control.h"
 #include "frame_state.h"
 #include "gp0_primitive_decode.h"
 #include "lucent/log.h"
+#include "gp0_command.h"
 #include "native_dispatch.h"
-#include "spyro1/core/frame/ordering_table.h"
+#include "render/state_producer_override.h"
+#include "spyro1/render/terrain_facts.h"
+#include "spyro1/render/ordering_table.h"
 
 #include <array>
 #include <cstdlib>
@@ -25,8 +25,10 @@ constexpr std::uint32_t kTintTop = 8;
 constexpr std::uint32_t kTintBottom = 0xE8;
 // The tint's POLY_F4 follows its 3-word DR_MODE; each letterbox bar is a 6-word POLY_F4.
 constexpr std::uint32_t kBarBytes = 0x18;
-constexpr std::uint32_t kFlatQuad = 0x28000000u;
-constexpr std::uint32_t kFlatQuadSemiTransparent = 0x2A000000u;
+using psx::gpu::Gp0Command;
+constexpr std::uint32_t kFlatQuad = Gp0Command::opcodeWord(Gp0Command::polygonOpcode({.quad = true}));
+constexpr std::uint32_t kFlatQuadSemiTransparent =
+    Gp0Command::opcodeWord(Gp0Command::polygonOpcode({.quad = true, .semiTransparent = true}));
 
 constexpr std::uint32_t position(std::uint32_t x, std::uint32_t y) {
   return ((y & 0xFFFFu) << 16) | (x & 0xFFFFu);
@@ -41,10 +43,6 @@ psx::present::DrawPrimitive quad(const std::array<std::uint32_t, 5> &words) {
   return *primitive;
 }
 
-void runOriginal(Core &core, std::uint32_t entry) {
-  (void)psx::cpu::callOriginalOrPropagate(core, entry);
-}
-
 void tintOverride(Core *core) {
   const FullscreenTint::State state{.blend = core->r[4],
                                     .r = static_cast<std::uint8_t>(core->r[5]),
@@ -52,13 +50,13 @@ void tintOverride(Core *core) {
                                     .b = static_cast<std::uint8_t>(core->r[7])};
   const auto site = core->emission.instance(core->r[31]);
   core->frameStates.save(core->emission.current(), state);
-  runOriginal(*core, FullscreenTint::kEntry);
+  (void)psx::cpu::callOriginalOrPropagate(*core, FullscreenTint::kEntry);
 }
 
 void letterboxOverride(Core *core) {
-  const std::uint32_t first = core->mem_r32(ScreenOverlays::kPacketCursor);
+  const std::uint32_t first = core->mem_r32(terrain::kRenderGlobals.primitiveCursor);
   const auto site = core->emission.instance(core->r[31]);
-  runOriginal(*core, CinematicLetterbox::kEntry);
+  (void)psx::cpu::callOriginalOrPropagate(*core, CinematicLetterbox::kEntry);
   for (std::uint32_t bar = 0; bar < 2; ++bar) {
     const auto part = core->emission.element(bar);
     core->emission.bindPacket(first + bar * kBarBytes);
@@ -124,20 +122,14 @@ void CinematicLetterbox::render(const psx::present::StateInterval &states,
   sink.emit(kOverlaySlot, bottom);
 }
 
-void ScreenOverlays::registerOverrides(Core &core) {
-  auto &renders = spyro::session(core).stateProducers;
-  renders.install(FullscreenTint::kEntry, std::make_unique<FullscreenTint>());
-  renders.install(CinematicLetterbox::kEntry, std::make_unique<CinematicLetterbox>());
-  psx::cpu::installNativeOverride(core,
-                                  FullscreenTint::kEntry,
-                                  "spyro1-fullscreen-tint",
-                                  tintOverride,
-                                  psx::present::Producer{psx::present::Arg::A0});
-  psx::cpu::installNativeOverride(core,
-                                  CinematicLetterbox::kEntry,
-                                  "spyro1-cinematic-letterbox",
-                                  letterboxOverride,
-                                  psx::present::Producer{psx::present::Arg::A0});
+void registerScreenOverlayOverrides(Core &core) {
+  spyro::installProducerOverride(
+      core, FullscreenTint::kEntry, "spyro1-fullscreen-tint", tintOverride, std::make_unique<FullscreenTint>());
+  spyro::installProducerOverride(core,
+                                 CinematicLetterbox::kEntry,
+                                 "spyro1-cinematic-letterbox",
+                                 letterboxOverride,
+                                 std::make_unique<CinematicLetterbox>());
 }
 
 } // namespace spyro1

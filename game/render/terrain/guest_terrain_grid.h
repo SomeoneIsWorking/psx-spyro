@@ -52,8 +52,5 @@ void refineCoarseCentre(TerrainFrame &frame);
 // in the image's table at `innerPoints`) are pulled toward the points a row above and below.
 void refineFineInnerPoints(TerrainFrame &frame, std::uint32_t innerPoints);
 
-// One crack triangle per edge whose neighbour byte is set, from consecutive 12-byte entries.
-void drawEdgeCracks(TerrainFrame &frame, CrackEdges edges, const CrackPolygon &polygon);
-
 } // namespace grid
 } // namespace spyro::guest_terrain

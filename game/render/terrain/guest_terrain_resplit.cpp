@@ -11,6 +11,7 @@
 // too large goes back on the queue, which this pass walks until it is empty.
 
 #include "core.h"
+#include "render/field/guest_word.h"
 #include "gte_registers.h"
 #include "render/field/guest_render_globals.h"
 #include "render/terrain/guest_terrain_frame.h"
@@ -27,8 +28,10 @@
 namespace spyro::guest_terrain {
 namespace {
 
-// The GTE register and command numbers are shared vocabulary (psxport gte_registers.h), not this
-// pass's.
+using spyro::guest_word::asSigned;
+using spyro::guest_word::sra;
+using spyro::guest_word::signedHalf;
+
 namespace gte = psx::gte;
 
 // The pieces, one word each: three cell offsets in the top three bytes and, in bit 0, "never too
@@ -39,9 +42,7 @@ constexpr std::uint32_t kTrianglePieceCount = 7;
 constexpr std::uint32_t kQuadPieceCount = 12;
 constexpr std::uint32_t kPieceFitsGpu = 1;
 
-constexpr std::uint32_t kQuadLength = 0x0C; // GP0 words after a GT4's tag
 constexpr std::uint32_t kTagLengthByte = 3;
-constexpr std::uint32_t kGt4ToGt3 = 0x08000000u;
 
 // One point of the cut, a 16-byte scratchpad cell: SXY, colour word, the texture coordinate
 // halfword, and in the last byte the outcodes of the screen window.
@@ -78,14 +79,6 @@ constexpr std::array<std::uint32_t, 4> kPacketColours = {
 constexpr std::array<std::uint32_t, 4> kPacketUvs = {
     packet::kUv0, packet::kUv1, packet::kUv2, packet::kUv3};
 
-std::int32_t lowHalf(std::uint32_t word) {
-  return static_cast<std::int16_t>(word & 0xFFFFu);
-}
-
-std::int32_t highHalf(std::uint32_t word) {
-  return static_cast<std::int32_t>(word) >> 16;
-}
-
 // The average of two packed (u, v) coordinates, each byte averaged on its own.
 std::uint16_t uvMidpoint(std::uint32_t a, std::uint32_t b) {
   const std::uint32_t v = ((a & 0xFF00u) + (b & 0xFF00u)) >> 1;
@@ -117,7 +110,7 @@ private:
 
   TerrainFrame &frame_;
   Core &core_;
-  guest_memory::WorkingMemory &memory_;
+  const psx::present::EmitMemory &memory_;
   std::uint32_t queueEnd_ = 0; // sp
   std::uint32_t clut_ = 0;     // t5: the first texture word's CLUT half
   std::uint32_t page_ = 0;     // t6: the second's texture page half
@@ -125,14 +118,14 @@ private:
 
 // 80028504.
 void ResplitPass::run() {
-  queueEnd_ = memory_.r32(kSplitPrimitiveCursor);
+  queueEnd_ = memory_.mem_r32(kSplitPrimitiveCursor);
   std::uint32_t queue = frame_.scratch + frame_.facts.resplit.queue;
   while (queue != queueEnd_) {
-    const std::uint32_t primitive = memory_.r32(queue);
+    const std::uint32_t primitive = memory_.mem_r32(queue);
     queue += 4;
-    const auto length = static_cast<std::int8_t>(memory_.r8(primitive + kTagLengthByte));
-    memory_.w8(primitive + kTagLengthByte, 0);
-    if (length == kQuadLength) {
+    const auto length = static_cast<std::int8_t>(memory_.mem_r8(primitive + kTagLengthByte));
+    memory_.mem_w8(primitive + kTagLengthByte, 0);
+    if (length == static_cast<std::int8_t>(kQuadTag >> 24)) {
       loadPoints(primitive, kQuadCorners, kQuadMidpoints, kGt4ToGt3);
       classifyPoints(kQuadPoints);
       emitPieces(primitive, {.address = frame_.facts.resplit.quadPieces, .count = kQuadPieceCount});
@@ -156,23 +149,23 @@ void ResplitPass::loadPoints(std::uint32_t primitive,
   std::array<std::uint32_t, Corners> colours{};
   std::array<std::uint32_t, Corners> uvs{};
   for (std::size_t i = 0; i < Corners; ++i) {
-    screens[i] = memory_.r32(primitive + kPacketScreens[i]);
-    colours[i] = memory_.r32(primitive + kPacketColours[i]) - colourAdjust;
-    uvs[i] = memory_.r32(primitive + kPacketUvs[i]);
+    screens[i] = memory_.mem_r32(primitive + kPacketScreens[i]);
+    colours[i] = memory_.mem_r32(primitive + kPacketColours[i]) - colourAdjust;
+    uvs[i] = memory_.mem_r32(primitive + kPacketUvs[i]);
     const std::uint32_t cell = kScratchpad + corners[i];
-    memory_.w32(cell + point::kScreen, screens[i]);
-    memory_.w32(cell + point::kColour, colours[i]);
-    memory_.w16(cell + point::kUv, static_cast<std::uint16_t>(uvs[i]));
+    memory_.mem_w32(cell + point::kScreen, screens[i]);
+    memory_.mem_w32(cell + point::kColour, colours[i]);
+    memory_.mem_w16(cell + point::kUv, static_cast<std::uint16_t>(uvs[i]));
   }
   for (const Midpoint &mid : midpoints) {
     const std::uint32_t cell = kScratchpad + mid.cell;
     const std::uint32_t a = screens[mid.first];
     const std::uint32_t b = screens[mid.second];
-    memory_.w16(cell + point::kScreen, static_cast<std::uint16_t>((lowHalf(a) + lowHalf(b)) >> 1));
-    memory_.w16(cell + point::kScreen + 2,
-                static_cast<std::uint16_t>((highHalf(a) + highHalf(b)) >> 1));
-    memory_.w32(cell + point::kColour, blend(colours[mid.first], colours[mid.second]));
-    memory_.w16(cell + point::kUv, uvMidpoint(uvs[mid.first], uvs[mid.second]));
+    memory_.mem_w16(cell + point::kScreen, static_cast<std::uint16_t>((asSigned(signedHalf(a)) + asSigned(signedHalf(b))) >> 1));
+    memory_.mem_w16(cell + point::kScreen + 2,
+                static_cast<std::uint16_t>((asSigned(sra(a, 16)) + asSigned(sra(b, 16))) >> 1));
+    memory_.mem_w32(cell + point::kColour, blend(colours[mid.first], colours[mid.second]));
+    memory_.mem_w16(cell + point::kUv, uvMidpoint(uvs[mid.first], uvs[mid.second]));
   }
   clut_ = uvs[0] & 0xFFFF0000u;
   page_ = uvs[1] & 0xFFFF0000u;
@@ -183,7 +176,7 @@ void ResplitPass::loadPoints(std::uint32_t primitive,
 void ResplitPass::classifyPoints(std::uint32_t count) {
   for (std::uint32_t i = 0; i < count; ++i) {
     const std::uint32_t cell = kScratchpad + i * kCellSize;
-    const std::uint32_t sxy = memory_.r32(cell + point::kScreen);
+    const std::uint32_t sxy = memory_.mem_r32(cell + point::kScreen);
     std::uint8_t code = 0;
     if (frame_.bounds.aboveTop(sxy)) {
       code |= kOutAbove;
@@ -197,7 +190,7 @@ void ResplitPass::classifyPoints(std::uint32_t count) {
     if (frame_.bounds.atOrRightOfRight(sxy)) {
       code |= kOutRight;
     }
-    memory_.w8(cell + point::kOutcodes, code);
+    memory_.mem_w8(cell + point::kOutcodes, code);
   }
 }
 
@@ -207,17 +200,17 @@ void ResplitPass::classifyPoints(std::uint32_t count) {
 // A piece is named after the packet it was cut from; a piece of a piece keeps the drawer's scope
 // key.
 void ResplitPass::emitPieces(std::uint32_t primitive, PieceTable pieces) {
-  const std::uint32_t next = memory_.r32(primitive);
+  const std::uint32_t next = memory_.mem_r32(primitive);
   std::uint32_t tail = primitive;
   for (std::uint32_t k = 0; k < pieces.count; ++k) {
-    const std::uint32_t piece = memory_.r32(pieces.address + 4 * k);
+    const std::uint32_t piece = memory_.mem_r32(pieces.address + 4 * k);
     const std::array<std::uint32_t, 3> cells = {kScratchpad + (piece >> 24),
                                                 kScratchpad + ((piece >> 16) & 0xFFu),
                                                 kScratchpad + ((piece >> 8) & 0xFFu)};
     frame_.v0 = cells[1];
     frame_.v1 = cells[2];
     const auto outcodes = [this](std::uint32_t cell) {
-      return static_cast<std::int8_t>(memory_.r8(cell + point::kOutcodes));
+      return static_cast<std::int8_t>(memory_.mem_r8(cell + point::kOutcodes));
     };
     if ((outcodes(cells[0]) & outcodes(cells[1]) & outcodes(cells[2])) > 0) {
       continue;
@@ -225,35 +218,35 @@ void ResplitPass::emitPieces(std::uint32_t primitive, PieceTable pieces) {
     const std::uint32_t prim = frame_.primitive;
     std::array<std::uint32_t, 3> screens{};
     for (std::size_t i = 0; i < cells.size(); ++i) {
-      memory_.w32(prim + kPacketColours[i], memory_.r32(cells[i] + point::kColour));
-      screens[i] = memory_.r32(cells[i] + point::kScreen);
+      memory_.mem_w32(prim + kPacketColours[i], memory_.mem_r32(cells[i] + point::kColour));
+      screens[i] = memory_.mem_r32(cells[i] + point::kScreen);
     }
-    memory_.w32(prim + packet::kUv0, memory_.r16(cells[0] + point::kUv) + clut_);
-    memory_.w32(prim + packet::kUv1, memory_.r16(cells[1] + point::kUv) + page_);
-    memory_.w32(prim + packet::kUv2, memory_.r16(cells[2] + point::kUv));
+    memory_.mem_w32(prim + packet::kUv0, memory_.mem_r16(cells[0] + point::kUv) + clut_);
+    memory_.mem_w32(prim + packet::kUv1, memory_.mem_r16(cells[1] + point::kUv) + page_);
+    memory_.mem_w32(prim + packet::kUv2, memory_.mem_r16(cells[2] + point::kUv));
     if ((piece & kPieceFitsGpu) == 0 && gpuSpan(screens) != GpuSpan::Within) {
-      memory_.w32(queueEnd_, prim);
+      memory_.mem_w32(queueEnd_, prim);
       queueEnd_ += 4;
     }
     for (std::size_t i = 0; i < cells.size(); ++i) {
-      memory_.w32(prim + kPacketScreens[i], screens[i]);
+      memory_.mem_w32(prim + kPacketScreens[i], screens[i]);
     }
-    memory_.w32(prim, kTriangleTag);
-    frame_.linkAfter(tail, prim);
+    memory_.mem_w32(prim, kTriangleTag);
+    guest_memory::linkAfter(memory_, tail, prim);
     tail = prim;
     frame_.primitive += kTriangleBytes;
   }
   if (next != 0) {
-    frame_.linkAfter(tail, next);
+    guest_memory::linkAfter(memory_, tail, next);
     return;
   }
   // 80028AEC: retail searches from bin 0 for the bin whose last entry is the primitive.
-  std::uint32_t bin = memory_.r32(frame_.globals.orderingTable);
-  while (memory_.r32(bin) != primitive) {
+  std::uint32_t bin = memory_.mem_r32(frame_.globals.orderingTable);
+  while (memory_.mem_r32(bin) != primitive) {
     bin += 8;
   }
   frame_.v0 = primitive;
-  memory_.w32(bin, tail);
+  memory_.mem_w32(bin, tail);
 }
 
 } // namespace

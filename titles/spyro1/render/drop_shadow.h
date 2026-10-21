@@ -5,6 +5,8 @@
 // for an in-between.
 #pragma once
 
+#include "guest_memory_map.h"
+
 #include "render/field/guest_working_memory.h"
 #include "spyro1/core/effect/shadow_block.h"
 
@@ -18,12 +20,12 @@ namespace spyro1::shadow {
 // The ring's sine/cosine pairs, one word per point (80059DDC).
 inline constexpr std::uint32_t kRing = 0x8006E268u;
 // Where the ring is staged: the frame's radius bytes, the ring's screen words and depths.
-inline constexpr std::uint32_t kStaging = 0x1F800000u;
+inline constexpr std::uint32_t kStaging = psx::kScratchpadPhysicalBase;
 inline constexpr std::uint32_t kStagingBytes = 0xA0u;
 
 class DropShadow {
 public:
-  DropShadow(Core &core, spyro::guest_memory::WorkingMemory &memory);
+  DropShadow(Core &core, const psx::present::EmitMemory &memory);
 
   // The whole routine; false when the shadow is disabled and nothing was touched.
   bool draw();
@@ -43,7 +45,7 @@ private:
   void drawSegments();
 
   Core &core_;
-  spyro::guest_memory::WorkingMemory &memory_;
+  const psx::present::EmitMemory &memory_;
   std::uint32_t v0_ = 0;
   std::uint32_t v1_ = 0;
   std::uint32_t centreScreen_ = 0;

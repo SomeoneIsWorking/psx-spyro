@@ -1,23 +1,18 @@
 #include "spyro1/render/sprite_queue_producer.h"
 
 #include "core.h"
-#include "core/session.h"
-#include "gp0_primitive_decode.h"
-#include "gte_control.h"
-#include "gte_registers.h"
-#include "lucent/log.h"
-#include "native_dispatch.h"
-#include "render/field/guest_packet_chain.h"
+#include "guest_memory_map.h"
+#include "render/hud/ui_anchor.h"
+#include "render/state_producer_override.h"
 #include "render/field/guest_render_globals.h"
 #include "render/terrain/guest_depth_bins.h"
-#include "spyro1/core/frame/ordering_table.h"
-#include "spyro1/core/hud/hud_anchor.h"
 #include "spyro1/render/actor_between.h"
 #include "spyro1/render/actor_facts.h"
+#include "spyro1/render/hud_anchor.h"
+#include "spyro1/render/ordering_table.h"
 #include "spyro1/render/sprite_queue.h"
 #include "spyro1/render/terrain_image.h"
 
-#include <cstdlib>
 #include <memory>
 #include <utility>
 #include <vector>
@@ -37,23 +32,17 @@ SavedRecord readRecord(std::span<const std::byte> bytes) {
 void drawQueue(Core *core) {
   Core &guest = *core;
   spyro::guest_render_globals::spillBorrowedRegisters(guest, kRenderGlobals);
-  const std::uint32_t cursor = guest.mem_r32(kRenderGlobals.primitiveCursor);
-  const std::uint32_t poolEnd = guest.mem_r32(terrain::kPacketPoolEnd);
-  const std::array<memory::GuestRange, 7> working = {{
-      {kVertexScreens, kScratchpadBytes},
-      {kWorkBlock, kWorkBlockBytes},
-      {cursor, cursor < poolEnd ? poolEnd - cursor : 0u},
-      {guest.mem_r32(kRenderGlobals.orderingTable), terrain::kOrderingTableBytes},
-      {guest.mem_r32(OrderingTable::kOverlayPairPointer), 8},
-      {kRenderGlobals.primitiveCursor, 4},
-      {kShadowListEnd, 4},
-  }};
-  memory::GuestMemory reads(guest, working);
-  SpriteQueue queue(guest, reads, presentedQueueView(guest));
+  const std::array<GuestSpan, 7> working =
+      binnedWorkingRanges(guest,
+                          GuestSpan{kVertexScreens, psx::kScratchpadBytes},
+                          GuestSpan{kWorkBlock, kWorkBlockBytes},
+                          GuestSpan{guest.mem_r32(OrderingTable::kOverlayPairPointer), 8},
+                          GuestSpan{kShadowListEnd, 4});
+  psx::present::LevelReads reads;
+  const psx::present::EmitMemory memory(guest, reads, working);
+  SpriteQueue queue(guest, memory, presentedQueueView(guest));
   QueuedRecordState state{.camera = spyro::guest_terrain::readCamera(guest, kRenderGlobals)};
-  for (std::uint32_t i = 0; i < 3; ++i) {
-    state.light[i] = guest.mem_r32(kLightVector + i * 4);
-  }
+  guest.readBytes(kLightVector, std::as_writable_bytes(std::span(state.light)));
   hud_anchor::QueueAnchors anchors;
   queue.begin();
   for (std::uint32_t input = kSpriteQueue;; input += 4) {
@@ -61,24 +50,19 @@ void drawQueue(Core *core) {
     if (record == 0) {
       break;
     }
-    const bool screenSpace =
-        (guest.mem_r16(record + moby::kCullDistance) & moby::kScreenSpace) != 0;
+    const bool screenSpace = (guest.mem_r16(record + moby::kCullDistance) & moby::kScreenSpace) != 0;
     state.record = record;
-    state.hudShift = screenSpace
-                         ? hud_anchor::columns(guest,
-                                               {.name = "spyro1-hud-record", .index = record},
-                                               anchors.next(record))
-                         : 0;
-    for (std::uint32_t at = 0; at < state.bytes.size(); ++at) {
-      state.bytes[at] = guest.mem_r8(record + at);
-    }
+    state.hudShift =
+        screenSpace
+            ? spyro::ui_anchor::correction(guest, {.name = "spyro1-hud-record", .index = record}, anchors.next(record))
+            : 0;
+    guest.readBytes(record, std::as_writable_bytes(std::span(state.bytes)));
     const auto scope = guest.emission.instance(record);
-    reads.forgetReads();
+    reads.clear();
     if (const auto chain = queue.draw(record, state.hudShift)) {
       queue.link(*chain);
     }
-    const std::vector<std::byte> saved = memory::packDraw(state, reads.firstReads());
-    guest.frameStates.save(guest.emission.current(), std::span<const std::byte>(saved));
+    memory::saveDraw(guest, state, std::span<const psx::present::LevelWord>(reads.words()));
   }
   queue.end();
 }
@@ -90,70 +74,35 @@ void SpriteQueueProducer::render(const psx::present::StateInterval &states,
   const SavedRecord before = readRecord(states.from);
   const SavedRecord after = readRecord(states.to);
   const QueuedRecordState &state = after.header;
-  const spyro::guest_terrain::InBetweenCamera camera =
-      spyro::guest_terrain::cameraBetween(core_,
-                                          terrain::kTerrainImage,
-                                          before.header.camera,
-                                          state.camera,
-                                          static_cast<double>(states.t));
-  const memory::PacketArena arena = terrain::kTerrainImage.windows(core_).inBetweenArena;
-  memory::HostMemory host(core_);
-  host.mapEmpty(kVertexScreens, kScratchpadBytes);
-  host.mapEmpty(kWorkBlock, kWorkBlockBytes);
-  host.mapEmpty(arena.base, arena.bytes);
-  host.overlay(after.reads);
-  const std::array<std::uint8_t, 0x58> record =
-      recordBetween(before.header.bytes, state.bytes, states.t);
-  host.mapEmpty(state.record, static_cast<std::uint32_t>(record.size()));
-  for (std::uint32_t at = 0; at < record.size(); ++at) {
-    host.w8(state.record + at, record[at]);
-  }
-  mapCamera(host, camera);
-  host.mapEmpty(kLightVector, 12);
-  for (std::uint32_t i = 0; i < 3; ++i) {
-    host.w32(kLightVector + i * 4, state.light[i]);
-  }
-  host.mapEmpty(kRenderGlobals.primitiveCursor, 4);
-  host.w32(kRenderGlobals.primitiveCursor, arena.base);
-  host.mapEmpty(kShadowListEnd, 4);
-  host.w32(kShadowListEnd, kShadowList);
+  const spyro::guest_terrain::InBetweenCamera camera = spyro::guest_terrain::cameraBetween(
+      core_, terrain::kTerrainImage, before.header.camera, state.camera, states.t);
+  InBetween between(core_, after.reads);
+  between.mapWorkspace();
+  between.provide(state.record, recordBetween(before.header.bytes, state.bytes, states.t));
+  between.mapCamera(camera);
+  between.host().provide(kLightVector, std::as_bytes(std::span(state.light)));
+  between.provideWord(kShadowListEnd, kShadowList);
 
-  const psx::present::GteGuard gte(core_.gte());
-  SpriteQueue queue(core_, host, presentedQueueView(core_));
+  SpriteQueue queue(core_, between.memory(), presentedQueueView(core_));
   queue.begin();
   const std::optional<QueuedChain> chain = queue.draw(state.record, state.hudShift);
   if (!chain) {
     return;
   }
-  const psx::present::OtSlot slot =
-      chain->overlay ? psx::present::OtSlot{OrderingTable::kOverlayTable, 0}
-                     : psx::present::OtSlot{spyro::depth_bins::kTable, chain->depthBin};
-  memory::DrawMode drawMode;
+  const psx::present::OtSlot slot = chain->overlay
+                                        ? psx::present::OtSlot{OrderingTable::kOverlayTable, 0}
+                                        : psx::present::OtSlot{spyro::depth_bins::kTable, chain->depthBin};
+  psx::present::DrawModeTracker drawMode;
   if (chain->drawMode != 0) {
     const std::array<std::uint32_t, 1> mode = {chain->modeCommand()};
     drawMode.take(mode);
   }
-  memory::PacketChains chains(host, arena);
-  chains.walk(chain->first, [&](std::uint32_t packet, std::span<const std::uint32_t> words) {
-    auto primitive = psx::gpu::decodePacketPrimitive(words);
-    if (!primitive) {
-      lucent::error(
-          "spritequeue", "the packet 0x{:08X} at 0x{:08X} is not a polygon", words[0], packet);
-      std::abort();
-    }
-    drawMode.apply(*primitive);
-    sink.emit(slot, *primitive);
-  });
+  between.emitChain(chain->first, slot, drawMode, sink);
 }
 
 void registerSpriteQueueOverrides(Core &core) {
-  spyro::session(core).stateProducers.install(SpriteQueueProducer::kEntry,
-                                              std::make_unique<SpriteQueueProducer>(core));
-  psx::cpu::installNativeOverride(core,
-                                  SpriteQueueProducer::kEntry,
-                                  "spyro1-sprite-queue",
-                                  drawQueue,
-                                  psx::present::Producer{psx::present::Arg::A0});
+  spyro::installProducerOverride(
+      core, SpriteQueueProducer::kEntry, "spyro1-sprite-queue", drawQueue, std::make_unique<SpriteQueueProducer>(core));
 }
 
 } // namespace spyro1::actors

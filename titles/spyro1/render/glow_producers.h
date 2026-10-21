@@ -59,12 +59,6 @@ private:
   Core &core_;
 };
 
-// A sparkle at `t`: position and angle moved, everything else `to`'s.
-[[nodiscard]] std::array<std::uint8_t, kSparkleBytes>
-sparkleBetween(const std::array<std::uint8_t, kSparkleBytes> &from,
-               const std::array<std::uint8_t, kSparkleBytes> &to,
-               float t);
-
 // Both overrides and their renders.
 void registerGlowOverrides(Core &core);
 

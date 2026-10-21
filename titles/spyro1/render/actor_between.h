@@ -1,8 +1,11 @@
-// actor_between.h — what Spyro 1's actor producers share to draw an in-between: a record's
-// words and angle bytes moved toward the next field's, and the in-between camera mapped where the
-// actor routines read it.
+// actor_between.h — what Spyro 1's actor producers share: a saved record moved toward the next field's,
+// the ranges a real field's routine owns, and one in-between run of a routine over host memory.
 #pragma once
 
+#include "blend.h"
+#include "emit_memory.h"
+#include "gp0_primitive_decode.h"
+#include "gte_control.h"
 #include "render/field/guest_working_memory.h"
 #include "render/terrain/terrain_rebuild.h"
 #include "state_producer.h"
@@ -10,64 +13,92 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <span>
 
 class Core;
 
 namespace spyro1::actors {
 
-// A little-endian word of a saved record's bytes.
-template <std::size_t N>
-std::uint32_t loadWord(const std::array<std::uint8_t, N> &bytes, std::uint32_t at) {
-  return bytes[at] | (std::uint32_t{bytes[at + 1]} << 8) | (std::uint32_t{bytes[at + 2]} << 16) |
-         (std::uint32_t{bytes[at + 3]} << 24);
+// A little-endian field of a saved record's bytes.
+template <typename Value, std::size_t N> Value load(const std::array<std::uint8_t, N> &bytes, std::uint32_t at) {
+  Value value;
+  std::memcpy(&value, bytes.data() + at, sizeof(Value));
+  return value;
 }
 
-template <std::size_t N>
-void storeWord(std::array<std::uint8_t, N> &bytes, std::uint32_t at, std::uint32_t word) {
-  for (std::uint32_t i = 0; i < 4; ++i) {
-    bytes[at + i] = static_cast<std::uint8_t>(word >> (8 * i));
-  }
+template <typename Value, std::size_t N> void store(std::array<std::uint8_t, N> &bytes, std::uint32_t at, Value value) {
+  std::memcpy(bytes.data() + at, &value, sizeof(Value));
 }
 
-// A signed position word at `t` from `from` to `to`.
-[[nodiscard]] std::uint32_t wordBetween(std::uint32_t from, std::uint32_t to, float t);
+// The signed word at `at` of two records, at `t`, into `shown`.
+template <std::size_t N>
+void wordBetween(std::array<std::uint8_t, N> &shown,
+                 const std::array<std::uint8_t, N> &from,
+                 const std::array<std::uint8_t, N> &to,
+                 std::uint32_t at,
+                 float t) {
+  store(shown, at, psx::present::lerpWord(load<std::uint32_t>(from, at), load<std::uint32_t>(to, at), t));
+}
+
 // An angle byte, 256 steps a turn, at `t` the short way round.
-[[nodiscard]] std::uint8_t angleBetween(std::uint8_t from, std::uint8_t to, float t);
+[[nodiscard]] inline std::uint8_t angleBetween(std::uint8_t from, std::uint8_t to, float t) {
+  return static_cast<std::uint8_t>(psx::present::lerpTurn(from, to, 8, t));
+}
 
 // A moby record's bytes.
 using MobyBytes = std::array<std::uint8_t, 0x58>;
 // `from` and `to`'s record at `t`: position and angles moved, everything else `to`'s.
 [[nodiscard]] MobyBytes recordBetween(const MobyBytes &from, const MobyBytes &to, float t);
 
-// Every packet an in-between linked into the depth bins at `table`, deepest bin first, each in its
-// bin's slot, a draw-mode packet applied to the untextured ones after it in its bin; `who` names
-// the producer when a packet is not a primitive.
-void emitDepthBins(const spyro::guest_memory::WorkingMemory &memory,
-                   const spyro::guest_memory::PacketArena &arena,
-                   std::uint32_t table,
-                   psx::present::PrimitiveSink &sink,
-                   const char *who);
+// What a pass that merges into the depth bins writes on the real field: the pool from the cursor, the
+// table and the cursor, then `extra`.
+[[nodiscard]] std::array<GuestSpan, 3> binnedWorkingRanges(Core &core);
+template <typename... Extra>
+[[nodiscard]] std::array<GuestSpan, 3 + sizeof...(Extra)> binnedWorkingRanges(Core &core, Extra... extra) {
+  const std::array<GuestSpan, 3> binned = binnedWorkingRanges(core);
+  return {binned[0], binned[1], binned[2], extra...};
+}
 
-// What a pass that merges into the depth bins writes on the real field: the pool from the cursor,
-// the table and the cursor.
-[[nodiscard]] std::array<spyro::guest_memory::GuestRange, 3> binnedWorkingRanges(Core &core);
+// One run of a Spyro 1 render routine over host memory: the GTE handed back when it ends, the field's
+// level words overlaid, the packet arena empty and the cursor and pool end around it.
+class InBetween {
+public:
+  InBetween(Core &core, std::span<const psx::present::LevelWord> reads);
+  InBetween(const InBetween &) = delete;
+  InBetween &operator=(const InBetween &) = delete;
 
-// A record's bytes from guest memory, and mapped into an in-between's host memory.
-void readBytes(Core &core, std::uint32_t base, std::span<std::uint8_t> bytes);
-void mapBytes(spyro::guest_memory::HostMemory &host,
-              std::uint32_t base,
-              std::span<const std::uint8_t> bytes);
+  [[nodiscard]] const psx::present::EmitMemory &memory() const {
+    return memory_;
+  }
+  [[nodiscard]] psx::present::HostMemory &host() {
+    return host_;
+  }
 
-// The camera block at 0x80076DD0: five rotation words, the position from +0x28.
-void mapCamera(spyro::guest_memory::HostMemory &host,
-               const spyro::guest_terrain::InBetweenCamera &camera);
+  // `bytes` at `address` in place of the guest's.
+  void provide(std::uint32_t address, std::span<const std::uint8_t> bytes);
+  void provideWord(std::uint32_t address, std::uint32_t word);
+  // The scratchpad vertex cache and the work block, empty.
+  void mapWorkspace();
+  // The camera block at 0x80076DD0: the projection rotation, the view rotation at +0x14, the position at +0x28.
+  void mapCamera(const spyro::guest_terrain::InBetweenCamera &camera);
+  // An empty ordering table at the base the field published.
+  void mapTable();
 
-// What a pass that merges into the depth bins draws an in-between over: the scratchpad, the work
-// block and the arena empty, the camera, an empty table and the cursor at the arena's base. Returns
-// the table.
-std::uint32_t mapBinnedWorkspace(spyro::guest_memory::HostMemory &host,
-                                 const spyro::guest_memory::PacketArena &arena,
-                                 const spyro::guest_terrain::InBetweenCamera &camera);
+  // Every packet linked into the table's bins, deepest bin first, under one draw mode.
+  void emitBins(psx::present::PrimitiveSink &sink) const;
+  // The chain from `first` into `slot`.
+  void emitChain(std::uint32_t first,
+                 psx::present::OtSlot slot,
+                 psx::present::DrawModeTracker &drawMode,
+                 psx::present::PrimitiveSink &sink) const;
+
+private:
+  psx::present::GteGuard gte_;
+  psx::present::HostMemory host_;
+  psx::present::EmitMemory memory_;
+  spyro::guest_memory::PacketArena arena_;
+  std::uint32_t table_ = 0;
+};
 
 } // namespace spyro1::actors

@@ -14,7 +14,6 @@ constexpr std::uint32_t kCentreSplitDepth = 0x700;
 constexpr std::uint32_t kCentreSplitSpan = 0x100;
 constexpr std::uint32_t kInnerRefineDepth = 0x40;
 constexpr std::uint32_t kInnerRefineSpan = 0x100;
-constexpr std::uint32_t kCrackEntrySize = 12;
 
 // One coordinate (or colour) over the 5x5 grid.
 template <typename Average>
@@ -82,24 +81,24 @@ std::uint32_t colourMidpoint(std::uint32_t a, std::uint32_t b) {
 }
 
 template <std::size_t N>
-void storeComponent(guest_memory::WorkingMemory &memory,
+void storeComponent(const psx::present::EmitMemory &memory,
                     std::uint32_t offset,
                     const std::array<std::uint32_t, N> &values) {
   for (std::size_t i = 0; i < N; ++i) {
-    memory.w16(cellAddress(static_cast<std::uint32_t>(i)) + offset,
+    memory.mem_w16(cellAddress(static_cast<std::uint32_t>(i)) + offset,
                static_cast<std::uint16_t>(values[i]));
   }
 }
 
 template <std::size_t N>
-void storeColours(guest_memory::WorkingMemory &memory, const std::array<std::uint32_t, N> &values) {
+void storeColours(const psx::present::EmitMemory &memory, const std::array<std::uint32_t, N> &values) {
   for (std::size_t i = 0; i < N; ++i) {
-    memory.w32(cellAddress(static_cast<std::uint32_t>(i)) + cell::kColour, values[i]);
+    memory.mem_w32(cellAddress(static_cast<std::uint32_t>(i)) + cell::kColour, values[i]);
   }
 }
 
 void setColour(TerrainFrame &frame, std::uint32_t index, std::uint32_t colour) {
-  frame.memory.w32(cellAddress(index) + cell::kColour, colour);
+  frame.memory.mem_w32(cellAddress(index) + cell::kColour, colour);
 }
 
 } // namespace
@@ -180,7 +179,7 @@ void storeFineTriangle(TerrainFrame &frame,
 
 void refineCoarseCentre(TerrainFrame &frame) {
   const std::uint32_t centre = cellAddress(4);
-  const std::uint32_t code = frame.memory.r32(centre + cell::kDepth);
+  const std::uint32_t code = frame.memory.mem_r32(centre + cell::kDepth);
   if ((code & kOutcodeMask) != 0) {
     return;
   }
@@ -200,7 +199,7 @@ void refineFineInnerPoints(TerrainFrame &frame, std::uint32_t innerPoints) {
   constexpr std::array<std::uint32_t, 4> kCorners = {0, 4, 20, 24};
   std::array<std::uint32_t, 4> past{};
   for (std::size_t i = 0; i < kCorners.size(); ++i) {
-    past[i] = (frame.memory.r32(cellAddress(kCorners[i]) + cell::kDepth) & kDepthMask) -
+    past[i] = (frame.memory.mem_r32(cellAddress(kCorners[i]) + cell::kDepth) & kDepthMask) -
               kInnerRefineDepth;
     if (asSigned(past[i]) <= 0) {
       return;
@@ -213,8 +212,8 @@ void refineFineInnerPoints(TerrainFrame &frame, std::uint32_t innerPoints) {
     }
   }
   for (std::uint32_t k = 0; k < 4; ++k) {
-    const std::uint32_t point = frame.memory.r32(innerPoints + 4 * k);
-    if ((frame.memory.r32(point + cell::kDepth) & kOutcodeMask) != 0) {
+    const std::uint32_t point = frame.memory.mem_r32(innerPoints + 4 * k);
+    if ((frame.memory.mem_r32(point + cell::kDepth) & kOutcodeMask) != 0) {
       continue;
     }
     pullTowardPair(frame,
@@ -223,19 +222,6 @@ void refineFineInnerPoints(TerrainFrame &frame, std::uint32_t innerPoints) {
                     .second = point + 4 * kCellSize,
                     .ownWeight = kInnerRefineSpan - nearest,
                     .pairWeight = nearest >> 1});
-  }
-}
-
-void drawEdgeCracks(TerrainFrame &frame, CrackEdges edges, const CrackPolygon &polygon) {
-  std::uint32_t entry = edges.table;
-  std::uint32_t remaining = edges.edges;
-  while (remaining != 0) {
-    const std::uint32_t edge = remaining & 0xFFu;
-    remaining >>= 8;
-    entry += kCrackEntrySize;
-    if (edge != 0) {
-      emitCrackTriangle(frame, entry - kCrackEntrySize, polygon);
-    }
   }
 }
 

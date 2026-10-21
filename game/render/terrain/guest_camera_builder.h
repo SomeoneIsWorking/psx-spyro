@@ -14,6 +14,7 @@
 
 #include "core.h"
 #include "gte_registers.h"
+#include "render/field/guest_render_globals.h"
 
 #include <array>
 #include <cstdint>
@@ -22,7 +23,7 @@ namespace spyro::guest_camera {
 
 // FUN_8001b61C and FUN_8001b664 both index `(angle & 0xFFF) >> 4` with the low nibble as the
 // interpolation fraction, so 4096 is the period.
-inline constexpr std::uint32_t kTurn = 0x1000;
+inline constexpr unsigned kTurnBits = 12;
 // 0x140 >> 9 is 5/8, the display's vertical scale.
 inline constexpr std::int32_t kVerticalScaleShift = 9;
 inline constexpr std::int32_t kVerticalScale = 0x140;
@@ -38,12 +39,6 @@ struct Angles {
 struct Matrices {
   std::array<std::uint32_t, psx::gte::kRotationWords> projection{};
   std::array<std::uint32_t, psx::gte::kRotationWords> view{};
-};
-
-// The image's own tables (SCUS_944.25: 0x80061BD8 sine, 0x80061C58 cosine).
-struct TrigTables {
-  std::uint32_t sine = 0;
-  std::uint32_t cosine = 0;
 };
 
 // FUN_8001b61C / FUN_8001b664 over one table, read one entry at a time and never written: the
@@ -75,7 +70,9 @@ struct Rotation {
 // order, then row 1 scaled by 0x140 / 512 for the drawer's copy with the image's rounding.
 class Builder {
 public:
-  Builder(Core &core, TrigTables tables) : sin_(core, tables.sine), cos_(core, tables.cosine) {}
+  // `sineTable` is the image's own (SCUS_944.25 0x80061BD8); cosine reads it kCosineOffset on.
+  Builder(Core &core, std::uint32_t sineTable)
+      : sin_(core, sineTable), cos_(core, sineTable + guest_render_globals::kCosineOffset) {}
   virtual ~Builder() = default;
   Builder(const Builder &) = delete;
   Builder &operator=(const Builder &) = delete;
@@ -115,8 +112,8 @@ private:
   }
 };
 
-// At f == 0 and f == 1 the result is the operand's angles bit for bit, so an in-between at either
+// At t == 0 and t == 1 the result is the operand's angles bit for bit, so an in-between at either
 // end of its interval is the guest's own camera.
-Angles interpolate(const Angles &from, const Angles &to, double f);
+Angles interpolate(const Angles &from, const Angles &to, float t);
 
 } // namespace spyro::guest_camera

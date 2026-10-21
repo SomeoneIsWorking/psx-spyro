@@ -10,41 +10,45 @@ Dependency direction: `titles/<title>/` (one image's facts and natives) → `gam
 - `game/core/frame_cut.*` — cut detection for 60 fps in-betweens: gamestate, level, camera jump
 - `game/core/native_execution.h` — nested guest call return address `$ra` and lowered stack frame
 - `game/core/archive_transfer*` — WAD archive / CD file transfer with per-Core completion and refusal
-- `game/core/guest_magnitude.*` — reciprocal magnitude / vector length normalise step, square root table
+- `game/core/guest_magnitude.*` — reciprocal magnitude / vector length normalise step, GTE square sum and square root table
 - `game/core/title_logo*` — title wordmark / logo snapshotted from guest VRAM for the picker panel
 - `game/core/debug/warp.*` — `warp <level>` control command / level select / dev warp, applied when the title screen is idle
 - `game/render/engine_render_overrides.*` — S2/S3 render overrides bound to one image: terrain producer, moby walk, flatten depth bins
 - `game/render/field/guest_moby_*` — moby / object visibility walk: sphere frustum cull, GTE use, orientation onto camera rotation
 - `game/render/field/guest_view_slope.*` — horizontal frustum slope, screen margin and outcode window at 4:3 or widened 16:9
 - `game/render/field/guest_render_globals.h` — camera, ordering-table and packet-cursor guest words per image
-- `game/render/field/guest_working_memory.*`, `guest_packet_chain.*` — guest RAM or host bytes for an in-between, saved draws, packet tag-chain walk, E1 draw mode
-- `game/render/field/guest_word.h` — MIPS word arithmetic: signed view, `sra`, `div` with divide-by-zero results
+- `game/render/field/guest_working_memory.h` — in-between packet arena window, packet tag link, rotation words, saved draws
+- `game/render/field/guest_word.h` — MIPS word arithmetic: signed view, `sra`, sign-extended halfword
+- `game/render/state_producer_override.h` — native draw override installed with the state producer that renders its saved draw
 - `game/render/hud/ui_anchor.*` — HUD / screen-space UI horizontal anchoring on a widened canvas
 - `game/render/terrain/guest_terrain_drawer.*`, `guest_terrain_facts.h`, `guest_terrain_frame.h`, `guest_terrain_passes.h` — terrain / world / level geometry drawer: entry and exit, one image's facts, per-call state, pass order, field windows
 - `game/render/terrain/engine_terrain_image.*` — S2/S3 terrain drawer as one TerrainImage
-- `game/render/terrain/guest_terrain_*` (classify, sphere, animation, mesh, cull, screen, far, far_vertices, detail, translucent, polygon, coarse, fine, split, grid, resplit, fog) — terrain passes: sector classification and bounding sphere, sector animation, vertex projection (RTPS), outcode and NCLIP culls, far LOD, near detail and translucent, subdivision grids and cracks, re-split of oversized polygons, distance fog
+- `game/render/terrain/guest_terrain_*` (classify, sphere, animation, mesh, cull, screen, far, far_vertices, detail, translucent, polygon, coarse, fine, split, grid, resplit, fog) — terrain passes: sector classification and bounding sphere, sector animation, vertex projection (RTPS), outcode and NCLIP culls, far LOD, near detail and translucent, subdivision grids, split pieces and edge cracks, re-split of oversized polygons, distance fog
 - `game/render/terrain/guest_camera_builder.*` — guest camera builder re-run for an in-between camera
 - `game/render/terrain/guest_depth_bins.*` — depth bins / ordering-table slot of each packet before the flatten
 - `game/render/terrain/terrain_rebuild.*`, `terrain_state_producer.*` — terrain interpolation: drawer re-run over saved words at an in-between camera, terrain state producer
 - `titles/spyro1/core/runtime/` — S1 runtime: crt0, stock bindings, native leaves, pad delivery, Record capabilities, cut, title command
 - `titles/spyro1/core/guest_globals.h`, `guest_gp.h`, `guest_functions.h` — S1 guest globals, gp, callee entries, names from the spyro-1 decomp
 - `titles/spyro1/core/execution/` — S1 native leaves: vector math, GTE geometry, angles, rand and random range, utilities, level initialisation, cooperative CD loader queue
-- `titles/spyro1/core/frame/` — S1 main loop: frame driver, GamestateDraw and its VSync tail, boot sequence and logos, Start press latch, transition skip, skip map, ordering table / LinkOTPrimitives slots, draw setup, update budget, logo facts
+- `titles/spyro1/core/frame/` — S1 main loop: frame driver, GamestateDraw and its VSync tail, boot sequence and logos, Start press latch, transition skip, skip map, draw setup, update budget, logo facts
 - `titles/spyro1/core/audio/` — S1 sound: libspu natives, SPU registers, voices, pitch, key status, positional moby sound
 - `titles/spyro1/core/moby/` — S1 mobys / game objects: allocator, lists, transform, animation, collision, collision shade, environment light, shaded queue, shared models (PETE.WAD), level globals table
 - `titles/spyro1/core/player/` — S1 player: Spyro physics, body / head / tail animation, cutscene playback
 - `titles/spyro1/core/camera/` — S1 camera state
 - `titles/spyro1/core/effect/` — S1 effects: ground shadow block and ring, particle pool allocation
-- `titles/spyro1/core/hud/` — S1 HUD: anchor class per HUD record, collectables, pause menu, pixel fade, glow and sparkle pools, fullscreen tint and cinematic letterbox producers
+- `titles/spyro1/core/hud/` — S1 HUD: collectables, pause menu, pixel fade
 - `titles/spyro1/core/input/` — S1 gamepad buffers, input phase for `.pad` recordings
 - `titles/spyro1/core/debug/` — S1 warp route (reset then TSD_Level flyby), `gates` / `gate-teleport` commands
 - `titles/spyro1/render/terrain_*` — S1 terrain drawer RenderWorldChunks: sector loop, far, detail, coarse and fine subdivision passes, facts
-- `titles/spyro1/render/actor_*`, `lit_actor_emitter.*`, `local_bins.*` — S1 actors / mobys: draw list builders, emitters (flat light, reflection), layouts, producers, in-between record words and camera, local depth bins
+- `titles/spyro1/render/actor_*`, `lit_actor_emitter.*`, `local_bins.*` — S1 actors / mobys: draw list builders, emitters (flat light, reflection), layouts, producers, in-between record blend and host-memory run (`InBetween`), local depth bins
 - `titles/spyro1/render/sprite_queue*` — S1 sprite queue: lit and HUD mobys, producer
 - `titles/spyro1/render/paired_actor*` — S1 Spyro model draw (RasterizePairedActor), producer
 - `titles/spyro1/render/sky*` — S1 sky / cyclorama, producer
 - `titles/spyro1/render/drop_shadow*` — S1 Spyro drop shadow, producer
-- `titles/spyro1/render/glow*` — S1 glow fans and sparkles, producers
+- `titles/spyro1/render/glow*` — S1 glow fans and sparkles, their emitter and sparkle pools, producers
+- `titles/spyro1/render/ordering_table.*` — S1 LinkOTPrimitives / ordering table slots
+- `titles/spyro1/render/hud_anchor.*` — S1 HUD anchor class per HUD record
+- `titles/spyro1/render/screen_overlays.*` — S1 fullscreen tint and cinematic letterbox producers
 - `titles/spyro1/render/particle*` — S1 particles / emit list, producer
 - `titles/spyro1/render/screen.h` — S1 retail outcode window for widened culls
 - `titles/spyro2/core/`, `titles/spyro3/core/` — S2/S3 runtime: crt0, stock libraries, interrupt-driven libcd, module landing, packet pool, cut, logo; boot facts (boot prefix, update / draw, gamestate and level words); warp route through the title screen's Start teardown

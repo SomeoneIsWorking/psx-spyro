@@ -10,15 +10,8 @@
 //             jal 0x80052D84   meter: x = 0x200 - slide, the right-edge gauge     right edge
 //             jal 0x80052B88   lives: head at x = 0xD0, digits from 0xF0          centred
 //
-// The guest authors every one of these against its 512-column frame, and the framework presents
-// guest 2D centred in the widened frame (authored x + margin). So the per-class correction
-// (`ui_anchor::correction`) is what each producer needs: left edge -margin, centred 0, right edge
-// +margin. At 4:3 the correction is zero for every class, so both overrides are retail exactly.
-//
-// WHERE IT IS APPLIED: at the producer's x argument, before any packet exists. The counter's
-// element pointer names its class, so its override moves its `x` argument; the meter computes its x
-// internally, so its five emitter calls are recognised by their return address in the emitter
-// override. No guest variable is written.
+// Each producer's x argument moves by its class's `ui_anchor::correction`: the counters at their own
+// entry by element, the meter's emitter calls by return address. No guest variable is written.
 #pragma once
 
 #include "render/hud/ui_anchor.h"

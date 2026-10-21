@@ -1,20 +1,16 @@
 #include "spyro1/render/sky_producer.h"
 
 #include "core.h"
-#include "core/session.h"
-#include "gp0_primitive_decode.h"
-#include "gte_control.h"
-#include "lucent/log.h"
-#include "native_dispatch.h"
-#include "render/field/guest_packet_chain.h"
+#include "render/state_producer_override.h"
+#include "render/field/guest_working_memory.h"
 #include "render/field/guest_render_globals.h"
 #include "render/field/guest_view_slope.h"
 #include "render/terrain/guest_depth_bins.h"
+#include "spyro1/render/actor_between.h"
 #include "spyro1/render/terrain_facts.h"
 #include "spyro1/render/terrain_image.h"
 
 #include <array>
-#include <cstdlib>
 #include <memory>
 #include <vector>
 
@@ -29,14 +25,9 @@ constexpr std::uint32_t kViewRotation = terrain::kSharedFacts.classify.viewRotat
 
 // The rotations the call's $a1 and $a2 name.
 Rotations readRotations(Core &core) {
-  const std::uint32_t view = core.r[5];
-  const std::uint32_t projection = core.r[6];
-  Rotations rotations;
-  for (std::uint32_t i = 0; i < psx::gte::kRotationWords; ++i) {
-    rotations.view[i] = core.mem_r32(view + i * 4);
-    rotations.projection[i] = core.mem_r32(projection + i * 4);
-  }
-  return rotations;
+  const psx::present::EmitMemory guest(core);
+  return Rotations{.view = spyro::guest_memory::rotationAt(guest, core.r[5]),
+                   .projection = spyro::guest_memory::rotationAt(guest, core.r[6])};
 }
 
 void drawSky(Core *core) {
@@ -44,92 +35,59 @@ void drawSky(Core *core) {
   spyro::guest_render_globals::spillBorrowedRegisters(guest, kRenderGlobals);
   const std::uint32_t view = guest.r[5];
   const std::uint32_t projection = guest.r[6];
-  const std::uint32_t cursor = guest.mem_r32(kRenderGlobals.primitiveCursor);
-  const std::uint32_t poolEnd = guest.mem_r32(terrain::kPacketPoolEnd);
-  const std::array<memory::GuestRange, 7> working = {{
-      {kOutcodes, kOutcodesBytes},
-      {kSectorList, kSectorListBytes},
-      {cursor, cursor < poolEnd ? poolEnd - cursor : 0u},
-      {guest.mem_r32(kRenderGlobals.orderingTable), terrain::kOrderingTableBytes},
-      {kRenderGlobals.primitiveCursor, 4},
-      {terrain::kPacketPoolEnd, 4},
-      {kPoolExhausted, 4},
-  }};
-  memory::GuestMemory reads(guest, working);
+  const std::array<GuestSpan, 7> working = actors::binnedWorkingRanges(guest,
+                                                                            GuestSpan{kOutcodes, kOutcodesBytes},
+                                                                            GuestSpan{kSectorList, kSectorListBytes},
+                                                                            GuestSpan{terrain::kPacketPoolEnd, 4},
+                                                                            GuestSpan{terrain::kPoolExhausted, 4});
+  psx::present::LevelReads reads;
+  const psx::present::EmitMemory memory(guest, reads, working);
   const SkyState state{
       .camera = spyro::guest_terrain::readCamera(guest, kRenderGlobals),
       .rotations = readRotations(guest),
       .group = static_cast<std::int32_t>(guest.r[4]),
-      .cameraRotations =
-          view == kViewRotation && projection == kRenderGlobals.cameraRotation ? 1u : 0u,
+      .cameraRotations = view == kViewRotation && projection == kRenderGlobals.cameraRotation ? 1u : 0u,
   };
-  Cyclorama sky(guest, reads, spyro::presentedBounds(guest, spyro1::terrain::kSharedFacts));
+  Cyclorama sky(guest, memory, spyro::presentedBounds(guest, spyro1::terrain::kSharedFacts));
   sky.draw(state.group, state.rotations);
   sky.end();
-  const std::vector<std::byte> saved = memory::packDraw(state, reads.firstReads());
-  guest.frameStates.save(guest.emission.current(), std::span<const std::byte>(saved));
+  memory::saveDraw(guest, state, std::span<const psx::present::LevelWord>(reads.words()));
 }
 
-} // namespace
-
+// The rotations an in-between draws with: the camera's at `t` when the field drew with the camera's own,
+// else the later field's.
 Rotations rotationsBetween(Core &core, const SkyState &from, const SkyState &to, float t) {
   if (from.cameraRotations == 0 || to.cameraRotations == 0) {
     return to.rotations;
   }
-  const spyro::guest_terrain::InBetweenCamera camera = spyro::guest_terrain::cameraBetween(
-      core, terrain::kTerrainImage, from.camera, to.camera, static_cast<double>(t));
-  Rotations rotations;
-  for (std::uint32_t i = 0; i < psx::gte::kRotationWords; ++i) {
-    rotations.view[i] = camera.viewRotation[i];
-    rotations.projection[i] = camera.rotation[i];
-  }
-  return rotations;
+  const spyro::guest_terrain::InBetweenCamera camera =
+      spyro::guest_terrain::cameraBetween(core, terrain::kTerrainImage, from.camera, to.camera, t);
+  return Rotations{.view = camera.viewRotation, .projection = camera.rotation};
 }
+
+} // namespace
 
 void SkyProducer::render(const psx::present::StateInterval &states,
                          psx::present::PrimitiveSink &sink) const {
   const auto before = memory::unpackDraw<SkyState>(states.from, "sky draw");
   const auto after = memory::unpackDraw<SkyState>(states.to, "sky draw");
   const Rotations rotations = rotationsBetween(core_, before.header, after.header, states.t);
-  const memory::PacketArena arena = terrain::kTerrainImage.windows(core_).inBetweenArena;
-  memory::HostMemory host(core_);
-  host.mapEmpty(kOutcodes, kOutcodesBytes);
-  host.mapEmpty(kSectorList, kSectorListBytes);
-  host.mapEmpty(arena.base, arena.bytes);
-  host.overlay(after.reads);
-  const std::uint32_t table = host.r32(kRenderGlobals.orderingTable);
-  host.mapEmpty(table, terrain::kOrderingTableBytes);
-  host.mapEmpty(kRenderGlobals.primitiveCursor, 4);
-  host.w32(kRenderGlobals.primitiveCursor, arena.base);
-  host.mapEmpty(terrain::kPacketPoolEnd, 4);
-  host.w32(terrain::kPacketPoolEnd, arena.base + arena.bytes);
-  host.mapEmpty(kPoolExhausted, 4);
-
-  const psx::present::GteGuard gte(core_.gte());
-  Cyclorama sky(core_, host, spyro::presentedBounds(core_, spyro1::terrain::kSharedFacts));
+  actors::InBetween between(core_, after.reads);
+  between.host().zero(kOutcodes, kOutcodesBytes);
+  between.host().zero(kSectorList, kSectorListBytes);
+  between.mapTable();
+  between.host().zero(terrain::kPoolExhausted, 4);
+  Cyclorama sky(core_, between.memory(), spyro::presentedBounds(core_, spyro1::terrain::kSharedFacts));
   const std::optional<SkyChain> chain = sky.draw(after.header.group, rotations);
   if (!chain) {
     return;
   }
-  memory::PacketChains chains(host, arena);
-  chains.walk(chain->first, [&](std::uint32_t packet, std::span<const std::uint32_t> words) {
-    const auto primitive = psx::gpu::decodePacketPrimitive(words);
-    if (!primitive) {
-      lucent::error("sky", "the packet 0x{:08X} at 0x{:08X} is not a polygon", words[0], packet);
-      std::abort();
-    }
-    sink.emit(psx::present::OtSlot{spyro::depth_bins::kTable, kSkyBin}, *primitive);
-  });
+  psx::present::DrawModeTracker drawMode;
+  between.emitChain(chain->first, psx::present::OtSlot{spyro::depth_bins::kTable, kSkyBin}, drawMode, sink);
 }
 
 void registerSkyOverrides(Core &core) {
-  spyro::session(core).stateProducers.install(SkyProducer::kEntry,
-                                              std::make_unique<SkyProducer>(core));
-  psx::cpu::installNativeOverride(core,
-                                  SkyProducer::kEntry,
-                                  "spyro1-sky",
-                                  drawSky,
-                                  psx::present::Producer{psx::present::Arg::A0});
+  spyro::installProducerOverride(core, SkyProducer::kEntry, "spyro1-sky", drawSky, std::make_unique<SkyProducer>(core));
 }
 
 } // namespace spyro1::sky

@@ -60,7 +60,6 @@ struct Facts {
   std::uint32_t overlayTable = 0;    // overlay byte per record kind
   std::uint32_t closeCursorHome = 0; // close-list cursor, written at the exit
   std::uint32_t exitV0 = 0;          // v0 on return
-  std::uint32_t sineTable = 0;       // the 256-entry sine table; the cosine table is +0x80 bytes
 };
 
 // Run one call of the walk against this image.

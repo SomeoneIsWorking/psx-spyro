@@ -1,9 +1,8 @@
 #include "spyro1/render/paired_actor_producer.h"
 
 #include "core.h"
-#include "core/session.h"
-#include "gte_control.h"
-#include "native_dispatch.h"
+#include "guest_memory_map.h"
+#include "render/state_producer_override.h"
 #include "render/field/guest_render_globals.h"
 #include "spyro1/render/actor_between.h"
 #include "spyro1/render/paired_actor.h"
@@ -25,39 +24,30 @@ constexpr std::uint32_t kHornRotationBytes = 0x14u;
 void drawSpyro(Core *core) {
   Core &guest = *core;
   spyro::guest_render_globals::spillBorrowedRegisters(guest, kRenderGlobals);
-  const std::uint32_t cursor = guest.mem_r32(kRenderGlobals.primitiveCursor);
-  const std::uint32_t poolEnd = guest.mem_r32(terrain::kPacketPoolEnd);
-  const std::array<memory::GuestRange, 6> working = {{
-      {kVertexScreens, kScratchpadBytes},
-      {kWorkBlock, kWorkBlockBytes},
-      {cursor, cursor < poolEnd ? poolEnd - cursor : 0u},
-      {guest.mem_r32(kRenderGlobals.orderingTable), terrain::kOrderingTableBytes},
-      {kRenderGlobals.primitiveCursor, 4},
-      {kHornRotation, kHornRotationBytes},
-  }};
-  memory::GuestMemory reads(guest, working);
+  const std::array<GuestSpan, 6> working =
+      binnedWorkingRanges(guest,
+                          GuestSpan{kVertexScreens, psx::kScratchpadBytes},
+                          GuestSpan{kWorkBlock, kWorkBlockBytes},
+                          GuestSpan{kHornRotation, kHornRotationBytes});
+  psx::present::LevelReads reads;
+  const psx::present::EmitMemory memory(guest, reads, working);
   PairedActorState state{.camera = spyro::guest_terrain::readCamera(guest, kRenderGlobals)};
-  for (std::uint32_t at = 0; at < state.record.size(); ++at) {
-    state.record[at] = guest.mem_r8(kSpyroRecord + at);
-  }
+  guest.readBytes(kSpyroRecord, std::as_writable_bytes(std::span(state.record)));
   const auto scope = guest.emission.instance(kSpyroRecord);
-  PairedActor actor(guest, reads);
+  PairedActor actor(guest, memory);
   actor.draw();
   actor.end();
-  const std::vector<std::byte> saved = memory::packDraw(state, reads.firstReads());
-  guest.frameStates.save(guest.emission.current(), std::span<const std::byte>(saved));
+  memory::saveDraw(guest, state, std::span<const psx::present::LevelWord>(reads.words()));
 }
 
 } // namespace
 
-std::array<std::uint8_t, spyro_record::kBytes>
-spyroBetween(const std::array<std::uint8_t, spyro_record::kBytes> &from,
-             const std::array<std::uint8_t, spyro_record::kBytes> &to,
-             float t) {
+std::array<std::uint8_t, spyro_record::kBytes> spyroBetween(const std::array<std::uint8_t, spyro_record::kBytes> &from,
+                                                            const std::array<std::uint8_t, spyro_record::kBytes> &to,
+                                                            float t) {
   std::array<std::uint8_t, spyro_record::kBytes> shown = to;
   for (std::uint32_t axis = 0; axis < 3; ++axis) {
-    const std::uint32_t at = spyro_record::kPosition + 4 * axis;
-    storeWord(shown, at, wordBetween(loadWord(from, at), loadWord(to, at), t));
+    wordBetween(shown, from, to, spyro_record::kPosition + 4 * axis, t);
   }
   // Bytes 0..2 of each part's angle word; byte 3's sign says whether the part turns at all.
   for (std::uint32_t part = 0; part < 3; ++part) {
@@ -73,40 +63,25 @@ void PairedActorProducer::render(const psx::present::StateInterval &states,
                                  psx::present::PrimitiveSink &sink) const {
   const auto before = memory::unpackDraw<PairedActorState>(states.from, "Spyro draw");
   const auto after = memory::unpackDraw<PairedActorState>(states.to, "Spyro draw");
-  const spyro::guest_terrain::InBetweenCamera camera =
-      spyro::guest_terrain::cameraBetween(core_,
-                                          terrain::kTerrainImage,
-                                          before.header.camera,
-                                          after.header.camera,
-                                          static_cast<double>(states.t));
-  const memory::PacketArena arena = terrain::kTerrainImage.windows(core_).inBetweenArena;
-  memory::HostMemory host(core_);
-  host.overlay(after.reads);
-  const std::uint32_t table = mapBinnedWorkspace(host, arena, camera);
-  const std::array<std::uint8_t, spyro_record::kBytes> record =
-      spyroBetween(before.header.record, after.header.record, states.t);
-  host.mapEmpty(kSpyroRecord, spyro_record::kBytes);
-  for (std::uint32_t at = 0; at < record.size(); ++at) {
-    host.w8(kSpyroRecord + at, record[at]);
+  InBetween between(core_, after.reads);
+  between.mapWorkspace();
+  between.mapCamera(spyro::guest_terrain::cameraBetween(
+      core_, terrain::kTerrainImage, before.header.camera, after.header.camera, states.t));
+  between.mapTable();
+  between.provide(kSpyroRecord, spyroBetween(before.header.record, after.header.record, states.t));
+  between.host().zero(kHornRotation, kHornRotationBytes);
+  PairedActor actor(core_, between.memory());
+  if (actor.draw()) {
+    between.emitBins(sink);
   }
-  host.mapEmpty(kHornRotation, kHornRotationBytes);
-
-  const psx::present::GteGuard gte(core_.gte());
-  PairedActor actor(core_, host);
-  if (!actor.draw()) {
-    return;
-  }
-  emitDepthBins(host, arena, table, sink, "spyrodraw");
 }
 
 void registerPairedActorOverrides(Core &core) {
-  spyro::session(core).stateProducers.install(PairedActorProducer::kEntry,
-                                              std::make_unique<PairedActorProducer>(core));
-  psx::cpu::installNativeOverride(core,
-                                  PairedActorProducer::kEntry,
-                                  "spyro1-paired-actor",
-                                  drawSpyro,
-                                  psx::present::Producer{psx::present::Arg::A0});
+  spyro::installProducerOverride(core,
+                                 PairedActorProducer::kEntry,
+                                 "spyro1-paired-actor",
+                                 drawSpyro,
+                                 std::make_unique<PairedActorProducer>(core));
 }
 
 } // namespace spyro1::actors

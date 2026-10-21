@@ -8,6 +8,7 @@
 #pragma once
 
 #include "frame_record.h"
+#include "emit_memory.h"
 #include "render/field/guest_render_globals.h"
 
 #include <cstdint>
@@ -38,5 +39,8 @@ struct Bins {
 
 // Names the table in `core.otTables` and gives every packet linked into a bin that bin's slot.
 void assignBins(Core &core, const Bins &bins);
+
+// Links the packets `first`..`last` as the new head of the (head, first) pair at `slot`; returns the old head.
+std::uint32_t linkIntoBin(const psx::present::EmitMemory &memory, std::uint32_t slot, std::uint32_t first, std::uint32_t last);
 
 } // namespace spyro::depth_bins

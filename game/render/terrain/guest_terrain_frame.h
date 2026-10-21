@@ -1,34 +1,14 @@
-// guest_terrain_frame.h — the state one call of the terrain drawer carries from pass to pass.
-//
-// The drawer is one hand-written routine that runs its passes back to back (see
-// guest_terrain_passes.h). Retail threads a handful of values through all of them in registers it
-// never spills: the next free primitive packet (fp), the ordering table, the scratch block the
-// sector lists live in, and the screen window the outcodes test. This is that set, plus the two
-// result registers: retail returns with v0 and v1 holding whatever its last pass left in them, and
-// the O32 contract makes both observable, so each pass records what it leaves there.
-//
-// The per-image facts the passes read (this title's addresses, this title's authored window) are
-// carried on the frame rather than compiled in, which is what lets two titles share these passes.
-//
-// TWO THINGS THE FRAME NOW OWNS THAT IT DID NOT BEFORE.
-//
-// `FrameMode`. The passes are the same seven passes whichever field is being drawn, but they are
-// not the same WORK: the real field asks the guest which sectors are visible, animates the sector
-// data, publishes the visibility groups the moby walk reads, stores the primitive cursor and leaves
-// v0/v1 where the caller will read them. An in-between field runs no guest code and must write no
-// guest byte, so each of those is behind `realField()`. Every guard is a WRITE THE GUEST MUST SEE,
-// or a call only the guest can make; nothing else is gated, and the gating is what makes the real
-// field provably unchanged.
-//
-// `WorkingMemory`. The five ranges the passes own for the length of a field (see
-// guest_working_memory.h) are read and written through one accessor, so the same traversal runs
-// over the guest's RAM for a real field and over host memory for an in-between.
+// guest_terrain_frame.h — the state one call of the terrain drawer carries from pass to pass: the registers
+// retail threads through every pass (fp, the table, the scratch block, the screen window), the v0/v1 its last
+// pass leaves, and whether this is the guest's own field or an in-between over host memory.
 #pragma once
 
 #include "core.h"
 #include "gte_registers.h"
 #include "render/field/guest_render_globals.h"
 #include "render/field/guest_working_memory.h"
+#include "render/terrain/guest_depth_bins.h"
+#include "guest_memory_map.h"
 #include "render/terrain/guest_terrain_facts.h"
 #include "render/terrain/guest_terrain_screen.h"
 
@@ -46,54 +26,25 @@ inline constexpr std::uint32_t kFineSplitList = 0x2300; // polygons with a verte
 inline constexpr std::uint32_t kCoarseSplitList = 0x2400; // polygons near enough to split once
 inline constexpr std::uint32_t kFarList = 0x2A00;         // untextured low-detail sectors
 
-// The drawer's scratchpad. Every pass reuses the same region for its vertex cache. It is scratchpad
-// RAM, not guest RAM, and therefore the same address in every image of this family.
-inline constexpr std::uint32_t kScratchpad = 0x1F800000u;
-// The whole scratchpad, and therefore every address the passes own above it.
-inline constexpr std::uint32_t kScratchpadBytes = 0x400u;
-inline constexpr std::uint32_t kVertexDepths = 0x1F8002A8u; // the detail passes' SZ halfwords
+// Every pass reuses the scratchpad for its vertex cache.
+inline constexpr std::uint32_t kScratchpad = psx::kScratchpadPhysicalBase;
+inline constexpr std::uint32_t kScratchpadBytes = psx::kScratchpadBytes;
+inline constexpr std::uint32_t kVertexDepths = kScratchpad + 0x2A8u; // the detail passes' SZ halfwords
 // One past the last entry of the queue of primitives too large for the GPU (ResplitFacts::queue).
-inline constexpr std::uint32_t kSplitPrimitiveCursor = 0x1F8003FCu;
+inline constexpr std::uint32_t kSplitPrimitiveCursor = kScratchpad + 0x3FCu;
 
-// A CAMERA THE RENDER READS, held by the frame rather than read from the globals word, so an
-// in-between field can present a camera between two of the guest's own.
-//
-// A real field reads the guest's own five words, byte for byte as retail did. An in-between does
-// not read them at all: it carries a camera BUILT from the guest's own state by the guest's own
-// builder (guest_camera_builder.h), which is why there are two matrices here — the drawer's
-// (row 1 scaled by 5/8) and the classification pass's (unscaled), which are two different words in
-// the guest's memory for the same three angles.
-//
-// Each entry is ONE signed 32-bit value, not a packed pair: a GTE rotation-matrix element and a
-// world position component are each a single fixed-point word, and every pass reads them whole
-// (`asSigned(frame_.positionWord(0)) >> 4`, `gte().writeControl(kRotation0 + i,
-// frame_.rotationWord(i))`). The word counts are the GTE's own (psxport gte_registers.h), not
-// numbers written twice.
+// The camera an in-between draws with, built by the guest's own builder from angles between two fields:
+// the drawer's matrix (row 1 scaled), the classification pass's unscaled one, and the world position.
 struct InBetweenCamera {
-  std::uint32_t rotation[psx::gte::kRotationWords];
-  // The classification pass's own matrix, unscaled. Read only by `classificationRotationWord`, and
-  // only when there is no guest to read the guest's from.
-  std::uint32_t viewRotation[psx::gte::kRotationWords];
-  std::uint32_t position[3];
+  psx::gte::RotationWords rotation{};
+  psx::gte::RotationWords viewRotation{};
+  std::uint32_t position[3]{};
 };
 
-// How one ordering-table bin is laid out: retail's table is an array of (head, previous) word
-// pairs, and the mark it publishes is a bin's SLOT ADDRESS. The ordinal is the same ordering with
-// no address in it, which is what lets an in-between field's own table be compared against the same
-// mark without either table being at a guest address.
-inline constexpr std::uint32_t kOrderingTableStride = 8;
-inline constexpr std::uint32_t kOrderingTableBytes = 0x1000; // 512 bins, the draw's own publish
-
-// THE PRIMITIVE ARENA'S EXTENT. The drawer allocates UPWARD from the primitive cursor and stops
-// `kPrimitiveArenaBytes` below the scratch block's TOP — that is, at `scratch +
-// kPrimitiveArenaBytes`. The far pass ends its own primitive buffer at the same word
-// (guest_terrain_far.cpp), and an in-between reserves exactly the same range, so the number lives
-// here rather than in whichever of the three happened to need it first.
+// The drawer's packets stop this far above the scratch block, and the far pass's buffer ends there too.
 inline constexpr std::uint32_t kPrimitiveArenaBytes = 0x1000;
 
-// One field's worth of drawing. `RealField` is the guest's own draw, byte for byte. `InBetween` is
-// a frame between two of them: the same passes, the same data, host working memory, no guest call
-// and no guest write.
+// The guest's own field, or one between two of them over host memory with no guest call or write.
 enum class FrameMode : std::uint8_t { RealField, InBetween };
 
 // One packet's size in bytes, as the passes allocate it from the primitive cursor.
@@ -101,10 +52,7 @@ struct PacketSize {
   std::uint32_t bytes = 0;
 };
 
-// What one `linkAndAdvance` did, all three parts of it the passes need. `head` is the bin's
-// previous head (zero when the bin was empty, which is what the far pass's mark test keys on);
-// `primitive` is the packet just linked, which retail leaves in a register for its own v0;
-// `markKey` is the bin's ordinal, the mark comparison's own key.
+// The bin's previous head (0 when empty), the packet linked, and the bin's ordinal.
 struct Linked {
   std::uint32_t head = 0;
   std::uint32_t primitive = 0;
@@ -116,108 +64,56 @@ struct TerrainFrame {
                const Facts &facts,
                const guest_render_globals::Globals &globals,
                ScreenBounds bounds,
-               guest_memory::WorkingMemory &memory,
+               const psx::present::EmitMemory &memory,
                FrameMode mode)
       : core(core), facts(facts), globals(globals), bounds(bounds), memory(memory), mode(mode) {}
 
-  // Link the primitive at `primitive` as the new head of ordering-table bin `bin`, advance past its
-  // `bytes` bytes, and report what it did (and the same five instructions in every pass; which
-  // registers they leave the head and `primitive >> 16` in differs by pass).
-  //
-  // `orderingTable` is the frame's own member, the BASE the guest published and the detail pass
-  // loaded -- not `globals.orderingTable`, which is the WORD ADDRESS it was loaded from. Retail
-  // indexes the table through the published base, so this must too.
+  // Links the packet at `primitive` as the head of `bin` in the published table and advances past it.
   Linked linkAndAdvance(std::uint32_t bin, PacketSize size) {
     const std::uint32_t slot = markSlot(bin);
-    // A bin the IN-BETWEEN has not linked into yet is empty, whatever the guest's table says.
-    //
-    // This is not a convenience. The guest's table is not 512 bins: its far pass names bins well
-    // past 512 (MEASURED 2026-10-02 on SCUS_944.25: bin 573 at table 0x801DA44C, against a 512-bin
-    // `kOrderingTableBytes`), and those high bins are exactly where the guest's published mark sits
-    // — the mark IS a bin's slot address, and the high bins are adjacent to it. So the bytes above
-    // the table hold the LAST real field's packets, and a bin read taken at face value would link
-    // this field's packet behind one of them and hand the sink a chain the guest never built.
-    //
-    // A real field reads the guest's own table as retail did, which is the whole point: its bins
-    // really do carry the previous field's chains, and the guest's own mark is what tells its draw
-    // where they begin. Nothing about that is approximated here.
     if (!realField()) {
+      // The guest's table past 512 bins holds the last field's chains, so an in-between starts each bin empty.
       if (bin >= linkedBins_.size()) {
         linkedBins_.resize(bin + 1, 0);
       }
+      if (linkedBins_[bin] == 0) {
+        memory.mem_w32(slot, 0);
+        linkedBins_[bin] = 1;
+      }
+      // Host packet bytes are not zeroed by the guest allocator.
+      guest_memory::linkAfter(memory, primitive, 0);
     }
-    const std::uint32_t head = (!realField() && linkedBins_[bin] == 0) ? 0u : memory.r32(slot);
-    memory.w32(slot, primitive);
-    if (!realField()) {
-      linkedBins_[bin] = 1;
-    }
-    if (head == 0) {
-      memory.w32(slot + 4, primitive);
-    } else {
-      linkAfter(head, primitive);
-    }
-    // A packet ends the chain until something is linked after it, and retail gets that for free:
-    // the guest's packet pool is zeroed when the guest allocates from it, so a fresh packet's next
-    // field already reads 0. An in-between's pool is host memory seeded from whatever the guest
-    // left at those addresses, so the terminator has to be STATED on every packet — not only a
-    // bin's first, because a later packet's next field is stale too, and an unstated one walks the
-    // chain out of the packets this field built and into stale guest bytes, which decode to wild
-    // vertices.
-    //
-    // A real field writes nothing here, which is what keeps it byte-identical to retail.
-    if (!realField()) {
-      linkAfter(primitive, 0);
-    }
-    const Linked linked{head, primitive, bin};
+    const Linked linked{depth_bins::linkIntoBin(memory, slot, primitive, primitive), primitive, bin};
     primitive += size.bytes;
     return linked;
   }
 
-  // Make the packet at `packet` point at `next`: its low 24 bits, the tag's address field.
-  void linkAfter(std::uint32_t packet, std::uint32_t next) {
-    memory.w16(packet, static_cast<std::uint16_t>(next));
-    memory.w8(packet + 2, static_cast<std::uint8_t>(next >> 16));
-  }
-
-  // The guest's slot address for a bin, and the ordinal that address stands for. Retail publishes
-  // the mark as a slot address and the drawer's own entry sets it one past the last bin, so the
-  // ordinal form of that initial value is `kOrderingTableBytes / kOrderingTableStride`.
+  // Retail publishes the mark as a slot address; the ordinal is the same bin without the table's address.
   [[nodiscard]] std::uint32_t markSlot(std::uint32_t bin) const {
-    return orderingTable + bin * kOrderingTableStride;
+    return orderingTable + bin * depth_bins::kBinStride;
   }
   [[nodiscard]] std::uint32_t markBinFrom(std::uint32_t slot) const {
-    return (slot - orderingTable) / kOrderingTableStride;
+    return (slot - orderingTable) / depth_bins::kBinStride;
   }
 
-  // Whether this field is the guest's own. Everything the guest must see, and every call only the
-  // guest can make, is behind this one answer.
   [[nodiscard]] bool realField() const {
     return mode == FrameMode::RealField;
   }
 
-  [[nodiscard]] std::uint32_t rotationWord(std::uint32_t index) const {
+  [[nodiscard]] psx::gte::RotationWords rotation() const {
     if (inBetweenCamera != nullptr) {
-      return inBetweenCamera->rotation[index];
+      return inBetweenCamera->rotation;
     }
-    return core.mem_r32(globals.cameraRotation + 4 * index);
+    return guest_memory::rotationAt(psx::present::EmitMemory(core), globals.cameraRotation);
   }
-  // THE CAMERA THE CLASSIFICATION ROTATES BY.
-  //
-  // The classification pass does not read the camera rotation: it reads a SECOND matrix the guest
-  // keeps beside it (this image's `facts.classify.viewRotation`), which its bounding-sphere tests
-  // use. A real field reads the guest's own word and is bit-identical to retail whatever the guest
-  // has put there. An in-between has no guest to read, so it uses the one it built from the same
-  // three angles — the builder writes both, one scaled and one not, exactly as the guest does.
-  [[nodiscard]] std::uint32_t classificationRotationWord(std::uint32_t index) const {
+  // The classification pass's bounding-sphere matrix, a second guest word beside the camera rotation.
+  [[nodiscard]] psx::gte::RotationWords classificationRotation() const {
     if (inBetweenCamera != nullptr) {
-      return inBetweenCamera->viewRotation[index];
+      return inBetweenCamera->viewRotation;
     }
-    return core.mem_r32(facts.classify.viewRotation + 4 * index);
+    return guest_memory::rotationAt(psx::present::EmitMemory(core), facts.classify.viewRotation);
   }
-  // WHERE THIS FIELD'S PACKETS START. The guest's own cursor for a real field; the window the
-  // caller gave an in-between (guest_terrain_drawer.h says why it needs one).
-  // Where the far pass stops linking: the pool's top for a real field, the budget's end for an
-  // in-between.
+  // Where the far pass stops linking: the pool's top for a real field, the budget's end for an in-between.
   [[nodiscard]] std::uint32_t primitiveLimit() const {
     return inBetweenArenaBase != 0
                ? inBetweenArenaBase + static_cast<std::uint32_t>(inBetweenPacketBudget)
@@ -233,12 +129,9 @@ struct TerrainFrame {
     return core.mem_r32(globals.cameraPosition + 4 * index);
   }
 
-  // THE CAMERA THE RENDER READS, through the frame rather than through the globals word. A real
-  // field has no override: `inBetweenCamera` is a POINTER that only an in-between ever sets, so the
-  // guest's own field reads the guest's own words exactly as retail did, and there is no copy of
-  // that camera anywhere to drift from bytes the guest can also change.
+  // Null for a real field, which reads the guest's own camera words.
   const InBetweenCamera *inBetweenCamera = nullptr;
-  // The packet arena an in-between was given, 0 for a real field. See `primitiveBase`.
+  // The packet arena an in-between was given, 0 for a real field.
   std::uint32_t inBetweenArenaBase = 0;
   std::int32_t inBetweenPacketBudget = 0;
 
@@ -246,7 +139,7 @@ struct TerrainFrame {
   const Facts &facts;
   const guest_render_globals::Globals &globals;
   const ScreenBounds bounds;
-  guest_memory::WorkingMemory &memory;
+  const psx::present::EmitMemory &memory;
   const FrameMode mode;
   std::uint32_t argument = 0;          // the drawer's $a0
   std::uint32_t scratch = 0;           // the scratch block base
@@ -258,14 +151,10 @@ struct TerrainFrame {
   std::uint32_t v0 = 0;
   std::uint32_t v1 = 0;
 
-  // Which ordering bins THIS traversal has linked into. One byte per bin, grown to the highest bin
-  // the traversal names, so there is no a-priori ceiling on how far above 512 the far pass may
-  // reach. An in-between's only; a real field reads the guest's own table and has no use for it.
+  // The bins an in-between linked, grown to the highest it names; empty for a real field.
   std::vector<std::uint8_t> linkedBins_;
 
 public:
-  // The bins THIS traversal linked, for whoever walks the table afterwards. Empty for a real field:
-  // its table is the guest's own and is walked as the guest's own.
   [[nodiscard]] const std::vector<std::uint8_t> &linkedBins() const {
     return linkedBins_;
   }

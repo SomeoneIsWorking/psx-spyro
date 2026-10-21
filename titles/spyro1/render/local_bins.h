@@ -12,7 +12,7 @@ namespace spyro1::actors {
 
 class LocalBins {
 public:
-  explicit LocalBins(spyro::guest_memory::WorkingMemory &memory) : memory_(memory) {}
+  explicit LocalBins(const psx::present::EmitMemory &memory) : memory_(memory) {}
 
   // Where the bins start and packets go.
   struct Start {
@@ -58,7 +58,7 @@ public:
   }
 
 private:
-  spyro::guest_memory::WorkingMemory &memory_;
+  const psx::present::EmitMemory &memory_;
   std::uint32_t cursor_ = 0;
   std::uint32_t lowest_ = 0;
   std::uint32_t highest_ = 0;

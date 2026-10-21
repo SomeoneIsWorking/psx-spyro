@@ -2,6 +2,7 @@
 
 #include "core.h"
 #include "gte_registers.h"
+#include "render/field/guest_render_globals.h"
 #include "spyro1/render/paired_actor_layout.h"
 
 namespace spyro1::actors {
@@ -17,28 +18,28 @@ struct Frame {
 };
 
 // The animation and frame record bytes at `slot` (2 * part, plus 1 for the partner).
-Frame frameOf(const spyro::guest_memory::WorkingMemory &memory, std::uint32_t slot) {
+Frame frameOf(const psx::present::EmitMemory &memory, std::uint32_t slot) {
   Frame frame;
-  const std::uint32_t animation = memory.r8(kSpyroRecord + spyro_record::kAnimations + slot);
-  frame.header = memory.r32(memory.r32(kSpyroModel) + kAnimationTable + (animation << 2));
-  const std::uint32_t index = memory.r8(kSpyroRecord + spyro_record::kFrames + slot);
-  frame.word = memory.r32(frame.header + kFrameTable + (index << 2));
+  const std::uint32_t animation = memory.mem_r8(kSpyroRecord + spyro_record::kAnimations + slot);
+  frame.header = memory.mem_r32(memory.mem_r32(kSpyroModel) + kAnimationTable + (animation << 2));
+  const std::uint32_t index = memory.mem_r8(kSpyroRecord + spyro_record::kFrames + slot);
+  frame.word = memory.mem_r32(frame.header + kFrameTable + (index << 2));
   frame.base = (frame.word << 11) >> 10;
   return frame;
 }
 
 // 80023B78..80023B98 and its part 1/2 forms: where a part's three streams start.
-std::array<std::uint32_t, 3> streamsOf(const spyro::guest_memory::WorkingMemory &memory,
+std::array<std::uint32_t, 3> streamsOf(const psx::present::EmitMemory &memory,
                                        std::uint32_t part,
                                        const Frame &frame) {
   const std::uint32_t first = frame.base + kFrameStreams;
-  const std::uint32_t offsets = memory.r32(frame.base + kFrameByteOffsets);
-  std::uint32_t words = memory.r32(frame.header + kAnimationWords);
+  const std::uint32_t offsets = memory.mem_r32(frame.base + kFrameByteOffsets);
+  std::uint32_t words = memory.mem_r32(frame.header + kAnimationWords);
   if (part == 0) {
     return {words, (offsets >> 20) + first, first};
   }
-  words += static_cast<std::uint32_t>(memory.r8(frame.header + kVertexEnds + part - 1)) << 2;
-  const std::uint32_t halves = memory.r32(frame.base + kFrameHalfOffsets);
+  words += static_cast<std::uint32_t>(memory.mem_r8(frame.header + kVertexEnds + part - 1)) << 2;
+  const std::uint32_t halves = memory.mem_r32(frame.base + kFrameHalfOffsets);
   if (part == 1) {
     return {words, ((offsets >> 10) & 0x3FFu) + first, (halves >> 16) + first};
   }
@@ -51,7 +52,7 @@ std::array<std::uint32_t, 3> unpackOffset(std::uint32_t word) {
 
 } // namespace
 
-PairedActor::PairedActor(Core &core, spyro::guest_memory::WorkingMemory &memory)
+PairedActor::PairedActor(Core &core, const psx::present::EmitMemory &memory)
     : core_(core), memory_(memory), bins_(memory) {}
 
 bool PairedActor::draw() {
@@ -83,44 +84,44 @@ void PairedActor::end() {
 // 80023AFC..80023E08: each part's flags word (format bits, weight, vertex end) and streams, its
 // partner's streams when it blends.
 void PairedActor::stageParts() {
-  model_ = memory_.r32(kSpyroModel);
+  model_ = memory_.mem_r32(kSpyroModel);
   depthShift_ = 0;
   partnerDepthShift_ = 0;
   for (std::uint32_t part = 0; part < kParts; ++part) {
     const std::uint32_t entry = kPartTable + part * kPartBytes;
     const std::uint32_t blend =
-        static_cast<std::uint32_t>(memory_.r8(kSpyroRecord + spyro_record::kBlends + part)) << 8;
+        static_cast<std::uint32_t>(memory_.mem_r8(kSpyroRecord + spyro_record::kBlends + part)) << 8;
     const Frame frame = frameOf(memory_, 2 * part);
     std::uint32_t flags =
         ((frame.word >> (9 + part)) & kPlainHalves) + blend +
-        (static_cast<std::uint32_t>(memory_.r8(frame.header + kVertexEnds + part)) << 16);
+        (static_cast<std::uint32_t>(memory_.mem_r8(frame.header + kVertexEnds + part)) << 16);
     if (part == 0) {
       blend_ = blend;
       header_ = frame.header;
-      depthShift_ = memory_.r8(frame.header + kDepthShift);
-      offsetWords_ = {memory_.r32(frame.base + kFrameOffsets),
-                      memory_.r32(frame.base + kFrameOffsets + 4)};
+      depthShift_ = memory_.mem_r8(frame.header + kDepthShift);
+      offsetWords_ = {memory_.mem_r32(frame.base + kFrameOffsets),
+                      memory_.mem_r32(frame.base + kFrameOffsets + 4)};
     }
     const std::array<std::uint32_t, 3> streams = streamsOf(memory_, part, frame);
     for (std::uint32_t i = 0; i < 3; ++i) {
-      memory_.w32(entry + part_entry::kStreams + 4 * i, streams[i]);
+      memory_.mem_w32(entry + part_entry::kStreams + 4 * i, streams[i]);
     }
     if (blend != 0) {
       const Frame partner = frameOf(memory_, 2 * part + 1);
       flags += (partner.word >> (8 + part)) & kPartnerHalves;
       if (part == 0) {
-        partnerDepthShift_ = memory_.r8(partner.header + kDepthShift);
-        partnerOffsetWords_ = {memory_.r32(partner.base + kFrameOffsets),
-                               memory_.r32(partner.base + kFrameOffsets + 4)};
+        partnerDepthShift_ = memory_.mem_r8(partner.header + kDepthShift);
+        partnerOffsetWords_ = {memory_.mem_r32(partner.base + kFrameOffsets),
+                               memory_.mem_r32(partner.base + kFrameOffsets + 4)};
       }
       const std::array<std::uint32_t, 3> partnerStreams = streamsOf(memory_, part, partner);
       for (std::uint32_t i = 0; i < 3; ++i) {
-        memory_.w32(entry + part_entry::kPartnerStreams + 4 * i, partnerStreams[i]);
+        memory_.mem_w32(entry + part_entry::kPartnerStreams + 4 * i, partnerStreams[i]);
       }
     }
-    memory_.w32(entry + part_entry::kFlags, flags);
+    memory_.mem_w32(entry + part_entry::kFlags, flags);
   }
-  memory_.w32(kPartTable + kParts * kPartBytes, 0);
+  memory_.mem_w32(kPartTable + kParts * kPartBytes, 0);
 }
 
 // 80023E08..80023EDC: parts 1 and 2's offsets from part 0, blended when part 0 is.
@@ -160,12 +161,10 @@ bool PairedActor::placeCentre() {
   auto &gte = core_.gte();
   const std::uint32_t camera = kRenderGlobals.cameraRotation;
   const std::uint32_t position = kRenderGlobals.cameraPosition;
-  const std::uint32_t x = memory_.r32(kSpyroRecord) - memory_.r32(position);
-  const std::uint32_t y = memory_.r32(position + 4) - memory_.r32(kSpyroRecord + 4);
-  const std::uint32_t z = memory_.r32(position + 8) - memory_.r32(kSpyroRecord + 8);
-  for (std::uint32_t i = 0; i < gte::kRotationWords; ++i) {
-    gte.writeControl(gte::kRotation + i, memory_.r32(camera + 4 * i));
-  }
+  const std::uint32_t x = memory_.mem_r32(kSpyroRecord) - memory_.mem_r32(position);
+  const std::uint32_t y = memory_.mem_r32(position + 4) - memory_.mem_r32(kSpyroRecord + 4);
+  const std::uint32_t z = memory_.mem_r32(position + 8) - memory_.mem_r32(kSpyroRecord + 8);
+  gte.loadRotation(spyro::guest_memory::rotationAt(memory_, camera));
   for (std::uint32_t i = 0; i < 3; ++i) {
     gte.writeControl(gte::kTranslationX + i, 0);
   }
@@ -184,7 +183,7 @@ bool PairedActor::placeCentre() {
       asSigned(reach - v0_) <= 0 || asSigned(reach + v0_) <= 0) {
     return false;
   }
-  std::uint32_t bias = sra(v1_, 7) - memory_.r8(kSpyroRecord + spyro_record::kDepthBias);
+  std::uint32_t bias = sra(v1_, 7) - memory_.mem_r8(kSpyroRecord + spyro_record::kDepthBias);
   if (asSigned(bias) < 0) {
     bias = 0;
   }
@@ -207,18 +206,16 @@ bool PairedActor::placeCentre() {
 void PairedActor::orientParts(const Offsets &offsets) {
   auto &gte = core_.gte();
   for (std::uint32_t i = 0; i < 3; ++i) {
-    memory_.w32(kPartTable + kPartOffsets + 4 * i, 0);
-    memory_.w32(kPartTable + kPartOffsets + 0xC + 4 * i, offsets.first[i]);
-    memory_.w32(kPartTable + kPartOffsets + 0x18 + 4 * i, offsets.second[i]);
+    memory_.mem_w32(kPartTable + kPartOffsets + 4 * i, 0);
+    memory_.mem_w32(kPartTable + kPartOffsets + 0xC + 4 * i, offsets.first[i]);
+    memory_.mem_w32(kPartTable + kPartOffsets + 0x18 + 4 * i, offsets.second[i]);
   }
   for (std::uint32_t i = 0; i < 3; ++i) {
     gte.writeControl(gte::kTranslationX + i, centre_[i]);
-    memory_.w32(kPartTable + part_entry::kTranslation + 4 * i, centre_[i]);
+    memory_.mem_w32(kPartTable + part_entry::kTranslation + 4 * i, centre_[i]);
   }
-  for (std::uint32_t i = 0; i < gte::kRotationWords; ++i) {
-    rotation_[i] = gte.readControl(gte::kRotation + i);
-  }
-  rotate(memory_.r32(kSpyroRecord + spyro_record::kAngles));
+  rotation_ = gte.storeRotation();
+  rotate(memory_.mem_r32(kSpyroRecord + spyro_record::kAngles));
   writeRotation(kPartTable + part_entry::kRotation);
 
   // 80024068: the offsets negated in y and z, through RTPS for each part's translation.
@@ -234,33 +231,33 @@ void PairedActor::orientParts(const Offsets &offsets) {
   }
   place(offsets.second);
   for (std::uint32_t i = 0; i < 3; ++i) {
-    memory_.w32(kPartTable + kPartBytes + part_entry::kTranslation + 4 * i, translation[i]);
-    memory_.w32(kPartTable + 2 * kPartBytes + part_entry::kTranslation + 4 * i,
+    memory_.mem_w32(kPartTable + kPartBytes + part_entry::kTranslation + 4 * i, translation[i]);
+    memory_.mem_w32(kPartTable + 2 * kPartBytes + part_entry::kTranslation + 4 * i,
                 gte.readData(gte::kIr1 + i));
   }
 
   const std::array<std::uint32_t, 5> body = rotation_;
-  std::uint32_t angles = memory_.r32(kSpyroRecord + spyro_record::kAngles + 4);
+  std::uint32_t angles = memory_.mem_r32(kSpyroRecord + spyro_record::kAngles + 4);
   if (asSigned(angles) > 0) {
     rotate(angles);
   }
   // 800240F8
-  if (memory_.r8(kHornAnchor + kHornArmed) != 0) {
+  if (memory_.mem_r8(kHornAnchor + kHornArmed) != 0) {
     writeRotation(kHornAnchor + kHornRotation);
   }
   if (angles != 0) {
     writeRotation(kPartTable + kPartBytes + part_entry::kRotation);
-    memory_.w8(kPartTable + kPartBytes + part_entry::kOwnRotation, 0x80);
+    memory_.mem_w8(kPartTable + kPartBytes + part_entry::kOwnRotation, 0x80);
     rotation_ = body;
     loadRotation();
     writeRotation(kPartTable + 2 * kPartBytes + part_entry::kRotation);
-    memory_.w8(kPartTable + 2 * kPartBytes + part_entry::kOwnRotation, 0x80);
+    memory_.mem_w8(kPartTable + 2 * kPartBytes + part_entry::kOwnRotation, 0x80);
   }
-  angles = memory_.r32(kSpyroRecord + spyro_record::kAngles + 8);
+  angles = memory_.mem_r32(kSpyroRecord + spyro_record::kAngles + 8);
   if (asSigned(angles) > 0) {
     rotate(angles);
     writeRotation(kPartTable + 2 * kPartBytes + part_entry::kRotation);
-    memory_.w8(kPartTable + 2 * kPartBytes + part_entry::kOwnRotation, 0x80);
+    memory_.mem_w8(kPartTable + 2 * kPartBytes + part_entry::kOwnRotation, 0x80);
     rotation_ = body;
     loadRotation();
   }
@@ -268,14 +265,12 @@ void PairedActor::orientParts(const Offsets &offsets) {
 
 void PairedActor::writeRotation(std::uint32_t at) const {
   for (std::uint32_t i = 0; i < gte::kRotationWords; ++i) {
-    memory_.w32(at + 4 * i, rotation_[i]);
+    memory_.mem_w32(at + 4 * i, rotation_[i]);
   }
 }
 
 void PairedActor::loadRotation() {
-  for (std::uint32_t i = 0; i < gte::kRotationWords; ++i) {
-    core_.gte().writeControl(gte::kRotation + i, rotation_[i]);
-  }
+  core_.gte().loadRotation(rotation_);
 }
 
 // 800241E0..80024400: RT turned by the angle bytes of `angles`, bits 16..23 about y, then 8..15
@@ -291,10 +286,10 @@ void PairedActor::rotate(std::uint32_t angles) {
         gte.readData(gte::kIr1), gte.readData(gte::kIr2), gte.readData(gte::kIr3)};
   };
   const auto sine = [this](std::uint32_t index) {
-    return static_cast<std::uint32_t>(memory_.r16(kRenderGlobals.cameraSineTable + index));
+    return static_cast<std::uint32_t>(memory_.mem_r16(kRenderGlobals.cameraSineTable + index));
   };
   const auto cosine = [this](std::uint32_t index) {
-    return static_cast<std::uint32_t>(memory_.r16(kRenderGlobals.cameraCosineTable + index));
+    return static_cast<std::uint32_t>(memory_.mem_r16(kRenderGlobals.cameraSineTable + spyro::guest_render_globals::kCosineOffset + index));
   };
 
   if (const std::uint32_t index = (angles >> 15) & 0x1FEu; index != 0) {

@@ -17,26 +17,32 @@ namespace spyro1::terrain {
 namespace {
 
 namespace grid = spyro::guest_terrain::grid;
-namespace packet = spyro::guest_terrain::packet;
-namespace cell = spyro::guest_terrain::cell;
+using spyro::guest_terrain::drawEdgeCracks;
 using spyro::guest_terrain::gpuSpan;
 using spyro::guest_terrain::GpuSpan;
 using spyro::guest_terrain::GridPoint;
 using spyro::guest_terrain::kCellSize;
-using spyro::guest_terrain::kDepthMask;
-using spyro::guest_terrain::kOutcodeMask;
-using spyro::guest_terrain::kScratchpad;
+using spyro::guest_terrain::kGt4ToGt3;
 using spyro::guest_terrain::kSplitPrimitiveCursor;
+using spyro::guest_terrain::linkQuadPiece;
+using spyro::guest_terrain::linkTrianglePiece;
 using spyro::guest_terrain::PackedIndices;
-using spyro::guest_terrain::PacketSize;
+using spyro::guest_terrain::pieceFacesCamera;
+using spyro::guest_terrain::polygonBin;
+using spyro::guest_terrain::QuadPiece;
+using spyro::guest_terrain::readPieceDepths;
+using spyro::guest_terrain::readPieceScreens;
+using spyro::guest_terrain::SecondTriangle;
+using spyro::guest_terrain::storePieceColours;
+using spyro::guest_terrain::storePieceScreens;
+using spyro::guest_terrain::TrianglePiece;
+using spyro::guest_terrain::trianglePieceCells;
 
-using spyro::guest_word::asSigned;
+using spyro::guest_word::signedHalf;
 
-constexpr std::uint32_t kGt4ToGt3 = 0x08000000u;
 constexpr std::uint32_t kNeighbourCoarser = 3; // drawn whole or deferred coarse
-constexpr std::uint32_t kNeighbourDrawnWhole = 1;
-constexpr std::uint32_t kCrackEntrySize = 12;
-constexpr std::uint32_t kCracksPerEdge = 3;
+// 80028ED8: two crack triangles per edge whose neighbour is coarser, and a third where it was drawn whole.
+constexpr spyro::guest_terrain::CrackRun kCracks{.perEdge = 3, .drawnWholeOnly = 1};
 constexpr std::uint32_t kTriangleCrackCorner = 0x6C;
 constexpr std::uint32_t kPieceUvSpan = 0xF;
 constexpr std::uint32_t kPieces = 16;
@@ -52,8 +58,6 @@ public:
 private:
   void quad(const SplitSector &sector, const SplitRecord &record);
   void triangle(const SplitSector &sector, const SplitRecord &record);
-  void drawCracks(spyro::guest_terrain::CrackEdges edges,
-                  const spyro::guest_terrain::CrackPolygon &polygon);
   void drawQuadPieces(const SplitRecord &record);
   void drawTrianglePieces(const SplitRecord &record);
   // Queue the piece for the re-split pass when too large; false when its depths sum to zero and
@@ -75,28 +79,6 @@ void FinePass::polygon(const SplitSector &sector, const SplitPolygon &polygon) {
   }
 }
 
-// 80028ED8: two crack triangles per edge whose neighbour is coarser, and a third where it was
-// drawn whole.
-void FinePass::drawCracks(spyro::guest_terrain::CrackEdges edges,
-                          const spyro::guest_terrain::CrackPolygon &polygon) {
-  std::uint32_t entry = edges.table;
-  std::uint32_t remaining = edges.edges;
-  while (remaining != 0) {
-    const std::uint32_t edge = remaining & 0xFFu;
-    remaining >>= 8;
-    entry += kCracksPerEdge * kCrackEntrySize;
-    if (edge == 0) {
-      continue;
-    }
-    const std::uint32_t first = entry - kCracksPerEdge * kCrackEntrySize;
-    emitCrackTriangle(frame_, first, polygon);
-    emitCrackTriangle(frame_, first + kCrackEntrySize, polygon);
-    if ((edge & kNeighbourDrawnWhole) != 0) {
-      emitCrackTriangle(frame_, first + 2 * kCrackEntrySize, polygon);
-    }
-  }
-}
-
 // 8002862C.
 void FinePass::quad(const SplitSector &sector, const SplitRecord &record) {
   const PackedIndices vertices(record.indices);
@@ -107,8 +89,10 @@ void FinePass::quad(const SplitSector &sector, const SplitRecord &record) {
   grid::storeFineQuad(frame_, corners, quadColours(sector, record));
   projectGrid(frame_, grid::kFineQuadCells, true);
   grid::refineFineInnerPoints(frame_, facts_.fineInnerPoints);
-  drawCracks({.edges = quadEdges(record, kNeighbourCoarser), .table = facts_.fineQuadCracks},
-             crack(record, kGt4ToGt3));
+  drawEdgeCracks(frame_,
+                 {.edges = quadEdges(record, kNeighbourCoarser), .table = facts_.fineQuadCracks},
+                 crack(record, kGt4ToGt3),
+                 kCracks);
   drawQuadPieces(record);
 }
 
@@ -117,68 +101,44 @@ bool FinePass::queue(GpuSpan span, std::uint32_t sum) {
   if (span == GpuSpan::Within) {
     return sum != 0;
   }
-  spyro::guest_memory::WorkingMemory &memory = frame_.memory;
-  const std::uint32_t cursor = memory.r32(kSplitPrimitiveCursor);
-  memory.w32(cursor, frame_.primitive);
+  const psx::present::EmitMemory &memory = frame_.memory;
+  const std::uint32_t cursor = memory.mem_r32(kSplitPrimitiveCursor);
+  memory.mem_w32(cursor, frame_.primitive);
   frame_.v1 = cursor;
   if (sum == 0) {
     return false;
   }
-  memory.w32(kSplitPrimitiveCursor, cursor + 4);
+  memory.mem_w32(kSplitPrimitiveCursor, cursor + 4);
   return true;
 }
 
 // 80029204.
 void FinePass::drawQuadPieces(const SplitRecord &record) {
-  spyro::guest_memory::WorkingMemory &memory = frame_.memory;
+  const psx::present::EmitMemory &memory = frame_.memory;
   for (std::uint32_t k = 0; k < kPieces; ++k) {
-    const std::uint32_t first = memory.r32(facts_.fineQuadPieces + 4 * k);
+    const std::uint32_t first = memory.mem_r32(facts_.fineQuadPieces + 4 * k);
     frame_.v1 = first;
-    const std::array<std::uint32_t, 4> cells = {
-        first, first + kCellSize, first + kRowStride, first + kRowStride + kCellSize};
-    std::uint32_t shared = 0xFFFFFFFFu;
-    std::uint32_t sum = 0;
-    for (const std::uint32_t at : cells) {
-      const std::uint32_t code = memory.r32(at + cell::kDepth);
-      shared &= code;
-      sum += code & kDepthMask;
-    }
-    if ((shared & kOutcodeMask) != 0) {
+    QuadPiece piece =
+        readPieceDepths<4>(memory, {first, first + kCellSize, first + kRowStride, first + kRowStride + kCellSize});
+    if (piece.outside()) {
       continue;
     }
-    const std::uint32_t prim = frame_.primitive;
-    memory.w32(prim + packet::kColour0, memory.r32(cells[0] + cell::kColour));
-    memory.w32(prim + packet::kColour1, memory.r32(cells[1] + cell::kColour));
-    memory.w32(prim + packet::kColour2, memory.r32(cells[2] + cell::kColour));
-    memory.w32(prim + packet::kColour3, memory.r32(cells[3] + cell::kColour));
+    const std::uint32_t sum = piece.depthSum();
+    storePieceColours(frame_, piece.cells);
     writePieceUvs({.pair = record.texture + kFinePairs + 8 * k, .span = kPieceUvSpan});
-    std::array<std::uint32_t, 4> screens{};
-    for (std::size_t i = 0; i < cells.size(); ++i) {
-      screens[i] = memory.r32(cells[i] + cell::kScreen);
-    }
-    if (record.overflow && !facesCamera(frame_,
-                                        screens,
-                                        sidedness(record.draw),
-                                        spyro::guest_terrain::SecondTriangle::Reversed)) {
-      memory.w32(prim + packet::kXy0, screens[0]);
+    readPieceScreens(memory, piece);
+    if (!pieceFacesCamera(frame_, piece, record.overflow, sidedness(record.draw), SecondTriangle::Reversed)) {
       continue;
     }
-    memory.w32(prim + packet::kXy0, screens[0]);
-    memory.w32(prim + packet::kXy1, screens[1]);
-    memory.w32(prim + packet::kXy2, screens[2]);
-    memory.w32(prim + packet::kXy3, screens[3]);
-    const GpuSpan span = gpuSpan(screens);
+    storePieceScreens(frame_, piece.screens);
+    const GpuSpan span = gpuSpan(piece.screens);
     if (span == GpuSpan::Within) {
       frame_.v1 = sum >> 7;
     }
     if (!queue(span, sum)) {
       continue;
     }
-    memory.w32(prim, spyro::guest_terrain::kQuadTag);
-    frame_.v1 = frame_
-                    .linkAndAdvance((sum >> 7) + binBias(record.draw),
-                                    PacketSize{spyro::guest_terrain::kQuadBytes})
-                    .head;
+    frame_.v1 = linkQuadPiece(frame_, polygonBin(sum, binBias(record.draw))).head;
   }
   frame_.v0 = facts_.fineQuadPieces + 4 * kPieces;
 }
@@ -192,65 +152,50 @@ void FinePass::triangle(const SplitSector &sector, const SplitRecord &record) {
   grid::storeFineTriangle(frame_, corners, triangleColours(sector, record));
   projectGrid(frame_, grid::kFineTriangleCells, true);
   const std::uint32_t corner = (record.links >> kCornerShift) & 3u;
-  drawCracks({.edges = triangleEdges(record, kNeighbourCoarser),
-              .table = facts_.fineTriangleCracks + corner * kTriangleCrackCorner},
-             crack(record, 0));
+  drawEdgeCracks(frame_,
+                 {.edges = triangleEdges(record, kNeighbourCoarser),
+                  .table = facts_.fineTriangleCracks + corner * kTriangleCrackCorner},
+                 crack(record, 0),
+                 kCracks);
   drawTrianglePieces(record);
 }
 
 // 80029E18.
 void FinePass::drawTrianglePieces(const SplitRecord &record) {
-  spyro::guest_memory::WorkingMemory &memory = frame_.memory;
+  const psx::present::EmitMemory &memory = frame_.memory;
   const auto half = [](std::uint32_t sxy, GpuSpan span) {
-    const std::uint32_t bits = span == GpuSpan::TooHigh ? sxy >> 16 : sxy & 0xFFFFu;
-    return static_cast<std::uint32_t>(static_cast<std::int32_t>(static_cast<std::int16_t>(bits)));
+    return signedHalf(span == GpuSpan::TooHigh ? sxy >> 16 : sxy);
   };
   for (std::uint32_t k = 0; k < kPieces; ++k) {
-    const std::uint32_t layout = memory.r32(facts_.fineTrianglePieces + 4 * k);
+    const std::uint32_t layout = memory.mem_r32(facts_.fineTrianglePieces + 4 * k);
     writeTrianglePieceUvs(
         record,
         layout,
         {.subTextures = facts_.fineTriangleSubTexture, .selectMask = 0x3C, .pairs = kFinePairs});
-    const std::array<std::uint32_t, 3> cells = {kScratchpad + ((layout >> 20) & 0xFF0u),
-                                                kScratchpad + ((layout >> 12) & 0xFF0u),
-                                                kScratchpad + ((layout >> 4) & 0xFF0u)};
-    const std::uint32_t d0 = memory.r32(cells[0] + cell::kDepth);
-    const std::uint32_t d1 = memory.r32(cells[1] + cell::kDepth);
-    const std::uint32_t d2 = memory.r32(cells[2] + cell::kDepth);
-    frame_.v0 = d1;
-    frame_.v1 = d2;
-    if ((d0 & d1 & d2 & kOutcodeMask) != 0) {
+    TrianglePiece piece = readPieceDepths<3>(memory, trianglePieceCells(layout));
+    frame_.v0 = piece.depths[1];
+    frame_.v1 = piece.depths[2];
+    if (piece.outside()) {
       continue;
     }
     const std::uint32_t prim = frame_.primitive;
-    memory.w32(prim + packet::kColour0, memory.r32(cells[0] + cell::kColour));
-    memory.w32(prim + packet::kColour1, memory.r32(cells[1] + cell::kColour));
-    memory.w32(prim + packet::kColour2, memory.r32(cells[2] + cell::kColour));
-    const std::uint32_t sum = (d0 & kDepthMask) + (d1 & kDepthMask) + 2 * (d2 & kDepthMask);
-    const std::array<std::uint32_t, 3> screens = {memory.r32(cells[0] + cell::kScreen),
-                                                  memory.r32(cells[1] + cell::kScreen),
-                                                  memory.r32(cells[2] + cell::kScreen)};
-    frame_.v0 = screens[1];
-    frame_.v1 = screens[2];
-    if (record.overflow && !triangleFacesCamera(frame_, screens, sidedness(record.draw))) {
-      memory.w32(prim + packet::kXy0, screens[0]);
+    storePieceColours(frame_, piece.cells);
+    const std::uint32_t sum = piece.depthSum();
+    readPieceScreens(memory, piece);
+    frame_.v0 = piece.screens[1];
+    frame_.v1 = piece.screens[2];
+    if (!pieceFacesCamera(frame_, piece, record.overflow, sidedness(record.draw))) {
       continue;
     }
-    memory.w32(prim + packet::kXy0, screens[0]);
-    memory.w32(prim + packet::kXy1, screens[1]);
-    memory.w32(prim + packet::kXy2, screens[2]);
-    const GpuSpan span = gpuSpan(screens);
+    storePieceScreens(frame_, piece.screens);
+    const GpuSpan span = gpuSpan(piece.screens);
     // The span test leaves the halves it compared last in v0 and v1.
-    frame_.v0 = half(screens[1], span);
-    frame_.v1 = span == GpuSpan::Within ? sum >> 7 : half(screens[2], span);
+    frame_.v0 = half(piece.screens[1], span);
+    frame_.v1 = span == GpuSpan::Within ? sum >> 7 : half(piece.screens[2], span);
     if (!queue(span, sum)) {
       continue;
     }
-    memory.w32(prim, spyro::guest_terrain::kTriangleTag);
-    frame_.v0 = frame_
-                    .linkAndAdvance((sum >> 7) + binBias(record.draw),
-                                    PacketSize{spyro::guest_terrain::kTriangleBytes})
-                    .head;
+    frame_.v0 = linkTrianglePiece(frame_, polygonBin(sum, binBias(record.draw))).head;
     frame_.v1 = prim >> 16;
   }
 }

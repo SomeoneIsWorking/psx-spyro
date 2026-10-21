@@ -37,12 +37,6 @@ private:
   Core &core_;
 };
 
-// The shadow block at `t`: the ground point moved, everything else `to`'s.
-[[nodiscard]] std::array<std::uint8_t, shadow_block::kBytes>
-shadowBetween(const std::array<std::uint8_t, shadow_block::kBytes> &from,
-              const std::array<std::uint8_t, shadow_block::kBytes> &to,
-              float t);
-
 // The override and its render.
 void registerDropShadowOverrides(Core &core);
 

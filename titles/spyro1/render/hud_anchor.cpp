@@ -1,8 +1,6 @@
-#include "spyro1/core/hud/hud_anchor.h"
+#include "spyro1/render/hud_anchor.h"
 
 #include "core.h"
-#include "core/native_execution.h"
-#include "execution_control.h"
 #include "native_dispatch.h"
 #include "spyro1/render/terrain_facts.h"
 
@@ -25,7 +23,7 @@ void texturedQuad(Core *core) {
     return;
   }
   const std::int32_t shift =
-      columns(*core, {.name = "spyro1-hud-quad", .index = returnAddress}, *anchor);
+      spyro::ui_anchor::correction(*core, {.name = "spyro1-hud-quad", .index = returnAddress}, *anchor);
   if (shift == 0) {
     return;
   }
@@ -36,14 +34,6 @@ void texturedQuad(Core *core) {
 }
 
 } // namespace
-
-std::int32_t columns(const Core &core,
-                     const spyro::ui_anchor::Element &element,
-                     spyro::ui_anchor::Anchor anchor) {
-  const spyro::ui_anchor::Frame frame = spyro::ui_anchor::widescreenFrame(
-      core, static_cast<std::uint32_t>(terrain::kSharedFacts.nativeWidth));
-  return spyro::ui_anchor::correctionAndReport(element, anchor, frame);
-}
 
 void registerOverrides(Core &core) {
   psx::cpu::installNativeOverride(core, kTexturedQuad, "spyro1-hud-quad", texturedQuad);

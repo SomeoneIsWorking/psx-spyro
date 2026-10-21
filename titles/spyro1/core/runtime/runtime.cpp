@@ -18,13 +18,13 @@
 #include "spyro1/core/frame/frame_driver.h"
 #include "spyro1/core/frame/logo_facts.h"
 #include "spyro1/core/frame/native_draw_setup.h"
-#include "spyro1/core/frame/ordering_table.h"
-#include "spyro1/core/hud/hud_anchor.h"
-#include "spyro1/core/hud/native_glow_sparkle_pools.h"
+#include "spyro1/render/ordering_table.h"
+#include "spyro1/render/hud_anchor.h"
+#include "spyro1/render/glow_pools.h"
 #include "spyro1/core/hud/native_hud_collectables.h"
 #include "spyro1/core/hud/native_pause_menu.h"
 #include "spyro1/core/hud/native_pixel_fade.h"
-#include "spyro1/core/hud/screen_overlays.h"
+#include "spyro1/render/screen_overlays.h"
 #include "spyro1/core/input/native_gamepad.h"
 #include "spyro1/core/moby/native_collision_shade.h"
 #include "spyro1/core/moby/native_environment_light.h"
@@ -131,7 +131,7 @@ void Runtime::registerOverrides(Game &game) {
   native::registerEffectStateOverrides(game.core);
   native::registerEnvironmentLightOverrides(game.core);
   native::registerGamepadOverrides(game.core);
-  native::registerGlowSparklePoolOverrides(game.core);
+  glows::registerPoolOverrides(game.core);
   native::registerHudCollectableOverrides(game.core);
   native::registerLevelGlobalsTableOverrides(game.core);
   native::registerMobyAllocatorOverrides(game.core);
@@ -151,7 +151,7 @@ void Runtime::registerOverrides(Game &game) {
   native::registerSharedModelOverrides(game.core);
   native::registerSoundPositionOverrides(game.core);
   OrderingTable::registerOverrides(game.core);
-  ScreenOverlays::registerOverrides(game.core);
+  registerScreenOverlayOverrides(game.core);
   spyro1::terrain::registerOverrides(game.core);
   actors::registerListOverrides(game.core);
   actors::registerEmitterOverrides(game.core);

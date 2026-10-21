@@ -9,10 +9,7 @@ namespace {
 namespace gte = psx::gte;
 
 using spyro::guest_word::asSigned;
-
-constexpr std::uint32_t asWord(std::int32_t value) {
-  return static_cast<std::uint32_t>(value);
-}
+using spyro::guest_word::asWord;
 
 std::uint32_t magnitude(std::uint32_t value) {
   return asSigned(value) < 0 ? 0u - value : value;
@@ -31,8 +28,7 @@ SectorSphere testSectorSphere(Core &core,
   core.gte().execute(gte::kMvmvaRtIr);
   const std::uint32_t r = radius;
   // r/cos and r*tan of the 4:3 half-angle horizontally, of the 17:32 slope vertically.
-  const std::uint32_t horizontalLateral = (r >> 1) + (r >> 2) + (r >> 5);
-  const std::uint32_t horizontalDepth = (r >> 1) + (r >> 4) + (r >> 5);
+  const auto [horizontalLateral, horizontalDepth] = guest_moby_frustum::horizontalMargins(r);
   const std::uint32_t verticalLateral = r - (r >> 3);
   const std::uint32_t verticalDepth = (r >> 1) - (r >> 4);
   const auto xWeight = static_cast<std::uint32_t>(slope.xWeight);

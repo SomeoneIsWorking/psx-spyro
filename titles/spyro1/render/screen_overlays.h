@@ -3,7 +3,7 @@
 //
 // Each override keys the packets its guest body writes by the call site, saves what the body
 // draws from and runs the body. Both bodies link through AddPrimToOT 0x800168DC into the overlay
-// pair (titles/spyro1/core/frame/ordering_table.h), so their renders emit into that one slot.
+// pair (titles/spyro1/render/ordering_table.h), so their renders emit into that one slot.
 #pragma once
 
 #include "state_producer.h"
@@ -49,13 +49,7 @@ public:
               psx::present::PrimitiveSink &sink) const override;
 };
 
-class ScreenOverlays {
-public:
-  // g_pPrimBufferWriteCursor: where both bodies start writing packets.
-  static constexpr std::uint32_t kPacketCursor = 0x800757B0u;
-
-  // The overrides and their renders.
-  static void registerOverrides(Core &core);
-};
+// The overrides and their renders.
+void registerScreenOverlayOverrides(Core &core);
 
 } // namespace spyro1

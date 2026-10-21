@@ -18,12 +18,17 @@
 // would open a crack, so each such edge is closed with GT3 triangles from a table of cell triples.
 #pragma once
 
+#include "emit_memory.h"
+#include "render/terrain/guest_terrain_cull.h"
+
 #include <array>
+#include <cstddef>
 #include <cstdint>
 #include <span>
 
 namespace spyro::guest_terrain {
 
+struct Linked;
 struct TerrainFrame;
 
 inline constexpr std::uint32_t kCellSize = 0x10;
@@ -123,11 +128,79 @@ struct CrackPolygon {
 void emitCrackTriangle(TerrainFrame &frame, std::uint32_t entry, const CrackPolygon &polygon);
 
 // A polygon's crack edges, one neighbour byte per edge from the low byte up, and the table of
-// 12-byte crack entries they index.
+// crack entries they index.
 struct CrackEdges {
   std::uint32_t edges = 0;
   std::uint32_t table = 0;
 };
+inline constexpr std::uint32_t kCrackEntrySize = 12;
+
+// A pass's entries per edge; the last `drawnWholeOnly` are drawn only toward a neighbour drawn whole.
+struct CrackRun {
+  std::uint32_t perEdge = 1;
+  std::uint32_t drawnWholeOnly = 0;
+};
+void drawEdgeCracks(TerrainFrame &frame, CrackEdges edges, const CrackPolygon &polygon, CrackRun run);
+
+// A GT4 (four cells) or GT3 (three) piece of the grid: its cells and their depth and screen words.
+template <std::size_t N> struct Piece {
+  std::array<std::uint32_t, N> cells{};
+  std::array<std::uint32_t, N> depths{};
+  std::array<std::uint32_t, N> screens{};
+
+  // Whether every point is past one screen edge.
+  [[nodiscard]] bool outside() const {
+    std::uint32_t shared = kOutcodeMask;
+    for (const std::uint32_t depth : depths) {
+      shared &= depth;
+    }
+    return shared != 0;
+  }
+  // The depth sum a bin is taken from: a GT3 counts its last point twice.
+  [[nodiscard]] std::uint32_t depthSum() const {
+    std::uint32_t sum = 0;
+    for (const std::uint32_t depth : depths) {
+      sum += depth & kDepthMask;
+    }
+    return N == 3 ? sum + (depths[2] & kDepthMask) : sum;
+  }
+};
+using QuadPiece = Piece<4>;
+using TrianglePiece = Piece<3>;
+
+template <std::size_t N>
+[[nodiscard]] Piece<N> readPieceDepths(const psx::present::EmitMemory &memory, const std::array<std::uint32_t, N> &cells) {
+  Piece<N> piece{.cells = cells};
+  for (std::size_t i = 0; i < N; ++i) {
+    piece.depths[i] = memory.mem_r32(cells[i] + cell::kDepth);
+  }
+  return piece;
+}
+
+template <std::size_t N> void readPieceScreens(const psx::present::EmitMemory &memory, Piece<N> &piece) {
+  for (std::size_t i = 0; i < N; ++i) {
+    piece.screens[i] = memory.mem_r32(piece.cells[i] + cell::kScreen);
+  }
+}
+
+// A GT3 piece's cells, as scratchpad offsets at bits 20, 12 and 4 of a layout word.
+[[nodiscard]] std::array<std::uint32_t, 3> trianglePieceCells(std::uint32_t layout);
+
+// An overflowed polygon's piece facing away is not drawn; retail has stored its first XY by then.
+[[nodiscard]] bool pieceFacesCamera(TerrainFrame &frame,
+                                    const QuadPiece &piece,
+                                    bool overflow,
+                                    Sidedness sides,
+                                    SecondTriangle second);
+[[nodiscard]] bool pieceFacesCamera(TerrainFrame &frame, const TrianglePiece &piece, bool overflow, Sidedness sides);
+
+// The piece's XYs and cell colours into the packet at `frame.primitive`.
+void storePieceScreens(TerrainFrame &frame, std::span<const std::uint32_t> screens);
+void storePieceColours(TerrainFrame &frame, std::span<const std::uint32_t> cells);
+
+// The packet at `frame.primitive` tagged a GT4 or GT3 and linked into `bin`.
+Linked linkQuadPiece(TerrainFrame &frame, std::uint32_t bin);
+Linked linkTrianglePiece(TerrainFrame &frame, std::uint32_t bin);
 
 // 80026230: pull a projected grid point toward the midpoint of two others, GPF-weighting its own
 // SXY by `ownWeight` and the pair's sum by `pairWeight` (each / 0x1000, then / 0x100), so the

@@ -25,19 +25,19 @@ SectorProjector::SectorProjector(TerrainFrame &frame)
 ProjectedSector SectorProjector::project(std::uint32_t entry) {
   const std::uint32_t sectorClass = entry & kSectorClassMask;
   const std::uint32_t sector = entry ^ sectorClass;
-  guest_memory::WorkingMemory &memory = frame_.memory;
+  const psx::present::EmitMemory &memory = frame_.memory;
   Core &core = frame_.core;
   const std::uint32_t camera = cameraRegister();
-  const std::uint32_t zx = memory.r32(sector + near_sector::kOriginZX);
-  const std::uint32_t y = memory.r32(sector + near_sector::kOriginY);
+  const std::uint32_t zx = memory.mem_r32(sector + near_sector::kOriginZX);
+  const std::uint32_t y = memory.mem_r32(sector + near_sector::kOriginY);
   originZ_ = (zx >> 14) - core.gte().readControl(camera);
   originX_ = core.gte().readControl(camera + 1) - ((zx & 0xFFFFu) << 2);
   originY_ = core.gte().readControl(camera + 2) - (y >> 14);
-  const std::uint32_t layout = memory.r32(sector + near_sector::kLayout);
+  const std::uint32_t layout = memory.mem_r32(sector + near_sector::kLayout);
   const std::uint32_t first = sector + near_sector::kData + ((layout >> 22) & 0x3FCu);
   end_ = first + 4 * ((layout & 0xFFu) + 2);
-  next_ = memory.r32(first + 4);
-  load(unpack(memory.r32(first)));
+  next_ = memory.mem_r32(first + 4);
+  load(unpack(memory.mem_r32(first)));
   cursor_ = first + 8;
 
   ProjectedSector result;
@@ -73,14 +73,14 @@ void SectorProjector::load(const UnpackedVertex &vertex) {
 // Unpack the vertex read one ahead into VZ0/VXY0 for the next RTPS, and read the one after it.
 void SectorProjector::advance() {
   const UnpackedVertex vertex = unpack(next_);
-  next_ = frame_.memory.r32(cursor_);
+  next_ = frame_.memory.mem_r32(cursor_);
   cursor_ += 4;
   load(vertex);
 }
 
 void SectorProjector::store(const Projected &projected) {
-  frame_.memory.w32(slot_, projected.word);
-  frame_.memory.w16(depthSlot_, static_cast<std::uint16_t>(projected.depth));
+  frame_.memory.mem_w32(slot_, projected.word);
+  frame_.memory.mem_w16(depthSlot_, static_cast<std::uint16_t>(projected.depth));
   slot_ += 4;
   depthSlot_ += 2;
 }
@@ -134,7 +134,7 @@ void SectorProjector::projectClose() {
   do {
     core.gte().execute(gte::kRtps);
     const UnpackedVertex vertex = unpack(next_);
-    next_ = frame_.memory.r32(cursor_);
+    next_ = frame_.memory.mem_r32(cursor_);
     cursor_ += 4;
     const std::uint32_t depth = core.gte().readData(gte::kSz3);
     std::uint32_t sxy = core.gte().readData(gte::kSxy2);

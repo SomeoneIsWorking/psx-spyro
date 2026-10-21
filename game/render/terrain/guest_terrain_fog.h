@@ -16,12 +16,12 @@
 namespace spyro::guest_terrain {
 
 // Load the level's fog colour (facts.fogColour: RFC, GFC, BFC words) into the GTE's far colour.
-void loadFogColour(const guest_memory::WorkingMemory &memory, Core &core, const Facts &facts);
+void loadFogColour(const psx::present::EmitMemory &memory, Core &core, const Facts &facts);
 
 // Load the fog colour, then fade the colour words [colours, end - 4) by `fog` into
 // facts.foggedColours (SCUS_944.25 800249A0, 80028DB0). Like retail, the loop reads the word at end
 // - 4 into RGBC without fading it. Returns one past the last faded word written.
-std::uint32_t fogColours(guest_memory::WorkingMemory &memory,
+std::uint32_t fogColours(const psx::present::EmitMemory &memory,
                          Core &core,
                          const Facts &facts,
                          std::uint32_t colours,

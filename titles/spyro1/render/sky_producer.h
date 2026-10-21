@@ -36,11 +36,6 @@ private:
   Core &core_;
 };
 
-// The rotations an in-between draws with: the camera's at `t` when the field drew with the
-// camera's own, else the later field's.
-[[nodiscard]] Rotations
-rotationsBetween(Core &core, const SkyState &from, const SkyState &to, float t);
-
 // The override and its render.
 void registerSkyOverrides(Core &core);
 

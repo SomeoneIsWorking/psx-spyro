@@ -12,11 +12,12 @@
 namespace spyro::guest_terrain {
 namespace {
 
-// The GTE register and command numbers are shared vocabulary (psxport gte_registers.h), not this
-// pass's.
 namespace gte = psx::gte;
 
 using spyro::guest_word::asSigned;
+using spyro::guest_word::sra;
+using spyro::guest_word::signedHalf;
+using spyro::guest_word::asWord;
 
 // The two height packings (80025D28): the detail pass's (w << 3) & 0x1FFC and the translucent
 // pass's w & 0x3FF, told apart by the header's top bit.
@@ -40,17 +41,14 @@ bool fitsScaled(std::int32_t coordinate) {
   return (((coordinate >> 8) + 1) >> 1) == 0;
 }
 
-GridVertex loadGridVertex(guest_memory::WorkingMemory &memory, std::uint32_t address) {
-  const std::int32_t z = static_cast<std::int16_t>(memory.r16(address + cell::kZ));
-  const std::int32_t x = static_cast<std::int16_t>(memory.r16(address + cell::kX));
-  const std::int32_t y = static_cast<std::int16_t>(memory.r16(address + cell::kY));
-  const auto word = [](std::int32_t value) {
-    return static_cast<std::uint32_t>(value);
-  };
+GridVertex loadGridVertex(const psx::present::EmitMemory &memory, std::uint32_t address) {
+  const std::int32_t z = memory.mem_r16s(address + cell::kZ);
+  const std::int32_t x = memory.mem_r16s(address + cell::kX);
+  const std::int32_t y = memory.mem_r16s(address + cell::kY);
   if (fitsScaled(z) && fitsScaled(x) && fitsScaled(y)) {
-    return GridVertex{word(z) << 4, (word(x) << 4) + (word(y) << 20), true};
+    return GridVertex{asWord(z) << 4, (asWord(x) << 4) + (asWord(y) << 20), true};
   }
-  return GridVertex{word(z), word(x) + (word(y) << 16), false};
+  return GridVertex{asWord(z), asWord(x) + (asWord(y) << 16), false};
 }
 
 } // namespace
@@ -58,7 +56,7 @@ GridVertex loadGridVertex(guest_memory::WorkingMemory &memory, std::uint32_t add
 SplitSector readSplitHeader(TerrainFrame &frame, std::uint32_t header) {
   Core &core = frame.core;
   const std::uint32_t sector = header << 2;
-  const std::uint32_t zx = frame.memory.r32(sector + 0x08);
+  const std::uint32_t zx = frame.memory.mem_r32(sector + 0x08);
   SplitSector result;
   if (asSigned(sector) < 0) {
     result.heightShift = kDetailHeightShift;
@@ -67,11 +65,11 @@ SplitSector readSplitHeader(TerrainFrame &frame, std::uint32_t header) {
     result.heightShift = 0;
     result.heightMask = kTranslucentHeightMask;
   }
-  core.gte().writeControl(gte::kLight4, frame.memory.r32(sector + 0x10) >> 31);
-  const std::uint32_t y = frame.memory.r16(sector + 0x0E);
+  core.gte().writeControl(gte::kLight4, frame.memory.mem_r32(sector + 0x10) >> 31);
+  const std::uint32_t y = frame.memory.mem_r16(sector + 0x0E);
   result.originZ = (zx >> 14) - core.gte().readControl(gte::kLight0);
   result.originX = core.gte().readControl(gte::kLight1) - ((zx & 0xFFFFu) << 2);
-  const std::uint32_t layout = frame.memory.r32(sector + 0x14);
+  const std::uint32_t layout = frame.memory.mem_r32(sector + 0x14);
   result.originY = core.gte().readControl(gte::kLight2) - (y << 2);
   result.vertices = sector + 0x1C + ((layout >> 22) & 0x3FCu);
   result.colours = result.vertices + ((layout << 2) & 0x3FCu);
@@ -83,14 +81,14 @@ SplitSector readSplitHeader(TerrainFrame &frame, std::uint32_t header) {
 void walkSplitList(TerrainFrame &frame, std::uint32_t list, SplitPolygonPass &pass) {
   SplitSector sector;
   for (;;) {
-    std::uint32_t entry = frame.memory.r32(list);
+    std::uint32_t entry = frame.memory.mem_r32(list);
     list += 4;
     if (entry == 0) {
       return;
     }
     if (asSigned(entry) >= 0) {
       sector = pass.sector(entry);
-      entry = frame.memory.r32(list);
+      entry = frame.memory.mem_r32(list);
       list += 4;
     }
     const std::uint32_t bits = entry & 3u;
@@ -102,7 +100,7 @@ void walkSplitList(TerrainFrame &frame, std::uint32_t list, SplitPolygonPass &pa
 
 GridPoint
 unpackGridVertex(const TerrainFrame &frame, const SplitSector &sector, std::uint32_t index) {
-  const std::uint32_t word = frame.memory.r32(sector.vertices + index);
+  const std::uint32_t word = frame.memory.mem_r32(sector.vertices + index);
   return GridPoint{((word >> 19) & 0x1FFCu) + sector.originZ,
                    sector.originX - ((word >> 8) & 0x1FFCu),
                    sector.originY - ((word << sector.heightShift) & sector.heightMask)};
@@ -110,9 +108,9 @@ unpackGridVertex(const TerrainFrame &frame, const SplitSector &sector, std::uint
 
 void storeGridPoint(TerrainFrame &frame, std::uint32_t cellIndex, const GridPoint &point) {
   const std::uint32_t address = kScratchpad + cellIndex * kCellSize;
-  frame.memory.w16(address + cell::kZ, static_cast<std::uint16_t>(point.z));
-  frame.memory.w16(address + cell::kX, static_cast<std::uint16_t>(point.x));
-  frame.memory.w16(address + cell::kY, static_cast<std::uint16_t>(point.y));
+  frame.memory.mem_w16(address + cell::kZ, static_cast<std::uint16_t>(point.z));
+  frame.memory.mem_w16(address + cell::kX, static_cast<std::uint16_t>(point.x));
+  frame.memory.mem_w16(address + cell::kY, static_cast<std::uint16_t>(point.y));
 }
 
 void loadCornerColours(TerrainFrame &frame, std::uint32_t *colours, std::uint32_t count) {
@@ -136,10 +134,10 @@ void loadCornerColours(TerrainFrame &frame, std::uint32_t *colours, std::uint32_
 
 void projectGrid(TerrainFrame &frame, std::uint32_t count, bool markBehind) {
   Core &core = frame.core;
-  guest_memory::WorkingMemory &memory = frame.memory;
+  const psx::present::EmitMemory &memory = frame.memory;
   const std::uint32_t end = kScratchpad + (count + 1) * kCellSize;
   // Retail zeroes the cell after the last so its one-ahead read of it is harmless.
-  memory.w32(end - kCellSize, 0);
+  memory.mem_w32(end - kCellSize, 0);
   GridVertex next = loadGridVertex(memory, kScratchpad);
   core.gte().writeData(gte::kVz0, next.z);
   core.gte().writeData(gte::kVxy0, next.xy);
@@ -171,43 +169,102 @@ void projectGrid(TerrainFrame &frame, std::uint32_t count, bool markBehind) {
     if (frame.bounds.atOrRightOfRight(sxy)) {
       code |= kRight;
     }
-    memory.w32(address - 2 * kCellSize + cell::kScreen, sxy);
-    memory.w32(address - 2 * kCellSize + cell::kDepth, code);
+    memory.mem_w32(address - 2 * kCellSize + cell::kScreen, sxy);
+    memory.mem_w32(address - 2 * kCellSize + cell::kDepth, code);
   } while (address != end);
 }
 
 void emitCrackTriangle(TerrainFrame &frame, std::uint32_t entry, const CrackPolygon &polygon) {
   const auto [colourAdjust, uv, page, bias] = polygon;
   Core &core = frame.core;
-  guest_memory::WorkingMemory &memory = frame.memory;
-  const std::uint32_t cells = memory.r32(entry);
-  const std::uint32_t uvFirst = memory.r32(entry + 4);
-  const std::uint32_t uvRest = memory.r32(entry + 8);
-  const std::uint32_t c0 = kScratchpad + (cells >> 16);
-  const std::uint32_t c1 = kScratchpad + (cells & 0xFFFFu);
-  const std::uint32_t c2 = kScratchpad + (uvFirst >> 16);
-  const std::uint32_t d0 = memory.r32(c0 + cell::kDepth);
-  const std::uint32_t d1 = memory.r32(c1 + cell::kDepth);
-  const std::uint32_t d2 = memory.r32(c2 + cell::kDepth);
-  frame.v0 = c0;
-  frame.v1 = c1;
-  if ((d0 & d1 & d2 & kOutcodeMask) != 0) {
+  const psx::present::EmitMemory &memory = frame.memory;
+  const std::uint32_t cells = memory.mem_r32(entry);
+  const std::uint32_t uvFirst = memory.mem_r32(entry + 4);
+  const std::uint32_t uvRest = memory.mem_r32(entry + 8);
+  TrianglePiece piece = readPieceDepths<3>(
+      memory, {kScratchpad + (cells >> 16), kScratchpad + (cells & 0xFFFFu), kScratchpad + (uvFirst >> 16)});
+  frame.v0 = piece.cells[0];
+  frame.v1 = piece.cells[1];
+  if (piece.outside()) {
     return;
   }
-  const std::uint32_t sum = (d0 & kDepthMask) + (d1 & kDepthMask) + 2 * (d2 & kDepthMask);
   const std::uint32_t prim = frame.primitive;
-  memory.w32(prim + packet::kXy0, memory.r32(c0 + cell::kScreen));
-  memory.w32(prim + packet::kXy1, memory.r32(c1 + cell::kScreen));
-  memory.w32(prim + packet::kXy2, memory.r32(c2 + cell::kScreen));
-  memory.w32(prim + packet::kColour0, memory.r32(c0 + cell::kColour) - colourAdjust);
-  memory.w32(prim + packet::kColour1, memory.r32(c1 + cell::kColour));
-  memory.w32(prim + packet::kColour2, memory.r32(c2 + cell::kColour));
-  memory.w32(prim, kTriangleTag);
-  memory.w32(prim + packet::kUv0, (uvFirst & 0xFFFFu) + uv);
-  memory.w32(prim + packet::kUv1, static_cast<std::uint32_t>(asSigned(uvRest) >> 16) + page);
-  memory.w32(prim + packet::kUv2, (uvRest & 0xFFFFu) + uv);
+  readPieceScreens(memory, piece);
+  storePieceScreens(frame, piece.screens);
+  storePieceColours(frame, piece.cells);
+  memory.mem_w32(prim + packet::kColour0, memory.mem_r32(piece.cells[0] + cell::kColour) - colourAdjust);
+  memory.mem_w32(prim + packet::kUv0, (uvFirst & 0xFFFFu) + uv);
+  memory.mem_w32(prim + packet::kUv1, static_cast<std::uint32_t>(asSigned(uvRest) >> 16) + page);
+  memory.mem_w32(prim + packet::kUv2, (uvRest & 0xFFFFu) + uv);
   frame.v0 = bias;
-  frame.v1 = frame.linkAndAdvance((sum >> 7) + bias, PacketSize{kTriangleBytes}).head;
+  frame.v1 = linkTrianglePiece(frame, polygonBin(piece.depthSum(), bias)).head;
+}
+
+void drawEdgeCracks(TerrainFrame &frame, CrackEdges edges, const CrackPolygon &polygon, CrackRun run) {
+  std::uint32_t entry = edges.table;
+  std::uint32_t remaining = edges.edges;
+  while (remaining != 0) {
+    const std::uint32_t edge = remaining & 0xFFu;
+    remaining >>= 8;
+    entry += run.perEdge * kCrackEntrySize;
+    if (edge == 0) {
+      continue;
+    }
+    const std::uint32_t drawn = (edge & 1u) != 0 ? run.perEdge : run.perEdge - run.drawnWholeOnly;
+    const std::uint32_t first = entry - run.perEdge * kCrackEntrySize;
+    for (std::uint32_t i = 0; i < drawn; ++i) {
+      emitCrackTriangle(frame, first + i * kCrackEntrySize, polygon);
+    }
+  }
+}
+
+std::array<std::uint32_t, 3> trianglePieceCells(std::uint32_t layout) {
+  return {kScratchpad + ((layout >> 20) & 0xFF0u), kScratchpad + ((layout >> 12) & 0xFF0u), kScratchpad + ((layout >> 4) & 0xFF0u)};
+}
+
+bool pieceFacesCamera(TerrainFrame &frame,
+                      const QuadPiece &piece,
+                      bool overflow,
+                      Sidedness sides,
+                      SecondTriangle second) {
+  if (!overflow || facesCamera(frame, piece.screens, sides, second)) {
+    return true;
+  }
+  frame.memory.mem_w32(frame.primitive + packet::kXy0, piece.screens[0]);
+  return false;
+}
+
+bool pieceFacesCamera(TerrainFrame &frame, const TrianglePiece &piece, bool overflow, Sidedness sides) {
+  if (!overflow || triangleFacesCamera(frame, piece.screens, sides)) {
+    return true;
+  }
+  frame.memory.mem_w32(frame.primitive + packet::kXy0, piece.screens[0]);
+  return false;
+}
+
+void storePieceScreens(TerrainFrame &frame, std::span<const std::uint32_t> screens) {
+  constexpr std::array<std::uint32_t, 4> kSlots = {packet::kXy0, packet::kXy1, packet::kXy2, packet::kXy3};
+  for (std::size_t i = 0; i < screens.size(); ++i) {
+    frame.memory.mem_w32(frame.primitive + kSlots[i], screens[i]);
+  }
+}
+
+void storePieceColours(TerrainFrame &frame, std::span<const std::uint32_t> cells) {
+  constexpr std::array<std::uint32_t, 4> kSlots = {
+      packet::kColour0, packet::kColour1, packet::kColour2, packet::kColour3};
+  for (std::size_t i = 0; i < cells.size(); ++i) {
+    frame.memory.mem_w32(frame.primitive + kSlots[i], frame.memory.mem_r32(cells[i] + cell::kColour));
+  }
+}
+
+Linked linkQuadPiece(TerrainFrame &frame, std::uint32_t bin) {
+  frame.memory.mem_w32(frame.primitive, kQuadTag);
+  return frame.linkAndAdvance(bin, PacketSize{kQuadBytes});
+}
+
+Linked linkTrianglePiece(TerrainFrame &frame, std::uint32_t bin) {
+  frame.memory.mem_w32(frame.primitive, kTriangleTag);
+  return frame.linkAndAdvance(bin, PacketSize{kTriangleBytes});
 }
 
 GpuSpan gpuSpan(std::span<const std::uint32_t> screens) {
@@ -217,10 +274,10 @@ GpuSpan gpuSpan(std::span<const std::uint32_t> screens) {
       {{0, 1}, {0, 2}, {1, 2}, {1, 3}, {2, 3}}};
   const std::size_t pairCount = screens.size() == 4 ? kPairs.size() : 3;
   const auto x = [](std::uint32_t sxy) {
-    return static_cast<std::int32_t>(static_cast<std::int16_t>(sxy & 0xFFFFu));
+    return asSigned(signedHalf(sxy));
   };
   const auto y = [](std::uint32_t sxy) {
-    return static_cast<std::int32_t>(static_cast<std::int16_t>(sxy >> 16));
+    return asSigned(sra(sxy, 16));
   };
   const auto exceeds = [](std::int32_t span, std::int32_t limit) {
     return span >= limit || span <= -limit;
@@ -241,19 +298,17 @@ GpuSpan gpuSpan(std::span<const std::uint32_t> screens) {
 void pullTowardPair(TerrainFrame &frame, const GridPull &pull) {
   const auto [point, first, second, ownWeight, pairWeight] = pull;
   Core &core = frame.core;
-  guest_memory::WorkingMemory &memory = frame.memory;
-  const auto low = [](std::uint32_t sxy) {
-    return static_cast<std::uint32_t>(static_cast<std::int16_t>(sxy & 0xFFFFu));
-  };
+  const psx::present::EmitMemory &memory = frame.memory;
+  const auto low = signedHalf;
   const auto high = [](std::uint32_t sxy) {
-    return static_cast<std::uint32_t>(asSigned(sxy) >> 16);
+    return sra(sxy, 16);
   };
-  const std::uint32_t own = memory.r32(point + cell::kScreen);
+  const std::uint32_t own = memory.mem_r32(point + cell::kScreen);
   core.gte().writeData(gte::kIr0, ownWeight);
   core.gte().writeData(gte::kIr1, low(own));
   core.gte().writeData(gte::kIr2, high(own));
-  const std::uint32_t a = memory.r32(first + cell::kScreen);
-  const std::uint32_t b = memory.r32(second + cell::kScreen);
+  const std::uint32_t a = memory.mem_r32(first + cell::kScreen);
+  const std::uint32_t b = memory.mem_r32(second + cell::kScreen);
   core.gte().execute(gte::kGpf);
   core.gte().writeData(gte::kIr0, pairWeight);
   core.gte().writeData(gte::kIr1, low(a) + low(b));
@@ -263,7 +318,7 @@ void pullTowardPair(TerrainFrame &frame, const GridPull &pull) {
   core.gte().execute(gte::kGpf);
   const std::int32_t x = asSigned(ownX + core.gte().readData(gte::kMac1)) >> 8;
   const std::int32_t y = asSigned(ownY + core.gte().readData(gte::kMac2)) >> 8;
-  memory.w32(point + cell::kScreen,
+  memory.mem_w32(point + cell::kScreen,
              (static_cast<std::uint32_t>(x) & 0xFFFFu) + (static_cast<std::uint32_t>(y) << 16));
 }
 
@@ -271,12 +326,12 @@ std::uint32_t quadNeighbourEdges(TerrainFrame &frame,
                                  std::uint32_t links,
                                  std::uint32_t draw,
                                  std::uint32_t bit) {
-  guest_memory::WorkingMemory &memory = frame.memory;
+  const psx::present::EmitMemory &memory = frame.memory;
   const std::uint32_t flags = frame.scratch;
-  const std::uint32_t first = memory.r8(flags + (links >> 19)) & bit;
-  const std::uint32_t second = memory.r8(flags + ((links >> 6) & 0x1FFFu)) & bit;
-  const std::uint32_t third = memory.r8(flags + (links & 0x3Fu) + ((draw >> 6) & 0x1FC0u)) & bit;
-  const std::uint32_t fourth = memory.r8(flags + (draw >> 19)) & bit;
+  const std::uint32_t first = memory.mem_r8(flags + (links >> 19)) & bit;
+  const std::uint32_t second = memory.mem_r8(flags + ((links >> 6) & 0x1FFFu)) & bit;
+  const std::uint32_t third = memory.mem_r8(flags + (links & 0x3Fu) + ((draw >> 6) & 0x1FC0u)) & bit;
+  const std::uint32_t fourth = memory.mem_r8(flags + (draw >> 19)) & bit;
   return first + (second << 8) + (third << 16) + (fourth << 24);
 }
 
@@ -284,12 +339,12 @@ std::uint32_t triangleNeighbourEdges(TerrainFrame &frame,
                                      std::uint32_t links,
                                      std::uint32_t colourIndices,
                                      std::uint32_t bit) {
-  guest_memory::WorkingMemory &memory = frame.memory;
+  const psx::present::EmitMemory &memory = frame.memory;
   const std::uint32_t flags = frame.scratch;
-  const std::uint32_t first = memory.r8(flags + (links >> 19)) & bit;
-  const std::uint32_t second = memory.r8(flags + ((links >> 6) & 0x1FFFu)) & bit;
+  const std::uint32_t first = memory.mem_r8(flags + (links >> 19)) & bit;
+  const std::uint32_t second = memory.mem_r8(flags + ((links >> 6) & 0x1FFFu)) & bit;
   const std::uint32_t third =
-      memory.r8(flags + ((colourIndices & 0xFEu) << 5) + (links & 0x3Fu)) & bit;
+      memory.mem_r8(flags + ((colourIndices & 0xFEu) << 5) + (links & 0x3Fu)) & bit;
   return first + (second << 8) + (third << 16);
 }
 

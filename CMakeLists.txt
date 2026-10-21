@@ -75,7 +75,7 @@ set(SPYRO_RUNTIME_SOURCES
   titles/spyro1/core/frame/skip_map.cpp
   titles/spyro1/core/frame/frame_draw.cpp
   titles/spyro1/core/frame/frame_driver.cpp
-  titles/spyro1/core/frame/ordering_table.cpp
+  titles/spyro1/render/ordering_table.cpp
   titles/spyro1/core/input/input_phase.cpp
   titles/spyro1/core/frame/transition_skip.cpp
   titles/spyro1/core/runtime/runtime.cpp
@@ -98,7 +98,7 @@ set(SPYRO_RUNTIME_SOURCES
   titles/spyro1/core/effect/native_effect_state.cpp
   titles/spyro1/core/moby/native_environment_light.cpp
   titles/spyro1/core/input/native_gamepad.cpp
-  titles/spyro1/core/hud/native_glow_sparkle_pools.cpp
+  titles/spyro1/render/glow_pools.cpp
   titles/spyro1/core/hud/native_hud_collectables.cpp
   titles/spyro1/core/moby/native_level_globals_table.cpp
   titles/spyro1/core/moby/native_moby_allocator.cpp
@@ -111,8 +111,8 @@ set(SPYRO_RUNTIME_SOURCES
   titles/spyro1/core/effect/native_particle_alloc.cpp
   titles/spyro1/core/hud/native_pause_menu.cpp
   titles/spyro1/core/hud/native_pixel_fade.cpp
-  titles/spyro1/core/hud/screen_overlays.cpp
-  titles/spyro1/core/hud/hud_anchor.cpp
+  titles/spyro1/render/screen_overlays.cpp
+  titles/spyro1/render/hud_anchor.cpp
   titles/spyro1/core/player/native_player_animation.cpp
   titles/spyro1/core/player/native_player_physics.cpp
   titles/spyro1/core/execution/native_random_range.cpp
@@ -129,7 +129,6 @@ set(SPYRO_RUNTIME_SOURCES
   game/render/field/guest_moby_rotation.cpp
   game/render/field/guest_moby_visibility.cpp
   game/render/field/guest_view_slope.cpp
-  game/render/field/guest_working_memory.cpp
   game/render/terrain/engine_terrain_image.cpp
   game/render/terrain/guest_terrain_animation.cpp
   game/render/terrain/guest_terrain_classify.cpp

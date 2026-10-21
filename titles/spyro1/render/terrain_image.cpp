@@ -4,6 +4,7 @@
 #include "core/session.h"
 #include "gte_registers.h"
 #include "native_dispatch.h"
+#include "render/state_producer_override.h"
 #include "render/terrain/guest_terrain_passes.h"
 #include "render/terrain/terrain_state_producer.h"
 #include "spyro1/render/terrain_passes.h"
@@ -14,7 +15,6 @@ namespace spyro1::terrain {
 namespace {
 
 namespace gte = psx::gte;
-using spyro::guest_memory::GuestRange;
 using spyro::guest_terrain::FieldWindows;
 
 // The flag bytes, the sector lists and the re-split queue, which grows from kFarList.
@@ -30,20 +30,18 @@ FieldWindows TerrainImage::windows(Core &core) const {
       .scratch = kFacts.scratch,
       .tableBase = tableBase,
       .arenaEnd = poolEnd,
-      .inBetweenArena = {.base = poolEnd - kPacketPoolBytes, .bytes = kPacketPoolBytes},
+      .inBetweenArena = {.address = poolEnd - kPacketPoolBytes, .bytes = kPacketPoolBytes},
       .owned = {
-          GuestRange{spyro::guest_terrain::kScratchpad, spyro::guest_terrain::kScratchpadBytes},
-          GuestRange{kFacts.scratch, kScratchBlockBytes},
-          GuestRange{tableBase, kOrderingTableBytes},
-          GuestRange{},
-          GuestRange{}}};
+          GuestSpan{spyro::guest_terrain::kScratchpad, spyro::guest_terrain::kScratchpadBytes},
+          GuestSpan{kFacts.scratch, kScratchBlockBytes},
+          GuestSpan{tableBase, kOrderingTableBytes},
+          GuestSpan{},
+          GuestSpan{}}};
 }
 
 spyro::guest_camera::Matrices
 TerrainImage::camera(Core &core, const spyro::guest_camera::Angles &angles) const {
-  return CameraBuilder(
-             core,
-             {.sine = kRenderGlobals.cameraSineTable, .cosine = kRenderGlobals.cameraCosineTable})
+  return CameraBuilder(core, kRenderGlobals.cameraSineTable)
       .build(angles);
 }
 
@@ -51,12 +49,10 @@ void TerrainImage::drawPasses(spyro::guest_terrain::TerrainFrame &frame) const {
   Core &core = frame.core;
   listSectors(frame, kFacts, static_cast<std::int32_t>(frame.argument));
   // 800261A8: the projection rotation, the packet cursor and the ordering table.
-  for (std::uint32_t i = 0; i < gte::kRotationWords; ++i) {
-    core.gte().writeControl(gte::kRotation + i, frame.rotationWord(i));
-  }
+  core.gte().loadRotation(frame.rotation());
   frame.primitive = frame.primitiveBase();
-  frame.orderingTable = frame.memory.r32(kRenderGlobals.orderingTable);
-  if (frame.memory.r32(kFacts.farPassSkip) == 0) {
+  frame.orderingTable = frame.memory.mem_r32(kRenderGlobals.orderingTable);
+  if (frame.memory.mem_r32(spyro1::guest::kSkipLowPolyWorld) == 0) {
     drawFarSectors(frame, kFacts);
   }
   drawDetailSectors(frame, kFacts);
@@ -74,14 +70,11 @@ void drawTerrain(Core *core) {
 } // namespace
 
 void registerOverrides(Core &core) {
-  spyro::session(core).stateProducers.install(
-      kSharedFacts.entry,
-      std::make_unique<spyro::guest_terrain::TerrainStateProducer>(core, kTerrainImage));
-  psx::cpu::installNativeOverride(core,
-                                  kSharedFacts.entry,
-                                  kSharedFacts.overrideName,
-                                  drawTerrain,
-                                  psx::present::Producer{psx::present::Arg::A0});
+  spyro::installProducerOverride(core,
+                                 kSharedFacts.entry,
+                                 kSharedFacts.overrideName,
+                                 drawTerrain,
+                                 std::make_unique<spyro::guest_terrain::TerrainStateProducer>(core, kTerrainImage));
 }
 
 } // namespace spyro1::terrain

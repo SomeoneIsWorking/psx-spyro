@@ -1,12 +1,9 @@
 #include "spyro3/render/hud_anchor.h"
 
 #include "core.h"
-#include "core/native_execution.h"
 #include "core/session.h"
-#include "execution_control.h"
 #include "native_dispatch.h"
 #include "render/hud/ui_anchor.h"
-#include "spyro3/render/render_facts.h"
 
 #include <cstdint>
 
@@ -17,43 +14,22 @@ DrawState &drawState(Core &core) {
   return static_cast<DrawState &>(*spyro::session(core).titleState);
 }
 
-// The frame this title's HUD anchors against, from the ONE shared rule: this Core's own widening
-// decision, or the title's authored window when it is not widening, which makes every correction
-// zero rather than a guess.
-spyro::ui_anchor::Frame frame(Core &core) {
-  return spyro::ui_anchor::widescreenFrame(core, spyro3::kTerrainFacts.nativeWidth);
-}
-
-// Shift the X argument of an emitter ($a1) by the widget's anchor class, if the widget in progress
-// has one. The element is the drawer's own argument and is never written; only this register moves.
+// The emitter's x ($a1) by the class of the widget being drawn, if it has one.
 void shiftEmitterArgument(Core &core) {
   const std::uint32_t element = drawState(core).current();
   if (const auto anchor = counterAnchor(element)) {
-    core.r[5] = static_cast<std::uint32_t>(
-        static_cast<std::int32_t>(core.r[5]) +
-        spyro::ui_anchor::correctionAndReport(
-            {.name = "hud-counter", .index = element}, *anchor, frame(core)));
+    spyro::ui_anchor::shiftArgument(core, 5, {.name = "hud-counter", .index = element}, *anchor);
   }
 }
 
-// A widget drawer publishes its element for the emitters it is about to call and clears it after,
-// so every emitter call inside the draw reads this widget and every call outside reads none. Both
-// drawers are the same body: publish, run the original unchanged, clear.
-void counterDrawer(Core *core) {
+// A widget drawer publishes its element for the emitters it calls and clears it after.
+template <std::uint32_t Drawer> void widgetDrawer(Core *core) {
   drawState(*core).begin(core->r[4]);
-  (void)psx::cpu::callOriginalOrPropagate(*core, kCounterDrawer);
+  (void)psx::cpu::callOriginalOrPropagate(*core, Drawer);
   drawState(*core).end();
 }
 
-void livesDrawer(Core *core) {
-  drawState(*core).begin(core->r[4]);
-  (void)psx::cpu::callOriginalOrPropagate(*core, kLivesDrawer);
-  drawState(*core).end();
-}
-
-// A widget's OWN icon is what its anchor class moves. The same emitter is also called from INSIDE
-// the value emitter, once per digit glyph, and those calls are not this widget's icon to move: see
-// the value emitter below.
+// The value emitter's digit glyphs come through here too and are not the widget's icon.
 void iconEmitter(Core *core) {
   if (!drawState(*core).insideValue()) {
     shiftEmitterArgument(*core);
@@ -61,12 +37,7 @@ void iconEmitter(Core *core) {
   (void)psx::cpu::callOriginalOrPropagate(*core, kIconEmitter);
 }
 
-// A widget's value. This emitter draws its digits by CALLING the icon emitter once per glyph, so it
-// opens a scope of its own: the glyph Xs it hands down already carry the correction applied here,
-// and the icon emitter must leave them alone. Without that scope the digits are corrected TWICE —
-// measured as the collectable count landing at x -111 instead of -25, off the left edge, so the
-// number is not drawn at all; and the egg's icon landing at 595 instead of 468, jammed against the
-// right edge, which reads as the icon and the count having swapped sides.
+// The glyph xs it hands the icon emitter already carry this correction.
 void valueEmitter(Core *core) {
   shiftEmitterArgument(*core);
   drawState(*core).beginValue();
@@ -77,8 +48,8 @@ void valueEmitter(Core *core) {
 } // namespace
 
 void registerOverrides(Core &core) {
-  psx::cpu::installNativeOverride(core, kCounterDrawer, "spyro3-hud-counter", counterDrawer);
-  psx::cpu::installNativeOverride(core, kLivesDrawer, "spyro3-hud-lives", livesDrawer);
+  psx::cpu::installNativeOverride(core, kCounterDrawer, "spyro3-hud-counter", widgetDrawer<kCounterDrawer>);
+  psx::cpu::installNativeOverride(core, kLivesDrawer, "spyro3-hud-lives", widgetDrawer<kLivesDrawer>);
   psx::cpu::installNativeOverride(core, kIconEmitter, "spyro3-hud-icon", iconEmitter);
   psx::cpu::installNativeOverride(core, kValueEmitter, "spyro3-hud-value", valueEmitter);
 }

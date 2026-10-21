@@ -38,12 +38,12 @@ bool projectFarVertices(TerrainFrame &frame,
                         const FarClip &clip,
                         FarHeight height) {
   Core &core = frame.core;
-  loadVertex(core, frame.memory.r32(vertices.data), vertices.origin, height);
+  loadVertex(core, frame.memory.mem_r32(vertices.data), vertices.origin, height);
   std::uint32_t cell = kScratchpad;
   std::uint32_t shared = 0xFFFFFFFFu;
   for (std::uint32_t i = 1; i <= vertices.count; ++i) {
     core.gte().execute(gte::kRtps);
-    loadVertex(core, frame.memory.r32(vertices.data + 4 * i), vertices.origin, height);
+    loadVertex(core, frame.memory.mem_r32(vertices.data + 4 * i), vertices.origin, height);
     const std::uint32_t sxy = core.gte().readData(gte::kSxy2);
     const std::uint32_t sz = core.gte().readData(gte::kSz3);
     frame.v0 = sxy;
@@ -67,8 +67,8 @@ bool projectFarVertices(TerrainFrame &frame,
       }
       shared &= word;
     }
-    frame.memory.w32(cell, word);
-    frame.memory.w32(cell + 4, sz);
+    frame.memory.mem_w32(cell, word);
+    frame.memory.mem_w32(cell + 4, sz);
     cell += kFarCellSize;
   }
   return !clip.edge || (shared & kOutcodeMask) == 0;

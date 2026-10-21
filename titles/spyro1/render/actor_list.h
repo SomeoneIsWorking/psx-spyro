@@ -44,7 +44,7 @@ void buildList(Core &core, const ListPass &pass);
 // One record through a builder's culls over `memory`, its entry written at kDrawList; true when it
 // was given one. An in-between's list.
 bool listRecord(Core &core,
-                spyro::guest_memory::WorkingMemory &memory,
+                const psx::present::EmitMemory &memory,
                 const ListPass &pass,
                 std::uint32_t record);
 

@@ -1,6 +1,8 @@
 #include "render/terrain/terrain_rebuild.h"
 
+#include "blend.h"
 #include "gte_registers.h"
+#include "render/field/guest_word.h"
 #include "lucent/log.h"
 
 #include <algorithm>
@@ -10,41 +12,16 @@
 namespace spyro::guest_terrain {
 namespace {
 
-namespace gte = psx::gte;
-
-// The end of the 2 MB main-RAM window a guest packet address can name.
-
-// One field's terrain allocates at most 55,672 bytes of packets (measured on SCUS_944.25).
+// One field's terrain allocates at most 55,672 bytes of packets (SCUS_944.25).
 constexpr std::uint32_t kMinArenaBytes = 0x10000u;
-
-std::int32_t signedHalf(std::uint32_t word) {
-  const std::uint32_t half = word & 0xFFFFu;
-  return half >= 0x8000u ? static_cast<std::int32_t>(half) - 0x10000
-                         : static_cast<std::int32_t>(half);
-}
-
-// One camera word at the two guest frames.
-struct WordPair {
-  std::uint32_t from = 0;
-  std::uint32_t to = 0;
-};
-
-std::uint32_t lerpWord(const WordPair &words, double f) {
-  const auto a = static_cast<std::int64_t>(static_cast<std::int32_t>(words.from));
-  const auto b = static_cast<std::int64_t>(static_cast<std::int32_t>(words.to));
-  const auto v = a + static_cast<std::int64_t>(std::llround(static_cast<double>(b - a) * f));
-  return static_cast<std::uint32_t>(static_cast<std::uint64_t>(v));
-}
 
 } // namespace
 
 CameraState readCamera(Core &core, const guest_render_globals::Globals &globals) {
-  // The first two angles share a word, low half then high half; the third is the next word's low
-  // half.
   CameraState state;
-  state.angles[0] = signedHalf(core.mem_r32(globals.cameraAngles));
-  state.angles[1] = signedHalf(core.mem_r32(globals.cameraAngles) >> 16);
-  state.angles[2] = signedHalf(core.mem_r32(globals.cameraAngles + 4));
+  state.angles[0] = core.mem_r16s(globals.cameraAngles);
+  state.angles[1] = core.mem_r16s(globals.cameraAngles + 2);
+  state.angles[2] = core.mem_r16s(globals.cameraAngles + 4);
   for (std::uint32_t i = 0; i < 3; ++i) {
     state.position[i] = core.mem_r32(globals.cameraPosition + 4 * i);
   }
@@ -55,20 +32,16 @@ InBetweenCamera cameraBetween(Core &core,
                               const TerrainImage &image,
                               const CameraState &from,
                               const CameraState &to,
-                              double f) {
-  const double at = std::clamp(f, 0.0, 1.0);
+                              float t) {
+  const float at = std::clamp(t, 0.0f, 1.0f);
   const guest_camera::Angles angles =
       guest_camera::interpolate({from.angles[0], from.angles[1], from.angles[2]},
                                 {to.angles[0], to.angles[1], to.angles[2]},
                                 at);
   const guest_camera::Matrices matrices = image.camera(core, angles);
-  InBetweenCamera camera{};
-  for (std::uint32_t i = 0; i < gte::kRotationWords; ++i) {
-    camera.rotation[i] = matrices.projection[i];
-    camera.viewRotation[i] = matrices.view[i];
-  }
+  InBetweenCamera camera{.rotation = matrices.projection, .viewRotation = matrices.view};
   for (std::uint32_t i = 0; i < 3; ++i) {
-    camera.position[i] = lerpWord({from.position[i], to.position[i]}, at);
+    camera.position[i] = psx::present::lerpWord(from.position[i], to.position[i], at);
   }
   return camera;
 }
@@ -86,35 +59,29 @@ Rebuild::Rebuild(Core &core,
                  const TerrainImage &image,
                  const InBetweenCamera &camera,
                  const FieldInputs &field)
-    : core_(core), memory_(core), camera_(camera) {
+    : gte_(core.gte()), memory_(core, host_), camera_(camera) {
   const FieldWindows windows = image.windows(core);
-  const guest_memory::PacketArena arena = windows.inBetweenArena;
-  if (arena.bytes < kMinArenaBytes) {
+  arena_ = windows.inBetweenArena;
+  if (arena_.bytes < kMinArenaBytes) {
     lucent::error("terrrebuild",
                   "refusing a terrain in-between: its packet arena runs from 0x{:08X} for {} "
                   "bytes, and one field's terrain needs more than {}",
-                  arena.base,
-                  arena.bytes,
+                  arena_.address,
+                  arena_.bytes,
                   kMinArenaBytes);
     std::abort();
   }
 
-  // Every range starts empty: seeding from the guest would hand the traversal the last real
-  // field's lists and bins.
-  for (const guest_memory::GuestRange &range : windows.owned) {
-    memory_.mapEmpty(range.base, range.bytes);
+  // Seeding from the guest would hand the traversal the last real field's lists and bins.
+  for (const GuestSpan &range : windows.owned) {
+    host_.zero(range.address, range.bytes);
   }
-  memory_.mapEmpty(arena.base, arena.bytes);
-  memory_.overlay(field.readWords);
-
-  // The traversal issues the guest's own GTE instructions; the guest reads them back afterwards.
-  const GteRegs &gte = core.gte().registers();
-  std::copy(std::begin(gte.REG), std::end(gte.REG), gteRegistersBefore_.begin());
-  gteFlagsBefore_ = gte.FLAGS;
+  host_.zero(arena_.address, arena_.bytes);
+  host_.overlay(field.readWords);
 
   for (std::size_t i = 0; i < field.visibleSectors.size(); ++i) {
     if (field.visibleSectors[i] != 0) {
-      memory_.w8(kScratchpad + static_cast<std::uint32_t>(i), field.visibleSectors[i]);
+      memory_.mem_w8(kScratchpad + static_cast<std::uint32_t>(i), field.visibleSectors[i]);
       ++visible_;
     }
   }
@@ -124,19 +91,24 @@ Rebuild::Rebuild(Core &core,
                   FrameMode::InBetween,
                   InBetweenWindow{.camera = &camera_,
                                   .argument = field.argument,
-                                  .arenaBase = arena.base,
+                                  .arenaBase = arena_.address,
                                   .packetBudget = field.packetBudget});
   const TerrainFrame &ran = drawer_->run();
   tableBase_ = windows.tableBase;
-  arenaBase_ = arena.base;
-  arenaBytes_ = arena.bytes;
   linkedBins_ = &ran.linkedBins();
 }
 
-Rebuild::~Rebuild() {
-  GteRegs &gte = core_.gte().registers();
-  std::copy(gteRegistersBefore_.begin(), gteRegistersBefore_.end(), std::begin(gte.REG));
-  gte.FLAGS = gteFlagsBefore_;
+void Rebuild::emit(psx::present::PrimitiveSink &sink) const {
+  psx::present::PacketChainWalker walker(memory_, psx::present::PacketBound::within(arena_));
+  psx::present::DrawModeTracker drawMode;
+  for (auto bin = static_cast<std::uint32_t>(linkedBins_->size()); bin-- > 0;) {
+    if ((*linkedBins_)[bin] != 0) {
+      walker.emitChain(memory_.mem_r32(tableBase_ + bin * depth_bins::kBinStride + depth_bins::kBinFirstOffset),
+                       psx::present::OtSlot{depth_bins::kTable, bin},
+                       drawMode,
+                       sink);
+    }
+  }
 }
 
 } // namespace spyro::guest_terrain

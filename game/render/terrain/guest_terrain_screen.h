@@ -27,6 +27,8 @@
 // inherit this one's.
 #pragma once
 
+#include "render/field/guest_word.h"
+
 #include <cstdint>
 
 namespace spyro::guest_terrain {
@@ -54,7 +56,7 @@ public:
 
   // `(sxy & 0xFE00) != 0`: x < left || x >= right.
   [[nodiscard]] constexpr bool outsideHorizontal(std::uint32_t sxy) const {
-    const std::int32_t x = static_cast<std::int16_t>(sxy & 0xFFFFu);
+    const std::int32_t x = guest_word::asSigned(guest_word::signedHalf(sxy));
     return x < left_ || x >= right_;
   }
 

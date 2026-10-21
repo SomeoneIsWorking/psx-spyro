@@ -16,7 +16,6 @@ namespace spyro1 {
 class OrderingTable {
 public:
   static constexpr std::uint32_t kFlatten = 0x80016784u;
-  static constexpr std::uint32_t kBinTablePointer = 0x80075820u;
   static constexpr std::uint32_t kOverlayPairPointer = 0x8007581Cu;
   // `core.otTables` ids: the depth bins share Spyro 2/3's table 0.
   static constexpr std::uint16_t kOverlayTable = 1;
