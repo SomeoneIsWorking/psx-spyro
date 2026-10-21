@@ -4,7 +4,6 @@
 
 #include "core.h"
 #include "cpu_divide.h"
-#include "guest_memory_map.h"
 #include "render/field/guest_packet.h"
 #include "spyro1/render/paired_actor_layout.h"
 #include "state_producer.h"
@@ -136,12 +135,6 @@ GtePlace PairedActor::placeAt(std::uint32_t slotOffset) const {
   return vertexPlaces_[slotOffset / 4u];
 }
 
-void PairedActor::declarePlaces(std::uint32_t packet, std::span<const GtePlace> corners) const {
-  for (std::size_t vertex = 0; vertex < corners.size(); ++vertex) {
-    places_->place(psx::kseg0Address(packet), static_cast<int>(vertex), corners[vertex]);
-  }
-}
-
 // 80024D98..80024EA4
 void PairedActor::emitWholeQuad(const WholePolygon &polygon) {
   const auto &[s0, a0, a1, colourAddresses, ra] = polygon;
@@ -172,8 +165,9 @@ void PairedActor::emitWholeQuad(const WholePolygon &polygon) {
   memory_.mem_w32(bins_.cursor() + 0x24, uv);
   memory_.mem_w32(bins_.cursor() + 0x30, uv >> 16);
   if (places_ != nullptr) {
-    declarePlaces(bins_.cursor(),
-                  {{placeAt(slots[0]), placeAt(slots[1]), placeAt(slots[2]), placeAt(slots[3])}});
+    places_->placeCorners(
+        bins_.cursor(),
+        {{placeAt(slots[0]), placeAt(slots[1]), placeAt(slots[2]), placeAt(slots[3])}});
   }
   v1_ = bins_.link(v0_);
 }
@@ -213,7 +207,8 @@ void PairedActor::emitWholeTriangle(const WholePolygon &polygon, bool backHalf) 
   memory_.mem_w32(bins_.cursor() + 0x18, memory_.mem_r32(ra - 8));
   memory_.mem_w32(bins_.cursor() + 0x24, uv);
   if (places_ != nullptr) {
-    declarePlaces(bins_.cursor(), {{placeAt(slots[0]), placeAt(slots[1]), placeAt(slots[2])}});
+    places_->placeCorners(bins_.cursor(),
+                          {{placeAt(slots[0]), placeAt(slots[1]), placeAt(slots[2])}});
   }
   v1_ = bins_.link(v0_);
 }
@@ -315,7 +310,7 @@ void PairedActor::cutTriangle(const CutTriangle &triangle) {
     memory_.mem_w32(bins_.cursor() + 0x24, uvs[2]);
     memory_.mem_w32(bins_.cursor(), guest_packet::kGt3Tag);
     if (places_ != nullptr) {
-      declarePlaces(bins_.cursor(), places);
+      places_->placeCorners(bins_.cursor(), places);
     }
     bins_.link(*bin);
     return;
@@ -352,7 +347,7 @@ void PairedActor::cutTriangle(const CutTriangle &triangle) {
     memory_.mem_w8(bins_.cursor() + 7, static_cast<std::uint8_t>(guest_packet::kGt3Code >> 24));
     memory_.mem_w32(bins_.cursor(), guest_packet::kGt3Tag);
     if (places_ != nullptr) {
-      declarePlaces(bins_.cursor(), std::span(cut).first(3));
+      places_->placeCorners(bins_.cursor(), std::span(cut).first(3));
     }
     bins_.link(*bin);
     return;
@@ -371,7 +366,7 @@ void PairedActor::cutTriangle(const CutTriangle &triangle) {
   memory_.mem_w32(bins_.cursor(), guest_packet::kGt4Tag);
   if (places_ != nullptr) {
     std::swap(cut[2], cut[3]);
-    declarePlaces(bins_.cursor(), cut);
+    places_->placeCorners(bins_.cursor(), cut);
   }
   bins_.link(*bin);
 }

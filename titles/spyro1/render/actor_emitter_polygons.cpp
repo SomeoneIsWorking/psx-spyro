@@ -3,7 +3,6 @@
 #include "spyro1/render/actor_emitter.h"
 
 #include "core.h"
-#include "guest_memory_map.h"
 #include "render/field/guest_packet.h"
 #include "spyro1/render/actor_emitter_layout.h"
 #include "state_producer.h"
@@ -333,9 +332,11 @@ void ActorEmitter::declarePlaces(std::uint32_t packet, std::span<const std::uint
   if (places_ == nullptr) {
     return;
   }
+  std::array<GtePlace, 4> corners{};
   for (std::size_t vertex = 0; vertex < slots.size(); ++vertex) {
-    places_->place(psx::kseg0Address(packet), static_cast<int>(vertex), vertexPlaces_[slots[vertex] / 4u]);
+    corners[vertex] = vertexPlaces_[slots[vertex] / 4u];
   }
+  places_->placeCorners(packet, std::span(corners).first(slots.size()));
 }
 
 // 800205C4..80020748: a quad facing the camera around the first corner, sized by the depth cue of

@@ -274,9 +274,7 @@ void Cyclorama::emit(const SkyTriangle &triangle, bool flat) {
   memory_.mem_w32(last_, tag_ ^ cursor_);
   last_ = cursor_;
   if (places_ != nullptr && triangle.places) {
-    for (int vertex = 0; vertex < 3; ++vertex) {
-      places_->place(psx::kseg0Address(cursor_), vertex, (*triangle.places)[static_cast<std::size_t>(vertex)]);
-    }
+    places_->placeCorners(cursor_, *triangle.places);
   }
   const auto &p = triangle.points;
   const auto &c = triangle.colours;
