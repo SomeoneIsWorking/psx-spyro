@@ -65,7 +65,45 @@ adjacent differences even (level 10 11.5..14.8, level 22 2.3..5.9) against 0/19 
 `scratch/interp2/f{10,11,22}`, `h10`. Level 21 (20 fps logic) shows diff, diff, 0: one in-between per
 three fields.
 
+## Spyro 2 effects and animation (2026-10-21, review)
+Observed: the redraw moved only the camera, each moby's position, angles and flags, and Spyro's
+position and angles, so the effects pass (flag 0x10: 0x8004A8D4, 0x8004AC78, 0x8004B194,
+0x8004B72C, 0x8004BAA4 per entry of 0x80069F30, 0x80048128) and every animated mesh drew the next
+field's positions and poses under the in-between camera: one present, two moments. Level 11's
+adjacent differences kept a short/long pattern (4.3/6.0, 5.6/9.2).
+
+Cause: `field_redraw.cpp:writeInBetween` wrote no effect record and no keyframe pair or progress
+byte, so the guest drew them from frame n+1's state.
+
+Fix: `spyro::effect_pools` reads each pool once per field and pairs a slot as one effect while it
+stays live with the same kind (glows while their life only counts down, particles while their age
+only grows, trails by owner and ring ages); positions, spins, sizes and life move, and only the
+changed words are written to the redraw. `spyro::keyframe_blend` moves a pose (moby +0x3C/+0x40,
+Spyro's body and head) along its own keyframe time, in the from pair or, when the next pair starts
+at the from pair's frame B, in that one. Paired nothing else: a slot reused or an animation switched
+is drawn as the next field has it. A first version wrote a step past the row (k = 16 on a 16-step
+row became the next row's step 0); the step is now bounded before it is encoded.
+
+Proof, fps60, 16:9, hidden window, same route as the review (`warp` 10, 11, 22, right+up, 40
+presents): real presents pixel-identical to the review build (0.00 on every odd present), only
+in-betweens changed (0.2..1.5); census unkeyed 32 and span-miss 123 at shutdown (boot), no redraw
+warning. Level 11, rows 26..214 (the letterbox edges excluded), last 14 pairs: the review build
+alternates 1.14..1.24x, this build 1.05..1.14x. The rest is two overlays that still show the next
+field at the in-between, both stepped by logic, not by the dispatcher's inputs: the conversation
+letterbox 0x8004D604 grows one whole row per logic frame from its counter 0x8006701C (a row an
+in-between cannot split), and the conversation box that logic links into the overlay pair through
+FUN_8001B390 before the dispatcher runs is n+1's box, so while it opens its edge matches the next
+real present (presents 20/21 and 22/23 equal). With the bars counted the first 20 presents still
+alternate about 1.2x. Level 10: 11.73..14.56, even, 81..83% between. Level 22: 2.46..3.13,
+a 3.1 pair every third logic frame at Spyro's head (not traced; his logged poses there are at the
+in-between's keyframe time). Pictures at present 32 of level 11: the
+fairy's wings and Spyro's legs and tail lie between presents 31 and 33 where the review build showed
+33's pose (`scratch/s2effects/g11-32-fairy.png`, `g11-32-spyro.png`). Captures
+`scratch/s2effects/g{10,11,22}/spyro2-seq`.
+
 ## Next
-Spyro 3: no field producer, so its in-betweens still repeat frame n. Spyro 1's horn and motion trails and demo overlay (issue 0186)
+Spyro 2: the opening conversation box is linked by logic before the dispatcher, so the redraw
+keeps n+1's box; moving it needs its drawer (FUN_8004D2D8 / FUN_8004A374) re-run at the in-between
+in place of logic's packets. Spyro 3: no field producer, so its in-betweens still repeat frame n. Spyro 1's horn and motion trails and demo overlay (issue 0186)
 show their frames whole when drawn. A real-time check by the operator is still to do: these runs
 measure the composed images, not the play feel.

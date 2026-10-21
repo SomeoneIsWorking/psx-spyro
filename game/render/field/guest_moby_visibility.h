@@ -50,13 +50,13 @@ namespace spyro::guest_moby {
 
 // The walk's fields of the 0x58-byte record beyond spyro::moby_record's.
 namespace record {
-inline constexpr std::uint32_t kCloseFlag = 0x1C; // negative: listed when near
-inline constexpr std::uint32_t kPacked = 0x3C;    // slot byte, texture and overlay selectors
-inline constexpr std::uint32_t kKind = 0x40;      // u8 index into the overlay table
-inline constexpr std::uint32_t kFlag = 0x48;      // i8: negative skips, -1 ends the walk
-inline constexpr std::uint32_t kReach = 0x4C;     // u16: i8 reach in its low byte
-inline constexpr std::uint32_t kClass =
-    0x4D; // u8 written: 0, 1 edge, 2 inside (high byte of kReach)
+inline constexpr std::uint32_t kCloseFlag = 0x1C;   // negative: listed when near
+inline constexpr std::uint32_t kKeyframes = 0x3C;   // bytes: slot A, slot B, frame A, frame B
+inline constexpr std::uint32_t kKeyProgress = 0x40; // u8: frame A to B, see keyframe_blend.h
+inline constexpr std::uint32_t kFlag = 0x48;        // i8: negative skips, -1 ends the walk
+inline constexpr std::uint32_t kReach = 0x4C;       // u16: i8 reach in its low byte
+// u8 written: 0, 1 edge, 2 inside (high byte of kReach).
+inline constexpr std::uint32_t kClass = 0x4D;
 inline constexpr std::uint32_t kDepthBias = 0x4E; // u16: bias byte, GPF scale byte
 inline constexpr std::uint32_t kGroup = 0x52;     // u8 visibility group, >= 0xFE always visible
 inline constexpr std::uint32_t kFlags = 0x54;     // bit 30 interpolated angles, bit 28 mirrored
@@ -74,7 +74,7 @@ struct Facts {
   std::uint32_t firstRecordWord = 0; // the level's moby array
   std::uint32_t drawerParameter = 0; // parked in VZ1 for the drawer that runs next
   std::uint32_t meshSlotTable = 0;   // per-mesh slot arrays
-  std::uint32_t overlayTable = 0;    // overlay byte per record kind
+  std::uint32_t keyframeBlend = 0;   // frame B's share per progress byte
   std::uint32_t closeCursorHome = 0; // close-list cursor, written at the exit
   std::uint32_t exitV0 = 0;          // v0 on return
 };

@@ -9,6 +9,7 @@
 #include "ordering_table.h"
 #include "packet_chains.h"
 #include "render/field/guest_moby_visibility.h"
+#include "render/field/keyframe_blend.h"
 #include "render/field/record_blend.h"
 #include "render/terrain/guest_depth_bins.h"
 
@@ -72,11 +73,17 @@ void readInputs(Core &core, const Image &image, Inputs &inputs) {
     core.readBytes(rec, std::as_writable_bytes(std::span(inputs.mobys.emplace_back())));
   }
   const Facts &facts = image.field;
-  inputs.spyro = {core.mem_r32(facts.spyroPosition),
-                  core.mem_r32(facts.spyroPosition + 4),
-                  core.mem_r32(facts.spyroPosition + 8),
-                  core.mem_r32(facts.spyroAngles),
-                  core.mem_r32(facts.spyroHeadAngles)};
+  Inputs::Spyro &spyro = inputs.spyro;
+  for (std::uint32_t i = 0; i < 3; ++i) {
+    spyro.position[i] = core.mem_r32(facts.spyroPosition + 4 * i);
+  }
+  spyro.angles = core.mem_r32(facts.spyroAngles);
+  spyro.headAngles = core.mem_r32(facts.spyroHeadAngles);
+  for (std::uint32_t i = 0; i < 2; ++i) {
+    spyro.keyframes[i] = core.mem_r32(facts.spyroKeyframes + 4 * i);
+  }
+  spyro.keyProgress = core.mem_r32(facts.spyroKeyProgress);
+  effect_pools::read(core, facts.effects, inputs.effects);
 }
 
 // Three angle bytes at `t` the short way round; the fourth byte is `to`'s.
@@ -91,11 +98,19 @@ std::uint32_t anglesBetween(std::uint32_t from, std::uint32_t to, float t) {
   return shown;
 }
 
-// A record between two fields; with both refining their angles by the flags' fractions, at that
-// precision.
+// A record between two fields: its pose, and with both refining their angles by the flags'
+// fractions, at that precision.
 moby_record::Bytes
 recordBetween(const moby_record::Bytes &from, const moby_record::Bytes &to, float t) {
   moby_record::Bytes shown = moby_record::between(from, to, t);
+  const auto poseOf = [](const moby_record::Bytes &bytes) {
+    return keyframe_blend::Pose{.keyframes =
+                                    record_blend::load<std::uint32_t>(bytes, record::kKeyframes),
+                                .progress = bytes[record::kKeyProgress]};
+  };
+  const keyframe_blend::Pose pose = keyframe_blend::between(poseOf(from), poseOf(to), t);
+  record_blend::store(shown, record::kKeyframes, pose.keyframes);
+  shown[record::kKeyProgress] = pose.progress;
   const auto flagsOf = [](const moby_record::Bytes &bytes) {
     return record_blend::load<std::uint32_t>(bytes, record::kFlags);
   };
@@ -125,7 +140,7 @@ void writeRotation(psx::present::GuestRedraw &run,
   }
 }
 
-// The camera, the mobys and Spyro of the in-between from `from` to `to`.
+// The camera, the mobys, Spyro and the effects of the in-between from `from` to `to`.
 void writeInBetween(Core &core,
                     psx::present::GuestRedraw &run,
                     const Image &image,
@@ -158,6 +173,8 @@ void writeInBetween(Core &core,
       for (const std::uint32_t at : {moby_record::kX,
                                      moby_record::kY,
                                      moby_record::kZ,
+                                     record::kKeyframes,
+                                     record::kKeyProgress,
                                      moby_record::kAngles,
                                      record::kFlags}) {
         run.writeWord(rec + at, record_blend::load<std::uint32_t>(shown, at));
@@ -166,12 +183,29 @@ void writeInBetween(Core &core,
   }
 
   const Facts &facts = image.field;
+  const Inputs::Spyro &a = from.spyro;
+  const Inputs::Spyro &b = to.spyro;
   for (std::uint32_t i = 0; i < 3; ++i) {
     run.writeWord(facts.spyroPosition + 4 * i,
-                  psx::present::lerpWord(from.spyro[i], to.spyro[i], kInBetweenAt));
+                  psx::present::lerpWord(a.position[i], b.position[i], kInBetweenAt));
   }
-  run.writeWord(facts.spyroAngles, anglesBetween(from.spyro[3], to.spyro[3], kInBetweenAt));
-  run.writeWord(facts.spyroHeadAngles, anglesBetween(from.spyro[4], to.spyro[4], kInBetweenAt));
+  run.writeWord(facts.spyroAngles, anglesBetween(a.angles, b.angles, kInBetweenAt));
+  run.writeWord(facts.spyroHeadAngles, anglesBetween(a.headAngles, b.headAngles, kInBetweenAt));
+  std::uint32_t progress = b.keyProgress;
+  for (std::uint32_t i = 0; i < 2; ++i) {
+    const std::uint32_t shift = 8 * i;
+    const auto poseOf = [shift, i](const Inputs::Spyro &spyro) {
+      return keyframe_blend::Pose{.keyframes = spyro.keyframes[i],
+                                  .progress =
+                                      static_cast<std::uint8_t>(spyro.keyProgress >> shift)};
+    };
+    const keyframe_blend::Pose pose = keyframe_blend::between(poseOf(a), poseOf(b), kInBetweenAt);
+    run.writeWord(facts.spyroKeyframes + 4 * i, pose.keyframes);
+    progress = (progress & ~(0xFFu << shift)) | (std::uint32_t{pose.progress} << shift);
+  }
+  run.writeWord(facts.spyroKeyProgress, progress);
+
+  effect_pools::writeBetween(run, facts.effects, from.effects, to.effects, kInBetweenAt);
 }
 
 // The dispatcher run at the in-between with `flags` less the terrain's, the packets it linked

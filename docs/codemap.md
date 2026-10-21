@@ -14,7 +14,9 @@ Dependency direction: `titles/<title>/` (one image's facts and natives) → `gam
 - `game/core/title_logo*` — title wordmark / logo snapshotted from guest VRAM for the picker panel
 - `game/core/debug/warp.*` — `warp <level>` control command / level select / dev warp, applied when the title screen is idle
 - `game/render/engine_render_overrides.*` — S2/S3 render overrides bound to one image: terrain producer, moby walk, field dispatcher and its last drawer, flatten depth bins and field producer
-- `game/render/field/field_redraw.*` — S2 field in-between: the draw dispatcher re-run as a guest redraw at the in-between camera, mobys and Spyro, its packets saved by the flatten as the field's state
+- `game/render/field/field_redraw.*` — S2 field in-between: the draw dispatcher re-run as a guest redraw at the in-between camera, mobys, Spyro and effects, its packets saved by the flatten as the field's state
+- `game/render/field/effect_pools.*` — S2 effects pass pools (sprites, glows, beams, trails, vertex meshes, particles): one field's records read, paired by slot and moved for the in-between
+- `game/render/field/keyframe_blend.*` — moby / Spyro animation keyframe pair and progress byte, pose between two fields
 - `game/render/field/moby_record.*`, `record_blend.h` — moby record layout and identity, record lerp, little-endian field load/store and angle lerp shared by S1 and S2
 - `game/render/field/guest_moby_*` — moby / object visibility walk: sphere frustum cull, GTE use, orientation onto camera rotation
 - `game/render/field/guest_view_slope.*` — horizontal frustum slope, screen margin and outcode window at 4:3 or widened 16:9
