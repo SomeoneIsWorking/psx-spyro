@@ -398,14 +398,17 @@ Judgement runs `scratch/judder-pass4/realtime.py`: boot, logos, flag intro, titl
 intro cutscene, then `warp 10` turning for 20 s. ires=0 (8x on the 3840x2160 sink), fps60=1, the player's aspect
 (settings copied to scratch), `PSXPORT_SHOW_WINDOW=0`, no `PSXPORT_NOPACE` (checked in `/proc/<pid>/environ`).
 `simdisplay.py` shows each vblank of a 60.00 Hz display the newest present before it. A present shown more
-vblanks than its fields is a repeat; fewer is a drop.
+vblanks than its planned hold (the next present's due step) is a repeat; fewer is a drop. Pass 4 first took the
+hold from the present's own `fields=` label, which is the step that led to it, so every planned cadence change
+counted as a repeat on the present before it plus a drop on the present itself; the counts below are recounted.
 
 - Pacing. Before (`base0`, load 16 falling to 6): repeat clusters every 16.7 s (8.8, 25.6, 42.3, 58.9, 75.5,
   92.3 s), mean due step 16.68335 ms, playcheck missed=22. Cause: psxport `runtime/psx/frame/pace_plan.h:pacePlan`
   stepped deadlines at the guest field rate (59.94 Hz), so a 60.00 Hz display got one vblank with no new present
   every 1/(60-59.94) s. Fix: psxport 189e5fdc. Deadlines step at the display refresh the field rate locks to
-  (`pacedFieldRateMilliHz`), and the audio rate trim absorbs the 0.1%. After: mean due step 16.66667 ms, and the
-  clusters are gone.
+  (`pacedFieldRateMilliHz`). After: mean due step 16.66667 ms, and the clusters are gone. The audio side was not
+  shown here (every run had `PSXPORT_NOAUDIO=1`, and a hidden window opens no audio device); the proportional
+  steer would have held the queue about 18 ms over its target, which pass 5 removes.
 - Census. psxport 0172, fixed by 99b83bb0: the store census arms only under `PSXPORT_PRODUCERS=1`. An armed run
   and an unarmed run are pixel-identical over 4 presents, and the composed in-between counts match base0
   (3618/4830 against 3606/4818).
@@ -423,11 +426,11 @@ vblanks than its fields is a repeat; fewer is a drop.
   3571, ...).
 - Sprites. psxport 0169, fixed by ad9d0dd2: above 1x a sprite moves by its declared place. No Spyro 1 producer
   emits sprite codes yet, so `e-x` and `c-x4` differ by 0 px.
-- First in-between after arrival. psxport 0174, open. On the field after the WAD load, Lightrec compiles the
-  level's code synchronously (`lightrec_executor.cpp:LightrecExecutor::executeWithBoundary`), and the in-between
-  waits for that field's logic. In `fprof`, fence 4083 was presented 16 ms after its due time. Perf put Lightrec
-  compile symbols in 30 of 231 main-thread samples, against 9 of 195 in steady play. The proper fix is to compile
-  at the load commit and is recorded in 0174; no stopgap was added.
+- Arrival hold. psxport 0174. The held picture is the one before the load field: the load field itself is
+  presented on time, but its due comes 51-72 ms after the previous present because Lightrec compiles the level's
+  code synchronously inside it (`lightrec_executor.cpp:LightrecExecutor::executeWithBoundary`). The first
+  in-between after it is 11-16 ms late and costs at most one more vblank. Pass 5 shows the held picture is the still
+  "THE ADVENTURE BEGINS..." card, so no motion is lost; 0174 is closed on that.
 
 Final build (`final`, the run below; load 2.2-2.5 from boot to cutscene end, 2.4 at turn start, 5.0 at turn end).
 playcheck over 8455 intervals: p50 16.75 ms, p99 17.00 ms, missed=6.
@@ -435,23 +438,80 @@ playcheck over 8455 intervals: p50 16.75 ms, p99 17.00 ms, missed=6.
 | screen | presents | repeats | drops | what it is |
 |---|---|---|---|---|
 | boot | 56 | 0 | 0 | |
-| logos, flag intro, title | 2727 | 2 | 2 | 437/438: boot handover, the guest's due jumps (56 ms hold); 1210/1211 |
-| menus | 320 | 0 | 1 | a 3-field retail frame |
-| save picker | 542 | 1 | 2 | 2/1-field cadence switches, presents 1.6-4 ms late |
+| logos, flag intro, title | 2727 | 1 | 1 | 1210/1211, host noise (absent at load 2 in the review's runs) |
+| menus | 320 | 0 | 1 | 1740: a 3-field frame as two 25 ms presents (fixed in pass 5) |
+| save picker | 542 | 0 | 1 | 1827: the same |
 | new game | 12 | 0 | 0 | |
-| intro cutscene | 2924 | 1 | 0 | 3488 |
-| title after cutscene, warp load | 646 | 3 | 0 | 4086 held 4 vblanks: arrival compile (0174) |
+| intro cutscene | 2924 | 1 | 0 | 3488, host noise (likewise) |
+| title after cutscene, warp load | 646 | 3 | 0 | 4086 held 4 vblanks before the load field (0174) |
 | `warp 10` turning | 1220 | 9 | 8 | all at 133.5-134.3 s, as load rose to 5.0 (invalid) |
 | turn end | 9 | 0 | 0 | |
+
+437/438 is no judder: 438 is `fields=2/1`, a planned two-field hold of the raw picture 437 at the raw-to-record
+switch, and 437 is black (pass 5).
 
 All 11 products built with Clang (0 warnings) and ran 40 s at real speed, all exit 0, at load 6-20 (no timing
 evidence). Error lines are unchanged from pass 3: Mega Man X4 has 154 x4-vsync, Tekken 3 has 1 card error, and
 Tomba 2 writes no playcheck line in either pass.
 
+## Pass 5, review of pass 4 (2026-10-21)
+Same route and rules (`scratch/judder-pass5/realtime.py`, `simdisplay.py` with the planned hold fixed).
+- Boot handover 437/438: not a defect. 1x presents of fences 435..440 (`scratch/judder-pass5/handover`): mean luma
+  0.50 at 435, 0.000 (max 0) at 436 and 437, then 1.52, 2.36, 3.34 from 438 as the fade-in starts. The two-field
+  hold is of a black picture.
+- 3-field logic frames (menus 1737, save picker 1824 in pass 4's numbering). Cause: psxport
+  `runtime/psx/frame/frame_presenter.cpp:FramePresenter::presentRecords` presented every frame of two or more
+  fields as two presents at `t = 0.5` and `t = 1`, so a 3-field frame was two 25 ms presents that a 60.00 Hz
+  display shows for 1 and 2 vblanks. Fix: a frame of n fields is n presents one field apart at `t = k / n`
+  (`psx::present::inBetweenAt`). `final5`: both 3-field frames (1740, 1826) are three composed presents due 16.67 ms apart
+  (`t=0.33333334`, `0.6666667`, `1`). Spyro 2's field redraw saved one in-between at 0.5 only; it now redraws once
+  per in-between of a frame as long as the last (`FieldOwner::lastPacedFields`) and refuses a frame of another
+  length. Spyro 2 `warp 10` turning (`s2`, load 27-29, content only): 328 of 334 in-betweens composed, all
+  two-field frames; no three-field Spyro 2 frame was reached, so its two-redraw path is unexercised.
+- Audio speed. psxport `AudioQueuePolicy::consumptionRatio` now takes `FramePacer::pacedSpeed` (paced over guest
+  field rate, 1.001 for NTSC on 60.00 Hz) as its base, so production and consumption match at the queue target and
+  the full 0.5% trim stays for jitter. Not observable in an agent run: a hidden window opens no audio device.
+- Arrival hold (0174). 1x presents from the warp on (`probe-arrival`): the picture held before the load field is
+  the "THE ADVENTURE BEGINS..." card (text on black, mean luma 1.8-1.95, max 244, still but for a slow fade); the
+  load field shows the first fade-in picture (mean 0.29), and the late first in-between falls in that fade. Nothing
+  on screen moves across the hold; 0174 closed with the corrected cause.
+- Flame 0x80058D64 differential widened (`scratch/judder-pass5/d-diff`, fps60 off, `PSXPORT_OVERRIDE_DIFF=spyro1-flame`):
+  nine bursts in `warp 10` (plain, turning, four with the fairy-kiss timer set so the arm stores the superflame
+  word, four walking at the camera). 216 of 216 calls match. gdb hit counts in the native draw: the tip dropped
+  below the first bin (`flame.cpp:154`) 18 times, the odd closing ribbon step (`flame.cpp:300`) 806 times, and the
+  superflame word read 1 in seven bursts.
+- Flame rotation lerp: `blockBetween` now calls psxport `present::rotationBetween`, which `blendGteControl` also
+  uses. The per-field allocation of producer saves and renders is recorded in psxport 0173 with its fix.
+
+- Pacing after a load field. `final4` (load 1.8-2.4) had two more judders after arrival (4098 and 4171, `t = 1`
+  presents 4.4 and 1.9 ms late). Cause: psxport `runtime/psx/frame/pace_plan.h:pacePlan` resynced an overrun
+  deadline to the moment the field ended, which moved every later deadline 0.457 of a period off the vblank grid,
+  so presents a few tenths of a millisecond late before the load now crossed a vblank. Fix: the debt is dropped in
+  whole intervals. `final5`: every due time of the run lies on the grid of the first (largest offset 0.0000 periods).
+
+`final5` (final build; load 1.85-2.61 from boot to turn end): playcheck over 8468 intervals p50 16.75 ms, p99
+17.00 ms, missed=1. Simulated 60.00 Hz display (vblank half a period after the first present):
+
+| screen | presents | repeats | drops | what it is |
+|---|---|---|---|---|
+| boot | 57 | 0 | 0 | |
+| logos, flag intro, title | 2724 | 0 | 0 | |
+| menus | 319 | 0 | 0 | |
+| save picker | 615 | 0 | 0 | |
+| new game | 12 | 0 | 0 | |
+| intro cutscene | 2860 | 0 | 0 | |
+| title after cutscene, warp load | 650 | 3 | 0 | 4084 held 4 vblanks before the load field: the still card (0174) |
+| `warp 10` turning | 1222 | 0 | 0 | |
+| turn end | 9 | 0 | 0 | |
+
+With the vblank a tenth of a period after the due time instead, two presents 2.3 and 2.5 ms late each add a repeat
+and a drop: 1825 (save picker) and 3700 (the cutscene's last field).
+
 ## Next
 Spyro 2: the opening conversation box is linked by logic before the dispatcher, so the redraw
 keeps n+1's box; moving it needs its drawer (FUN_8004D2D8 / FUN_8004A374) re-run at the in-between
 in place of logic's packets. Spyro 1's motion trails and demo overlay (issue 0186) show their frames whole
-when drawn. psxport 0174 (arrival compile) and the boot handover hold at fence 437.
+when drawn. Presents 2-3 ms late (pass 5: 1825, 3700), which a vblank close after the due time turns into a
+repeat and a drop.
 A real-time check by the operator is still to do: these runs
 measure the composed images, not the play feel.
