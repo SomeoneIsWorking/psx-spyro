@@ -24,11 +24,14 @@ namespace spyro::guest_camera {
 // FUN_8001b61C and FUN_8001b664 both index `(angle & 0xFFF) >> 4` with the low nibble as the
 // interpolation fraction, so 4096 is the period.
 inline constexpr unsigned kTurnBits = 12;
+// An in-between camera's angles carry this many bits below the guest's unit, so a turn of one unit
+// per field still moves at the in-between.
+inline constexpr unsigned kFineBits = 4;
 // 0x140 >> 9 is 5/8, the display's vertical scale.
 inline constexpr std::int32_t kVerticalScaleShift = 9;
 inline constexpr std::int32_t kVerticalScale = 0x140;
 
-// Three signed 16-bit angles read from 0x80067EC8, the low half of three consecutive words.
+// Three angles in the guest's unit shifted up by kFineBits (0x80067EC8 holds them unshifted).
 struct Angles {
   std::int32_t aroundX = 0; // the first angle halfword; Rx is the left factor
   std::int32_t aroundY = 0;
@@ -48,7 +51,11 @@ class AngleTable {
 public:
   AngleTable(Core &core, std::uint32_t base) : core_(core), base_(base) {}
 
-  [[nodiscard]] std::int32_t at(std::uint32_t angle) const;
+  [[nodiscard]] std::int32_t at(std::uint32_t angle) const {
+    return atFine(angle << kFineBits);
+  }
+  // The same lookup with kFineBits more fraction; a whole angle reads what the guest reads.
+  [[nodiscard]] std::int32_t atFine(std::uint32_t angle) const;
 
 private:
   [[nodiscard]] std::int32_t entry(std::uint32_t index) const;
@@ -77,11 +84,12 @@ public:
   Builder(const Builder &) = delete;
   Builder &operator=(const Builder &) = delete;
 
+  // At a fine angle (kFineBits below the guest's unit).
   [[nodiscard]] std::int32_t sin(std::uint32_t angle) const {
-    return sin_.at(angle);
+    return sin_.atFine(angle);
   }
   [[nodiscard]] std::int32_t cos(std::uint32_t angle) const {
-    return cos_.at(angle);
+    return cos_.atFine(angle);
   }
 
   [[nodiscard]] Matrices build(const Angles &angles) const;
@@ -112,8 +120,10 @@ private:
   }
 };
 
-// At t == 0 and t == 1 the result is the operand's angles bit for bit, so an in-between at either
-// end of its interval is the guest's own camera.
+// Two guest angle triples to the fine angles at `t`. At t == 0 and t == 1 the result is the operand's
+// angles bit for bit, so an in-between at either end of its interval is the guest's own camera.
 Angles interpolate(const Angles &from, const Angles &to, float t);
+// A fine angle rounded to the guest's unit.
+[[nodiscard]] std::int32_t wholeAngle(std::int32_t fine);
 
 } // namespace spyro::guest_camera
