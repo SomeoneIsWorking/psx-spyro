@@ -90,7 +90,7 @@ void EmitList::writeUvs(std::uint32_t first, std::uint32_t second) {
   memory_.mem_w32(cursor_ + 0x14, (second ^ (second & 0xFF00u)) | (first & 0xFF00u));
 }
 
-void EmitList::declarePlaces(const std::array<GtePlace, 4> &corners) const {
+void EmitList::declarePlaces(std::span<const GtePlace> corners) const {
   if (places_ != nullptr) {
     places_->placeCorners(cursor_, corners);
   }
@@ -275,6 +275,7 @@ Outcome EmitList::placedLine(std::uint32_t at) {
   v0_ = gte.readData(gte::kSz3);
   const std::uint32_t sxy = gte.readData(gte::kSxy2);
   gte.execute(gte::kRtps);
+  const std::array<GtePlace, 2> ends = {gte.projectedPlace(1), gte.projectedPlace(2)};
   const std::uint32_t colour = memory_.mem_r32(at + 0x10);
   std::uint32_t colourBias = memory_.mem_r32(at + 0x14);
   gte.loadTranslation({});
@@ -319,6 +320,7 @@ Outcome EmitList::placedLine(std::uint32_t at) {
     v0_ = 0;
   }
   memory_.mem_w32(cursor_, guest_packet::kLineG2Tag);
+  declarePlaces(ends);
   v0_ <<= 3;
   v1_ = link(v0_, Packet::Line);
   return Outcome::Drawn;
@@ -345,7 +347,6 @@ Outcome EmitList::scaledQuad(std::uint32_t at) {
   gte.writeData(gte::kIr2, a0 >> 24);
   v1 = gte.readData(gte::kSz3);
   v0 = gte.readData(gte::kSxy2);
-  const std::uint32_t centre = v0;
   const GtePlace centrePlace = gte.projectedPlace(2);
   v0_ = v0;
   v1_ = v1;
@@ -362,7 +363,8 @@ Outcome EmitList::scaledQuad(std::uint32_t at) {
     return Outcome::Skipped;
   }
   markSeen(at, retailDrops(v0));
-  gte.writeData(gte::kIr0, gte.readData(gte::kMac0) >> 12);
+  const std::uint32_t projection = gte.readData(gte::kMac0);
+  gte.writeData(gte::kIr0, projection >> 12);
   v1 -= frameBias >> 8;
   v1_ = v1;
   if (asSigned(v1) < 0) {
@@ -383,10 +385,15 @@ Outcome EmitList::scaledQuad(std::uint32_t at) {
   memory_.mem_w32(cursor_ + 0x08, v0 - (height << 16) - width);
   writeUvs(first, second);
   memory_.mem_w32(cursor_, guest_packet::kFt4Tag);
-  declarePlaces({psx::present::placeOffset(centrePlace, centre, v0 - (height << 16) - width),
-                 psx::present::placeOffset(centrePlace, centre, v0 - (height << 16)),
-                 psx::present::placeOffset(centrePlace, centre, v0 - width),
-                 psx::present::placeOffset(centrePlace, centre, v0)});
+  // The sides' places: MAC0 is the projection scale in 2^-24, before IR0 and the GPF truncate it.
+  const float scale = static_cast<float>(projection) / 16777216.0f;
+  const float halfWidth = scale * static_cast<float>((a0 >> 16) & 0xFFu) / 2.0f;
+  const float halfHeight = scale * static_cast<float>(a0 >> 24) / 2.0f;
+  declarePlaces(
+      std::array<GtePlace, 4>{GtePlace{centrePlace.x - halfWidth, centrePlace.y - halfHeight},
+                              GtePlace{centrePlace.x + halfWidth, centrePlace.y - halfHeight},
+                              GtePlace{centrePlace.x - halfWidth, centrePlace.y + halfHeight},
+                              GtePlace{centrePlace.x + halfWidth, centrePlace.y + halfHeight}});
   v1_ = link(v1 << 3, Packet::Quad);
   return Outcome::Drawn;
 }
@@ -514,6 +521,7 @@ Outcome EmitList::line(std::uint32_t at) {
   v0_ = gte.readData(gte::kSz3);
   const std::uint32_t sxy = gte.readData(gte::kSxy2);
   gte.execute(gte::kRtps);
+  const std::array<GtePlace, 2> ends = {gte.projectedPlace(1), gte.projectedPlace(2)};
   const std::uint32_t colour = memory_.mem_r32(at + 0x10);
   const std::uint32_t depth = v0_;
   v1_ = depth - 0x2000;
@@ -554,6 +562,7 @@ Outcome EmitList::line(std::uint32_t at) {
   }
   memory_.mem_w32(cursor_, guest_packet::kLineG2Tag);
   markSeen(at, retailDrops(sxy));
+  declarePlaces(ends);
   v0_ <<= 3;
   v1_ = link(v0_, Packet::Line);
   return Outcome::Drawn;
@@ -581,6 +590,7 @@ Outcome EmitList::dot(std::uint32_t at) {
   v1_ = gte.readData(gte::kSz3);
   v0_ = gte.readData(gte::kSxy2);
   const std::uint32_t sxy = v0_;
+  const GtePlace place = gte.projectedPlace(2);
   if (v1_ == 0 || asSigned(v1_ - 0x2000) >= 0 || asSigned(sxy - kTop) <= 0 ||
       asSigned(sxy - kBottom) >= 0 || leftOf(sxy)) {
     return Outcome::Skipped;
@@ -602,6 +612,7 @@ Outcome EmitList::dot(std::uint32_t at) {
   if (behind) {
     return Outcome::Skipped;
   }
+  declarePlaces(std::array<GtePlace, 2>{place, psx::present::placeOffset(place, sxy, sxy + 1)});
   v1_ = link(v1_, Packet::Dot);
   return Outcome::Drawn;
 }
