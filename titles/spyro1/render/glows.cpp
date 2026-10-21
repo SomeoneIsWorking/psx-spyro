@@ -107,7 +107,17 @@ std::optional<std::uint32_t> GlowFans::draw(std::uint32_t entry) {
   const std::uint32_t depth = gte.readData(gte::kMac3) << (shift & 31u);
   const std::uint32_t centreY = sra(centre, 16);
   const std::uint32_t centreX = signedHalf(centre);
-  const std::uint32_t scale = psx::cpu::quotient({memory_.mem_r32(entry + emitter::kSize) << 12, depth});
+  const std::uint32_t size = memory_.mem_r32(entry + emitter::kSize) << 12;
+  const std::uint32_t scale = psx::cpu::quotient({size, depth});
+  // A rim point's place: its GPF offset before the quotient and the shift truncate it.
+  const float rimScale =
+      static_cast<float>(asSigned(size)) / static_cast<float>(asSigned(depth)) / 4096.0f;
+  const auto rimOffset = [&](std::uint32_t at) {
+    return rimScale * static_cast<float>(asSigned(signedHalf(memory_.mem_r32(at))));
+  };
+  const auto rimPlace = [&](std::uint32_t at) {
+    return GtePlace{centrePlace.x + rimOffset(at), centrePlace.y + rimOffset(at + 4)};
+  };
   std::uint32_t bin = (depth >> 7) + memory_.mem_r32(entry + emitter::kDepthBias);
   if (asSigned(bin) <= 0) {
     return std::nullopt;
@@ -132,6 +142,7 @@ std::optional<std::uint32_t> GlowFans::draw(std::uint32_t entry) {
 
   // 8005832C..80058464: the first rim point, then a triangle to each next one.
   std::uint32_t rim = memory_.mem_r32(entry + emitter::kRim);
+  GtePlace pointPlace = rimPlace(rim);
   gte.writeData(gte::kIr1, memory_.mem_r32(rim));
   gte.writeData(gte::kIr2, memory_.mem_r32(rim + 4));
   rim += 8;
@@ -144,6 +155,7 @@ std::optional<std::uint32_t> GlowFans::draw(std::uint32_t entry) {
   std::uint32_t edges = outcode({.x = pointX, .y = pointY});
   std::uint32_t point = (pointX & 0xFFFFu) | (pointY << 16);
   do {
+    const GtePlace nextPlace = rimPlace(rim);
     gte.writeData(gte::kIr1, memory_.mem_r32(rim));
     gte.writeData(gte::kIr2, memory_.mem_r32(rim + 4));
     memory_.mem_w32(cursor_, guest_packet::kG3Tag);
@@ -160,10 +172,7 @@ std::optional<std::uint32_t> GlowFans::draw(std::uint32_t entry) {
     memory_.mem_w32(cursor_ + 0x18, next);
     if (asSigned(centreEdges & edges & nextEdges) <= 0) {
       if (places_ != nullptr) {
-        places_->placeCorners(cursor_,
-                              {{centrePlace,
-                                psx::present::placeOffset(centrePlace, centre, point),
-                                psx::present::placeOffset(centrePlace, centre, next)}});
+        places_->placeCorners(cursor_, {{centrePlace, pointPlace, nextPlace}});
       }
       link(slot, cursor_);
       cursor_ += 0x1C;
@@ -171,6 +180,7 @@ std::optional<std::uint32_t> GlowFans::draw(std::uint32_t entry) {
     --count;
     rim += 8;
     point = next;
+    pointPlace = nextPlace;
     edges = nextEdges;
   } while (asSigned(count) > 0);
   return bin;
@@ -178,8 +188,9 @@ std::optional<std::uint32_t> GlowFans::draw(std::uint32_t entry) {
 
 Sparkles::Sparkles(Core &core,
                    const psx::present::EmitMemory &memory,
-                   const spyro::guest_terrain::ScreenBounds &bounds)
-    : core_(core), memory_(memory), bounds_(bounds) {}
+                   const spyro::guest_terrain::ScreenBounds &bounds,
+                   psx::present::PrimitiveSink *places)
+    : core_(core), memory_(memory), bounds_(bounds), places_(places) {}
 
 void Sparkles::begin(std::uint32_t delta) {
   auto &gte = core_.gte();
@@ -289,7 +300,14 @@ std::optional<std::uint32_t> Sparkles::draw(std::uint32_t record) {
   gte.writeData(gte::kVz0, 0);
   const std::uint32_t second = gte.readData(gte::kSxy1);
   const std::uint32_t third = gte.readData(gte::kSxy2);
+  const GtePlace firstPlace = gte.projectedPlace(0);
+  const GtePlace secondPlace = gte.projectedPlace(1);
+  const GtePlace thirdPlace = gte.projectedPlace(2);
   gte.execute(gte::kRtps);
+  if (places_ != nullptr) {
+    places_->placeCorners(cursor_, {{firstPlace, gte.projectedPlace(2)}});
+    places_->placeCorners(cursor_ + 0x10, {{secondPlace, thirdPlace}});
+  }
   memory_.mem_w32(cursor_ + 8, first);
   memory_.mem_w32(cursor_ + 0x18, second);
   memory_.mem_w32(cursor_ + 0x1C, third);
