@@ -8,6 +8,7 @@
 #include "render/terrain/guest_depth_bins.h"
 #include "spyro1/render/screen.h"
 #include "spyro1/render/terrain_facts.h"
+#include "state_producer.h"
 
 namespace spyro1::particles {
 namespace {
@@ -34,8 +35,10 @@ bool retailDrops(std::uint32_t sxy) {
 
 EmitList::EmitList(Core &core,
                    const psx::present::EmitMemory &memory,
-                   const spyro::guest_terrain::ScreenBounds &bounds)
-    : core_(core), memory_(memory), leftEdge_(static_cast<std::uint32_t>(bounds.left()) << 16),
+                   const spyro::guest_terrain::ScreenBounds &bounds,
+                   psx::present::PrimitiveSink *places)
+    : core_(core), memory_(memory), places_(places),
+      leftEdge_(static_cast<std::uint32_t>(bounds.left()) << 16),
       rightEdge_(static_cast<std::uint32_t>(bounds.right()) << 16) {}
 
 void EmitList::begin() {
@@ -85,6 +88,12 @@ void EmitList::writeUvs(std::uint32_t first, std::uint32_t second) {
   memory_.mem_w32(cursor_ + 0x24, second);
   memory_.mem_w32(cursor_ + 0x1C, (first & 0xFFu) | (second & 0xFF00u));
   memory_.mem_w32(cursor_ + 0x14, (second ^ (second & 0xFF00u)) | (first & 0xFF00u));
+}
+
+void EmitList::declarePlaces(const std::array<GtePlace, 4> &corners) const {
+  if (places_ != nullptr) {
+    places_->placeCorners(cursor_, corners);
+  }
 }
 
 std::uint32_t EmitList::link(std::uint32_t binOffset, Packet packet) {
@@ -161,6 +170,8 @@ Outcome EmitList::quad(std::uint32_t at) {
   const std::uint32_t s0 = gte.readData(gte::kSxy0);
   v0_ = gte.readData(gte::kSxy1);
   v1_ = gte.readData(gte::kSxy2);
+  std::array<GtePlace, 4> places = {
+      gte.projectedPlace(0), gte.projectedPlace(1), gte.projectedPlace(2), {}};
   gte.writeData(gte::kVxy0, lastXy);
   gte.writeData(gte::kVz0, lastZ);
   std::uint32_t depth = gte.readData(gte::kSz1) + gte.readData(gte::kSz2) + gte.readData(gte::kSz3);
@@ -169,6 +180,7 @@ Outcome EmitList::quad(std::uint32_t at) {
   memory_.mem_w32(cursor_, guest_packet::kFt4Tag);
   writeUvs(first, second);
   const std::uint32_t s3 = gte.readData(gte::kSxy2);
+  places[3] = gte.projectedPlace(2);
   depth += gte.readData(gte::kSz3);
   if (asSigned(depth - 0x200) < 0 || asSigned(depth - 0x8000) >= 0) {
     return Outcome::Skipped;
@@ -211,6 +223,7 @@ Outcome EmitList::quad(std::uint32_t at) {
                all([](std::uint32_t sxy) {
                  return kRetailBounds.atOrRightOfRight(sxy);
                }));
+  declarePlaces(places);
   link(bin << 3, Packet::Quad);
   return Outcome::Drawn;
 }
@@ -332,6 +345,8 @@ Outcome EmitList::scaledQuad(std::uint32_t at) {
   gte.writeData(gte::kIr2, a0 >> 24);
   v1 = gte.readData(gte::kSz3);
   v0 = gte.readData(gte::kSxy2);
+  const std::uint32_t centre = v0;
+  const GtePlace centrePlace = gte.projectedPlace(2);
   v0_ = v0;
   v1_ = v1;
   if (asSigned(v1 - 0x80) < 0 || asSigned(v1 - 0x2000) >= 0 || asSigned(v0 - kTop) <= 0) {
@@ -368,6 +383,10 @@ Outcome EmitList::scaledQuad(std::uint32_t at) {
   memory_.mem_w32(cursor_ + 0x08, v0 - (height << 16) - width);
   writeUvs(first, second);
   memory_.mem_w32(cursor_, guest_packet::kFt4Tag);
+  declarePlaces({psx::present::placeOffset(centrePlace, centre, v0 - (height << 16) - width),
+                 psx::present::placeOffset(centrePlace, centre, v0 - (height << 16)),
+                 psx::present::placeOffset(centrePlace, centre, v0 - width),
+                 psx::present::placeOffset(centrePlace, centre, v0)});
   v1_ = link(v1 << 3, Packet::Quad);
   return Outcome::Drawn;
 }
@@ -450,7 +469,10 @@ Outcome EmitList::turnedTail(std::uint32_t at, TurnedQuad quad) {
   gte.writeData(gte::kVz0, 0);
   v0_ = gte.readData(gte::kSxy1);
   const std::uint32_t s2 = gte.readData(gte::kSxy2);
+  std::array<GtePlace, 4> places = {
+      gte.projectedPlace(0), gte.projectedPlace(1), gte.projectedPlace(2), {}};
   gte.execute(gte::kRtps);
+  places[3] = gte.projectedPlace(2);
   memory_.mem_w32(cursor_ + 0x08, s0);
   memory_.mem_w32(cursor_ + 0x10, v0_);
   memory_.mem_w32(cursor_ + 0x18, s2);
@@ -460,6 +482,7 @@ Outcome EmitList::turnedTail(std::uint32_t at, TurnedQuad quad) {
   memory_.mem_w32(cursor_ + 0x20, gte.readData(gte::kSxy2));
   gte.loadRotation(rotation);
   gte.loadTranslation({});
+  declarePlaces(places);
   link(depth << 3, Packet::Quad);
   return Outcome::Drawn;
 }
