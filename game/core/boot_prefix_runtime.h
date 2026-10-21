@@ -16,6 +16,7 @@ public:
   // The loader streams its code modules through the stock read and then calls into them.
   void stockCdReadLanded(Core &core, const psx::cd::StockReadLanding &landing) final;
   bool sealedFrameIsCut(Core &core) const final;
+  psx::state::NativeStatePort *nativeState(Core &core) const final;
 
 protected:
   BootPrefixRuntime(const psx::game::Crt0Image &crt0, const BootPrefixFacts &facts);

@@ -25,7 +25,7 @@ Title hops only. Each row is where a Spyro title joins a psxport feature hop (`p
 | 1 | S1 | psxport F-TURN.2 | `titles/spyro1/core/frame/frame_driver.cpp:spyro1::FrameDriver::stepFrame` — boot sequence, then the retail update, the draw and one present |
 | 2 | S1 | psxport F-TURN.2 | `titles/spyro1/core/frame/frame_draw.cpp:FrameDraw::run` — GamestateDraw `0x8001ED5C` to its return; each `VSync(0)` of its tail is one field |
 | 3 | S1 | psxport F-TURN.2 | `game/core/field_owner.cpp:FieldOwner::presentFrame` — the drawn frame crosses the fence once |
-| 4 | S2, S3 | psxport F-TURN.2 | `game/core/boot_prefix_frame_driver.cpp:BootPrefixFrameDriver::stepFrame` — the retail boot prefix across steps, then update and draw, one presented field per step |
+| 4 | S2, S3 | psxport F-TURN.2 | `game/core/boot_prefix_frame_driver.cpp:BootPrefixFrameDriver::stepFrame` — the retail boot prefix across steps, then update and draw, one presented field per step; a save state carries the suspended call in its `spyro.frame-driver` section |
 | 5 | all | title | `game/core/field_owner.cpp:FieldOwner::deliver` — the one delivery sequence of a display field |
 | 6 | all | psxport F-TURN.4 | `game/core/runtime.cpp:spyro::Runtime::reportRun` — depth coverage and the producer census |
 | 7 | all | psxport F-TURN.5 | `game/core/runtime.cpp:spyro::Runtime::pacePresentation` — fields are already delivered, so presentation only waits |

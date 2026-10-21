@@ -4,6 +4,7 @@
 #include "core/session.h"
 #include "game.h"
 
+#include "blob_codec.h"
 #include "execution_exit.h"
 
 #include <cstdlib>
@@ -67,8 +68,6 @@ bool BootPrefixFrameDriver::enterCall(std::uint32_t entry) {
               facts_.callName,
               psx::cpu::GuestCallSite{entry, returnPc},
               psx::cpu::kUnboundedCallTurns);
-  callTurns_ = 0;
-  callCycles_ = 0;
   return true;
 }
 
@@ -90,8 +89,8 @@ void BootPrefixFrameDriver::reportStop(Core &core,
                 steps_,
                 call.entry(),
                 call.pending() ? 1 : 0,
-                callTurns_,
-                callCycles_,
+                call.turns(),
+                call.cycles(),
                 step.detail.empty() ? "-" : step.detail,
                 step.guestPc,
                 core.r[31],
@@ -108,8 +107,6 @@ BootPrefixFrameDriver::runCall(Core &core,
                                std::uint64_t fieldBound) {
   for (std::uint32_t turn = 0; turn < maxTurns;) {
     const psx::cpu::CallStep step = call.advance();
-    ++callTurns_;
-    callCycles_ += step.cycles;
     if (step.outcome == psx::cpu::CallOutcome::Returned) {
       return CallProgress::Returned;
     }
@@ -218,6 +215,43 @@ void BootPrefixFrameDriver::stepMainLoop(Core &core) {
   }
 }
 
+bool BootPrefixFrameDriver::save(psx::platform::BlobWriter &out, std::string &) const {
+  out.u8(static_cast<std::uint8_t>(phase_));
+  out.u8(static_cast<std::uint8_t>(loopCall_));
+  out.boolean(bootStalled_);
+  out.u64(bootSteps_);
+  call_.save(out);
+  return true;
+}
+
+bool BootPrefixFrameDriver::load(psx::platform::BlobReader &in, std::string &error) {
+  const std::uint8_t phase = in.u8();
+  const std::uint8_t loopCall = in.u8();
+  Resume resume{.bootStalled = in.boolean(), .bootSteps = in.u64()};
+  if (!resume.call.load(core_, in, error)) {
+    return false;
+  }
+  if (phase > static_cast<std::uint8_t>(Phase::MainLoop) ||
+      loopCall > static_cast<std::uint8_t>(LoopCall::Draw)) {
+    error = lucent::format(
+        "{}: phase {} and loop call {} name no driver state", sectionName(), phase, loopCall);
+    return false;
+  }
+  resume.phase = static_cast<Phase>(phase);
+  resume.loopCall = static_cast<LoopCall>(loopCall);
+  staged_ = std::move(resume);
+  return true;
+}
+
+void BootPrefixFrameDriver::restored(Core &) {
+  phase_ = staged_->phase;
+  loopCall_ = staged_->loopCall;
+  bootStalled_ = staged_->bootStalled;
+  bootSteps_ = staged_->bootSteps;
+  call_ = std::move(staged_->call);
+  staged_.reset();
+}
+
 void BootPrefixFrameDriver::stepFrame(Core &core, std::uint32_t frame) {
   if (!initialized_) {
     lucent::error(
@@ -248,8 +282,8 @@ void BootPrefixFrameDriver::stepFrame(Core &core, std::uint32_t frame) {
                 phase_ == Phase::Boot ? "boot" : "main-loop",
                 call_.pending() ? 1 : 0,
                 call_.resumePc(),
-                callTurns_,
-                callCycles_,
+                call_.turns(),
+                call_.cycles(),
                 fields_.fields(),
                 fields_.presents());
 }

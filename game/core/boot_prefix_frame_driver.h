@@ -3,9 +3,11 @@
 #include "core/field_owner.h"
 #include "core/frame_cut.h"
 #include "game_runtime.h"
+#include "machine_state.h"
 #include "resumable_guest_call.h"
 
 #include <cstdint>
+#include <optional>
 
 class Core;
 class Game;
@@ -32,8 +34,10 @@ struct BootPrefixFacts {
 // One product step of a title whose retail executable IS its boot. The host owns the FIELD: every
 // guest VSync comes back as a frame-boundary exit this driver satisfies with one delivered field,
 // so one step presents exactly one field. The host-turn clock stays unarmed because the guest's
-// own VSync is the only field source the boot uses.
-class BootPrefixFrameDriver final : public psx::game::FrameDriver {
+// own VSync is the only field source the boot uses. The call in flight is machine state: a save
+// taken while it is suspended resumes it, not the live one.
+class BootPrefixFrameDriver final : public psx::game::FrameDriver,
+                                    public psx::state::NativeStatePort {
 public:
   BootPrefixFrameDriver(Game &game, const BootPrefixFacts &facts);
 
@@ -49,12 +53,30 @@ public:
     return cut_;
   }
 
+  [[nodiscard]] const char *sectionName() const override {
+    return "spyro.frame-driver";
+  }
+  [[nodiscard]] std::uint32_t version() const override {
+    return 1;
+  }
+  bool save(psx::platform::BlobWriter &out, std::string &error) const override;
+  bool load(psx::platform::BlobReader &in, std::string &error) override;
+  void restored(Core &core) override;
+
 private:
   enum class Phase : std::uint8_t { Boot, MainLoop };
   // Why one retail call ended: it returned, ran out of host turns, or hit the field bound.
   enum class CallProgress : std::uint8_t { Returned, TurnBudgetReached, FieldBoundReached };
   // The two retail calls of one main-loop iteration, in the order game main runs them.
   enum class LoopCall : std::uint8_t { Update, Draw };
+  // What a loaded state replaces once every machine section is in place.
+  struct Resume {
+    Phase phase = Phase::Boot;
+    LoopCall loopCall = LoopCall::Update;
+    bool bootStalled = false;
+    std::uint64_t bootSteps = 0;
+    psx::cpu::ResumableGuestCall call;
+  };
 
   // Fields this ONE call may have the host deliver before the step calls it stalled; checked here,
   // because a guest that never returns would never reach a bound checked after the loop.
@@ -87,10 +109,7 @@ private:
   bool bootStalled_ = false;
   std::uint64_t steps_ = 0;
   std::uint64_t bootSteps_ = 0;
-  // Host turns and guest cycles `call_` has consumed across every step it was suspended in; the
-  // step log is a per-step question, `Core::guestCallCensus()` answers the per-run one.
-  std::uint64_t callTurns_ = 0;
-  std::uint64_t callCycles_ = 0;
+  std::optional<Resume> staged_;
 };
 
 } // namespace spyro
