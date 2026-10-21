@@ -56,7 +56,6 @@ inline constexpr std::uint32_t kFlatPalette = 0x8006E44Cu;
 inline constexpr std::uint32_t kSpyroRecord = guest::kSpyro;
 // The model pointer (mesh table entry 0).
 inline constexpr std::uint32_t kSpyroModel = guest::kModels;
-inline constexpr std::uint32_t kHornAnchor = 0x800786C8u;   // g_anSpyroHornStrikeAnchorPos
 inline constexpr std::uint32_t kVertexDeltas = 0x8006D614u; // 128 packed delta words
 inline constexpr std::uint32_t kVertexTable = kWorkBlock + 0x900u;
 inline constexpr std::uint32_t kPartTable = kWorkBlock + 0x1900u;

@@ -65,8 +65,4 @@ inline constexpr std::uint32_t kSideMargin = 0x800u;
 // 80023FA8: the depth one bin spans before the shift.
 inline constexpr std::uint32_t kDepthSpan = 0x200u;
 
-// g_anSpyroHornStrikeAnchorPos: a flag byte asking for part 1's rotation, and where it goes.
-inline constexpr std::uint32_t kHornArmed = 0x9A;
-inline constexpr std::uint32_t kHornRotation = 0xB8;
-
 } // namespace spyro1::actors::paired

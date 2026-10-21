@@ -3,6 +3,7 @@
 #include "core.h"
 #include "gte_registers.h"
 #include "render/field/guest_render_globals.h"
+#include "spyro1/core/effect/flame_block.h"
 #include "spyro1/render/paired_actor_layout.h"
 
 namespace spyro1::actors {
@@ -242,8 +243,8 @@ void PairedActor::orientParts(const Offsets &offsets) {
     rotate(angles);
   }
   // 800240F8
-  if (memory_.mem_r8(kHornAnchor + kHornArmed) != 0) {
-    writeRotation(kHornAnchor + kHornRotation);
+  if (memory_.mem_r8(flame_block::kSelect) != 0) {
+    writeRotation(flame_block::kRotation);
   }
   if (angles != 0) {
     writeRotation(kPartTable + kPartBytes + part_entry::kRotation);

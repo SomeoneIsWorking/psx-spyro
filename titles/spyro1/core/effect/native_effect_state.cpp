@@ -2,6 +2,7 @@
 #include "spyro1/core/guest_functions.h"
 #include "spyro1/core/guest_globals.h"
 
+#include "spyro1/core/effect/flame_block.h"
 #include "spyro1/core/effect/shadow_block.h"
 
 #include "core/native_execution.h"
@@ -66,16 +67,6 @@ constexpr std::int32_t kBurstEndTicks = 0x30;
 constexpr std::uint32_t kBurstStride = 12u;
 constexpr std::uint32_t kShadowSlots = 8u;
 constexpr std::uint32_t kShadowStride = 12u;
-
-// g_SpyroFlame: the eight per-part lengths every arm and restart clears, then the fields the burst
-// publishes. Only m_IsFlameActive and m_FairyKissTimer have names in the decompilation.
-constexpr std::uint32_t kFlameLengths = 0x800786E8u;   // +0x20
-constexpr std::uint32_t kFlameActive = 0x80078760u;    // +0x98, m_IsFlameActive
-constexpr std::uint32_t kFlameState = 0x80078761u;     // +0x99
-constexpr std::uint32_t kFlameSelect = 0x80078762u;    // +0x9A
-constexpr std::uint32_t kFlameVariant = 0x80078763u;   // +0x9B, the rand() bit
-constexpr std::uint32_t kFlameSuper = 0x80078764u;     // +0x9C, the recipe's superflame word
-constexpr std::uint32_t kFairyKissTimer = 0x80078768u; // +0xA0, m_FairyKissTimer
 
 constexpr std::uint32_t kShadowBlendLimit = 0x7Fu;
 constexpr std::uint32_t kShadowNearBand = 0x80u;
@@ -143,8 +134,8 @@ constexpr const char *kFlameBurst = "update_flame_burst";
 constexpr const char *kGroundShadow = "update_ground_shadow";
 
 // The arm at 0x80049A6C..0x80049B1C: enter the burst, publish the head animation's last frame and
-// the flame's rand() bit, then clear the eight per-part length bytes. The mode and kFlameSuper are
-// both stored from $s0, which holds 1 here, so both writes are that literal.
+// the flame's rand() bit, then clear the eight per-part length bytes. The mode and the superflame
+// word are both stored from $s0, which holds 1 here, so both writes are that literal.
 void armFlameBurst(Core *c) {
   c->mem_w32(kSpyroBurstMode, 1);
   const std::uint32_t mode = c->mem_r32(kSpyroBurstMode);
@@ -152,15 +143,15 @@ void armFlameBurst(Core *c) {
   c->mem_w32(kSpyroFlamePhase, 0);
   const std::uint32_t slot = c->mem_r8(kAnimationSlot + mode);
   c->mem_w32(kSpyroHeadAnimationSpeed, c->mem_r8(kAnimationDetails + slot * 4u));
-  c->mem_w8(kFlameActive, 1);
-  c->mem_w8(kFlameState, 0);
-  c->mem_w8(kFlameSelect, 1);
+  c->mem_w8(flame_block::kActive, 1);
+  c->mem_w8(flame_block::kState, 0);
+  c->mem_w8(flame_block::kSelect, 1);
   psx::cpu::callGuestNow(
       *c, kFlameBurst, psx::cpu::GuestCallSite::fromJal(kRandArmJal, kRand), c->r[4], c->r[5], c->r[6], c->r[7]);
-  const std::uint32_t fairyKiss = c->mem_r32(kFairyKissTimer);
-  c->mem_w8(kFlameVariant, static_cast<std::uint8_t>(c->r[2] & 1u));
-  c->mem_w32(kFlameSuper, fairyKiss != 0u ? 1u : 0u);
-  c->r[4] = kFlameLengths;
+  const std::uint32_t fairyKiss = c->mem_r32(flame_block::kFairyKissTimer);
+  c->mem_w8(flame_block::kVariant, static_cast<std::uint8_t>(c->r[2] & 1u));
+  c->mem_w32(flame_block::kSuper, fairyKiss != 0u ? 1u : 0u);
+  c->r[4] = flame_block::kLengths;
   c->r[5] = 0;
   c->r[6] = 8;
   psx::cpu::callGuestNow(
@@ -174,9 +165,9 @@ void refreshFlameBurst(Core *c) {
   c->mem_w32(kSpyroFlamePhase, 2);
   c->mem_w8(kSpyroHeadFrameProgress, 4);
   c->mem_w8(kSpyroNextHeadFrame, 0);
-  c->mem_w8(kFlameActive, 1);
-  c->mem_w8(kFlameState, 0);
-  c->mem_w8(kFlameSelect, 1);
+  c->mem_w8(flame_block::kActive, 1);
+  c->mem_w8(flame_block::kState, 0);
+  c->mem_w8(flame_block::kSelect, 1);
   psx::cpu::callGuestNow(*c,
                              kFlameBurst,
                              psx::cpu::GuestCallSite::fromJal(kRandRefreshJal, kRand),
@@ -184,10 +175,10 @@ void refreshFlameBurst(Core *c) {
                              c->r[5],
                              c->r[6],
                              c->r[7]);
-  const std::uint32_t fairyKiss = c->mem_r32(kFairyKissTimer);
-  c->mem_w8(kFlameVariant, static_cast<std::uint8_t>(c->r[2] & 1u));
-  c->mem_w32(kFlameSuper, fairyKiss != 0u ? 1u : 0u);
-  c->r[4] = kFlameLengths;
+  const std::uint32_t fairyKiss = c->mem_r32(flame_block::kFairyKissTimer);
+  c->mem_w8(flame_block::kVariant, static_cast<std::uint8_t>(c->r[2] & 1u));
+  c->mem_w32(flame_block::kSuper, fairyKiss != 0u ? 1u : 0u);
+  c->r[4] = flame_block::kLengths;
   c->r[5] = 0;
   c->r[6] = 8;
   psx::cpu::callGuestNow(*c,
@@ -205,9 +196,9 @@ void refreshFlameBurst(Core *c) {
 void resetFlameBurst(Core *c) {
   c->r[16] = kSpyroBurstTicks;
   c->r[5] = 0;
-  c->r[4] = kFlameLengths;
+  c->r[4] = flame_block::kLengths;
   c->r[6] = 8;
-  c->mem_w8(kFlameActive, 0);
+  c->mem_w8(flame_block::kActive, 0);
   psx::cpu::callGuestNow(
       *c, kFlameBurst, psx::cpu::GuestCallSite::fromJal(kFillResetJal, kFill), c->r[4], c->r[5], c->r[6], c->r[7]);
   const std::uint32_t slot = c->mem_r8(kAnimationSlot);
@@ -266,7 +257,7 @@ void placeFlameBurstEmitters(Core *c, std::uint32_t frame) {
                                c->r[7]);
     // `addiu $a0,$zero,1` sits in the delay slot of the `beqz` (0x80049BC0, 0x80049C38), so $a0 is
     // 1 whichever way the flag branches, and only $a1 follows the flag.
-    const std::uint32_t fromFairyKiss = c->mem_r32(kFlameSuper);
+    const std::uint32_t fromFairyKiss = c->mem_r32(flame_block::kSuper);
     c->r[4] = 1u;
     c->r[5] = fromFairyKiss != 0u ? 1u : 0u;
     c->r[6] = frame + 0x10u;
@@ -288,7 +279,7 @@ void runFlameBurst(Core *c, std::uint32_t frame) {
   // other tick. The `andi $v0,$v1,3` in the branch's delay slot is computed for the NEXT branch at
   // 0x80049B54 on both paths and never gates this store.
   if (ticks == kBurstMidTicks) {
-    c->mem_w8(kFlameSelect, 0);
+    c->mem_w8(flame_block::kSelect, 0);
     ticks = c->mem_r32(kSpyroBurstTicks); // 0x80049B44 re-reads it, so the low bits are fresh
   }
   if ((ticks & 3u) == 0u) {
@@ -344,14 +335,14 @@ void updateFlameBurst(Core *c) {
     c->r[17] = kSpyroBurstMode;
     if (mode == 0u) {
       const std::uint32_t held = c->mem_r32(kPad);
-      c->r[4] = kFlameSelect;
+      c->r[4] = flame_block::kSelect;
       // 0x80049A58 `sb $zero, ($a0)` is the DELAY SLOT of 0x80049A54 `beqz $v0, 0x80049DC4`, and a
       // delay slot runs whether the branch is taken or not, so the clear happens on BOTH paths
       // and gating it on the pad would be the error.
-      c->mem_w8(kFlameSelect, 0);
+      c->mem_w8(flame_block::kSelect, 0);
       // 0x80049A68 `bnez $v0, 0x80049DC4` leaves the arm when the flame is already active; its
       // delay slot loads $s0 with 1 either way, and only the fall-through stores it to the mode.
-      if ((held & kBurstPadBit) != 0u && c->mem_r8(kFlameActive) == 0u) {
+      if ((held & kBurstPadBit) != 0u && c->mem_r8(flame_block::kActive) == 0u) {
         c->r[16] = 1;
         armFlameBurst(c);
         c->r[4] = kSpyroHeadLookTarget;
