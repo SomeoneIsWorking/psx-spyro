@@ -91,7 +91,8 @@ The store is `0x10` bytes before the function's epilogue, and the epilogue's fir
 `guestPc == *boundary.returnAddress`. Entering at `0x8002E06C` therefore runs the guest's own store
 and then overwrites the return address with a word off the current stack, and `jr $ra` at
 `0x8002E07C` leaves through it. A mid-function entry is not expressible with
-`dispatchGuestToReturn0`, and that is read off the mechanism, not assumed.
+`dispatchGuestToReturn0`, and that is read off the mechanism, not assumed. psxport's
+`psx::cpu::enterGuestFrame` now builds a prologue's frame for such an entry (issue 0198); facts 2 and 3 stand.
 
 The only well-formed guest unit in stage 9 is `func_8002E000` itself. Dispatching it re-runs
 `func_8004A200` and `CameraUpdate` once and re-tests the same camera gate, so it either does nothing

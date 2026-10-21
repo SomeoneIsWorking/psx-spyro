@@ -545,11 +545,11 @@ the fade and load-state field counts unchanged (`docs/issues/0155`, "Latch measu
 Missing. No load operation has been censused or classified for Spyro 2. Gap: enumerate its load
 issuers and the wait and presentation each drives, then complete each through the title's own load
 mechanics without its loading-only wait, with payload and terminal state compared against retail
-and the absence of loading presentation captured.
+and the absence of loading presentation captured. The card before the new-game cutscene ignores Start (`docs/issues/0204`).
 
 ### S035 — Spyro 3 loading removal
 
 Missing. No load operation has been censused or classified for Spyro 3. Gap: enumerate its load
 issuers and the wait and presentation each drives, then complete each through the title's own load
 mechanics without its loading-only wait, with payload and terminal state compared against retail
-and the absence of loading presentation captured.
+and the absence of loading presentation captured. The card before the new-game cutscene ignores Start (`docs/issues/0205`).

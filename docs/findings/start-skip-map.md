@@ -104,7 +104,8 @@ call pair:
 The block ends by branching to the enclosing function's epilogue, which reloads `$ra`, `$s0..$s2`
 from the guest stack and raises `$sp` by `0x38`, and `ClearImage` takes a `RECT` built in that same
 frame at `$sp+0x20`. So the block is entered with the frame its prologue (`0x80032B08..0x80032B28`)
-builds: `$sp` lowered by `0x38`, `$ra` set to the frame update's call site return (`jal 0x80032B08` at
+builds, through psxport's `psx::cpu::enterGuestFrame`: `$sp` lowered by `0x38`, `$ra` set to the frame
+update's call site return (`jal 0x80032B08` at
 `0x800339EC`, return `0x800339F4`) and spilled at `+0x34`, `$s2/$s1/$s0` at `+0x30/+0x2C/+0x28`. The
 guest's own instructions then run from `0x8003304C` through the epilogue back to `0x800339F4`, and
 `$sp` comes back to its entry value. Nothing in the block is copied to the host.
