@@ -264,7 +264,7 @@ The inspected presented image contains all three slots, menu/footer text, Spyro,
 backdrop; native render width is 684 versus the 512-wide baseline. Interpolation was enabled;
 this still image and menu run do not qualify smooth gameplay or all renderer arms.
 
-Reproduce using `build/bin/spyro_port` with `PSXPORT_NOAUDIO=1`, `PSXPORT_VK_WINDOW=0`,
+Reproduce using `build/bin/spyro_port` with `PSXPORT_NOAUDIO=1`, `PSXPORT_SHOW_WINDOW=0`,
 `PSXPORT_ASSET_DIR=external/psxport`, `PSXPORT_NATIVE_FRAMES=474` (fence steps; the 900-field run above), and
 `PSXPORT_FORCE_BUTTONS=FFF7`. Use `PSXPORT_SETTINGS` pointing to an isolated file containing
 `aspect=1`, `ires=1`, and `fps60=1`; `PSXPORT_ASPECT` is not a supported option.
