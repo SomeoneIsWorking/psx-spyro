@@ -15,6 +15,10 @@
 
 class Core;
 
+namespace psx::present {
+class PrimitiveSink;
+}
+
 namespace spyro1::glows {
 
 inline constexpr std::uint32_t kEmitters = 0x80078800u;
@@ -48,7 +52,8 @@ class GlowFans {
 public:
   GlowFans(Core &core,
            const psx::present::EmitMemory &memory,
-           const spyro::guest_terrain::ScreenBounds &bounds);
+           const spyro::guest_terrain::ScreenBounds &bounds,
+           psx::present::PrimitiveSink *places = nullptr);
 
   // 800580F4..80058190: the camera into the GTE and the cursor and table read.
   void begin();
@@ -69,6 +74,7 @@ private:
   Core &core_;
   const psx::present::EmitMemory &memory_;
   spyro::guest_terrain::ScreenBounds bounds_;
+  psx::present::PrimitiveSink *places_;
   std::uint32_t camera_[3] = {};
   std::uint32_t table_ = 0;
   std::uint32_t cursor_ = 0;

@@ -103,7 +103,7 @@ void GlowFanProducer::render(const psx::present::StateInterval &states,
         psx::present::lerpWord(before.header.position[i], state.position[i], states.t));
   }
   GlowFans fans(
-      core_, between.memory(), spyro::presentedBounds(core_, spyro1::terrain::kSharedFacts));
+      core_, between.memory(), spyro::presentedBounds(core_, spyro1::terrain::kSharedFacts), &sink);
   fans.begin();
   if (fans.draw(state.emitter)) {
     between.emitBins(sink);
