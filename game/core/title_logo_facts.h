@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
 // A logo is the game's OWN sprite, drawn from a texture and CLUT the game uploaded, at the moment
 // the title screen's own gate says the logo is up; nothing here is authored art.
 #pragma once
