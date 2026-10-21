@@ -120,6 +120,8 @@ private:
   std::uint64_t fields_ = 0;
   std::uint64_t paces_ = 0;
   std::uint64_t fieldsSincePace_ = 0;
+  // The next field was paced by a frame presented ahead of it.
+  bool fieldPacedAhead_ = false;
   std::uint64_t presents_ = 0;
 
   // Per owner, so two titles in one process do not share an elapsed time.

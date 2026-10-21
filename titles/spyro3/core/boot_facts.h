@@ -21,6 +21,8 @@ inline constexpr spyro::BootPrefixFacts kBootPrefixFacts{
     .bootPrefix = 0x8002AB38u,
     .frameUpdate = 0x80055400u,
     .frameDraw = 0x8001E638u,
+    // FUN_8003A584 clamps the delta 0x8006C648 to [2, 4].
+    .deltaClampFields = 4,
     .field =
         {
             .titleName = "Spyro 3",
