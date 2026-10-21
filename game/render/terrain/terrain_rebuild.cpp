@@ -41,9 +41,9 @@ InBetweenCamera cameraBetween(Core &core,
   const guest_camera::Matrices matrices = image.camera(core, angles);
   InBetweenCamera camera{.rotation = matrices.projection,
                          .viewRotation = matrices.view,
-                         .angles = {static_cast<std::int16_t>(angles.aroundX),
-                                    static_cast<std::int16_t>(angles.aroundY),
-                                    static_cast<std::int16_t>(angles.aroundZ)}};
+                         .angles = {static_cast<std::int16_t>(guest_camera::wholeAngle(angles.aroundX)),
+                                    static_cast<std::int16_t>(guest_camera::wholeAngle(angles.aroundY)),
+                                    static_cast<std::int16_t>(guest_camera::wholeAngle(angles.aroundZ))}};
   for (std::uint32_t i = 0; i < 3; ++i) {
     camera.position[i] = psx::present::lerpWord(from.position[i], to.position[i], at);
   }

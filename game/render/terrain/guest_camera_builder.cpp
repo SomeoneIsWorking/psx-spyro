@@ -95,16 +95,17 @@ std::int32_t AngleTable::entry(std::uint32_t index) const {
   return core_.mem_r16s(base_ + 2 * index);
 }
 
-std::int32_t AngleTable::at(std::uint32_t angle) const {
-  const std::uint32_t index = (angle & 0xFFFu) >> 4;
+std::int32_t AngleTable::atFine(std::uint32_t angle) const {
+  constexpr unsigned kFractionBits = 4 + kFineBits;
+  const std::uint32_t index = (angle >> kFractionBits) & 0xFFu;
   const std::int32_t value = entry(index);
-  const std::uint32_t fraction = angle & 0xFu;
+  const std::uint32_t fraction = angle & ((1u << kFractionBits) - 1u);
   if (fraction == 0) {
     return value;
   }
-  // The fraction scales the step to the next table entry and the whole thing shifts down by four;
-  // truncating toward negative infinity is what the guest's `>>` does.
-  return value + ((static_cast<std::int32_t>(fraction) * (entry(index + 1) - value)) >> 4);
+  // The fraction scales the step to the next table entry and the whole thing shifts down; with the
+  // fine bits zero this is the guest's own `>> 4`, which truncates toward negative infinity.
+  return value + ((static_cast<std::int32_t>(fraction) * (entry(index + 1) - value)) >> kFractionBits);
 }
 
 Matrices Builder::build(const Angles &angles) const {
@@ -126,10 +127,17 @@ Matrices Builder::build(const Angles &angles) const {
 Angles interpolate(const Angles &from, const Angles &to, float t) {
   // The short way: 4095 and 1 are one step apart in the space the tables cover.
   const auto angle = [t](std::int32_t a, std::int32_t b) {
-    return static_cast<std::int32_t>(psx::present::lerpTurn(
-        static_cast<std::uint32_t>(a), static_cast<std::uint32_t>(b), kTurnBits, t));
+    return static_cast<std::int32_t>(psx::present::lerpTurn(static_cast<std::uint32_t>(a) << kFineBits,
+                                                            static_cast<std::uint32_t>(b) << kFineBits,
+                                                            kTurnBits + kFineBits,
+                                                            t));
   };
   return Angles{angle(from.aroundX, to.aroundX), angle(from.aroundY, to.aroundY), angle(from.aroundZ, to.aroundZ)};
+}
+
+std::int32_t wholeAngle(std::int32_t fine) {
+  constexpr std::int32_t kHalf = 1 << (kFineBits - 1);
+  return ((fine + kHalf) >> kFineBits) & ((1 << kTurnBits) - 1);
 }
 
 } // namespace spyro::guest_camera

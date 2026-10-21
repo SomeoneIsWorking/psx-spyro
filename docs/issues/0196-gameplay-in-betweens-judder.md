@@ -197,12 +197,30 @@ read from `/proc/<pid>/environ`), host load average 2..15 from other agents, `sc
   16.78 ms. Stepped capture of the logo sliding in: its lowest edge moves 4,5,5,5,5,6,5,6,5,6,6,7,6 rows
   per present, against 0 and about 11 alternating when the title's in-betweens were shown whole.
 
-## Flag intro margins (open)
-Stepped capture at product frame 600 (`scratch/judder-fix/bootseq/s0600`): 16-pixel blocks at the right
-16:9 margin (x 576..640, y 80..128 of 684) and x 16, y 144 change only between every other pair of
-presents, and the pole's foot (x 400..470, y 144) mostly so. Something drawn there moves only on real
-presents: those adjacent differences alternate 1.4-1.8 against 2.9-3.3 at the window's start. Not traced
-yet; the drawer of the near white peak at the right edge is the first suspect.
+## Flag intro margins (fixed)
+Reproduction: stepped from boot, `scratch/judder-boot/boot_seq.py <tag> 600` with `SEQ_COUNT=40`, 40 presents
+from product frame 600, fps60, 16:9; `parity.py` and `halfway.py` over the captures. At 1x and at
+`PSXPORT_IRES=4` the right-margin blocks (x 576..640, y 80..128), x 0..48 y 96..144 and the pole's foot changed
+only between an in-between and its real present (0 against 28..42 per block): the sky and the white peak in it
+moved only on real presents. The sky producer's render did interpolate (its in-between view rotation lay
+between the two fields'), yet every one of its 716 polygons came out on the pixels frame n drew.
+
+Cause, two roundings of one in-between camera:
+- psxport `frame_composer.cpp:composeFrame` placed rendered polygons at the GTE's whole-pixel RTPS output; the
+  sky turns about one native pixel per logic frame, so no whole pixel lies halfway (psxport issue 0169).
+- `game/render/terrain/guest_camera_builder.cpp:interpolate` rounded the in-between camera angles to whole guest
+  units; the intro camera turns three units per field, so the in-between sat 2/3 of the way, not 1/2.
+
+Fix: psxport keeps each projected vertex's unrounded place for composed presents (`PreciseProjection`,
+issue 0169). `guest_camera::interpolate` returns angles with four bits below the guest's unit and the builder
+reads its tables at that precision (`AngleTable::atFine`); a whole angle reads exactly what the guest reads,
+so real presents are unchanged.
+
+Proof (`scratch/judder-boot/{before4,fix4,after1}`): at 4x, in-betweens within 15% of one neighbour on a moving
+16-pixel block fell from 30.3% to 4.2%; the margin blocks went from 0/38 to at most 1.9:1 between the two
+present parities; |in-between - previous| / |in-between - next| per in-between 0.62..2.13 before, 0.84..1.60
+after. At 1x every real present is pixel-identical to the previous build. At 1x a sky moving one pixel per
+field still cannot show half a pixel; the player's settings use auto resolution, which scales above 1x.
 
 ## Next
 Spyro 2: the opening conversation box is linked by logic before the dispatcher, so the redraw
