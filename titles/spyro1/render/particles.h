@@ -14,6 +14,7 @@
 
 #include <array>
 #include <cstdint>
+#include <span>
 
 class Core;
 
@@ -83,8 +84,8 @@ private:
   Outcome turnedTail(std::uint32_t at, TurnedQuad quad);
   // A frame's two UV words as an FT4's four.
   void writeUvs(std::uint32_t first, std::uint32_t second);
-  // The quad at the cursor's corner places, when a sink takes them.
-  void declarePlaces(const std::array<GtePlace, 4> &corners) const;
+  // The places of the packet at the cursor, in vertex order, when a sink takes them.
+  void declarePlaces(std::span<const GtePlace> corners) const;
   // The packet at the cursor linked alone into the bin `binOffset / 8`; returns the slot.
   std::uint32_t link(std::uint32_t binOffset, Packet packet);
   [[nodiscard]] std::uint32_t textureGroup() const;
