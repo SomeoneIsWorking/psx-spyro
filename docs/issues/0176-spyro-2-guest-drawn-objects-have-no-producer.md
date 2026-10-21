@@ -52,3 +52,5 @@ each animated mesh's keyframe pose (`spyro::keyframe_blend`); before, those drew
 state at the in-between (issue 0196 has the proof).
 Left: the attract demo's DEMO MODE text (linked after the dispatcher) shows its field whole; level
 21 runs logic at 20 fps and gets one in-between per three fields.
+Spyro 3 (2026-10-21): the same producer covers SCUS_944.67's dispatcher `0x8001E460` through
+`spyro3::kFieldFacts`; issue 0196 has the proof.
