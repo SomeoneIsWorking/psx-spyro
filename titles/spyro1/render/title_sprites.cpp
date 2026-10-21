@@ -56,10 +56,8 @@ void TitleSprite::render(const psx::present::StateInterval &states,
     const float dx = static_cast<float>(before.x - after.x) * (1.0f - states.t);
     const float dy = static_cast<float>(before.y - after.y) * (1.0f - states.t);
     for (psx::present::RecordVertex &vertex : primitive->vertices) {
-      psx::present::placeVertex(vertex,
-                                static_cast<float>(vertex.x) + dx,
-                                static_cast<float>(vertex.y) + dy,
-                                psx::present::PrimitiveKind::Polygon);
+      psx::present::placeVertex(
+          vertex, static_cast<float>(vertex.x) + dx, static_cast<float>(vertex.y) + dy);
     }
   }
   sink.emit(kOverlaySlot, *primitive);

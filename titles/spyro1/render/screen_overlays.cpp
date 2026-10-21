@@ -110,13 +110,9 @@ void CinematicLetterbox::render(const psx::present::StateInterval &states,
   const float bottomEdge = static_cast<float>(kScreenHeight) - shown;
   for (std::size_t corner = 0; corner < 2; ++corner) {
     psx::present::RecordVertex &topEdge = top.vertices[corner + 2];
-    psx::present::placeVertex(
-        topEdge, static_cast<float>(topEdge.x), shown, psx::present::PrimitiveKind::Polygon);
+    psx::present::placeVertex(topEdge, static_cast<float>(topEdge.x), shown);
     psx::present::RecordVertex &bottomTop = bottom.vertices[corner];
-    psx::present::placeVertex(bottomTop,
-                              static_cast<float>(bottomTop.x),
-                              bottomEdge,
-                              psx::present::PrimitiveKind::Polygon);
+    psx::present::placeVertex(bottomTop, static_cast<float>(bottomTop.x), bottomEdge);
   }
   sink.emit(kOverlaySlot, top);
   sink.emit(kOverlaySlot, bottom);
