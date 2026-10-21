@@ -523,7 +523,7 @@ Judged as `psxport/docs/workspace/WORKSPACE.md` says: ires=0, fps60=1, the playe
   host turn became a 3-field frame, and it presented at each wait instead of when the draw returned. Fix: a
   `FrameBoundary` that would reach the step's field bound ends the step with that field, the step presents the
   logic frame's fields when the draw returns (`LoopStop::FrameDrawn`), fields of a frame still running are deferred
-  up to `kLongestDeferredFrame` (4, Spyro 1's own delta clamp) and paced as holds past that, and the field redraw
+  up to the title's own delta clamp (`BootPrefixFacts::deltaClampFields`, see the review below) and shown past it, and the field redraw
   saves one redraw per in-between of the frame being drawn from the guest's own rule: at least 2 fields, one more
   when the draw's wait flag is set (`FieldOwner::drawnFrameFields`; Spyro 1 0x80075784 read at 0x8001F090, Spyro 2
   0x80067044, Spyro 3 0x8006C678 read at 0x8001E87C).
@@ -533,10 +533,11 @@ Judged as `psxport/docs/workspace/WORKSPACE.md` says: ires=0, fps60=1, the playe
   level sky, whose own save takes them; the reads are now released first. Proof in 0173; guest execution still
   allocates (psxport 0175).
 
-Level scan (`scratch/judder-pass6/scan.sh`, `warp`, settle 6 s, turn 1 s): Spyro 2 levels 10-13, 21-26, 30, 32,
+Level scan (`warp`, settle 6 s, turn 1 s): Spyro 2 levels 10-13, 21-23, 25, 26, 30, 32,
 33 and Spyro 3 levels 10-17, 20-26 have no gameplay logic frame other than 1 or 2 fields. Longer frames appear only
 on the front end (Spyro 3's menu over the flyby, 3-5 fields; Spyro 2's fade off the title, 3-5 fields) and nothing
-composes them there (issue 0207).
+composes them there (issue 0207). The warp refused Spyro 2 levels 14, 15, 16, 20 and 24 (`not a level on this
+disc`), so those were not scanned.
 
 | run | screen | presents | repeats | drops | notes |
 |---|---|---|---|---|---|
@@ -555,6 +556,48 @@ composes them there (issue 0207).
 Repeats and drops with the vblank half a period after the first present; with it a tenth of a period after the due
 time the only other event is Spyro 1's 4080/4081 in the warp load (3.06 ms late) and Spyro 2's 2305 on arrival
 (2.06 ms late). Playcheck: Spyro 1 p50 16.75 ms, p99 17.00 ms, missed 1 of 8458.
+
+## Review of pass 6 (2026-10-21)
+- The stall bound was Spyro 1's clamp in a driver Spyro 1 does not use. Spyro 2's `FUN_8001271C` sets its delta
+  0x80067018 from the field count 0x80067160 and clamps it to [2, 4]; Spyro 3's `FUN_8003A584` does the same to
+  0x8006C648 from 0x8006C7CC. Each title now names its clamp (`deltaClampFields` in `titles/<t>/core/boot_facts.h`).
+- Past the clamp the driver presented every fifth field. The fields of a stall are VRAM the guest writes without
+  drawing (shown=-1 records: Spyro 2's death reload, Spyro 3's load), so each one is now presented as the display
+  would scan it out (`FieldOwner::fieldsThisLogicFrame` against the clamp). A frame drawn after its stall's last
+  field was paced showed one field late and pushed every later deadline a field behind the guest
+  (`std::max(1, ...)` in `FieldOwner::presentFrame`); it now shows on the next field and that field is not paced
+  again (`fieldPacedAhead_`).
+- Cause of the 5/1 segment in `warp 21`: holding right and up walks Spyro off the level until his lives run out;
+  0x800681C8 = 9 is the death fade and the GAME OVER screen (`review-s2shot/end.png`). It runs 1-field logic frames
+  and one reload stall, all whole frames with no in-between to compose.
+- Late presents beyond the load fields are listed in psxport 0174. `ordering_table.cpp` was touched by two pass 6
+  commits (ea8b5f95 and db1aae03), against the pass rule; both are local and kept as they are. The pass 6 all-title
+  runs predated db1aae03 and ran at load 9.2-5.5; they were rerun below.
+
+Build `7b6f31f+psxport-de34a6cf`, simulated 60.00 Hz display, vblank half a period after the first present:
+
+| run | screen | presents | repeats | drops | notes |
+|---|---|---|---|---|---|
+| `fix-s1` (load 0.94-1.83) | boot | 58 | 0 | 0 | |
+| | logos, flag intro, title | 2711 | 3 | 0 | 59.94 Hz |
+| | menus | 317 | 0 | 0 | |
+| | save picker | 615 | 1 | 0 | 59.94 Hz |
+| | new game, intro cutscene | 2872 | 3 | 0 | 59.94 Hz |
+| | title after cutscene, warp load | 649 | 1 | 1 | 4079/4080 after the load field (psxport 0174), near-black fade-in |
+| | `warp 10` turning | 1229 | 1 | 0 | 59.94 Hz; 610 of 610 in-betweens composed |
+| `fix-s2` (load 0.50-0.75) | title, warp, load | 1848 | 2 | 0 | 59.94 Hz; 1982 and 1987 late (0174) |
+| | level 21 turning | 186 | 0 | 0 | 85 of 85 in-betweens composed |
+| | death fade, reload, GAME OVER | 1021 | 1 | 0 | 59.94 Hz; one 5-field reload hold (4 planned), then a present per field |
+| | GAME OVER, buttons released | 600 | 1 | 0 | 59.94 Hz |
+| `fix-s3` (load 0.50-0.82) | title, menu, load | 2200 | 2 | 0 | 1617 59.94 Hz; 2540 behind load field 2543 (0174) |
+| | level 10 turning | 614 | 1 | 0 | 59.94 Hz; 307 of 307 in-betweens composed |
+
+Playcheck (`fix-s1`): p50 16.75 ms, p99 17.00 ms, missed 2 of 8450.
+
+All 11 products built with Clang (compiler ID read from the CMake cache, no compiler warnings), each binary stamped
+`<title>+psxport-de34a6cf`, and each ran 40 s from boot at real speed, hidden window, exiting 0, load 1.06-3.60
+(`titles/fix`). Error counts match pass 6 (Mega Man X4 154, Tekken 3 one card error, the rest none); present
+counts are within 16 of pass 6, Toy Story 2 still at 3.
 
 ## Next
 Spyro 2: the opening conversation box is linked by logic before the dispatcher, so the redraw
