@@ -14,7 +14,8 @@ Dependency direction: `titles/<title>/` (one image's facts and natives) → `gam
 - `game/core/title_logo*` — title wordmark / logo snapshotted from guest VRAM for the picker panel
 - `game/core/debug/warp.*` — `warp <level>` control command / level select / dev warp, applied when the title screen is idle
 - `game/render/engine_render_overrides.*` — S2/S3 render overrides bound to one image: terrain producer, moby walk, field dispatcher and its last drawer, flatten depth bins and field producer
-- `game/render/field/field_redraw.*` — S2/S3 field in-between: the draw dispatcher re-run as a guest redraw at the in-between camera, mobys, Spyro and effects, its packets saved by the flatten as the field's state
+- `game/render/field/field_redraw.*` — S2/S3 field in-between: the draw dispatcher re-run as a guest redraw at the in-between camera, mobys, Spyro and effects, its packets saved by the flatten as the field's state, the sky placed past the far pass's deepest mark; screen draws (a state's draw with 2D after the dispatcher, title overlays found by content identity on landing) redrawn whole
+- `game/render/field/loading_picture.*` — S2/S3 loading screen picture: page sprites faded in by a counter, saved with their packets, redrawn at the in-between brightness
 - `game/render/field/effect_pools.*` — S2/S3 effects pass pools (sprites, glows, beams, trails, vertex meshes, particles): one field's records read, paired by slot and moved for the in-between
 - `game/render/field/keyframe_blend.*` — moby / Spyro animation keyframe pair and progress (S2/S3 nibbles, S1 64ths and 16ths), pose between two fields and across an animation switch
 - `game/render/field/moby_record.*`, `record_blend.h` — moby record layout and identity, record lerp, little-endian field load/store and angle lerp shared by S1 and S2
@@ -28,7 +29,7 @@ Dependency direction: `titles/<title>/` (one image's facts and natives) → `gam
 - `game/render/hud/ui_anchor.*` — HUD / screen-space UI horizontal anchoring on a widened canvas
 - `game/render/terrain/guest_terrain_drawer.*`, `guest_terrain_facts.h`, `guest_terrain_frame.h`, `guest_terrain_passes.h` — terrain / world / level geometry drawer: entry and exit, one image's facts, per-call state, pass order, field windows
 - `game/render/terrain/engine_terrain_image.*` — S2/S3 terrain drawer as one TerrainImage
-- `game/render/terrain/guest_terrain_*` (classify, sphere, animation, mesh, cull, screen, far, far_vertices, detail, translucent, polygon, coarse, fine, split, grid, resplit, fog) — terrain passes: sector classification and bounding sphere, sector animation, vertex projection (RTPS), outcode and NCLIP culls, far LOD, near detail and translucent, subdivision grids, split pieces and edge cracks, re-split of oversized polygons, distance fog
+- `game/render/terrain/guest_terrain_*` (classify, sphere, animation, mesh, cull, screen, far, far_vertices, detail, translucent, polygon, coarse, fine, split, grid, resplit, fog) — terrain passes: sector classification and bounding sphere, sector animation, vertex projection (RTPS), outcode and NCLIP culls, far LOD and its far bin limit / deepest ordering-table mark, near detail and translucent, subdivision grids, split pieces and edge cracks, re-split of oversized polygons, distance fog
 - `game/render/terrain/guest_camera_builder.*` — guest camera builder re-run for an in-between camera
 - `game/render/terrain/guest_depth_bins.*` — depth bins and overlay pair / ordering-table slot of each packet before the flatten, the field's claim of unkeyed packets
 - `game/render/terrain/terrain_rebuild.*`, `terrain_state_producer.*` — terrain interpolation: drawer re-run over saved words at an in-between camera, terrain state producer

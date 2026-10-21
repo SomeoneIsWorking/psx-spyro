@@ -4,8 +4,17 @@
 // guest_terrain_frame.h is the state they hand on.
 #pragma once
 
+#include <cstdint>
+
+class Core;
+
+namespace spyro::guest_render_globals {
+struct Globals;
+}
+
 namespace spyro::guest_terrain {
 
+struct Facts;
 struct TerrainFrame;
 
 void classifySectors(TerrainFrame &frame);            // 80023C0C: guest_terrain_classify.cpp
@@ -15,5 +24,11 @@ void splitCoarsePolygons(TerrainFrame &frame);        // 80025CC8: guest_terrain
 void splitFinePolygons(TerrainFrame &frame);          // 80026C74: guest_terrain_fine.cpp
 void resplitOversizedPrimitives(TerrainFrame &frame); // 80028504: guest_terrain_resplit.cpp
 void drawFarSectors(TerrainFrame &frame);             // 80028B14: guest_terrain_far.cpp
+
+// The far pass links only bins below this one, the level's far bin (80028B1C).
+[[nodiscard]] std::uint32_t farBinLimit(std::uint32_t farDepth);
+// The mark the far pass leaves when it reaches its deepest bin.
+[[nodiscard]] std::uint32_t
+deepestFarMark(Core &core, const Facts &facts, const guest_render_globals::Globals &globals);
 
 } // namespace spyro::guest_terrain

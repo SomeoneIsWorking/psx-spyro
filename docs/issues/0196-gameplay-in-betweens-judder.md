@@ -599,10 +599,43 @@ All 11 products built with Clang (compiler ID read from the CMake cache, no comp
 (`titles/fix`). Error counts match pass 6 (Mega Man X4 154, Tekken 3 one card error, the rest none); present
 counts are within 16 of pass 6, Toy Story 2 still at 3.
 
+## Pass 7 (2026-10-22): sky over the far terrain in Spyro 2 and 3 in-betweens
+Reproduction: Spyro 2 from boot, new game, the Summer Forest opening (game state 6), fps60, ires 0, 16:9,
+hidden window, 8x stepped capture (`scratch/inbetween-gaps/s2-conv0`): in every in-between the castle's
+towers and the far walls vanish and roof pieces float in the sky; both neighbouring frames draw them.
+Gameplay turns with far terrain against the sky show the same.
+
+Cause: `game/render/field/field_redraw.cpp:writeInBetween` left the ordering-table mark at the
+per-field reset (`0x800156FC`: table + 0x1000, bin 0x200). The far pass raises it to its deepest bin and
+the sky drawer (Spyro 2 `0x80029170`, Spyro 3 `0x8001C368`) links its chain one bin past it; with the
+terrain left to its own producer, the redraw's sky landed in bin 0x201, in front of every far-terrain bin
+behind it.
+
+Fix: the redraw writes the far pass's deepest mark, the slot below its far bin limit
+(`(farDepth >> 7) - 1`, `0x80028B1C`; `guest_terrain::deepestFarMark`), unless the mark is already past
+it, so the redraw's sky is behind every bin the in-between's terrain can link. The bins between are
+empty at the redraw (the last flatten `0x8001B2A8` clears every bin it walks).
+
+Proof: `s2-conv0c`, the same route: the castle is whole in every in-between; over the castle block after
+the fade, in-between to its frames 8 and 6 against 13 between the frames. `s3-play`, `warp 11` turning:
+far towers against the sky in each in-between. Walks at load 0.9-1.3 (`s2-walk4`, `s3-warp2`) compose
+as before: Spyro 2 title and menus 1200/1200, conversation 1795/1795, gameplay 584/584, turn 309/309;
+Spyro 3 title 600/600, gameplay 560/560, turn 309/309.
+
 ## Next
-Spyro 2: the opening conversation box is linked by logic before the dispatcher, so the redraw
-keeps n+1's box; moving it needs its drawer (FUN_8004D2D8 / FUN_8004A374) re-run at the in-between
-in place of logic's packets. Spyro 1's motion trails and demo overlay (issue 0186) show their frames whole
-when drawn. Front-end frames of Spyro 2 and 3 compose nothing (0207). Spyro 1's boot handover 437 is 2 ms late.
-A real-time check by the operator is still to do: these runs
-measure the composed images, not the play feel.
+- Spyro 2 and 3 fades: the dispatcher draws the fullscreen tints (Spyro 2 `0x8004D748` at the words
+  `0x80066F68` subtractive and `0x80067150` additive; Spyro 3 `0x800200A0` at `0x8006C598`, `0x8006C7C0`
+  and the red flash `0x8006C6D4`, which its draw steps down by 0x20) from logic words the redraw keeps at
+  n+1's value, so the level-entry fade-in steps at 30 fps (`s2-conv0d`: mean grey 1.4, 3.8, 12.4, 28.7,
+  56.3, 71.1 per frame, the in-betweens equal to the next frame). Lerping the words in the redraw composes
+  except where the shown frame has no overlay entry (the fade's last step, no HUD): the whole field is then
+  refused. Proper fix: the shared fullscreen tint producer with its rest state (issue 0207, open).
+- Spyro 2 letterbox `0x8004D604` steps its height word `0x8006701C` by one line per logic frame inside its
+  own draw (12 steps): 30 fps by construction; needs a producer as Spyro 1's `CinematicLetterbox`.
+- Spyro 2 conversation box: linked by logic before the dispatcher, so the redraw keeps n+1's box; not
+  seen moving on the opening route (`s2-conv400`, `s2-conv800`), still unverified elsewhere.
+- Spyro 1's motion trails `0x800189F0` (levels 50 and 63, not reached on the routes) have no producer.
+- Spyro 1, the title-to-demo seam (`s1-final` record 2377): one in-between shown whole, a type 0x147 HUD
+  font moby with no place or CLUT in the shown frame.
+- A real-time check by the operator is still to do: these runs measure the composed images, not the play
+  feel.

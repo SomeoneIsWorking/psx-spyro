@@ -3,13 +3,18 @@
 //
 // The dispatcher's override reads what an in-between moves (the camera, each moby record's
 // position, angles and keyframes, Spyro's, and the effects pass's records), runs the dispatcher as
-// a psx::present::GuestRedraw with those inputs at each in-between's t from the last field's, keeps what the bins
-// and the overlay pair then hold (the packets logic linked before the dispatcher and the ones the
-// redraw linked), and then makes the real call. It redraws once per in-between of a frame as long
-// as the last one. The terrain has its own producer, so the redraw
-// clears its flag. The real call may run on past the host turn, so the field is owned where its
-// bins are whole: the flatten is the producer, keys every packet linked before the dispatcher's
-// last drawer returned that the terrain did not, and saves the redraw.
+// a psx::present::GuestRedraw with those inputs at each in-between's t from the last field's, keeps
+// what the bins and the overlay pair then hold (the packets logic linked before the dispatcher and
+// the ones the redraw linked), and then makes the real call. It redraws once per in-between of a
+// frame as long as the last one. The terrain has its own producer, so the redraw clears its flag.
+// The real call may run on past the host turn, so the field is owned where its bins are whole: the
+// flatten is the producer, keys every packet linked before the dispatcher's last drawer returned
+// that the terrain did not, and saves the redraw.
+//
+// A screen draw (a game state's draw that calls the dispatcher and links its own 2D after it, as
+// the title screen and its menus do) is redrawn whole in its place: the dispatcher inside it draws
+// without the terrain in the redraw and as it is in the real call, and the flatten keys every
+// packet the frame linked that the terrain did not.
 #pragma once
 
 #include "core.h"
@@ -22,9 +27,18 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <span>
 #include <vector>
 
 namespace spyro::field_redraw {
+
+// A game state's draw redrawn whole; its overlay draw links 2D after the dispatcher returns.
+struct ScreenDraw {
+  std::uint32_t entry = 0;
+  const char *overrideName = "";
+  // The content identity of the loaded overlay holding `entry`; 0 when the executable holds it.
+  std::uint64_t overlay = 0;
+};
 
 struct Facts {
   std::uint32_t entry = 0; // the dispatcher; 0 when the image has none
@@ -39,6 +53,7 @@ struct Facts {
   effect_pools::Facts effects;
   std::uint32_t lastDrawer = 0; // the dispatcher's last call, after which it links nothing
   const char *lastDrawerName = "";
+  std::span<const ScreenDraw> screenDraws;
 };
 
 struct Image {
@@ -69,6 +84,8 @@ struct History {
   Inputs now;
   bool pending = false;
   bool redrawn = false;
+  bool screen = false;    // the waiting field is a screen draw's, so the flatten keys all it linked
+  bool redrawing = false; // a redraw is running, so the dispatcher inside it only draws
   // The primitive cursor once the dispatcher's last drawer returned; 0 until it has.
   std::uint32_t packetsEnd = 0;
   std::uint32_t lerpedFrom = 0;
@@ -76,15 +93,21 @@ struct History {
   std::vector<std::byte> state;
 };
 
-// The dispatcher's override body: the redraw, then the real call.
+// The dispatcher's override body: the redraw, then the real call; inside a screen draw, only the
+// call.
 void redrawField(Core &core, const Image &image);
+
+// A screen draw's override body: the redraw of `entry`, then the real call.
+void redrawScreen(Core &core, const Image &image, std::uint32_t entry);
 
 // The last drawer's override body: the real call, then where the field's packets end.
 void endField(Core &core, const Image &image);
 
 // What the flatten claims for the field: every packet linked before the dispatcher's end, which the
-// redraw reproduces, and none when no dispatcher ran to its end since the last flatten.
-[[nodiscard]] depth_bins::Claim fieldClaim(Core &core);
+// redraw reproduces, all linked so far after a screen draw, and none when no dispatcher ran to its
+// end since the last flatten.
+[[nodiscard]] depth_bins::Claim fieldClaim(Core &core,
+                                           const guest_render_globals::Globals &globals);
 
 // Inside the flatten's producer scope, after its bins are claimed: the waiting redraw saved as the
 // field's state. Nothing when no dispatcher ran since the last flatten.
