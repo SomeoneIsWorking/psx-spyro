@@ -286,10 +286,8 @@ at `PSXPORT_IRES=4` under `scratch/judder-boot/`. Real-speed runs read `PSXPORT_
 - Boot hands over to the frame loop (fences 436..438): partly fixed. `game/core/archive_transfer.cpp` wrote each
   WAD byte through `Core::mem_w8`, one executable-write invalidation per byte; it now writes the block with
   `Core::mem_write` (one invalidation per load). `final1` (load 5..10): 1.4, 2.4, 0.6 ms late. Under load
-  13..17: 437 at 0.9 and 16.2 ms. Open: the rest of that field is `Core::mem_write`'s per-byte store bookkeeping
-  (producer census `OtAttr::trackStoreSlow`, `PacketPoolExtent::readFrom`, emission notes; about a third of the
-  window's samples), the first Lightrec translation of the loaded code and its SHA-256. The proper fix is a range
-  store in `Core::mem_write` (census, emission and write rollback over one span, one copy), not done here.
+  13..17: 437 at 0.9 and 16.2 ms. The rest of that field was `Core::mem_write`'s per-byte store bookkeeping,
+  now one span (pass 3 below); what remains is the first Lightrec translation of the loaded code and its SHA-256.
 - Raw-to-record switches (437/438, 1834/1835, 2218/2219, 3690/3691): not repeats. The `presentseq` label printed
   `shown=` the presenter's current record for a raw present, while the picture is the displayed VRAM; it now
   prints -1 there (psxport `FramePresenter::presentCurrent`). Stepped at the handover, luma rises 0, 1.14, 2.83,
@@ -307,15 +305,66 @@ at `PSXPORT_IRES=4` under `scratch/judder-boot/`. Real-speed runs read `PSXPORT_
   of the 45 ms before the worst ones (46..54 samples at 2 kHz), so it was off the CPU, not composing; with the
   host loaded this is no pacing evidence.
 - `warp 10`: fixed above (terrain identity); 4x turn in Artisans (`wk4/walk`) shows no seams in the split ground.
-  Spyro himself, shadows, particles, glows, the sprite queue and portals declare no places yet and step on whole
-  native pixels above 1x (psxport issue 0169, Open).
+  Spyro himself, shadows, particles, glows, the sprite queue and portals stepped on whole native pixels above 1x;
+  they declare places since pass 3 (below).
 - Run end, `final1` (load 5..10): `[playcheck] presents: intervals=8424 p50=16.75ms p99=20.25ms worst=73.82ms
   missed=9 (0.11%)`; boot through the new-game card: no present over 4.7 ms late.
+
+## Pass 3, the player's settings (2026-10-21)
+`psxport_settings.ini` as the player has it (ires 0, aspect 3, fps60 1), copied to
+`scratch/judder-pass3/player_settings.ini`; hidden window, no `PSXPORT_NOPACE`, both read from
+`/proc/<pid>/environ`. ires 0 against the 2400x1800 unmapped sink resolves to 8x (captures 4096x1920) and aspect
+auto to the sink's 4:3. Stepped captures under `scratch/judder-pass3/<tag>/seq`, from `warp 10` holding right+up
+(`gp10-*`), circle (`fl10-*`) or a circle tap (`ft10-*`); each producer's run is compared with the run before its
+change, which is otherwise pixel-identical.
+- Boot handover (fences 436..438): fixed. Cause: `psxport runtime/psx/core/guest_memory.cpp:Core::mem_write` booked
+  every byte of a block store (census, emission note, rollback) through `mem_w8`. It now books the span once
+  (psxport `b32b8904`, issue 0171). `final2` (load 1.9..2.7): 436/437/438 at 3.02, 0.74, 0.21 ms late; `prof1`
+  (load 2.7..8.3): 0.44, 1.32, 0.29 ms.
+- Logos, flag intro, title, picker, new-game intro: nothing new found at 8x (flag intro worst block parity 2.2:1;
+  title PRESS START is its brightness toggle).
+- Spyro (paired actor): fixed (`8d5124d`). His corners took whole-pixel SXY words: at 8x his right edge sat on
+  x = 7 mod 8 in every present (2255, 2247, 2239, 2231) and his bottom stepped 1191 -> 1199 -> 1207 with two-present
+  holds. With places the residues are arbitrary and the bottom moves 1..2 px a present (1194..1214). The water cut
+  carries its crossings on the places (`cutEdge`) but no route here reaches water.
+- Sprite queue (HUD digits, gems' sprites): fixed (`c334fbd`). The "2" digit's left edge stepped 176, 184, 192, 200,
+  208 with holds; now 183, 182, 182, 181, 180 .. 208.
+- Particles: fixed (`b20aa0b`). Smoke from a flame tap (`ft10`) differs only on the puffs' edges; quads take their
+  RTPT/RTPS places, scaled quads `placeOffset` from their centre. Lines and dots stay whole (below).
+- Drop shadow: fixed (`36ca133`). Its lowest dark row was 3 or 7 mod 8 in 9 of 14 presents with holds (1267,
+  1263, 1263, 1259, 1263, ..); now 1267, 1267, 1266, 1269, 1267, 1267, 1258, 1252, 1254, 1255, 1247 ...
+- Moby shadows: fixed (`b775700`); differences only on the far discs (100..1300 px a present).
+- Glow fans (Sparx's glow): fixed (`b44e22d`); rims `placeOffset` from the projected centre.
+- Portals: fixed for the fill (`63ba7a2`). The fill's lowest row held on 7 mod 8 (903 x4, 895 x3, 887 x4, 879);
+  now 920, 910, 914, 910, 909, 907, 904, 901, 899, 895, 893, 891, 889, 887, 885, 883. The clip's crossings are
+  computed on the outline's places. The near sky through a portal carries places the same way but was not
+  reached (no route within 0x4000 of a gate).
+- Flame `0x80058D64` (DrawSpyroHornStrikeTrails, drawn by ComposeFrameScene `0x80019698` while `0x80078760` is
+  set): open. It has no producer, so its packets are unkeyed and every in-between while it burns is shown whole:
+  `fl10` (circle held), fences 1553..1575, 23 of 23 in-betweens `composed=0`, compose reason `entry N unkeyed`;
+  the census gives 1087 unkeyed primitives, all under GamestateDraw `0x8001ED5C`. The proper fix is a native
+  `0x80058D64` (eight parts: a tip fan of four G3 and a GT4 ribbon down the part's arc path at `0x8006DAA8`,
+  linked by depth) with a producer that saves the anchor `0x800786C8`, the published matrix `+0xB8..+0xC8`, the
+  part bytes `+0x20`/`+0x28` and the arc entries, lerps the entries when a part's length and start match, and
+  declares the places of the tip RTPS/RTPT and each ribbon RTPT pair. Not done in this pass.
+- Sprites and lines stay whole by `PrimitiveList`'s design: sparkle stars, particle lines and dots step on whole
+  native pixels above 1x (psxport issue 0169, Open).
+- Level arrival: the first in-between after `warp 10` arrives 7.4..9.6 ms late (`prof1` fence 4083, `final2` 4073,
+  load under 3); of its 48 main-thread samples about 15 are Lightrec translating the level's code for the first
+  time. Open.
+- Run end, `final2` (load 1.9..2.7, the first unloaded host of this pass): `[playcheck] presents: intervals=8426
+  p50=16.75ms p99=17.00ms worst=50.47ms missed=2 (0.02%)`, records repeats 0, backwards 0; four presents over 2 ms
+  late (226, 436, 4073, 4816). The 50 ms interval is the load field before arrival (`fields=0/1`). `final1` an
+  hour earlier at load 3.3..9.8 missed 239; `prof1` at 2.7..8.3 missed 1: the gameplay misses follow the load.
+- Every title, 40 s from boot, before and after the psxport changes (`scratch/judder-pass3/titles/`): all exit 0;
+  no title gained a repeat, a backwards record or an error. Tekken 3 showed 13 misses after (load 6.3..5.1)
+  against 1 before (load 16.7..15.5); rerun at load 6.4..5.2 it missed 0. C-12 missed 95 before (load 15.5..17.4),
+  97 after (5.1..5.4) and 19 on the rerun (5.2..4.2): its misses are its own loading, unchanged here.
 
 ## Next
 Spyro 2: the opening conversation box is linked by logic before the dispatcher, so the redraw
 keeps n+1's box; moving it needs its drawer (FUN_8004D2D8 / FUN_8004A374) re-run at the in-between
-in place of logic's packets. Spyro 1's horn and motion trails and demo overlay (issue 0186)
+in place of logic's packets. Spyro 1's flame (pass 3 above), motion trails and demo overlay (issue 0186)
 show their frames whole when drawn.
 A real-time check by the operator is still to do: these runs
 measure the composed images, not the play feel.
