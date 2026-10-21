@@ -3,6 +3,7 @@
 #include "core.h"
 #include "render/field/guest_word.h"
 #include "render/terrain/guest_depth_bins.h"
+#include "render/terrain/guest_terrain_fog.h"
 #include "spyro1/render/terrain_facts.h"
 
 namespace spyro1::sky {
@@ -52,16 +53,12 @@ std::optional<SkyChain> Cyclorama::draw(std::int32_t group, const Rotations &rot
   auto &gte = core_.gte();
   gte.loadRotation(rotations.view);
   gte.loadTranslation({});
-  listSectors(group);
+  listSectors(kCyclorama, group);
 
   // 8004ECE0..8004ED40
-  gte.loadRotation(rotations.projection);
+  beginChain(rotations);
   v0_ = rotations.projection[1];
   v1_ = rotations.projection[2];
-  cursor_ = memory_.mem_r32(kRenderGlobals.primitiveCursor) + 4u;
-  first_ = cursor_;
-  last_ = cursor_ - 4u;
-  tag_ = 0;
   limit_ = memory_.mem_r32(terrain::kPacketPoolEnd) - kPoolReserve;
 
   for (std::uint32_t entry = kSectorList;; entry += 4) {
@@ -78,7 +75,58 @@ std::optional<SkyChain> Cyclorama::draw(std::int32_t group, const Rotations &rot
       break;
     }
   }
-  return link();
+  return link(memory_.mem_r32(kRenderGlobals.orderingTable) + kBinHead);
+}
+
+std::optional<SkyChain> Cyclorama::drawThrough(std::uint32_t sky,
+                                               const Rotations &rotations,
+                                               std::optional<SkyFade> fade,
+                                               std::uint32_t slot,
+                                               TriangleCut &cut) {
+  auto &gte = core_.gte();
+  gte.loadRotation(rotations.view);
+  gte.loadTranslation({});
+  listSectors(sky, -1);
+  beginChain(rotations);
+  for (std::uint32_t entry = kSectorList;; entry += 4) {
+    const std::uint32_t sector = memory_.mem_r32(entry);
+    if (sector == 0) {
+      break;
+    }
+    const std::uint32_t polygons = memory_.mem_r32(sector + kPolygonWord);
+    std::uint32_t colours =
+        sector + kVertices + ((memory_.mem_r32(sector + kBaseZCount) & 0xFFFFu) << 2);
+    // 800503D0..80050468
+    if (fade) {
+      spyro::guest_terrain::loadFarColour(gte, fade->colour);
+      spyro::guest_terrain::fadeColours(
+          memory_, core_, colours, colours + (polygons >> 14) + 4, fade->step, kFadedColours);
+      colours = kFadedColours;
+    }
+    if (!outcodeSector(sector)) {
+      continue;
+    }
+    const std::uint32_t begin = (polygons >> 14) + colours_;
+    const std::uint32_t end = ((polygons << 3) & 0xFFF8u) + begin;
+    for (std::uint32_t at = begin; at != end; at += 8) {
+      const Polygon polygon = polygonAt(at);
+      if (asSigned(polygon.outcodes[0] & polygon.outcodes[1] & polygon.outcodes[2] & 0x1Fu) > 0) {
+        continue;
+      }
+      cut.cut(triangle(polygon, colours), *this);
+    }
+    cut.finishSector(*this);
+  }
+  return link(slot);
+}
+
+// 8004ECE0 / 8004F5A4: the projection rotation and an empty chain at the packet cursor.
+void Cyclorama::beginChain(const Rotations &rotations) {
+  core_.gte().loadRotation(rotations.projection);
+  cursor_ = memory_.mem_r32(kRenderGlobals.primitiveCursor) + 4u;
+  first_ = cursor_;
+  last_ = cursor_ - 4u;
+  tag_ = 0;
 }
 
 void Cyclorama::end() {
@@ -87,16 +135,16 @@ void Cyclorama::end() {
 }
 
 // 8004EC14..8004ECDC: every sector, or group `group`'s, whose sphere reaches in front of the eye.
-void Cyclorama::listSectors(std::int32_t group) {
-  const std::uint32_t sectors = memory_.mem_r32(kCyclorama + kSectors);
+void Cyclorama::listSectors(std::uint32_t sky, std::int32_t group) {
+  const std::uint32_t sectors = memory_.mem_r32(sky + kSectors);
   std::uint32_t cursor = kSectorList;
   if (group < 0) {
-    const std::uint32_t end = sectors + (memory_.mem_r32(kCyclorama + kSectorCount) << 2);
+    const std::uint32_t end = sectors + (memory_.mem_r32(sky + kSectorCount) << 2);
     for (std::uint32_t at = sectors; at != end; at += 4) {
       keepIfInFront(memory_.mem_r32(at), cursor);
     }
   } else {
-    const std::uint32_t lists = memory_.mem_r32(kCyclorama + kGroupLists);
+    const std::uint32_t lists = memory_.mem_r32(sky + kGroupLists);
     std::uint32_t bytes = memory_.mem_r32(lists + (static_cast<std::uint32_t>(group) << 2));
     for (;; ++bytes) {
       const std::uint32_t index = memory_.mem_r8(bytes);
@@ -173,55 +221,75 @@ bool Cyclorama::drawPolygons(std::uint32_t polygons) {
     if (asSigned(limit_ - cursor_) <= 0) {
       return false;
     }
-    const std::uint32_t corners = memory_.mem_r32(at);
-    const std::uint32_t a = memory_.mem_r32(kOutcodes + (corners >> 20));
-    const std::uint32_t b = memory_.mem_r32(kOutcodes + ((corners >> 10) & 0x3FCu));
-    const std::uint32_t c = memory_.mem_r32(kOutcodes + (corners & 0x3FCu));
-    v0_ = b;
-    v1_ = c;
-    const std::uint32_t shades = memory_.mem_r32(at + 4);
-    if (asSigned(a & b & c & 0x1Fu) > 0) {
+    const Polygon polygon = polygonAt(at);
+    v0_ = polygon.outcodes[1];
+    v1_ = polygon.outcodes[2];
+    if (asSigned(polygon.outcodes[0] & polygon.outcodes[1] & polygon.outcodes[2] & 0x1Fu) > 0) {
       continue;
     }
-    memory_.mem_w32(last_, tag_ ^ cursor_);
-    last_ = cursor_;
-    const std::uint32_t sxyA = sra(a, 5);
-    v0_ = sra(b, 5);
-    v1_ = sra(c, 5);
-    memory_.mem_w32(cursor_ + 8, sxyA);
-    memory_.mem_w32(cursor_ + 0x10, v0_);
-    memory_.mem_w32(cursor_ + 0x18, v1_);
-    const std::uint32_t shadeA = shades >> 20;
-    const std::uint32_t shadeB = (shades >> 10) & 0x3FCu;
-    const std::uint32_t shadeC = shades & 0x3FCu;
-    if (shadeA == shadeB && shadeA == shadeC) {
-      tag_ = kFlatTag;
-      memory_.mem_w32(cursor_ + 4, memory_.mem_r32(colours_ + shadeA) - kFlatCommand);
-      memory_.mem_w32(cursor_ + 8, sxyA);
-      memory_.mem_w32(cursor_ + 0xC, v0_);
-      memory_.mem_w32(cursor_ + 0x10, v1_);
-      cursor_ += 0x14;
-    } else {
-      tag_ = kGouraudTag;
-      memory_.mem_w32(cursor_ + 4, memory_.mem_r32(colours_ + shadeA));
-      memory_.mem_w32(cursor_ + 0xC, memory_.mem_r32(colours_ + shadeB));
-      memory_.mem_w32(cursor_ + 0x14, memory_.mem_r32(colours_ + shadeC));
-      cursor_ += 0x1C;
-    }
+    const SkyTriangle drawn = triangle(polygon, colours_);
+    v0_ = drawn.points[1];
+    v1_ = drawn.points[2];
+    emit(drawn, polygon.shades[0] == polygon.shades[1] && polygon.shades[0] == polygon.shades[2]);
   }
   return true;
 }
 
-// 8004EF78..8004EFBC: the cursor stored and the chain appended to the deepest bin.
-std::optional<SkyChain> Cyclorama::link() {
+// The corner and shade bytes at `at` as outcode words and colour offsets.
+Cyclorama::Polygon Cyclorama::polygonAt(std::uint32_t at) const {
+  const std::uint32_t corners = memory_.mem_r32(at);
+  const std::uint32_t shades = memory_.mem_r32(at + 4);
+  return Polygon{
+      .outcodes = {memory_.mem_r32(kOutcodes + (corners >> 20)),
+                   memory_.mem_r32(kOutcodes + ((corners >> 10) & 0x3FCu)),
+                   memory_.mem_r32(kOutcodes + (corners & 0x3FCu))},
+      .shades = {shades >> 20, (shades >> 10) & 0x3FCu, shades & 0x3FCu},
+  };
+}
+
+SkyTriangle Cyclorama::triangle(const Polygon &polygon, std::uint32_t colours) const {
+  SkyTriangle out;
+  for (std::uint32_t corner = 0; corner < 3; ++corner) {
+    out.points[corner] = sra(polygon.outcodes[corner], 5);
+    out.colours[corner] = memory_.mem_r32(colours + polygon.shades[corner]);
+  }
+  return out;
+}
+
+// 8004EED4..8004EF64 / 8004FC3C..8004FC98
+void Cyclorama::emit(const SkyTriangle &triangle, bool flat) {
+  memory_.mem_w32(last_, tag_ ^ cursor_);
+  last_ = cursor_;
+  const auto &[p, c] = triangle;
+  if (flat) {
+    tag_ = kFlatTag;
+    memory_.mem_w32(cursor_ + 4, c[0] - kFlatCommand);
+    memory_.mem_w32(cursor_ + 8, p[0]);
+    memory_.mem_w32(cursor_ + 0xC, p[1]);
+    memory_.mem_w32(cursor_ + 0x10, p[2]);
+    cursor_ += 0x14;
+  } else {
+    tag_ = kGouraudTag;
+    memory_.mem_w32(cursor_ + 4, c[0]);
+    memory_.mem_w32(cursor_ + 8, p[0]);
+    memory_.mem_w32(cursor_ + 0xC, c[1]);
+    memory_.mem_w32(cursor_ + 0x10, p[1]);
+    memory_.mem_w32(cursor_ + 0x14, c[2]);
+    memory_.mem_w32(cursor_ + 0x18, p[2]);
+    cursor_ += 0x1C;
+  }
+}
+
+// 8004EF78..8004EFBC / 8004FD10..8004FD6C: the cursor stored and the chain appended to the bin at
+// `slot`.
+std::optional<SkyChain> Cyclorama::link(std::uint32_t slot) {
   memory_.mem_w32(kRenderGlobals.primitiveCursor, cursor_);
   if (cursor_ == first_) {
     return std::nullopt;
   }
-  const std::uint32_t table = memory_.mem_r32(kRenderGlobals.orderingTable);
   tag_ ^= 0x80000000u;
   memory_.mem_w32(last_, tag_);
-  v0_ = spyro::depth_bins::linkIntoBin(memory_, table + kBinHead, first_, last_);
+  v0_ = spyro::depth_bins::linkIntoBin(memory_, slot, first_, last_);
   if (v0_ != 0) {
     v1_ = first_ >> 16;
   }

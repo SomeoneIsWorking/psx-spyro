@@ -12,6 +12,7 @@
 #include "render/terrain/guest_terrain_facts.h"
 #include "render/terrain/guest_terrain_screen.h"
 
+#include <array>
 #include <cstdint>
 #include <vector>
 
@@ -39,6 +40,8 @@ struct InBetweenCamera {
   psx::gte::RotationWords rotation{};
   psx::gte::RotationWords viewRotation{};
   std::uint32_t position[3]{};
+  // The angle halfwords both rotations were built from.
+  std::array<std::int16_t, 3> angles{};
 };
 
 // The drawer's packets stop this far above the scratch block, and the far pass's buffer ends there too.

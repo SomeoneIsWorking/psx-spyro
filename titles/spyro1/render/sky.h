@@ -1,6 +1,8 @@
 // sky.h — SCUS_942.28's cyclorama drawer 0x8004EBA8: the sky sectors in front of the camera
-// projected, outcoded and drawn as flat or gouraud triangles chained into the deepest depth bin.
-// Runs over guest memory for the real field and over host memory for an in-between.
+// projected, outcoded and drawn as flat or gouraud triangles chained into the deepest depth bin;
+// and its copies 0x8004F4BC and 0x80050240 that draw a portal's own sky through the portal, each
+// polygon cut to the portal's outline. Runs over guest memory for the real field and over host
+// memory for an in-between.
 #pragma once
 
 #include "guest_memory_map.h"
@@ -27,6 +29,8 @@ inline constexpr std::uint32_t kOutcodes = psx::kScratchpadPhysicalBase;
 inline constexpr std::uint32_t kOutcodesBytes = psx::kScratchpadBytes;
 // The deepest of the 0x800 depth bins.
 inline constexpr std::uint32_t kSkyBin = 0x7FFu;
+// D_8006FCF4 + 0x2800: where 0x80050240 fades each sector's colour words.
+inline constexpr std::uint32_t kFadedColours = kSectorList + 0x2800u;
 
 // The view rotation sectors are culled with and the projection rotation vertices are drawn with.
 struct Rotations {
@@ -40,6 +44,31 @@ struct SkyChain {
   std::uint32_t last = 0;
 };
 
+// A polygon as the drawer emits it: three screen points and their POLY_G3 colour words.
+struct SkyTriangle {
+  std::array<std::uint32_t, 3> points{};
+  std::array<std::uint32_t, 3> colours{};
+};
+
+class Cyclorama;
+
+// What a portal's sky does with each polygon in place of drawing it (0x8004F7E8).
+class TriangleCut {
+public:
+  virtual void cut(const SkyTriangle &triangle, Cyclorama &sky) = 0;
+  // The pieces the sector's cuts queued, cut on from the edge after theirs (8004FC98).
+  virtual void finishSector(Cyclorama &sky) = 0;
+
+protected:
+  ~TriangleCut() = default;
+};
+
+// 0x80050240's fade: every colour word toward `colour` by `step`.
+struct SkyFade {
+  std::uint32_t colour = 0;
+  std::uint32_t step = 0;
+};
+
 class Cyclorama {
 public:
   Cyclorama(Core &core,
@@ -49,17 +78,34 @@ public:
   // The whole routine for sector group `group` (negative: every sector). Nullopt when nothing was
   // linked.
   std::optional<SkyChain> draw(std::int32_t group, const Rotations &rotations);
+  // 0x8004F4BC, or 0x80050240 with `fade`: every sector of `sky` (g_Cyclorama's layout) in front of
+  // the eye, each polygon handed to `cut`, the chain linked at `slot`.
+  std::optional<SkyChain> drawThrough(std::uint32_t sky,
+                                      const Rotations &rotations,
+                                      std::optional<SkyFade> fade,
+                                      std::uint32_t slot,
+                                      TriangleCut &cut);
+  // The triangle as the chain's next packet: POLY_F3 when `flat`, else POLY_G3.
+  void emit(const SkyTriangle &triangle, bool flat);
   // The $v0 and $v1 retail returns.
   void end();
 
 private:
-  void listSectors(std::int32_t group);
+  struct Polygon {
+    std::array<std::uint32_t, 3> outcodes{};
+    std::array<std::uint32_t, 3> shades{};
+  };
+
+  void beginChain(const Rotations &rotations);
+  void listSectors(std::uint32_t sky, std::int32_t group);
   void keepIfInFront(std::uint32_t sector, std::uint32_t &cursor);
   // One sector's vertices outcoded; false when all lie past one edge.
   bool outcodeSector(std::uint32_t sector);
   // One sector's polygons into the pool; false when the pool ran out.
   bool drawPolygons(std::uint32_t polygons);
-  std::optional<SkyChain> link();
+  [[nodiscard]] Polygon polygonAt(std::uint32_t at) const;
+  [[nodiscard]] SkyTriangle triangle(const Polygon &polygon, std::uint32_t colours) const;
+  std::optional<SkyChain> link(std::uint32_t slot);
 
   Core &core_;
   const psx::present::EmitMemory &memory_;

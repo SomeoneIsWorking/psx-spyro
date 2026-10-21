@@ -44,7 +44,9 @@ Dependency direction: `titles/<title>/` (one image's facts and natives) → `gam
 - `titles/spyro1/render/actor_*`, `lit_actor_emitter.*`, `local_bins.*` — S1 actors / mobys: draw list builders, emitters (flat light, reflection), layouts, producers, in-between record blend and host-memory run (`InBetween`), local depth bins
 - `titles/spyro1/render/sprite_queue*` — S1 sprite queue: lit and HUD mobys, producer
 - `titles/spyro1/render/paired_actor*` — S1 Spyro model draw (RasterizePairedActor), producer
-- `titles/spyro1/render/sky*` — S1 sky / cyclorama, producer
+- `titles/spyro1/render/sky*` — S1 sky / cyclorama and the walk a portal's own sky shares with it, producer
+- `titles/spyro1/render/portal*` — S1 portal drawer: outline, far fill, near sky cut to the outline, sky spin, producer
+- `titles/spyro1/render/moby_shadow*` — S1 moby shadows (RenderMobyShadows), producer
 - `titles/spyro1/render/drop_shadow*` — S1 Spyro drop shadow, producer
 - `titles/spyro1/render/glow*` — S1 glow fans and sparkles, their emitter and sparkle pools, producers
 - `titles/spyro1/render/ordering_table.*` — S1 LinkOTPrimitives / ordering table slots

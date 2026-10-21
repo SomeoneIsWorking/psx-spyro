@@ -2,6 +2,7 @@
 
 #include "core.h"
 #include "gte_registers.h"
+#include "render/terrain/guest_terrain_fog.h"
 #include "render/terrain/guest_terrain_frame.h"
 
 namespace spyro::guest_terrain {
@@ -35,12 +36,6 @@ struct PackedVector {
 
 PackedVector unpack(std::uint32_t word) {
   return PackedVector{word >> 21, (word >> 10) & 0x7FFu, word & 0x3FFu};
-}
-
-void loadFarColour(Core &core, std::uint32_t colour) {
-  core.gte().writeControl(gte::kFarRed, (colour << 4) & 0xFF0u);
-  core.gte().writeControl(gte::kFarGreen, (colour >> 4) & 0xFF0u);
-  core.gte().writeControl(gte::kFarBlue, (colour >> 12) & 0xFF0u);
 }
 
 class SectorAnimation {
@@ -191,7 +186,7 @@ void SectorAnimation::animateColourSlot(std::uint32_t slot, std::uint32_t index)
   std::uint32_t far = memory_.mem_r32(toward);
   do {
     core_.gte().writeData(gte::kRgbc, near & 0xFFFFFFu);
-    loadFarColour(core_, far);
+    loadFarColour(core_.gte(), far);
     const std::uint32_t skip = (near >> 22) & 0x3FCu;
     core_.gte().execute(gte::kDpcs);
     near = memory_.mem_r32(from + 4);
@@ -235,7 +230,7 @@ void SectorAnimation::animatePairSlot(std::uint32_t slot, std::uint32_t index) {
   std::uint32_t far = memory_.mem_r32(toward);
   do {
     core_.gte().writeData(gte::kRgbc, near & 0xFFFFFFu);
-    loadFarColour(core_, far);
+    loadFarColour(core_.gte(), far);
     const std::uint32_t skip = (near >> 22) & 0x3FCu;
     core_.gte().execute(gte::kDpcs);
     near = memory_.mem_r32(from + 4);
@@ -243,7 +238,7 @@ void SectorAnimation::animatePairSlot(std::uint32_t slot, std::uint32_t index) {
     first += skip;
     core_.mem_w32(first, core_.gte().readData(gte::kRgb2));
     core_.gte().writeData(gte::kRgbc, near);
-    loadFarColour(core_, far);
+    loadFarColour(core_.gte(), far);
     from += 8;
     toward += 8;
     core_.gte().execute(gte::kDpcs);
