@@ -111,9 +111,11 @@ struct TerrainFrame {
     if (places == nullptr) {
       return;
     }
+    std::array<GtePlace, 4> corners{};
     for (std::size_t vertex = 0; vertex < words.size(); ++vertex) {
-      places->place(psx::kseg0Address(packet), static_cast<int>(vertex), placeAt(words[vertex]));
+      corners[vertex] = placeAt(words[vertex]);
     }
+    places->placeCorners(packet, std::span(corners).first(words.size()));
   }
 
   // Retail publishes the mark as a slot address; the ordinal is the same bin without the table's address.

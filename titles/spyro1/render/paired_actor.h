@@ -60,7 +60,6 @@ private:
   // The projection just stored at screen_ - 4 keeps its unrounded place.
   void keepPlace();
   [[nodiscard]] GtePlace placeAt(std::uint32_t slotOffset) const;
-  void declarePlaces(std::uint32_t packet, std::span<const GtePlace> corners) const;
   void measureHeights();
   void tintColours();
 
