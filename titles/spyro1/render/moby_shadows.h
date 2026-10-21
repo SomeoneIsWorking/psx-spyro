@@ -13,6 +13,10 @@
 
 class Core;
 
+namespace psx::present {
+class PrimitiveSink;
+}
+
 namespace spyro1::shadows {
 
 // The camera, the two texture words, the cursor and the table, then one disc's points and depths.
@@ -29,7 +33,8 @@ class MobyShadows {
 public:
   MobyShadows(Core &core,
               const psx::present::EmitMemory &memory,
-              const spyro::guest_terrain::ScreenBounds &bounds);
+              const spyro::guest_terrain::ScreenBounds &bounds,
+              psx::present::PrimitiveSink *places = nullptr);
 
   // 80059F8C..8005A02C: the camera, texture words, cursor and table staged.
   void begin();
@@ -42,6 +47,7 @@ private:
   Core &core_;
   const psx::present::EmitMemory &memory_;
   spyro::guest_terrain::ScreenBounds bounds_;
+  psx::present::PrimitiveSink *places_;
 };
 
 } // namespace spyro1::shadows
