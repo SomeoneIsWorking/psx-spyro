@@ -8,12 +8,18 @@
 
 #include "guest_memory_map.h"
 
+#include "gte_state.h"
 #include "render/field/guest_working_memory.h"
 #include "render/terrain/guest_terrain_screen.h"
 
+#include <array>
 #include <cstdint>
 
 class Core;
+
+namespace psx::present {
+class PrimitiveSink;
+}
 
 namespace spyro1::particles {
 
@@ -51,7 +57,8 @@ class EmitList {
 public:
   EmitList(Core &core,
            const psx::present::EmitMemory &memory,
-           const spyro::guest_terrain::ScreenBounds &bounds);
+           const spyro::guest_terrain::ScreenBounds &bounds,
+           psx::present::PrimitiveSink *places = nullptr);
 
   // 800573FC..800574BC: the camera into the GTE, the pool limit, cursor and table read.
   void begin();
@@ -76,6 +83,8 @@ private:
   Outcome turnedTail(std::uint32_t at, TurnedQuad quad);
   // A frame's two UV words as an FT4's four.
   void writeUvs(std::uint32_t first, std::uint32_t second);
+  // The quad at the cursor's corner places, when a sink takes them.
+  void declarePlaces(const std::array<GtePlace, 4> &corners) const;
   // The packet at the cursor linked alone into the bin `binOffset / 8`; returns the slot.
   std::uint32_t link(std::uint32_t binOffset, Packet packet);
   [[nodiscard]] std::uint32_t textureGroup() const;
@@ -86,6 +95,7 @@ private:
 
   Core &core_;
   const psx::present::EmitMemory &memory_;
+  psx::present::PrimitiveSink *places_;
   std::uint32_t leftEdge_ = 0;   // the left bound << 16
   std::uint32_t rightEdge_ = 0;  // the right bound << 16, retail's $s6
   std::uint32_t camera_[3] = {}; // $s7, $t8, $t9: the camera position / 4
