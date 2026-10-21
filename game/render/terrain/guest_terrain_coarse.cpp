@@ -131,7 +131,7 @@ void CoarseSplitPass::drawSubQuads(const SplitPolygon &polygon, std::uint32_t dr
     if (!pieceFacesCamera(frame_, piece, polygon.overflow, sidedness(draw), SecondTriangle::FourthFirst)) {
       continue;
     }
-    storePieceScreens(frame_, piece.screens);
+    storePieceScreens(frame_, piece.corners());
     storePieceColours(frame_, piece.cells);
     writeQuadUvs(memory_, frame_.primitive, {.uv = uv, .page = page}, frame_.facts.coarse.pageRemaps);
     frame_.v1 = linkQuadPiece(frame_, polygonBin(piece.depthSum(), binBias(draw))).head;
@@ -169,7 +169,7 @@ void CoarseSplitPass::drawSubTriangles(const SplitPolygon &polygon, std::uint32_
     if (!pieceFacesCamera(frame_, piece, polygon.overflow, sidedness(draw))) {
       continue;
     }
-    storePieceScreens(frame_, piece.screens);
+    storePieceScreens(frame_, piece.corners());
     storePieceColours(frame_, piece.cells);
     frame_.v0 = linkTrianglePiece(frame_, polygonBin(piece.depthSum(), binBias(draw))).head;
     frame_.v1 = prim >> 16;

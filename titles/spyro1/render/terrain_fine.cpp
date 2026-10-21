@@ -130,7 +130,7 @@ void FinePass::drawQuadPieces(const SplitRecord &record) {
     if (!pieceFacesCamera(frame_, piece, record.overflow, sidedness(record.draw), SecondTriangle::Reversed)) {
       continue;
     }
-    storePieceScreens(frame_, piece.screens);
+    storePieceScreens(frame_, piece.corners());
     const GpuSpan span = gpuSpan(piece.screens);
     if (span == GpuSpan::Within) {
       frame_.v1 = sum >> 7;
@@ -187,7 +187,7 @@ void FinePass::drawTrianglePieces(const SplitRecord &record) {
     if (!pieceFacesCamera(frame_, piece, record.overflow, sidedness(record.draw))) {
       continue;
     }
-    storePieceScreens(frame_, piece.screens);
+    storePieceScreens(frame_, piece.corners());
     const GpuSpan span = gpuSpan(piece.screens);
     // The span test leaves the halves it compared last in v0 and v1.
     frame_.v0 = half(piece.screens[1], span);

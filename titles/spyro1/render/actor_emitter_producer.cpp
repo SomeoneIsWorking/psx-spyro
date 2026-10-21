@@ -24,13 +24,15 @@ namespace memory = spyro::guest_memory;
 using terrain::kRenderGlobals;
 
 std::unique_ptr<ActorEmitter>
-emitterFor(const EmitterPass &pass, Core &core, const psx::present::EmitMemory &memory) {
+emitterFor(const EmitterPass &pass,
+           Core &core,
+           const psx::present::EmitMemory &memory,
+           psx::present::PrimitiveSink *places = nullptr) {
+  const auto bounds = spyro::presentedBounds(core, spyro1::terrain::kSharedFacts);
   if (pass.lit) {
-    return std::make_unique<LitActorEmitter>(
-        core, memory, spyro::presentedBounds(core, spyro1::terrain::kSharedFacts));
+    return std::make_unique<LitActorEmitter>(core, memory, bounds, places);
   }
-  return std::make_unique<ActorEmitter>(
-      core, memory, spyro::presentedBounds(core, spyro1::terrain::kSharedFacts));
+  return std::make_unique<ActorEmitter>(core, memory, bounds, places);
 }
 
 // The level words `record`'s list builder reads under the field's camera, which an in-between
@@ -111,7 +113,7 @@ void ActorEmitterProducer::render(const psx::present::StateInterval &states,
   const std::uint32_t frame = memory.mem_r32(kDrawList + entry::kFrame);
   const std::uint32_t nearPolygons = memory.mem_r32(frame + emitter::frame::kNearPolygons);
   between.host().mapGuest(core_, nearPolygons, memory.mem_r32(nearPolygons) + 4);
-  const std::unique_ptr<ActorEmitter> emitter = emitterFor(pass_, core_, memory);
+  const std::unique_ptr<ActorEmitter> emitter = emitterFor(pass_, core_, memory, &sink);
   emitter->begin(0);
   if (emitter->draw(kDrawList)) {
     between.emitBins(sink);

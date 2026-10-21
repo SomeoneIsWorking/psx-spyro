@@ -16,7 +16,8 @@ ActorEmitter::Projected ActorEmitter::readProjected() {
   return Projected{
       .screen = gte.readData(gte::kSxy2),
       .depth = gte.readData(gte::kSz3),
-      .view = {gte.readData(gte::kMac1), gte.readData(gte::kMac2), gte.readData(gte::kMac3)}};
+      .view = {gte.readData(gte::kMac1), gte.readData(gte::kMac2), gte.readData(gte::kMac3)},
+      .place = gte.projectedPlace(2)};
 }
 
 // 8001FA00..8001FA18: up to 0x80 depths fit the scratchpad after the screen words.
@@ -31,7 +32,11 @@ void ActorEmitter::keepDepth(const Projected &vertex) {
 
 // 8001FC70..8001FCA8: a straddling record keeps the screen word shifted up past four outcodes, and
 // what every vertex shares.
-bool ActorEmitter::keepScreen(std::uint32_t screen) {
+bool ActorEmitter::keepScreen(const Projected &vertex) {
+  const std::uint32_t screen = vertex.screen;
+  if (places_ != nullptr) {
+    vertexPlaces_[(screen_ - 4 - kVertexScreens) / 4u] = vertex.place;
+  }
   if (asSigned(flags_) < 0) {
     std::uint32_t code = screen << 5;
     code |= bounds_.aboveTop(screen) ? 1u : 0u;
@@ -84,7 +89,7 @@ void ActorEmitter::projectPlain(std::uint32_t first) {
     gte.writeData(gte::kVz0, position[0]);
     const Projected vertex = readProjected();
     keepDepth(vertex);
-    if (keepScreen(vertex.screen)) {
+    if (keepScreen(vertex)) {
       return;
     }
   }
@@ -151,7 +156,7 @@ void ActorEmitter::projectBlended(std::uint32_t first) {
     screen_ += 4;
     loadBlended();
     keepDepth(vertex);
-    if (keepScreen(vertex.screen)) {
+    if (keepScreen(vertex)) {
       return;
     }
   }

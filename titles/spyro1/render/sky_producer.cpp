@@ -1,10 +1,10 @@
 #include "spyro1/render/sky_producer.h"
 
 #include "core.h"
-#include "render/state_producer_override.h"
-#include "render/field/guest_working_memory.h"
 #include "render/field/guest_render_globals.h"
 #include "render/field/guest_view_slope.h"
+#include "render/field/guest_working_memory.h"
+#include "render/state_producer_override.h"
 #include "render/terrain/guest_depth_bins.h"
 #include "spyro1/render/actor_between.h"
 #include "spyro1/render/terrain_facts.h"
@@ -35,18 +35,20 @@ void drawSky(Core *core) {
   spyro::guest_render_globals::spillBorrowedRegisters(guest, kRenderGlobals);
   const std::uint32_t view = guest.r[5];
   const std::uint32_t projection = guest.r[6];
-  const std::array<GuestSpan, 7> working = actors::binnedWorkingRanges(guest,
-                                                                            GuestSpan{kOutcodes, kOutcodesBytes},
-                                                                            GuestSpan{kSectorList, kSectorListBytes},
-                                                                            GuestSpan{terrain::kPacketPoolEnd, 4},
-                                                                            GuestSpan{terrain::kPoolExhausted, 4});
+  const std::array<GuestSpan, 7> working =
+      actors::binnedWorkingRanges(guest,
+                                  GuestSpan{kOutcodes, kOutcodesBytes},
+                                  GuestSpan{kSectorList, kSectorListBytes},
+                                  GuestSpan{terrain::kPacketPoolEnd, 4},
+                                  GuestSpan{terrain::kPoolExhausted, 4});
   psx::present::LevelReads reads;
   const psx::present::EmitMemory memory(guest, reads, working);
   const SkyState state{
       .camera = spyro::guest_terrain::readCamera(guest, kRenderGlobals),
       .rotations = readRotations(guest),
       .group = static_cast<std::int32_t>(guest.r[4]),
-      .cameraRotations = view == kViewRotation && projection == kRenderGlobals.cameraRotation ? 1u : 0u,
+      .cameraRotations =
+          view == kViewRotation && projection == kRenderGlobals.cameraRotation ? 1u : 0u,
   };
   Cyclorama sky(guest, memory, spyro::presentedBounds(guest, spyro1::terrain::kSharedFacts));
   sky.draw(state.group, state.rotations);
@@ -54,8 +56,8 @@ void drawSky(Core *core) {
   memory::saveDraw(guest, state, std::span<const psx::present::LevelWord>(reads.words()));
 }
 
-// The rotations an in-between draws with: the camera's at `t` when the field drew with the camera's own,
-// else the later field's.
+// The rotations an in-between draws with: the camera's at `t` when the field drew with the camera's
+// own, else the later field's.
 Rotations rotationsBetween(Core &core, const SkyState &from, const SkyState &to, float t) {
   if (from.cameraRotations == 0 || to.cameraRotations == 0) {
     return to.rotations;
@@ -77,13 +79,15 @@ void SkyProducer::render(const psx::present::StateInterval &states,
   between.host().zero(kSectorList, kSectorListBytes);
   between.mapTable();
   between.host().zero(terrain::kPoolExhausted, 4);
-  Cyclorama sky(core_, between.memory(), spyro::presentedBounds(core_, spyro1::terrain::kSharedFacts));
+  Cyclorama sky(
+      core_, between.memory(), spyro::presentedBounds(core_, spyro1::terrain::kSharedFacts), &sink);
   const std::optional<SkyChain> chain = sky.draw(after.header.group, rotations);
   if (!chain) {
     return;
   }
   psx::present::DrawModeTracker drawMode;
-  between.emitChain(chain->first, psx::present::OtSlot{spyro::depth_bins::kTable, kSkyBin}, drawMode, sink);
+  between.emitChain(
+      chain->first, psx::present::OtSlot{spyro::depth_bins::kTable, kSkyBin}, drawMode, sink);
 }
 
 void registerSkyOverrides(Core &core) {

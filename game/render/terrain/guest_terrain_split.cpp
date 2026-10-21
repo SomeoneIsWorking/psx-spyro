@@ -169,6 +169,7 @@ void projectGrid(TerrainFrame &frame, std::uint32_t count, bool markBehind) {
     if (frame.bounds.atOrRightOfRight(sxy)) {
       code |= kRight;
     }
+    frame.keepPlace(address - 2 * kCellSize + cell::kScreen);
     memory.mem_w32(address - 2 * kCellSize + cell::kScreen, sxy);
     memory.mem_w32(address - 2 * kCellSize + cell::kDepth, code);
   } while (address != end);
@@ -190,7 +191,7 @@ void emitCrackTriangle(TerrainFrame &frame, std::uint32_t entry, const CrackPoly
   }
   const std::uint32_t prim = frame.primitive;
   readPieceScreens(memory, piece);
-  storePieceScreens(frame, piece.screens);
+  storePieceScreens(frame, piece.corners());
   storePieceColours(frame, piece.cells);
   memory.mem_w32(prim + packet::kColour0, memory.mem_r32(piece.cells[0] + cell::kColour) - colourAdjust);
   memory.mem_w32(prim + packet::kUv0, (uvFirst & 0xFFFFu) + uv);
@@ -242,11 +243,14 @@ bool pieceFacesCamera(TerrainFrame &frame, const TrianglePiece &piece, bool over
   return false;
 }
 
-void storePieceScreens(TerrainFrame &frame, std::span<const std::uint32_t> screens) {
+void storePieceScreens(TerrainFrame &frame, PieceCorners corners) {
   constexpr std::array<std::uint32_t, 4> kSlots = {packet::kXy0, packet::kXy1, packet::kXy2, packet::kXy3};
-  for (std::size_t i = 0; i < screens.size(); ++i) {
-    frame.memory.mem_w32(frame.primitive + kSlots[i], screens[i]);
+  std::array<std::uint32_t, 4> words{};
+  for (std::size_t i = 0; i < corners.screens.size(); ++i) {
+    frame.memory.mem_w32(frame.primitive + kSlots[i], corners.screens[i]);
+    words[i] = corners.cells[i] + cell::kScreen;
   }
+  frame.declarePlaces(frame.primitive, std::span(words).first(corners.screens.size()));
 }
 
 void storePieceColours(TerrainFrame &frame, std::span<const std::uint32_t> cells) {
@@ -320,6 +324,18 @@ void pullTowardPair(TerrainFrame &frame, const GridPull &pull) {
   const std::int32_t y = asSigned(ownY + core.gte().readData(gte::kMac2)) >> 8;
   memory.mem_w32(point + cell::kScreen,
              (static_cast<std::uint32_t>(x) & 0xFFFFu) + (static_cast<std::uint32_t>(y) << 16));
+  if (frame.places != nullptr) {
+    const GtePlace self = frame.placeAt(point + cell::kScreen);
+    const GtePlace a = frame.placeAt(first + cell::kScreen);
+    const GtePlace b = frame.placeAt(second + cell::kScreen);
+    // IR0 holds the weights as signed halfwords.
+    const auto selfWeight = static_cast<float>(static_cast<std::int16_t>(ownWeight));
+    const auto pairsWeight = static_cast<float>(static_cast<std::int16_t>(pairWeight));
+    const auto blend = [selfWeight, pairsWeight](float own, float pair) {
+      return (selfWeight * own + pairsWeight * pair) / 256.0f;
+    };
+    frame.setPlace(point + cell::kScreen, {blend(self.x, a.x + b.x), blend(self.y, a.y + b.y)});
+  }
 }
 
 std::uint32_t quadNeighbourEdges(TerrainFrame &frame,

@@ -11,8 +11,9 @@ using namespace emitter;
 
 ActorEmitter::ActorEmitter(Core &core,
                            const psx::present::EmitMemory &memory,
-                           const spyro::guest_terrain::ScreenBounds &bounds)
-    : core_(core), memory_(memory), bounds_(bounds), bins_(memory) {}
+                           const spyro::guest_terrain::ScreenBounds &bounds,
+                           psx::present::PrimitiveSink *places)
+    : core_(core), memory_(memory), bounds_(bounds), bins_(memory), places_(places) {}
 
 // 8001F7D0..8001F7F8
 void ActorEmitter::begin(std::uint32_t v1) {

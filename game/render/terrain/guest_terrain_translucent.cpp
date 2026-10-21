@@ -188,6 +188,11 @@ void TranslucentPass::drawQuad(const PackedIndices &vertices) {
   memory_.mem_w32(prim + packet::kXy1, xy[1]);
   memory_.mem_w32(prim + packet::kXy2, xy[3]);
   memory_.mem_w32(prim + packet::kXy3, xy[2]);
+  frame_.declarePlaces(prim,
+                       std::array{kScratchpad + vertices.first,
+                                  kScratchpad + vertices.second,
+                                  kScratchpad + vertices.fourth,
+                                  kScratchpad + vertices.third});
   const std::uint32_t c0 = fadedColour(d0);
   const std::uint32_t c1 = fadedColour(d1);
   const std::uint32_t c2 = fadedColour(d2);
@@ -244,6 +249,8 @@ void TranslucentPass::drawTriangle(const PackedIndices &vertices) {
   memory_.mem_w32(prim + packet::kXy0, xy[0]);
   memory_.mem_w32(prim + packet::kXy1, xy[1]);
   memory_.mem_w32(prim + packet::kXy2, xy[2]);
+  frame_.declarePlaces(
+      prim, std::array{kScratchpad + vertices.first, kScratchpad + vertices.second, kScratchpad + vertices.third});
   const std::uint32_t c0 = fadedColour(d0);
   const std::uint32_t c1 = fadedColour(d1);
   memory_.mem_w32(prim + packet::kColour0, c0 | guest_packet::kSemiGt3Code);

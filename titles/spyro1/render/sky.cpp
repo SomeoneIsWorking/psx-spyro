@@ -5,6 +5,7 @@
 #include "render/terrain/guest_depth_bins.h"
 #include "render/terrain/guest_terrain_fog.h"
 #include "spyro1/render/terrain_facts.h"
+#include "state_producer.h"
 
 namespace spyro1::sky {
 namespace {
@@ -46,8 +47,9 @@ struct Vertex {
 
 Cyclorama::Cyclorama(Core &core,
                      const psx::present::EmitMemory &memory,
-                     const spyro::guest_terrain::ScreenBounds &bounds)
-    : core_(core), memory_(memory), bounds_(bounds) {}
+                     const spyro::guest_terrain::ScreenBounds &bounds,
+                     psx::present::PrimitiveSink *places)
+    : core_(core), memory_(memory), bounds_(bounds), places_(places) {}
 
 std::optional<SkyChain> Cyclorama::draw(std::int32_t group, const Rotations &rotations) {
   auto &gte = core_.gte();
@@ -206,6 +208,9 @@ bool Cyclorama::outcodeSector(std::uint32_t sector) {
     code += bounds_.atOrLeftOfLeft(sxy) ? 4u : 0u;
     code += bounds_.atOrRightOfRight(sxy) ? 8u : 0u;
     edges &= code;
+    if (places_ != nullptr) {
+      outcodePlaces_[(outcode - kOutcodes) / 4u] = gte.projectedPlace(2);
+    }
     memory_.mem_w32(outcode, code);
     outcode += 4;
   }
@@ -239,10 +244,13 @@ bool Cyclorama::drawPolygons(std::uint32_t polygons) {
 Cyclorama::Polygon Cyclorama::polygonAt(std::uint32_t at) const {
   const std::uint32_t corners = memory_.mem_r32(at);
   const std::uint32_t shades = memory_.mem_r32(at + 4);
+  const std::array<std::uint32_t, 3> offsets{
+      corners >> 20, (corners >> 10) & 0x3FCu, corners & 0x3FCu};
   return Polygon{
-      .outcodes = {memory_.mem_r32(kOutcodes + (corners >> 20)),
-                   memory_.mem_r32(kOutcodes + ((corners >> 10) & 0x3FCu)),
-                   memory_.mem_r32(kOutcodes + (corners & 0x3FCu))},
+      .corners = offsets,
+      .outcodes = {memory_.mem_r32(kOutcodes + offsets[0]),
+                   memory_.mem_r32(kOutcodes + offsets[1]),
+                   memory_.mem_r32(kOutcodes + offsets[2])},
       .shades = {shades >> 20, (shades >> 10) & 0x3FCu, shades & 0x3FCu},
   };
 }
@@ -253,6 +261,11 @@ SkyTriangle Cyclorama::triangle(const Polygon &polygon, std::uint32_t colours) c
     out.points[corner] = sra(polygon.outcodes[corner], 5);
     out.colours[corner] = memory_.mem_r32(colours + polygon.shades[corner]);
   }
+  if (places_ != nullptr) {
+    out.places = std::array<GtePlace, 3>{outcodePlaces_[polygon.corners[0] / 4u],
+                                         outcodePlaces_[polygon.corners[1] / 4u],
+                                         outcodePlaces_[polygon.corners[2] / 4u]};
+  }
   return out;
 }
 
@@ -260,7 +273,13 @@ SkyTriangle Cyclorama::triangle(const Polygon &polygon, std::uint32_t colours) c
 void Cyclorama::emit(const SkyTriangle &triangle, bool flat) {
   memory_.mem_w32(last_, tag_ ^ cursor_);
   last_ = cursor_;
-  const auto &[p, c] = triangle;
+  if (places_ != nullptr && triangle.places) {
+    for (int vertex = 0; vertex < 3; ++vertex) {
+      places_->place(psx::kseg0Address(cursor_), vertex, (*triangle.places)[static_cast<std::size_t>(vertex)]);
+    }
+  }
+  const auto &p = triangle.points;
+  const auto &c = triangle.colours;
   if (flat) {
     tag_ = kFlatTag;
     memory_.mem_w32(cursor_ + 4, c[0] - kFlatCommand);

@@ -162,7 +162,7 @@ void FineSplitPass::drawQuadPieces(const SplitPolygon &polygon, std::uint32_t dr
     if (!pieceFacesCamera(frame_, piece, polygon.overflow, sidedness(draw), SecondTriangle::FourthFirst)) {
       continue;
     }
-    storePieceScreens(frame_, piece.screens);
+    storePieceScreens(frame_, piece.corners());
     queueTooLarge(gpuSpan(piece.screens));
     frame_.v1 = linkQuadPiece(frame_, polygonBin(sum, binBias(draw))).head;
   }
@@ -246,7 +246,7 @@ void FineSplitPass::drawTrianglePieces(const SplitPolygon &polygon, std::uint32_
     if (!pieceFacesCamera(frame_, piece, polygon.overflow, sidedness(draw))) {
       continue;
     }
-    storePieceScreens(frame_, piece.screens);
+    storePieceScreens(frame_, piece.corners());
     queueTooLarge(gpuSpan(piece.screens));
     const Linked linked = linkTrianglePiece(frame_, polygonBin(sum, binBias(draw)));
     frame_.v0 = linked.head;

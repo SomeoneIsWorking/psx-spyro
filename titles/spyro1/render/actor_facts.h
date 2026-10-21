@@ -41,6 +41,8 @@ inline constexpr std::uint32_t kWorkBlockBytes = 0x2A00u + kColourTableBytes;
 inline constexpr std::uint32_t kVertexScreens = psx::kScratchpadPhysicalBase;
 inline constexpr std::uint32_t kVertexDepths = kVertexScreens + 0x200u;
 inline constexpr std::uint32_t kCameraCopy = kVertexScreens + 0x3E0u;
+// A polygon's corner slot is a byte offset into the screen words, masked to 0x7FC.
+inline constexpr std::uint32_t kVertexSlots = 0x800u / 4u;
 
 // g_anWorldLightDirVec: three words the sprite queue builds its light matrix from (80022AC8).
 inline constexpr std::uint32_t kLightVector = guest::kSpecularLightDirection;

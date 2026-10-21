@@ -3,8 +3,10 @@
 #include "spyro1/render/actor_emitter.h"
 
 #include "core.h"
+#include "guest_memory_map.h"
 #include "render/field/guest_packet.h"
 #include "spyro1/render/actor_emitter_layout.h"
+#include "state_producer.h"
 
 namespace spyro1::actors {
 
@@ -170,6 +172,7 @@ void ActorEmitter::drawWholeQuad(const Quad &quad) {
     if (asSigned(sum) < 0) {
       return;
     }
+    declarePlaces(t8, quad.slots);
     v1_ = bins_.link((sra(sum, shift) << 3) + binsBase_);
     return;
   }
@@ -193,6 +196,7 @@ void ActorEmitter::drawWholeQuad(const Quad &quad) {
   memory_.mem_w32(t8 + 0x18, uv1);
   memory_.mem_w32(t8 + 0x24, uv2);
   memory_.mem_w32(t8 + 0x30, uv2 >> 16);
+  declarePlaces(t8, quad.slots);
   v1_ = bins_.link((sra(sum, shift) << 3) + binsBase_);
 }
 
@@ -297,6 +301,7 @@ void ActorEmitter::linkTriangle(const Triangle &triangle, const TriangleColours 
       return;
     }
     memory_.mem_w32(t8, guest_packet::kG3Tag);
+    declarePlaces(t8, triangle.slots);
     v1_ = bins_.link((sum << 3) + binsBase_);
     return;
   }
@@ -320,7 +325,17 @@ void ActorEmitter::linkTriangle(const Triangle &triangle, const TriangleColours 
   memory_.mem_w32(t8, guest_packet::kGt3Tag);
   memory_.mem_w32(t8 + 0x18, uv1);
   memory_.mem_w32(t8 + 0x24, uv2);
+  declarePlaces(t8, triangle.slots);
   v1_ = bins_.link((sum << 3) + binsBase_);
+}
+
+void ActorEmitter::declarePlaces(std::uint32_t packet, std::span<const std::uint32_t> slots) const {
+  if (places_ == nullptr) {
+    return;
+  }
+  for (std::size_t vertex = 0; vertex < slots.size(); ++vertex) {
+    places_->place(psx::kseg0Address(packet), static_cast<int>(vertex), vertexPlaces_[slots[vertex] / 4u]);
+  }
 }
 
 // 800205C4..80020748: a quad facing the camera around the first corner, sized by the depth cue of

@@ -310,6 +310,11 @@ void DetailPass::drawQuad(const PackedIndices &vertices) {
   memory_.mem_w32(prim + packet::kXy1, xy[1]);
   memory_.mem_w32(prim + packet::kXy2, xy[3]);
   memory_.mem_w32(prim + packet::kXy3, xy[2]);
+  frame_.declarePlaces(prim,
+                       std::array{kScratchpad + vertices.first,
+                                  kScratchpad + vertices.second,
+                                  kScratchpad + vertices.fourth,
+                                  kScratchpad + vertices.third});
   fadeBase_ = (depthLimit_ >> 2) + ((draw & kFarFade) != 0 ? kFarFadeShift : 0u);
   const PackedIndices colours(memory_.mem_r32(record_ + polygon::kColours));
   memory_.mem_w32(prim + packet::kColour0,
@@ -393,6 +398,8 @@ void DetailPass::drawTriangle(const PackedIndices &vertices) {
   memory_.mem_w32(prim + packet::kXy0, xy[0]);
   memory_.mem_w32(prim + packet::kXy1, xy[1]);
   memory_.mem_w32(prim + packet::kXy2, xy[2]);
+  frame_.declarePlaces(
+      prim, std::array{kScratchpad + vertices.first, kScratchpad + vertices.second, kScratchpad + vertices.third});
   fadeBase_ = (depthLimit_ >> 2) + ((draw & kFarFade) != 0 ? kFarFadeShift : 0u);
   const PackedIndices colours(memory_.mem_r32(record_ + polygon::kColours));
   memory_.mem_w32(prim + packet::kColour0,
