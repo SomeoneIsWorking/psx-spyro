@@ -27,6 +27,9 @@ struct BootPrefixFacts {
   std::uint32_t frameDraw = 0;
   // The fields the update clamps its frame delta to; a logic frame longer than this is a stall.
   int deltaClampFields = 0;
+  // The display wait (VSync return) of the fade loop before a load, which swaps and draws one frame
+  // per field.
+  std::uint32_t fadeFrameWait = 0;
   FieldOwnerFacts field;
   FrameCutFacts cut;
   std::uint64_t bootStepFieldLimit = kDefaultBootStepFieldLimit;
@@ -68,11 +71,17 @@ public:
 
 private:
   enum class Phase : std::uint8_t { Boot, MainLoop };
-  // Why one retail call ended: it returned, ran out of host turns, or hit the field bound.
-  enum class CallProgress : std::uint8_t { Returned, TurnBudgetReached, FieldBoundReached };
-  // Where a main-loop step stopped: at the return of the frame's draw, or at a field inside the
-  // frame.
-  enum class LoopStop : std::uint8_t { FrameDrawn, Field };
+  // Why one retail call ended: it returned, ran out of host turns, hit the field bound, or waits
+  // for the field that shows a frame of the fade loop.
+  enum class CallProgress : std::uint8_t {
+    Returned,
+    TurnBudgetReached,
+    FieldBoundReached,
+    FadeFrame
+  };
+  // Where a main-loop step stopped: at the return of the frame's draw, at a field inside the
+  // frame, or at a field of the fade loop.
+  enum class LoopStop : std::uint8_t { FrameDrawn, Field, FadeFrame };
   // The two retail calls of one main-loop iteration, in the order game main runs them.
   enum class LoopCall : std::uint8_t { Update, Draw };
   // What a loaded state replaces once every machine section is in place.

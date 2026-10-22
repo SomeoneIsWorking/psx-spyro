@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/boot_prefix_frame_driver.h"
+#include "spyro3/render/render_facts.h"
 
 #include <cstdint>
 
@@ -13,6 +14,8 @@ inline constexpr std::uint32_t kLevelId = 0x8006C5BCu;
 // Camera controller FUN_800144B4's mode and sub-state.
 inline constexpr std::uint32_t kCameraMode = 0x8006E044u;
 inline constexpr std::uint32_t kCameraSubState = 0x8006E048u;
+// The state whose overlay plays a cutscene's camera track (blend test at 0x80077E0C as loaded).
+inline constexpr std::uint32_t kCutsceneGameState = 6u;
 
 // Game main 0x8001200C: boot prefix 0x8002AB38 (jal at 0x8001201C), then the loop jal 0x80055400 /
 // jal 0x8001E638. Bound measurements: docs/issues/0156.
@@ -23,6 +26,8 @@ inline constexpr spyro::BootPrefixFacts kBootPrefixFacts{
     .frameDraw = 0x8001E638u,
     // FUN_8003A584 clamps the delta 0x8006C648 to [2, 4].
     .deltaClampFields = 4,
+    // FUN_80020168 waits at 0x80020268.
+    .fadeFrameWait = 0x80020270u,
     .field =
         {
             .titleName = "Spyro 3",
@@ -37,6 +42,12 @@ inline constexpr spyro::BootPrefixFacts kBootPrefixFacts{
             .gameState = kGameState,
             .levelId = kLevelId,
             .camera = spyro::CameraMachineWords{.mode = kCameraMode, .subState = kCameraSubState},
+            .scriptedCamera =
+                spyro::ScriptedCameraFacts{
+                    .gameState = kCutsceneGameState,
+                    .position = kRenderGlobals.cameraPosition,
+                    .angles = kRenderGlobals.cameraAngles,
+                },
         },
     .bootStepLimit = 1024,
 };
