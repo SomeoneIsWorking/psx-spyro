@@ -44,8 +44,8 @@ public:
       : core_(core), memory_(memory), pass_(pass) {}
 
   void run();
-  // The camera, then `record` alone; true when it was given an entry.
-  bool runOne(std::uint32_t record);
+  // The camera, then `record` alone at `angleFractions`; true when it was given an entry.
+  bool runOne(std::uint32_t record, std::uint32_t angleFractions);
 
 private:
   void loadCamera();
@@ -63,6 +63,7 @@ private:
   std::uint32_t out_ = kDrawList;
   std::uint32_t shadows_ = kShadowList;
   std::uint32_t v1_ = 0;
+  std::uint32_t angleFractions_ = 0;
 };
 
 void ListBuilder::loadCamera() {
@@ -76,7 +77,8 @@ void ListBuilder::loadCamera() {
   camera_ = spyro::guest_memory::rotationAt(memory_, kRenderGlobals.cameraRotation);
 }
 
-bool ListBuilder::runOne(std::uint32_t record) {
+bool ListBuilder::runOne(std::uint32_t record, std::uint32_t angleFractions) {
+  angleFractions_ = angleFractions;
   loadCamera();
   visit(record);
   return out_ != kDrawList;
@@ -204,7 +206,7 @@ void ListBuilder::visit(std::uint32_t record) {
   psx::gte::RotationWords composed = camera_;
   if (const auto last = rotation::composeTabled(core_,
                                                 kRenderGlobals.cameraSineTable,
-                                                {.angles = angles},
+                                                {.angles = angles, .flags = angleFractions_},
                                                 composed,
                                                 rotation::Byte0Result::Stored)) {
     v1_ = *last;
@@ -226,8 +228,9 @@ void buildList(Core &core, const ListPass &pass) {
 bool listRecord(Core &core,
                 const psx::present::EmitMemory &memory,
                 const ListPass &pass,
-                std::uint32_t record) {
-  return ListBuilder(core, memory, pass).runOne(record);
+                std::uint32_t record,
+                std::uint32_t angleFractions) {
+  return ListBuilder(core, memory, pass).runOne(record, angleFractions);
 }
 
 namespace {

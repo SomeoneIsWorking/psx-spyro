@@ -62,7 +62,7 @@ void listReads(Core &guest,
   probe.mapGuest(guest, record, static_cast<std::uint32_t>(sizeof(spyro::moby_record::Bytes)));
   probe.mapGuest(guest, kShadowListEnd, 4);
   const psx::present::GteGuard gte(guest.gte());
-  (void)listRecord(guest, psx::present::EmitMemory(guest, probe), *pass.list, record);
+  (void)listRecord(guest, psx::present::EmitMemory(guest, probe), *pass.list, record, 0);
 }
 
 void emitList(Core &guest, const EmitterPass &pass) {
@@ -118,11 +118,12 @@ void ActorEmitterProducer::render(const psx::present::StateInterval &states,
   between.mapWorkspace();
   between.mapCamera(camera);
   between.mapTable();
-  between.provide(state.record,
-                  recordBetween(before.header.bytes, state.bytes, states.t, &between.memory()));
+  const spyro::moby_record::Between shown =
+      recordBetween(before.header.bytes, state.bytes, states.t, &between.memory());
+  between.provide(state.record, shown.bytes);
   between.provideWord(kShadowListEnd, kShadowList);
   const psx::present::EmitMemory &memory = between.memory();
-  if (!listRecord(core_, memory, *pass_.list, state.record)) {
+  if (!listRecord(core_, memory, *pass_.list, state.record, shown.angleFractions)) {
     return;
   }
   // The near detail patches the frame's near polygon list in place, and puts it back.

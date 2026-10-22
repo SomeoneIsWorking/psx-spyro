@@ -77,7 +77,7 @@ void drawQueue(Core *core) {
     guest.readBytes(record, std::as_writable_bytes(std::span(state.bytes)));
     const auto scope = guest.emission.instance(objectOf(guest, record));
     reads->clear();
-    if (const auto chain = queue.draw(record, state.hudShift)) {
+    if (const auto chain = queue.draw(record, state.hudShift, 0)) {
       queue.link(*chain);
     }
     memory::saveDraw(guest, state, reads->words());
@@ -96,14 +96,22 @@ void SpriteQueueProducer::render(const psx::present::StateInterval &states,
       core_, terrain::kTerrainImage, before.header.camera, state.camera, states.t);
   InBetween between(core_, after.reads);
   between.mapWorkspace();
-  between.provide(state.record, recordBetween(before.header.bytes, state.bytes, states.t));
+  const spyro::moby_record::Between shown =
+      recordBetween(before.header.bytes, state.bytes, states.t);
+  between.provide(state.record, shown.bytes);
   between.mapCamera(camera);
-  between.host().provide(kLightVector, std::as_bytes(std::span(state.light)));
+  // The title text's light turns every frame.
+  std::array<std::uint32_t, 3> light{};
+  for (std::size_t i = 0; i < light.size(); ++i) {
+    light[i] = psx::present::lerpWord(before.header.light[i], state.light[i], states.t);
+  }
+  between.host().provide(kLightVector, std::as_bytes(std::span(light)));
   between.provideWord(kShadowListEnd, kShadowList);
 
   SpriteQueue queue(core_, between.memory(), presentedQueueView(core_), &sink);
   queue.begin();
-  const std::optional<QueuedChain> chain = queue.draw(state.record, state.hudShift);
+  const std::optional<QueuedChain> chain =
+      queue.draw(state.record, state.hudShift, shown.angleFractions);
   if (!chain) {
     return;
   }

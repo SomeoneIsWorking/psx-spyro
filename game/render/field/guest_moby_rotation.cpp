@@ -142,13 +142,18 @@ std::optional<std::uint32_t> composeTabled(Core &core,
   std::optional<std::uint32_t> last;
   for (const Channel &channel : kChannels) {
     const std::uint32_t angle = (angles.angles >> channel.angleShift) & 0xFFu;
-    if (angle == 0) {
+    const std::uint32_t fraction = (angles.flags >> channel.fractionShift) & 0xFu;
+    if (angle == 0 && fraction == 0) {
       continue;
     }
     const std::uint32_t entry = tableEntry(sineTable, angle);
+    const auto unsignedHalf = [&](std::uint32_t at) {
+      return static_cast<std::uint32_t>(interpolate(core, {.entry = at, .fraction = fraction})) &
+             kLow;
+    };
     last = rotate(core,
                   channel.axis,
-                  AngleWords{core.mem_r16(entry), core.mem_r16(entry + kCosineOffset)},
+                  AngleWords{unsignedHalf(entry), unsignedHalf(entry + kCosineOffset)},
                   rotation,
                   byte0,
                   byte0Offset);
