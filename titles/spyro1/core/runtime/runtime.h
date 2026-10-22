@@ -27,7 +27,8 @@ public:
   // Where this disc's own logo is; see titles/spyro1/core/frame/logo_facts.h.
   const spyro::TitleLogoFacts &logoFacts() const override;
 
-  // `warp`, then `gates` and `gate-teleport`, the route to a level portal.
+  // `warp`, then the teleports: `gates`/`gate-teleport` to a level portal, `dragons`/`dragon-teleport`
+  // onto a crystal dragon, whose own touch starts the rescue.
   bool
   titleCommand(Core &core, const psx::game::TitleCommandLine &input, std::FILE *reply) override;
   // The phase pad recordings are keyed on, so a press keeps its offset into its screen (issue

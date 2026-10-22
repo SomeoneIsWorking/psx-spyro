@@ -79,7 +79,7 @@ set(SPYRO_RUNTIME_SOURCES
   titles/spyro1/core/input/input_phase.cpp
   titles/spyro1/core/frame/transition_skip.cpp
   titles/spyro1/core/runtime/runtime.cpp
-  titles/spyro1/core/debug/gate_debug.cpp
+  titles/spyro1/core/debug/teleport.cpp
   titles/spyro1/core/execution/cd_queue.cpp
   titles/spyro1/core/execution/native_angle.cpp
   titles/spyro1/core/execution/native_gte.cpp
