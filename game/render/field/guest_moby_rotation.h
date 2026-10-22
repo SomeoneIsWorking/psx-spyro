@@ -33,8 +33,9 @@ enum class Byte0Result : std::uint8_t { Loaded, Stored };
 // angle's table offset where the product belongs.
 enum class Byte1Rt12 : std::uint8_t { Product, Byte0Offset };
 
-// Rotate `rotation` by `angles.angles`, reading the tables directly; the flags are not read. Loads
-// the result into CR0..CR4 after each angle, as retail does. `rotation` must hold what CR0..CR4
+// Rotate `rotation` by `angles.angles`, reading the tables as `lhu` does. Retail's records carry no
+// fractions here; an in-between's `angles.flags` steps each entry toward the next. Loads the result
+// into CR0..CR4 after each angle, as retail does. `rotation` must hold what CR0..CR4
 // hold on entry. Returns what retail leaves in $v1 when an angle applied: the last product's IR3,
 // shifted up 16 when that was the byte-0 axis.
 std::optional<std::uint32_t> composeTabled(Core &core,

@@ -136,7 +136,7 @@ std::uint32_t anglesBetween(std::uint32_t from, std::uint32_t to, float t) {
 // fractions, at that precision.
 moby_record::Bytes
 recordBetween(const moby_record::Bytes &from, const moby_record::Bytes &to, float t) {
-  moby_record::Bytes shown = moby_record::between(from, to, t);
+  moby_record::Bytes shown = moby_record::between(from, to, t).bytes;
   const auto poseOf = [](const moby_record::Bytes &bytes) {
     return keyframe_blend::Pose{.keyframes =
                                     record_blend::load<std::uint32_t>(bytes, record::kKeyframes),

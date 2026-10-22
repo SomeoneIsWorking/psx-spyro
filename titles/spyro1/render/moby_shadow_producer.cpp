@@ -45,7 +45,7 @@ void drawShadows(Core *core) {
 spyro::moby_record::Bytes shadowRecordBetween(const spyro::moby_record::Bytes &from,
                                               const spyro::moby_record::Bytes &to,
                                               float t) {
-  spyro::moby_record::Bytes shown = actors::recordBetween(from, to, t);
+  spyro::moby_record::Bytes shown = actors::recordBetween(from, to, t).bytes;
   const auto fromGround = spyro::record_blend::load<std::uint32_t>(from, kGround);
   const auto toGround = spyro::record_blend::load<std::uint32_t>(to, kGround);
   if ((fromGround & 0xFFFFu) != 0 && (toGround & 0xFFFFu) != 0) {

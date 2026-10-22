@@ -25,7 +25,7 @@ namespace spyro1::actors {
 // `from` and `to`'s record at `t`: position, angles and pose moved when it is one object in the
 // same space, everything else `to`'s. With `frames`, the mesh table to read, an animation switch
 // blends across when the two frames share a vertex layout.
-[[nodiscard]] spyro::moby_record::Bytes
+[[nodiscard]] spyro::moby_record::Between
 recordBetween(const spyro::moby_record::Bytes &from,
               const spyro::moby_record::Bytes &to,
               float t,

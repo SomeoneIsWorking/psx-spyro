@@ -35,16 +35,16 @@ bool sharesLayout(const psx::present::EmitMemory &memory,
 
 } // namespace
 
-spyro::moby_record::Bytes recordBetween(const spyro::moby_record::Bytes &from,
-                                        const spyro::moby_record::Bytes &to,
-                                        float t,
-                                        const psx::present::EmitMemory *frames) {
+spyro::moby_record::Between recordBetween(const spyro::moby_record::Bytes &from,
+                                          const spyro::moby_record::Bytes &to,
+                                          float t,
+                                          const psx::present::EmitMemory *frames) {
   const bool sameSpace =
       ((from[moby::kCullDistance] ^ to[moby::kCullDistance]) & moby::kScreenSpace) == 0;
   if (!spyro::moby_record::sameObject(from, to) || !sameSpace) {
-    return to;
+    return {.bytes = to};
   }
-  spyro::moby_record::Bytes shown = spyro::moby_record::between(from, to, t);
+  spyro::moby_record::Between shown = spyro::moby_record::between(from, to, t);
   const auto poseOf = [](const spyro::moby_record::Bytes &bytes) {
     return spyro::keyframe_blend::Pose{
         .keyframes = spyro::record_blend::load<std::uint32_t>(bytes, moby::kFrames),
@@ -64,8 +64,8 @@ spyro::moby_record::Bytes recordBetween(const spyro::moby_record::Bytes &from,
       pose = crossing;
     }
   }
-  spyro::record_blend::store(shown, moby::kFrames, pose.keyframes);
-  shown[moby::kBlend] = pose.progress;
+  spyro::record_blend::store(shown.bytes, moby::kFrames, pose.keyframes);
+  shown.bytes[moby::kBlend] = pose.progress;
   return shown;
 }
 

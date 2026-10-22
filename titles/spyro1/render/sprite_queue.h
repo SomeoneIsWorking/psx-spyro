@@ -58,8 +58,10 @@ public:
   // 80022A64..80022B04: the camera into the scratchpad, the light into the colour matrix.
   void begin();
   // 80022B20..800239B4: one record drawn into the local bins and chained, a HUD record `hudShift`
-  // columns off its authored x. Nullopt when it was culled or linked nothing.
-  std::optional<QueuedChain> draw(std::uint32_t record, std::int32_t hudShift);
+  // columns off its authored x, its angles refined by an in-between's `angleFractions`
+  // (spyro::moby_record::Between). Nullopt when it was culled or linked nothing.
+  std::optional<QueuedChain>
+  draw(std::uint32_t record, std::int32_t hudShift, std::uint32_t angleFractions);
   // 800239B8..80023A74: the chain into the guest's ordering table, behind its draw mode.
   void link(const QueuedChain &chain);
   // 80023A78: the shadow list's end and the registers retail leaves.
@@ -124,6 +126,7 @@ private:
   std::uint32_t edge_ = 0;
   std::uint32_t mesh_ = 0;
   std::uint32_t angles_ = 0;
+  std::uint32_t angleFractions_ = 0;
   psx::gte::RotationWords rotation_{};
   std::uint32_t depthBin_ = 0;
   std::uint32_t depthBias_ = 0;

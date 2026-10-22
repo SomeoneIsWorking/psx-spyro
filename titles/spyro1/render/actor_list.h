@@ -42,11 +42,13 @@ inline constexpr ListPass kSecondaryListPass{.entry = 0x800208FCu,
 void buildList(Core &core, const ListPass &pass);
 
 // One record through a builder's culls over `memory`, its entry written at kDrawList; true when it
-// was given one. An in-between's list.
+// was given one. An in-between's list, its angles refined by `angleFractions`
+// (spyro::moby_record::Between).
 bool listRecord(Core &core,
                 const psx::present::EmitMemory &memory,
                 const ListPass &pass,
-                std::uint32_t record);
+                std::uint32_t record,
+                std::uint32_t angleFractions);
 
 void registerListOverrides(Core &core);
 

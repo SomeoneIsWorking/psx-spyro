@@ -113,7 +113,9 @@ void SpriteQueue::begin() {
   v1_ = kLightVector;
 }
 
-std::optional<QueuedChain> SpriteQueue::draw(std::uint32_t record, std::int32_t hudShift) {
+std::optional<QueuedChain>
+SpriteQueue::draw(std::uint32_t record, std::int32_t hudShift, std::uint32_t angleFractions) {
+  angleFractions_ = angleFractions;
   const std::uint32_t cull = memory_.mem_r16(record + moby::kCullDistance);
   const std::uint32_t x = memory_.mem_r32(record + moby_record::kX);
   memory_.mem_w8(record + moby::kDrawn, 0);
@@ -293,7 +295,10 @@ void SpriteQueue::orient(const Centre &centre, std::uint32_t record) {
   core_.gte().writeControl(gte::kTranslationY, centre.y);
   core_.gte().writeControl(gte::kTranslationZ, centre.z);
   (void)rotation::composeTabled(
-      core_, kRenderGlobals.cameraSineTable, {.angles = angles_}, rotation_);
+      core_,
+      kRenderGlobals.cameraSineTable,
+      {.angles = angles_, .flags = angleFractions_},
+      rotation_);
 }
 
 // 80022FEC..800230E8: every vertex projected; a straddling record keeps an outcode per vertex and

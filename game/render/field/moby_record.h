@@ -1,6 +1,6 @@
 // moby_record.h — the 0x58-byte moby record as all three images lay out the fields an in-between
 // moves: the world position, the mesh and the three angle bytes; and one record moved between two
-// fields.
+// fields with the angle precision the bytes drop.
 #pragma once
 
 #include <array>
@@ -20,7 +20,14 @@ using Bytes = std::array<std::uint8_t, kBytes>;
 // One object a field apart: the slot still holds the same mesh.
 [[nodiscard]] bool sameObject(const Bytes &from, const Bytes &to);
 
+// A record between two fields and the sixteenths of a step each angle lies past its byte, packed
+// as guest_moby_rotation::MobyAngles::flags takes them (bits 16, 8, 0 for angle bytes 2, 1, 0).
+struct Between {
+  Bytes bytes{};
+  std::uint32_t angleFractions = 0;
+};
+
 // `to` with its position and angles `t` of the way from `from`'s, the angles the short way round.
-[[nodiscard]] Bytes between(const Bytes &from, const Bytes &to, float t);
+[[nodiscard]] Between between(const Bytes &from, const Bytes &to, float t);
 
 } // namespace spyro::moby_record
