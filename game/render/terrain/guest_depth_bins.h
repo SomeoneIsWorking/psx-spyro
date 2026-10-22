@@ -21,6 +21,7 @@ namespace spyro::depth_bins {
 inline constexpr std::uint16_t kTable = 0;
 // The overlay pair's: one slot, drawn after every bin.
 inline constexpr std::uint16_t kOverlayTable = 1;
+inline constexpr psx::present::OtSlot kOverlaySlot{kOverlayTable, 0};
 // 0x580 (head, first) word pairs, the count both draws clear and ask the flatten for; a bin's chain
 // starts at its first-linked packet.
 inline constexpr std::uint32_t kBins = 0x580;
