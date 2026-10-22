@@ -3,6 +3,7 @@
 #include "core/boot_prefix_frame_driver.h"
 #include "core/runtime.h"
 #include "crt0_boot.h"
+#include "guest_code_module.h"
 
 #include <memory>
 
@@ -20,8 +21,10 @@ public:
 
 protected:
   BootPrefixRuntime(const psx::game::Crt0Image &crt0, const BootPrefixFacts &facts);
-  // A published stock read: the title's overrides in the code it loaded.
-  virtual void codeLanded(Core &core, const psx::cd::StockReadLanding &landing);
+  // A published stock read and the content that names it: the title's overrides in the code it
+  // loaded.
+  virtual void
+  codeLanded(Core &core, const psx::cd::StockReadLanding &landing, const psx::code_module::Digest &content);
 
 private:
   psx::game::Crt0Image crt0_;

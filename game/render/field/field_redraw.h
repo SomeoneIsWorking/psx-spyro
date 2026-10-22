@@ -90,6 +90,10 @@ struct History {
   std::uint32_t packetsEnd = 0;
   std::uint32_t lerpedFrom = 0;
   std::uint32_t fields = 0; // the cadence the redraws were made for
+  // The bin the redraws' sky linked into, one past the mark they ran with, and the deepest bin the
+  // last real field walked, which its sky took.
+  std::uint32_t redrawSkyBin = 0;
+  std::uint32_t lastSkyBin = 0;
   std::vector<std::byte> state;
 };
 
@@ -110,8 +114,9 @@ void endField(Core &core, const Image &image);
                                            const guest_render_globals::Globals &globals);
 
 // Inside the flatten's producer scope, after its bins are claimed: the waiting redraw saved as the
-// field's state. Nothing when no dispatcher ran since the last flatten.
-void saveField(Core &core);
+// field's state, its sky moved to the deeper of the two real fields' sky bins. Nothing when no
+// dispatcher ran since the last flatten.
+void saveField(Core &core, const guest_render_globals::Globals &globals);
 
 class FieldRedrawProducer final : public psx::present::StateProducer {
 public:
