@@ -38,6 +38,8 @@ public:
   std::int32_t terrainPacketBudget = 0;
   // The field dispatcher's last inputs, for the redraw of the next in-between.
   field_redraw::History fieldRedraw;
+  // The second pass's, kept apart from the field's.
+  field_redraw::History secondPass;
   // The level words a producer's draw reads, kept across saves.
   psx::present::Kept<psx::present::LevelReads> drawReads;
   // The host memory a producer's in-between runs over, kept across renders.

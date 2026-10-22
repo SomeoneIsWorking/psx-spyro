@@ -15,10 +15,16 @@
 // the title screen and its menus do) is redrawn whole in its place: the dispatcher inside it draws
 // without the terrain in the redraw and as it is in the real call, and the flatten keys every
 // packet the frame linked that the terrain did not.
+//
+// A second pass (a draw that, after its first flatten, points the moby walk at its own records,
+// runs the moby drawer into the emptied table and flattens again, chaining that after the first) is
+// redrawn the same way at the walk's call, walk and drawer, and owned at its own flatten in a table
+// of its own: its packets draw after the whole first chain, not in the bins' places.
 #pragma once
 
 #include "core.h"
 #include "render/field/effect_pools.h"
+#include "render/field/guest_moby_visibility.h"
 #include "render/field/moby_record.h"
 #include "render/terrain/guest_depth_bins.h"
 #include "render/terrain/terrain_rebuild.h"
@@ -40,6 +46,13 @@ struct ScreenDraw {
   std::uint64_t overlay = 0;
 };
 
+// The second pass, by the walk's and its flatten's return addresses in the draw.
+struct SecondPass {
+  std::uint32_t walkReturn = 0; // 0 when the image has none
+  std::uint32_t drawer = 0;     // the moby drawer the draw calls after the walk
+  std::uint32_t flattenReturn = 0;
+};
+
 struct Facts {
   std::uint32_t entry = 0; // the dispatcher; 0 when the image has none
   const char *overrideName = "";
@@ -52,12 +65,13 @@ struct Facts {
   std::uint32_t spyroKeyProgress = 0;   // the body's progress byte, then the head's
   effect_pools::Facts effects;
   std::span<const ScreenDraw> screenDraws;
+  SecondPass secondPass;
 };
 
 struct Image {
   const Facts &field;
   const guest_terrain::TerrainImage &terrain;
-  std::uint32_t mobyArrayWord = 0;
+  const guest_moby::Facts &moby;
 };
 
 // What one field's draw saw of the inputs an in-between moves.
@@ -105,6 +119,14 @@ void redrawScreen(Core &core, const Image &image, std::uint32_t entry);
 // The dispatcher's last drawer (the letterbox, after which it links nothing) returned: where the
 // field's packets end.
 void endField(Core &core, const guest_render_globals::Globals &globals);
+
+// The walk's override body at the second pass's call, before the walk: the pass's redraws, waiting
+// for its flatten.
+void redrawSecondPass(Core &core, const Image &image);
+
+// The second pass's flatten, inside its producer scope: the pass's packets keyed to an object of
+// their own in their own table, and its redraws saved.
+void ownSecondPass(Core &core, const Image &image);
 
 // What the flatten claims for the field: every packet linked before the dispatcher's end, which the
 // redraw reproduces, all linked so far after a screen draw, and none when no dispatcher ran to its
