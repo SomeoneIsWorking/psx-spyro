@@ -683,13 +683,12 @@ Walks, per screen in boot order, composed/shown and repeats/drops:
   56.3, 71.1 per frame, the in-betweens equal to the next frame). Lerping the words in the redraw composes
   except where the shown frame has no overlay entry (the fade's last step, no HUD): the whole field is then
   refused. Proper fix: the shared fullscreen tint producer with its rest state (issue 0207, open).
-- Spyro 2 letterbox `0x8004D604` steps its height word `0x8006701C` by one line per logic frame inside its
-  own draw (12 steps): 30 fps by construction; needs a producer as Spyro 1's `CinematicLetterbox`.
-- Spyro 2 conversation box: linked by logic before the dispatcher, so the redraw keeps n+1's box; not
-  seen moving on the opening route (`s2-conv400`, `s2-conv800`), still unverified elsewhere.
+- Spyro 2 letterbox and conversation box: fixed in pass 10 (below).
 - Spyro 3's cutscene cameras have no `scriptedCamera` facts, so its shot changes are not declared cuts
   (issue 0207).
-- Spyro 1's motion trails `0x800189F0` (levels 50 and 63, not reached on the routes) have no producer.
+- Spyro 1's motion trails `0x800189F0` (levels 50 and 63, not reached on the routes) have no producer;
+  still not reached in pass 10.
+- Spyro 3 Atlas opening (issue 0207): still open.
 - Spyro 1, the title-to-demo seam (`s1-final` record 2377): one in-between shown whole, a type 0x147 HUD
   font moby with no place or CLUT in the shown frame.
 - A real-time check by the operator is still to do: these runs measure the composed images, not the play
@@ -714,3 +713,37 @@ Judgement runs: ires 0, fps60, the player's aspect, 3840x2160 sink, hidden windo
 - Spyro 3 cutscene shot changes: cuts (issue 0207). `p9-s3cut` (load 0.95): state 6 2494/2494, 21 cuts;
   8x at a shot change the in-between equals the next frame (diff 0.0 vs 32.5), smooth neighbours 0.4–0.6.
 - Spyro 3 pause Sparx: composed (issue 0207). Pause counters and the Atlas opening still step (open, 0207).
+
+## Pass 10 (2026-10-22)
+Same judgement settings as pass 9. Route to a Spyro 2 conversation: `warp 11` then `moby-teleport 554 2`
+(the new `game/core/debug/moby_teleport`, shared by Spyro 1 and 2).
+- Spyro 1 title letters' rotation: fixed in `529ea52` (angle fractions kept, light turned between frames).
+- Spyro 2 letterbox margins: fixed (issue 0199, psxport `ecbdf0e2`). Cause: psxport
+  `gpu/record_geometry.cpp:flatRectangle` rejected the in-between bars, whose rows sit between whole lines.
+  `g2-lbox3`: centre and margins match on all 90 presents; the bars grow 4 rows of 2160 per present.
+- Spyro 2 conversation box: fixed (`22444e0`). Cause: `titles/spyro2` had no producer for the box drawer
+  `FUN_8004D3FC` or the name tab's `FUN_8004D2D8` rects, and `game/render/field/field_redraw.cpp:redraw`
+  kept the box packets logic linked before the dispatcher, so an in-between showed n+1's box. Fix:
+  `titles/spyro2/render/conversation_box.*` saves each draw's left column with its packets and draws them
+  moved by the slide between two saves; `passOverKeyed` unlinks keyed packets from the bins before the
+  redraw runs. `g2-box6` (load 0.48): the box's right edge moves 128 columns of 5472 per present, every
+  in-between halfway, one box, the tab joined. Caveat: the name text appears once the slide is 0 while the
+  last bounce step is still moving, about 1 px.
+- Spyro 3 pause counters: not a gap (issue 0207): 2D flipbook sprites, one frame per logic tick.
+- Spyro 3 Atlas and Spyro 1 motion trails: not reached, open.
+- Walks from boot on `0c8a435` + psxport `ecbdf0e2`, real speed, hidden window, unpaced flag absent
+  (checked in `/proc/<pid>/environ`); in-betweens composed, repeats/drops on a simulated 60.00 Hz display:
+  - Spyro 1 (`p10-s1walk`, load 0.57-0.87): state 0 371/371 2/1; title 1567/1567 4/0; warp 123/123; play
+    18/18; play end 97/97 1/0; turn 345/345. Playcheck p50 16.75 ms, p99 17.00, missed 1.
+  - Spyro 2 (`p10-s2walk`, load 0.74-1.12): state 0 125/125 2/0; title 1200/1200 2/0; new game 97/97;
+    press start 54/54; press cross 227/227 1/0; state 5 2/2; state 6 1792/1792 5/1; state 3 17/17 4/4
+    (load); play 19/19; state 1 224/224; play end 96/96 1/1; turn 343/343 1/0. p99 17.00 ms, missed 2.
+  - Spyro 2 conversation (`p10-s2conv`, load 1.66-2.14): warp 45/45; state 5 12/12; state 3 18/18 3/3
+    (load); conversation in state 1 634/634 2/1. p99 33.50 ms, missed 2.
+  - Spyro 3 (`p10-s3walk`, load 1.13-1.41): state 0 120/120 1/0; title 600/600 1/0; warp 4/4; state 5
+    11/273 1/0 (261 still loading pictures `no state saved`, one at the picture's step change
+    `0x80059038` with no state, issue 0207); state 3 15/15; play 43/43; state 1 200/200; play end 96/96
+    1/0; turn 343/343. p99 17.00 ms, missed 2.
+- Every product, 40 s from boot at real speed (`fx-titles`, load 0.77-2.68): all exit 0, Clang, 0 warnings;
+  errors as before (Mega Man X4 154, Tekken 3 1, the rest 0); p50 16.75 ms except Toy Story 2's 33.5 ms;
+  Tomba sits in its picker after the two panels' previews.
