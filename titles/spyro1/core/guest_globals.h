@@ -24,6 +24,11 @@ inline constexpr std::uint32_t kRegisterSpillArea = 0x80077DD8u;
 
 // g_Models (moby.h): the Model pointer per class, indexed by moby +0x36; Spyro's own is entry 0.
 inline constexpr std::uint32_t kModels = 0x80076378u;
+// g_HudMobys and D_800756FC: screen-space mobys a frame builds (text, menus) are taken 0x58 bytes
+// at a time down from the arena end, which GamestateDraw sets 0x1C000 past the draw buffer's
+// packets.
+inline constexpr std::uint32_t kHudMobys = 0x80075710u;
+inline constexpr std::uint32_t kHudMobyArenaEnd = 0x800756FCu;
 // Per collision region, the head of its moby chain.
 inline constexpr std::uint32_t kMobyCollisionChain = 0x80075778u;
 
@@ -108,7 +113,8 @@ inline constexpr std::uint32_t kDeltaTime = 0x800756CCu;
 inline constexpr std::uint32_t kFrameLag = 0x800756C4u;
 inline constexpr std::uint32_t kStateSwitch = 0x8007579Cu;
 
-// g_SkipLowPolyWorld: non-zero skips the far terrain pass; the actor emitter parks it in ZSF3 for fog.
+// g_SkipLowPolyWorld: non-zero skips the far terrain pass; the actor emitter parks it in ZSF3 for
+// fog.
 inline constexpr std::uint32_t kSkipLowPolyWorld = 0x8007591Cu;
 
 // g_DemoMode (gamepad.h): DEMO_MODE_NONE/PLAY/RECORD.
