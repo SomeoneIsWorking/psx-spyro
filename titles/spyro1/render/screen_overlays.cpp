@@ -22,7 +22,6 @@ namespace {
 
 namespace guest_packet = spyro::guest_packet;
 
-constexpr psx::present::OtSlot kOverlaySlot{spyro::depth_bins::kOverlayTable, 0};
 constexpr std::uint32_t kScreenWidth = 0x200;
 constexpr std::uint32_t kScreenHeight = 0xF0;
 constexpr std::uint32_t kTintTop = 8;
@@ -90,7 +89,7 @@ void FullscreenTint::render(const psx::present::StateInterval &states,
                                                 position(0, kTintBottom),
                                                 position(kScreenWidth, kTintBottom)});
   psx::gpu::applyTexPageAttribute(primitive.state, static_cast<std::uint16_t>(after.blend << 5));
-  sink.emit(kOverlaySlot, primitive);
+  sink.emit(spyro::depth_bins::kOverlaySlot, primitive);
 }
 
 bool FullscreenTint::rests(std::span<const std::byte> drawn, std::span<std::byte> into) const {
@@ -130,8 +129,8 @@ void CinematicLetterbox::render(const psx::present::StateInterval &states,
     psx::present::RecordVertex &bottomTop = bottom.vertices[corner];
     psx::present::placeVertex(bottomTop, static_cast<float>(bottomTop.x), bottomEdge);
   }
-  sink.emit(kOverlaySlot, top);
-  sink.emit(kOverlaySlot, bottom);
+  sink.emit(spyro::depth_bins::kOverlaySlot, top);
+  sink.emit(spyro::depth_bins::kOverlaySlot, bottom);
 }
 
 void registerScreenOverlayOverrides(Core &core) {

@@ -15,7 +15,6 @@
 namespace spyro1 {
 namespace {
 
-constexpr psx::present::OtSlot kOverlaySlot{spyro::depth_bins::kOverlayTable, 0};
 // The object: the call site's low address bits and the sprite's column, since a menu row draws
 // several sprites from one site.
 constexpr std::uint32_t kSiteBits = 22;
@@ -60,7 +59,7 @@ void TitleSprite::render(const psx::present::StateInterval &states,
           vertex, static_cast<float>(vertex.x) + dx, static_cast<float>(vertex.y) + dy);
     }
   }
-  sink.emit(kOverlaySlot, *primitive);
+  sink.emit(spyro::depth_bins::kOverlaySlot, *primitive);
 }
 
 void registerTitleSpriteProducer(Core &core) {

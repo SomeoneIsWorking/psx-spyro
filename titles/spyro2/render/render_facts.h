@@ -196,7 +196,7 @@ inline constexpr spyro::loading_picture::Facts kLoadingPicture{
     .gate = 0x800698F0u,
     .counter = 0x800698ECu,
     .pages = 3,
-    .pageSlot = {spyro::depth_bins::kOverlayTable, 0},
+    .pageSlot = spyro::depth_bins::kOverlaySlot,
 };
 
 inline constexpr spyro::EngineRenderFacts kRenderFacts{

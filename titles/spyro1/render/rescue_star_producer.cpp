@@ -78,7 +78,7 @@ void RescueStarProducer::render(const psx::present::StateInterval &states,
   between.provideWord(pair + 4, 0);
   const std::uint32_t first = RescueStar(core_, between.memory(), &sink).draw();
   psx::present::DrawModeTracker drawMode;
-  between.emitChain(first, {spyro::depth_bins::kOverlayTable, 0}, drawMode, sink);
+  between.emitChain(first, spyro::depth_bins::kOverlaySlot, drawMode, sink);
 }
 
 void registerRescueStarOverrides(Core &core) {

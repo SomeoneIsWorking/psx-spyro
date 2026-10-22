@@ -93,7 +93,7 @@ void SpriteQueueProducer::render(const psx::present::StateInterval &states,
     return;
   }
   const psx::present::OtSlot slot =
-      chain->overlay ? psx::present::OtSlot{spyro::depth_bins::kOverlayTable, 0}
+      chain->overlay ? spyro::depth_bins::kOverlaySlot
                      : psx::present::OtSlot{spyro::depth_bins::kTable, chain->depthBin};
   psx::present::DrawModeTracker drawMode;
   if (chain->drawMode != 0) {

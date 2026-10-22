@@ -19,7 +19,6 @@
 namespace spyro::loading_picture {
 namespace {
 
-constexpr psx::present::OtSlot kOverlaySlot{depth_bins::kOverlayTable, 0};
 // A page is a DR_MODE (tag and two words), then a SPRT (tag, colour, corner, uv, size).
 constexpr std::uint32_t kDrawModeBytes = 0xC;
 constexpr std::uint32_t kPageBytes = kDrawModeBytes + 0x14;
@@ -117,7 +116,7 @@ void LoadingPicture::render(const psx::present::StateInterval &states,
     last = psx::gpu::guestAddressOf(node.nextRamOffset());
   }
   memory.mem_w32(last, memory.mem_r32(last) | psx::gpu::kOtChainEnd);
-  walker.emitChain(text, kOverlaySlot, drawMode, sink);
+  walker.emitChain(text, depth_bins::kOverlaySlot, drawMode, sink);
 }
 
 } // namespace spyro::loading_picture
