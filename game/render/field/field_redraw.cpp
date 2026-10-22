@@ -17,11 +17,13 @@
 
 #include <algorithm>
 #include <array>
+#include <cstddef>
 #include <cstdlib>
 #include <cstring>
 #include <optional>
 #include <span>
 #include <type_traits>
+#include <utility>
 
 namespace spyro::field_redraw {
 namespace {
@@ -194,7 +196,8 @@ void writeInBetween(Core &core,
   run.writeWord(globals.cameraAngles, half(camera.angles[0]) | (half(camera.angles[1]) << 16));
   run.writeWord(globals.cameraAngles + 4,
                 (core.mem_r32(globals.cameraAngles + 4) & 0xFFFF0000u) | half(camera.angles[2]));
-  // The sky links one bin past the mark the terrain raises, and the terrain is not redrawn here.
+  // The sky links one bin past the mark the terrain raises, and the terrain is not redrawn here, so
+  // the redraw runs past every bin the far pass can reach; saveField moves the sky to its real bin.
   run.writeWord(globals.orderingTableMark,
                 std::max(core.mem_r32(globals.orderingTableMark),
                          guest_terrain::deepestFarMark(core, image.terrain.facts(), globals)));
@@ -245,6 +248,32 @@ void writeInBetween(Core &core,
   effect_pools::writeBetween(run, facts.effects, from.effects, to.effects, t);
 }
 
+// The deepest bin the flatten walks: where the mark ended, the sky's when it drew.
+std::uint32_t topBin(Core &core, const guest_render_globals::Globals &globals) {
+  const std::uint32_t linked = depth_bins::publishedBins(core, globals).linked;
+  return linked == 0 ? 0 : linked - 1;
+}
+
+// 0x80029170 links the sky one bin past the mark and advances the mark onto it; the redraw's sky
+// goes to the deeper of the two real fields' sky bins, behind the far terrain of both.
+void placeSky(History &history, std::uint32_t skyBin) {
+  const Header header = headerOf(history.state);
+  std::size_t at = sizeof(Header);
+  for (std::uint32_t field = 1; header.redrawn != 0 && field < header.fields; ++field) {
+    std::uint32_t count = 0;
+    std::memcpy(&count, history.state.data() + at, sizeof(count));
+    at += sizeof(count);
+    for (std::uint32_t i = 0; i < count; ++i, at += sizeof(SavedPrimitive)) {
+      psx::present::OtSlot slot;
+      std::memcpy(&slot, history.state.data() + at + offsetof(SavedPrimitive, slot), sizeof(slot));
+      if (slot.table == depth_bins::kTable && slot.index == history.redrawSkyBin) {
+        slot.index = skyBin;
+        std::memcpy(history.state.data() + at + offsetof(SavedPrimitive, slot), &slot, sizeof(slot));
+      }
+    }
+  }
+}
+
 // `entry` run at `t` with `arguments`, the packets it linked appended to `state` in the flatten's
 // order: the bins deepest first, then the overlay pair. False when the run or its packets cannot
 // stand for the in-between.
@@ -266,6 +295,7 @@ bool redraw(Core &core,
   if (!ran) {
     return false;
   }
+  history.redrawSkyBin = topBin(core, globals);
   const psx::present::EmitMemory memory(core);
   psx::present::PacketChainWalker walker(memory,
                                          psx::present::PacketBound::count(psx::gpu::kOtNodeLimit));
@@ -375,8 +405,10 @@ depth_bins::Claim fieldClaim(Core &core, const guest_render_globals::Globals &gl
                                                    : history.packetsEnd};
 }
 
-void saveField(Core &core) {
+void saveField(Core &core, const guest_render_globals::Globals &globals) {
   History &history = session(core).fieldRedraw;
+  const std::uint32_t skyBin = topBin(core, globals);
+  const std::uint32_t lastSkyBin = std::exchange(history.lastSkyBin, skyBin);
   if (!history.pending) {
     return;
   }
@@ -386,6 +418,7 @@ void saveField(Core &core) {
                       .lerpedFrom = history.lerpedFrom,
                       .fields = history.fields};
   std::memcpy(history.state.data(), &header, sizeof(Header));
+  placeSky(history, std::max(lastSkyBin, skyBin));
   core.frameStates.save(scope, std::span<const std::byte>(history.state));
   history.last.serial = scope.serial;
   history.pending = false;

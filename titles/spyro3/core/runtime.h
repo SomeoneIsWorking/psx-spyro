@@ -16,7 +16,9 @@ public:
   void registerOverrides(Game &game) override;
 
 protected:
-  void codeLanded(Core &core, const psx::cd::StockReadLanding &landing) override;
+  void codeLanded(Core &core,
+                  const psx::cd::StockReadLanding &landing,
+                  const psx::code_module::Digest &content) override;
   std::unique_ptr<spyro::Warp> createWarp() const override;
   std::unique_ptr<spyro::TitleState> createTitleState() const override;
 

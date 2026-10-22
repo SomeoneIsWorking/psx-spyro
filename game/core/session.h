@@ -8,6 +8,7 @@
 #include "core/field_owner.h"
 #include "emit_memory.h"
 #include "game_runtime.h"
+#include "image_identity.h"
 #include "render/field/field_redraw.h"
 #include "state_producer.h"
 
@@ -45,6 +46,8 @@ public:
   psx::present::Kept<std::vector<std::uint8_t>> terrainBins;
   // The state renders this title's producers registered, keyed by producer entry.
   psx::present::StateProducerTable stateProducers;
+  // The screen draws installed in overlays, keyed to the image each landed as.
+  std::vector<psx::cpu::NativeKey> screenDrawOverrides;
   // The title's `warp` request, applied by its frame driver.
   std::unique_ptr<Warp> warp;
   std::unique_ptr<TitleState> titleState;

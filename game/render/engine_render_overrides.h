@@ -22,10 +22,12 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <cstdlib>
 #include <memory>
 #include <optional>
 #include <span>
 #include <utility>
+#include <vector>
 
 namespace spyro {
 
@@ -68,13 +70,32 @@ template <const EngineRenderFacts &facts, std::size_t screen> void redrawScreen(
   field_redraw::redrawScreen(*core, kFieldImage<facts>, facts.field.screenDraws[screen].entry);
 }
 
+// A screen draw `overlay` holds (0 the executable), keyed to its image; an overlay's key of the
+// image it replaced is removed.
 template <const EngineRenderFacts &facts, std::size_t screen>
 void installScreenDraw(Core &core, std::uint64_t overlay) {
   const field_redraw::ScreenDraw &draw = facts.field.screenDraws[screen];
-  if (draw.overlay == overlay) {
-    psx::cpu::installNativeOverride(
-        core, draw.entry, draw.overrideName, redrawScreen<facts, screen>);
+  if (draw.overlay != overlay) {
+    return;
   }
+  if (overlay == 0) {
+    psx::cpu::installNativeOverride(core, draw.entry, draw.overrideName, redrawScreen<facts, screen>);
+    return;
+  }
+  std::vector<psx::cpu::NativeKey> &installed = session(core).screenDrawOverrides;
+  std::erase_if(installed, [&](const psx::cpu::NativeKey &key) {
+    if (key.address != draw.entry) {
+      return false;
+    }
+    (void)core.nativeDispatcher().remove(key);
+    return true;
+  });
+  const std::optional<psx::cpu::NativeKey> key = psx::cpu::tryInstallNativeOverride(
+      core, draw.entry, draw.overrideName, redrawScreen<facts, screen>);
+  if (!key) {
+    std::abort();
+  }
+  installed.push_back(*key);
 }
 
 // The screen draws `overlay` holds; 0 names the executable's.
@@ -83,21 +104,16 @@ void installScreenDraws(Core &core, std::uint64_t overlay, std::index_sequence<s
   (installScreenDraw<facts, screen>(core, overlay), ...);
 }
 
-// A stock read landed: the screen draws of the overlay it loaded, each landing a new image.
+// A stock read landed as the image `content` names: the screen draws of the overlay it loaded.
 template <const EngineRenderFacts &facts>
-void screenDrawsLanded(Core &core, const psx::cd::StockReadLanding &landing) {
+void screenDrawsLanded(Core &core, const psx::cd::StockReadLanding &landing, std::uint64_t content) {
   const bool holdsOne = std::ranges::any_of(facts.field.screenDraws, [&](const auto &draw) {
     return draw.overlay != 0 && draw.entry - landing.destination < landing.bytes;
   });
-  const std::optional<GuestAddressRange> ram =
-      core.mappedMainRamRange(landing.destination, landing.bytes);
-  if (!holdsOne || !ram) {
+  if (!holdsOne) {
     return;
   }
-  const psx::code_module::Digest content =
-      psx::code_module::digest(std::span<const std::uint8_t>(core.ram + ram->begin, landing.bytes));
-  installScreenDraws<facts>(
-      core, content.identity, std::make_index_sequence<facts.field.screenDraws.size()>{});
+  installScreenDraws<facts>(core, content, std::make_index_sequence<facts.field.screenDraws.size()>{});
 }
 
 template <const EngineRenderFacts &facts> void drawLoadingPicture(Core *core) {
@@ -116,7 +132,7 @@ template <const EngineRenderFacts &facts> void flatten(Core *core) {
     depth_bins::assignBins(*core, depth_bins::publishedBins(*core, facts.globals), claim);
     depth_bins::assignBins(*core, depth_bins::overlayBins(*core, facts.globals), claim);
     if (facts.field.entry != 0) {
-      field_redraw::saveField(*core);
+      field_redraw::saveField(*core, facts.globals);
     }
   }
   (void)psx::cpu::callOriginalOrPropagate(*core, facts.flatten);

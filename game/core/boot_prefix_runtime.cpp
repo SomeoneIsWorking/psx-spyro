@@ -4,6 +4,8 @@
 #include "game.h"
 #include "guest_code_module.h"
 
+#include <optional>
+
 namespace spyro {
 
 BootPrefixRuntime::BootPrefixRuntime(const psx::game::Crt0Image &crt0, const BootPrefixFacts &facts)
@@ -19,12 +21,14 @@ std::unique_ptr<psx::game::FrameDriver> BootPrefixRuntime::createFrameDriver(Gam
 }
 
 void BootPrefixRuntime::stockCdReadLanded(Core &core, const psx::cd::StockReadLanding &landing) {
-  psx::code_module::publishStockReadLanding(core, landing);
-  codeLanded(core, landing);
+  if (const std::optional<psx::code_module::Digest> content = psx::code_module::publishStockReadLanding(core, landing)) {
+    codeLanded(core, landing, *content);
+  }
 }
 
-void BootPrefixRuntime::codeLanded(Core & /*core*/, const psx::cd::StockReadLanding & /*landing*/) {
-}
+void BootPrefixRuntime::codeLanded(Core & /*core*/,
+                                   const psx::cd::StockReadLanding & /*landing*/,
+                                   const psx::code_module::Digest & /*content*/) {}
 
 bool BootPrefixRuntime::sealedFrameIsCut(Core &core) const {
   // A session's first record, sealed before its driver exists, is a cut.
