@@ -65,7 +65,7 @@ Dependency direction: `titles/<title>/` (one image's facts and natives) → `gam
 - `titles/spyro1/render/particle*` — S1 particles / emit list, producer
 - `titles/spyro1/render/screen.h` — S1 retail outcode window for widened culls
 - `titles/spyro2/core/`, `titles/spyro3/core/` — S2/S3 runtime: crt0, stock libraries, interrupt-driven libcd, module landing, packet pool, cut, logo; boot facts (boot prefix, update / draw, gamestate and level words); warp route through the title screen's Start teardown; S2 `mobys` / `moby-teleport`
-- `titles/spyro2/render/`, `titles/spyro3/render/` — S2/S3 render facts per image, HUD widget anchoring; S2 conversation box and name tab producers (slide lerp)
+- `titles/spyro2/render/`, `titles/spyro3/render/` — S2/S3 render facts per image, HUD widget anchoring; S2 conversation producers: box and name tab (slide lerp), underline and text (held to the earlier field)
 - `titles/*/executable.json`, `titles/*/README.md` — title manifest: serial, hashes, labels, disc keys
 - `CMakeLists.txt`, `pyproject.toml`, `uv.lock`, `.github/` — `spyro_port` product, title catalog generation, locked Python environment, release CI
 - `run.sh`, `bootstrap.py`, `tools/run.py`, `tools/provision_title.py`, `tools/generate_title_catalog.py`, `tools/title_identity.py`, `tools/shipping_settings.ini` — player launcher, framework fetch, provisioning, catalog generation, identity check, shipped settings
