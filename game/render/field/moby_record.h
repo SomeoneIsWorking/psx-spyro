@@ -30,4 +30,7 @@ struct Between {
 // `to` with its position and angles `t` of the way from `from`'s, the angles the short way round.
 [[nodiscard]] Between between(const Bytes &from, const Bytes &to, float t);
 
+// The record with each angle byte rounded to the nearest step, for a draw that reads no fractions.
+[[nodiscard]] Bytes nearest(const Between &shown);
+
 } // namespace spyro::moby_record
