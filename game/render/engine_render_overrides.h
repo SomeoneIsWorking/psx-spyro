@@ -59,8 +59,7 @@ template <const EngineRenderFacts &facts> void drawTerrain(Core *core) {
 }
 
 template <const EngineRenderFacts &facts>
-inline constexpr field_redraw::Image kFieldImage{
-    facts.field, kTerrainImage<facts>, facts.moby.firstRecordWord};
+inline constexpr field_redraw::Image kFieldImage{facts.field, kTerrainImage<facts>, facts.moby};
 
 template <const EngineRenderFacts &facts> void redrawField(Core *core) {
   field_redraw::redrawField(*core, kFieldImage<facts>);
@@ -131,6 +130,10 @@ template <const EngineRenderFacts &facts> void drawLoadingPicture(Core *core) {
 }
 
 template <const EngineRenderFacts &facts> void walkMobys(Core *core) {
+  const std::uint32_t secondPass = facts.field.secondPass.walkReturn;
+  if (secondPass != 0 && core->r[31] == secondPass) {
+    field_redraw::redrawSecondPass(*core, kFieldImage<facts>);
+  }
   guest_moby::walk(*core, facts.moby, facts.globals);
 }
 
@@ -144,6 +147,8 @@ template <const EngineRenderFacts &facts> void flatten(Core *core) {
     if (facts.field.entry != 0) {
       field_redraw::saveField(*core, facts.globals);
     }
+  } else if (core->r[31] == facts.field.secondPass.flattenReturn) {
+    field_redraw::ownSecondPass(*core, kFieldImage<facts>);
   }
   (void)psx::cpu::callOriginalOrPropagate(*core, facts.flatten);
 }

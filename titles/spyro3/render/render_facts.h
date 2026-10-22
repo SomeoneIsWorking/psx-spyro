@@ -184,6 +184,9 @@ inline constexpr spyro::field_redraw::Facts kFieldFacts{
             .particles = 0x8006C554u, // 8003AAE8
         },
     .screenDraws = kScreenDraws,
+    // State 4 (the pause menu): 0x8001E9B8 points the walk at the record 0x8006C65C names (Sparx)
+    // and ends the list after it, then 8001EA20 walks and 8001EA28 draws.
+    .secondPass = {.walkReturn = 0x8001EA28u, .drawer = 0x80031124u, .flattenReturn = 0x8001EA40u},
 };
 
 // The flatten, FUN_8004E664: FUN_8001B2A8's body over this image's table (8006C634) and mark
@@ -194,7 +197,8 @@ inline constexpr std::uint32_t kFlatten = 0x8004E664u;
 // States 4 and 0xD then link a second pass into the emptied bins (state 4 the moby walk 0x80030478
 // and 0x80031124, state 0xD 0x8003CDA0), flatten it again and chain it after the first through
 // 8006C6B0. Its packets are drawn after the whole first chain, not in their bins' place, so these
-// two calls assign nothing.
+// two calls give the first table nothing; state 4's pass is owned in a table of its own
+// (kFieldFacts.secondPass).
 inline constexpr std::array<std::uint32_t, 2> kSecondPassFlattenReturns = {0x8001EA40u,
                                                                            0x8001EB4Cu};
 

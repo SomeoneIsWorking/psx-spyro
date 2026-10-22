@@ -99,7 +99,7 @@ private:
 void readInputs(Core &core, const Image &image, Inputs &inputs) {
   inputs.serial = 0;
   inputs.camera = guest_terrain::readCamera(core, image.terrain.globals());
-  inputs.mobyArray = core.mem_r32(image.mobyArrayWord);
+  inputs.mobyArray = core.mem_r32(image.moby.firstRecordWord);
   inputs.mobys.clear();
   for (std::uint32_t rec = inputs.mobyArray; core.isGuestStorage(rec, moby_record::kBytes) &&
                                              core.mem_r8s(rec + record::kFlag) != record::kEnd;
@@ -275,24 +275,36 @@ void placeSky(History &history, std::uint32_t skyBin) {
   }
 }
 
-// `entry` run at `t` with `arguments`, the packets it linked appended to `state` in the flatten's
-// order: the bins deepest first, then the overlay pair. False when the run or its packets cannot
-// stand for the in-between.
+// What a redraw runs: `entry` with `arguments`, after the native moby walk for a second pass, whose
+// packets are read from the bins as its own table and not from the overlay pair.
+struct RedrawCall {
+  std::uint32_t entry = 0;
+  std::span<const std::uint32_t> arguments;
+  bool secondPass = false;
+};
+
+// `call` run at `t`, the packets it linked appended to `state` in the flatten's order: the bins
+// deepest first, then the overlay pair. False when the run or its packets cannot stand for the
+// in-between.
 bool redraw(Core &core,
             const Image &image,
-            std::uint32_t entry,
-            std::span<const std::uint32_t> arguments,
+            const RedrawCall &call,
             const Inputs &from,
             const Inputs &to,
             float t,
+            History &history,
             std::vector<std::byte> &state) {
+  const std::uint32_t entry = call.entry;
   psx::present::GuestRedraw run(core);
   writeInBetween(core, run, image, from, to, t);
   const guest_render_globals::Globals &globals = image.terrain.globals();
-  History &history = session(core).fieldRedraw;
-  history.redrawing = true;
-  const bool ran = run.run(entry, arguments);
-  history.redrawing = false;
+  bool &redrawing = session(core).fieldRedraw.redrawing;
+  redrawing = true;
+  if (call.secondPass) {
+    guest_moby::walk(core, image.moby, globals);
+  }
+  const bool ran = run.run(entry, call.arguments);
+  redrawing = false;
   if (!ran) {
     return false;
   }
@@ -320,8 +332,13 @@ bool redraw(Core &core,
                  slot.index);
     return false;
   };
-  for (const depth_bins::Bins &bins :
-       {depth_bins::publishedBins(core, globals), depth_bins::overlayBins(core, globals)}) {
+  depth_bins::Bins published = depth_bins::publishedBins(core, globals);
+  depth_bins::Bins overlay = depth_bins::overlayBins(core, globals);
+  if (call.secondPass) {
+    published.table = depth_bins::kSecondPassTable;
+    overlay.linked = 0;
+  }
+  for (const depth_bins::Bins &bins : {published, overlay}) {
     for (std::uint32_t bin = bins.linked; bin-- > 0;) {
       if (!emitPair(bins.base + bin * depth_bins::kBinStride,
                     psx::present::OtSlot{bins.table, bin})) {
@@ -332,12 +349,8 @@ bool redraw(Core &core,
   return true;
 }
 
-// The redraws of `entry` for each in-between of the frame being drawn, waiting for its flatten.
-void redrawFrame(Core &core,
-                 const Image &image,
-                 std::uint32_t entry,
-                 std::span<const std::uint32_t> arguments) {
-  History &history = session(core).fieldRedraw;
+// The redraws of `call` for each in-between of the frame being drawn, waiting for its flatten.
+void redrawFrame(Core &core, const Image &image, const RedrawCall &call, History &history) {
   readInputs(core, image, history.now);
   history.state.resize(sizeof(Header));
   // One redraw per in-between of the frame being drawn; a frame that then outlives its draw's wait
@@ -350,11 +363,11 @@ void redrawFrame(Core &core,
     history.redrawn =
         redraw(core,
                image,
-               entry,
-               arguments,
+               call,
                history.last,
                history.now,
                psx::present::inBetweenAt(static_cast<int>(field), static_cast<int>(history.fields)),
+               history,
                history.state);
     const auto primitives = static_cast<std::uint32_t>(
         (history.state.size() - count - sizeof(std::uint32_t)) / sizeof(SavedPrimitive));
@@ -369,6 +382,20 @@ void redrawFrame(Core &core,
   history.pending = true;
 }
 
+// The waiting redraws saved under the open producer scope.
+void saveRedraws(Core &core, History &history) {
+  const psx::present::RecordKey &scope = core.emission.current();
+  const Header header{.serial = scope.serial,
+                      .redrawn = history.redrawn ? 1u : 0u,
+                      .lerpedFrom = history.lerpedFrom,
+                      .fields = history.fields};
+  std::memcpy(history.state.data(), &header, sizeof(Header));
+  core.frameStates.save(scope, std::span<const std::byte>(history.state));
+  history.last.serial = scope.serial;
+  history.pending = false;
+  history.screen = false;
+}
+
 } // namespace
 
 void redrawField(Core &core, const Image &image) {
@@ -378,7 +405,10 @@ void redrawField(Core &core, const Image &image) {
     core.r[psx::cpu::kA0] &= ~image.field.terrainFlag;
   } else if (!history.screen) {
     const std::uint32_t flags = core.r[psx::cpu::kA0] & ~image.field.terrainFlag;
-    redrawFrame(core, image, image.field.entry, std::span(&flags, 1));
+    redrawFrame(core,
+                image,
+                RedrawCall{.entry = image.field.entry, .arguments = std::span(&flags, 1)},
+                history);
   }
   (void)psx::cpu::callOriginalOrPropagate(core, image.field.entry);
 }
@@ -386,8 +416,9 @@ void redrawField(Core &core, const Image &image) {
 void redrawScreen(Core &core, const Image &image, std::uint32_t entry) {
   const std::array<std::uint32_t, 4> arguments{
       core.r[psx::cpu::kA0], core.r[psx::cpu::kA1], core.r[psx::cpu::kA2], core.r[psx::cpu::kA3]};
-  redrawFrame(core, image, entry, arguments);
-  session(core).fieldRedraw.screen = true;
+  History &history = session(core).fieldRedraw;
+  redrawFrame(core, image, RedrawCall{.entry = entry, .arguments = arguments}, history);
+  history.screen = true;
   (void)psx::cpu::callOriginalOrPropagate(core, entry);
 }
 
@@ -411,17 +442,30 @@ void saveField(Core &core, const guest_render_globals::Globals &globals) {
   if (!history.pending) {
     return;
   }
-  const psx::present::RecordKey &scope = core.emission.current();
-  const Header header{.serial = scope.serial,
-                      .redrawn = history.redrawn ? 1u : 0u,
-                      .lerpedFrom = history.lerpedFrom,
-                      .fields = history.fields};
-  std::memcpy(history.state.data(), &header, sizeof(Header));
   placeSky(history, std::max(lastSkyBin, skyBin));
-  core.frameStates.save(scope, std::span<const std::byte>(history.state));
-  history.last.serial = scope.serial;
-  history.pending = false;
-  history.screen = false;
+  saveRedraws(core, history);
+}
+
+void redrawSecondPass(Core &core, const Image &image) {
+  redrawFrame(core,
+              image,
+              RedrawCall{.entry = image.field.secondPass.drawer, .secondPass = true},
+              session(core).secondPass);
+}
+
+void ownSecondPass(Core &core, const Image &image) {
+  const guest_render_globals::Globals &globals = image.terrain.globals();
+  History &history = session(core).secondPass;
+  const auto object = core.emission.instance(core.r[psx::cpu::kRa]);
+  depth_bins::Bins bins = depth_bins::publishedBins(core, globals);
+  bins.table = depth_bins::kSecondPassTable;
+  depth_bins::assignBins(
+      core,
+      bins,
+      depth_bins::Claim{.below = history.pending ? core.mem_r32(globals.primitiveCursor) : 0});
+  if (history.pending) {
+    saveRedraws(core, history);
+  }
 }
 
 void FieldRedrawProducer::render(const psx::present::StateInterval &states,
