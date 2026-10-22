@@ -92,7 +92,7 @@ void PairedActorProducer::render(const psx::present::StateInterval &states,
   between.mapTable();
   between.provide(kSpyroRecord, spyroBetween(before.header.record, after.header.record, states.t));
   between.host().zero(flame_block::kRotation, flame_block::kRotationBytes);
-  PairedActor actor(core_, between.memory(), &sink);
+  PairedActor actor(core_, between.memory());
   if (actor.draw()) {
     between.emitBins(sink);
   }

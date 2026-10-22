@@ -65,8 +65,7 @@ std::span<const std::uint8_t> unionVisibility(std::span<const std::uint8_t> from
 Rebuild::Rebuild(Core &core,
                  const TerrainImage &image,
                  const InBetweenCamera &camera,
-                 const FieldInputs &field,
-                 psx::present::PrimitiveSink &places)
+                 const FieldInputs &field)
     : gte_(core.gte()), host_(spyro::session(core).renderMemory), memory_(core, *host_),
       camera_(camera), linkedBins_(spyro::session(core).terrainBins) {
   const FieldWindows windows = image.windows(core);
@@ -99,7 +98,6 @@ Rebuild::Rebuild(Core &core,
                   memory_,
                   FrameMode::InBetween,
                   InBetweenWindow{.camera = &camera_,
-                                  .places = &places,
                                   .argument = field.argument,
                                   .arenaBase = arena_.address,
                                   .packetBudget = field.packetBudget,

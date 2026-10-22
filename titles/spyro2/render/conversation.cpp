@@ -123,7 +123,7 @@ void emitPackets(std::span<const std::byte> bytes, int shift, psx::present::Prim
     if (words == 0 || drawMode.take(body)) {
       continue;
     }
-    std::optional<psx::present::DrawPrimitive> primitive = psx::gpu::decodePacketPrimitive(body);
+    std::optional<psx::present::DrawPrimitive> primitive = psx::gpu::decodePacketPrimitive({.words = body, .places = {}});
     if (!primitive) {
       notPackets(at, body[0]);
     }
@@ -208,7 +208,7 @@ void NameTabRect::render(const psx::present::StateInterval &states,
   const TabRect before = psx::present::stateAs<TabRect>(states.from);
   const TabRect after = psx::present::stateAs<TabRect>(states.to);
   std::optional<psx::present::DrawPrimitive> primitive =
-      psx::gpu::decodePacketPrimitive(after.words);
+      psx::gpu::decodePacketPrimitive({.words = after.words, .places = {}});
   if (!primitive) {
     notPackets(0, after.words[0]);
   }

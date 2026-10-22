@@ -29,10 +29,7 @@ constexpr std::uint32_t kLastSpike = 0x1E0u;
 
 } // namespace
 
-RescueStar::RescueStar(Core &core,
-                       const psx::present::EmitMemory &memory,
-                       psx::present::PrimitiveSink *places)
-    : core_(core), memory_(memory), places_(places) {}
+RescueStar::RescueStar(Core &core, const psx::present::EmitMemory &memory) : core_(core), memory_(memory) {}
 
 std::uint32_t RescueStar::draw() {
   placeCentre();
@@ -60,8 +57,7 @@ void RescueStar::placeCentre() {
   gte.writeData(gte::kVxy0, 0);
   gte.writeData(gte::kVz0, 0);
   gte.execute(gte::kRtps);
-  centreScreen_ = gte.readData(gte::kSxy2);
-  centrePlace_ = gte.projectedPlace(2);
+  centreScreen_ = gte.projected(2);
 }
 
 void RescueStar::projectPoints() {
@@ -76,18 +72,15 @@ void RescueStar::projectPoints() {
     gte.writeData(gte::kVxy0,
                   sra(spyro::guest_word::signedHalf(memory_.mem_r16(sine + angle)) * scale, shift));
     gte.execute(gte::kRtps);
-    return gte.readData(gte::kSxy2);
+    return gte.projected(2);
   };
   // The inner ring runs from 0x1C0 down to 0 into slots 1..8; slot 0 repeats the last.
   for (std::uint32_t slot = 1; slot <= kPoints; ++slot) {
-    memory_.mem_w32(kStaging + 4 * slot, project(kLastInner - (slot - 1) * kStep, 12));
-    innerPlaces_[slot] = gte.projectedPlace(2);
+    memory_.storeVertex(kStaging + 4 * slot, project(kLastInner - (slot - 1) * kStep, 12));
   }
-  memory_.mem_w32(kStaging, memory_.mem_r32(kStaging + 4 * kPoints));
-  innerPlaces_[0] = innerPlaces_[kPoints];
+  memory_.storeVertex(kStaging, memory_.loadVertex(kStaging + 4 * kPoints));
   for (std::uint32_t slot = 0; slot < kPoints; ++slot) {
-    memory_.mem_w32(kSpikes + 4 * slot, project(kLastSpike - slot * kStep, 10));
-    spikePlaces_[slot] = gte.projectedPlace(2);
+    memory_.storeVertex(kSpikes + 4 * slot, project(kLastSpike - slot * kStep, 10));
   }
 }
 
@@ -114,25 +107,20 @@ std::uint32_t RescueStar::drawTriangles() {
   const std::uint32_t grey = memory_.mem_r8(kColour);
   const std::uint32_t colour = (kTriangleCode << 24) | (grey << 16) | (grey << 8) | grey;
   for (std::uint32_t point = 0; point < kPoints; ++point) {
-    const std::uint32_t inner = memory_.mem_r32(kStaging + 4 * point);
-    const std::uint32_t next = memory_.mem_r32(kStaging + 4 * point + 4);
+    const psx::gte::ProjectedVertex inner = memory_.loadVertex(kStaging + 4 * point);
+    const psx::gte::ProjectedVertex next = memory_.loadVertex(kStaging + 4 * point + 4);
     const std::uint32_t spike = cursor;
     const std::uint32_t fan = cursor + kTriangleBytes;
     memory_.mem_w32(spike + 4, colour);
-    memory_.mem_w32(spike + 8, inner);
-    memory_.mem_w32(spike + 0xC, next);
-    memory_.mem_w32(spike + 0x10, memory_.mem_r32(kSpikes + 4 * point));
+    memory_.storeVertex(spike + 8, inner);
+    memory_.storeVertex(spike + 0xC, next);
+    memory_.storeVertex(spike + 0x10, memory_.loadVertex(kSpikes + 4 * point));
     memory_.mem_w32(fan + 4, colour);
-    memory_.mem_w32(fan + 8, inner);
-    memory_.mem_w32(fan + 0xC, next);
-    memory_.mem_w32(fan + 0x10, centreScreen_);
+    memory_.storeVertex(fan + 8, inner);
+    memory_.storeVertex(fan + 0xC, next);
+    memory_.storeVertex(fan + 0x10, centreScreen_);
     memory_.mem_w32(spike, kTriangleTag);
     memory_.mem_w32(fan, kTriangleTag);
-    if (places_ != nullptr) {
-      places_->placeCorners(spike,
-                            {{innerPlaces_[point], innerPlaces_[point + 1], spikePlaces_[point]}});
-      places_->placeCorners(fan, {{innerPlaces_[point], innerPlaces_[point + 1], centrePlace_}});
-    }
     append(spike);
     append(fan);
     cursor += 2 * kTriangleBytes;

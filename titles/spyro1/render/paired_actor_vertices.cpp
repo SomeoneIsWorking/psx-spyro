@@ -78,8 +78,7 @@ void PairedActor::projectParts() {
     screen_ += 4;
     part += kPartBytes;
     flags = memory_.mem_r32(part);
-    memory_.mem_w32(screen_ - 4, gte.readData(gte::kSxy2));
-    keepPlace();
+    memory_.storeVertex(screen_ - 4, gte.projected(2));
     v0_ = gte.readData(gte::kSz3);
     memory_.mem_w32(vertex_ - vertex_entry::kBytes, v0_);
     if (waterLevel_ != 0) {
@@ -122,14 +121,7 @@ void PairedActor::loadVertex() {
 void PairedActor::keepProjection() {
   auto &gte = core_.gte();
   memory_.mem_w32(vertex_ - vertex_entry::kBytes, gte.readData(gte::kSz3));
-  memory_.mem_w32(screen_ - 4, gte.readData(gte::kSxy2));
-  keepPlace();
-}
-
-void PairedActor::keepPlace() {
-  if (places_ != nullptr) {
-    vertexPlaces_[(screen_ - 4 - kVertexScreens) / 4u] = core_.gte().projectedPlace(2);
-  }
+  memory_.storeVertex(screen_ - 4, gte.projected(2));
 }
 
 // 800244D8..800246B0

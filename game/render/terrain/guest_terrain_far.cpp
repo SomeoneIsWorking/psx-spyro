@@ -232,10 +232,9 @@ Sector FarPass::drawPolygon(std::uint32_t record) {
       colour += triangle ? guest_packet::kG3Code : guest_packet::kG4Code;
     }
     memory_.mem_w32(prim + 4 + 8 * i, colour);
-    memory_.mem_w32(prim + 8 + 8 * i, screens[i]);
+    memory_.storeVertex(prim + 8 + 8 * i, memory_.loadVertex(cells[i], screens[i]));
   }
   memory_.mem_w32(prim, triangle ? guest_packet::kG3Tag : guest_packet::kG4Tag);
-  frame_.declarePlaces(prim, std::span(cells).first(corners));
   return link(bin, triangle ? guest_packet::kG3Bytes : guest_packet::kG4Bytes) ? Sector::Drawn
                                                                                : Sector::BufferFull;
 }

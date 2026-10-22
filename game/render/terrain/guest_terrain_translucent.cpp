@@ -184,15 +184,10 @@ void TranslucentPass::drawQuad(const PackedIndices &vertices) {
   // 80025908: one semi-transparent GT4. Retail pairs the third vertex's colour with the fourth's
   // position and the fourth's colour with the third's (the detail pass pairs them correctly).
   const std::uint32_t prim = frame_.primitive;
-  memory_.mem_w32(prim + packet::kXy0, xy[0]);
-  memory_.mem_w32(prim + packet::kXy1, xy[1]);
-  memory_.mem_w32(prim + packet::kXy2, xy[3]);
-  memory_.mem_w32(prim + packet::kXy3, xy[2]);
-  frame_.declarePlaces(prim,
-                       std::array{kScratchpad + vertices.first,
-                                  kScratchpad + vertices.second,
-                                  kScratchpad + vertices.fourth,
-                                  kScratchpad + vertices.third});
+  memory_.storeVertex(prim + packet::kXy0, memory_.loadVertex(kScratchpad + vertices.first, xy[0]));
+  memory_.storeVertex(prim + packet::kXy1, memory_.loadVertex(kScratchpad + vertices.second, xy[1]));
+  memory_.storeVertex(prim + packet::kXy2, memory_.loadVertex(kScratchpad + vertices.fourth, xy[3]));
+  memory_.storeVertex(prim + packet::kXy3, memory_.loadVertex(kScratchpad + vertices.third, xy[2]));
   const std::uint32_t c0 = fadedColour(d0);
   const std::uint32_t c1 = fadedColour(d1);
   const std::uint32_t c2 = fadedColour(d2);
@@ -246,11 +241,9 @@ void TranslucentPass::drawTriangle(const PackedIndices &vertices) {
 
   // 80025B50: one semi-transparent GT3.
   const std::uint32_t prim = frame_.primitive;
-  memory_.mem_w32(prim + packet::kXy0, xy[0]);
-  memory_.mem_w32(prim + packet::kXy1, xy[1]);
-  memory_.mem_w32(prim + packet::kXy2, xy[2]);
-  frame_.declarePlaces(
-      prim, std::array{kScratchpad + vertices.first, kScratchpad + vertices.second, kScratchpad + vertices.third});
+  memory_.storeVertex(prim + packet::kXy0, memory_.loadVertex(kScratchpad + vertices.first, xy[0]));
+  memory_.storeVertex(prim + packet::kXy1, memory_.loadVertex(kScratchpad + vertices.second, xy[1]));
+  memory_.storeVertex(prim + packet::kXy2, memory_.loadVertex(kScratchpad + vertices.third, xy[2]));
   const std::uint32_t c0 = fadedColour(d0);
   const std::uint32_t c1 = fadedColour(d1);
   memory_.mem_w32(prim + packet::kColour0, c0 | guest_packet::kSemiGt3Code);

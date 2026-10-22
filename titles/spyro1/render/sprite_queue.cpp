@@ -86,11 +86,8 @@ QueueView presentedQueueView(const Core &core) {
                    .bounds = spyro::presentedBounds(core, spyro1::terrain::kSharedFacts)};
 }
 
-SpriteQueue::SpriteQueue(Core &core,
-                         const psx::present::EmitMemory &memory,
-                         const QueueView &view,
-                         psx::present::PrimitiveSink *places)
-    : core_(core), memory_(memory), view_(view), places_(places), bins_(memory) {}
+SpriteQueue::SpriteQueue(Core &core, const psx::present::EmitMemory &memory, const QueueView &view)
+    : core_(core), memory_(memory), view_(view), bins_(memory) {}
 
 void SpriteQueue::begin() {
   shadows_ = memory_.mem_r32(kShadowListEnd);
@@ -321,15 +318,13 @@ bool SpriteQueue::projectVertices() {
                                (std::uint32_t{memory_.mem_r8(next + 3)} << 24);
     next += 3;
     v1_ = loadVertex(core_, word);
-    const std::uint32_t screen = core_.gte().readData(gte::kSxy2);
-    if (places_ != nullptr) {
-      vertexPlaces_[i] = core_.gte().projectedPlace(2);
-    }
+    const psx::gte::ProjectedVertex projected = core_.gte().projected(2);
+    const std::uint32_t screen = projected.word();
     v0_ = core_.gte().readData(gte::kSz3);
     const std::uint32_t slot = kVertexScreens + i * 4;
     memory_.mem_w32(slot + (kVertexDepths - kVertexScreens), v0_);
     if (edge_ == 0) {
-      memory_.mem_w32(slot, screen);
+      memory_.storeVertex(slot, projected);
       continue;
     }
     std::uint32_t code = screen << 5;
@@ -339,7 +334,7 @@ bool SpriteQueue::projectVertices() {
     code |= bounds.atOrLeftOfLeft(screen) ? 4u : 0u;
     code |= bounds.atOrRightOfRight(screen) ? 8u : 0u;
     shared &= code;
-    memory_.mem_w32(slot, code);
+    memory_.storeVertex(slot, {code, projected.place()});
     v1_ = code;
   }
   return edge_ == 0 || (shared & 0xFu) == 0;
@@ -406,27 +401,21 @@ void SpriteQueue::drawPolygon(const PolygonWords &polygon) {
   v1_ = kVertexScreens + ((word >> 14) & 0x1FCu);
   const std::uint32_t a0 = kVertexScreens + ((word >> 7) & 0x1FCu);
   const std::uint32_t a1 = kVertexScreens + (word & 0x1FCu);
-  screen_[0] = memory_.mem_r32(v0_);
-  screen_[1] = memory_.mem_r32(v1_);
-  screen_[2] = memory_.mem_r32(a0);
-  screen_[3] = memory_.mem_r32(a1);
-  if (places_ != nullptr) {
-    cornerPlaces_ = {vertexPlaces_[(v0_ - kVertexScreens) / 4u],
-                     vertexPlaces_[(v1_ - kVertexScreens) / 4u],
-                     vertexPlaces_[(a0 - kVertexScreens) / 4u],
-                     vertexPlaces_[(a1 - kVertexScreens) / 4u]};
+  const std::array<std::uint32_t, 4> slots = {v0_, v1_, a0, a1};
+  for (std::size_t i = 0; i < slots.size(); ++i) {
+    screen_[i] = memory_.loadVertex(slots[i]);
   }
   if (asSigned(edge_) < 0) {
-    if ((screen_[0] & screen_[1] & screen_[2] & screen_[3] & 0xFu) != 0) {
+    if ((screen_[0].word() & screen_[1].word() & screen_[2].word() & screen_[3].word() & 0xFu) != 0) {
       return;
     }
-    for (std::uint32_t &screen : screen_) {
-      screen = sra(screen, 5);
+    for (std::size_t i = 0; i < slots.size(); ++i) {
+      screen_[i] = memory_.loadVertex(slots[i], sra(screen_[i].word(), 5));
     }
   }
-  core_.gte().writeData(gte::kSxy0, screen_[0]);
-  core_.gte().writeData(gte::kSxy1, screen_[1]);
-  core_.gte().writeData(gte::kSxy2, screen_[2]);
+  core_.gte().writeData(gte::kSxy0, screen_[0].word());
+  core_.gte().writeData(gte::kSxy1, screen_[1].word());
+  core_.gte().writeData(gte::kSxy2, screen_[2].word());
   core_.gte().execute(gte::kNclip);
   if ((word & 1u) == 0) {
     drawGouraud({.colours = colours, .third = a0, .fourth = a1});
@@ -446,7 +435,7 @@ void SpriteQueue::drawGouraud(const PolygonTail &tail) {
   const std::uint32_t t9 = bins_.cursor();
   if (a0 != a1) {
     const std::int32_t face = asSigned(core_.gte().readData(gte::kMac0));
-    core_.gte().writeData(gte::kSxy0, screen_[3]);
+    core_.gte().writeData(gte::kSxy0, screen_[3].word());
     if (face <= 0) {
       core_.gte().execute(gte::kNclip);
       if (asSigned(core_.gte().readData(gte::kMac0)) >= 0) {
@@ -461,10 +450,10 @@ void SpriteQueue::drawGouraud(const PolygonTail &tail) {
     v1_ = memory_.mem_r32(v1_ + 0x200u);
     const std::uint32_t d2 = memory_.mem_r32(a0 + 0x200u);
     const std::uint32_t d3 = memory_.mem_r32(a1 + 0x200u);
-    memory_.mem_w32(t9 + 0x08, screen_[0]);
-    memory_.mem_w32(t9 + 0x10, screen_[1]);
-    memory_.mem_w32(t9 + 0x18, screen_[2]);
-    memory_.mem_w32(t9 + 0x20, screen_[3]);
+    memory_.storeVertex(t9 + 0x08, screen_[0]);
+    memory_.storeVertex(t9 + 0x10, screen_[1]);
+    memory_.storeVertex(t9 + 0x18, screen_[2]);
+    memory_.storeVertex(t9 + 0x20, screen_[3]);
     const std::uint32_t depth = v0_ + v1_ + d2 + d3 - depthBias_;
     v0_ = sra(depth, 5);
     if (asSigned(depth) <= 0) {
@@ -476,7 +465,6 @@ void SpriteQueue::drawGouraud(const PolygonTail &tail) {
     memory_.mem_w32(t9 + 0x14, c2);
     memory_.mem_w32(t9 + 0x1C, c3);
     memory_.mem_w32(t9, guest_packet::kG4Tag);
-    declarePlaces(t9, 4);
     v1_ = bins_.link(kLocalBins + (v0_ << 3));
     v0_ = kLocalBins + (v0_ << 3);
     return;
@@ -490,9 +478,9 @@ void SpriteQueue::drawGouraud(const PolygonTail &tail) {
   v0_ = memory_.mem_r32(v0_ + 0x200u);
   v1_ = memory_.mem_r32(v1_ + 0x200u);
   const std::uint32_t d2 = memory_.mem_r32(a0 + 0x200u);
-  memory_.mem_w32(t9 + 0x08, screen_[0]);
-  memory_.mem_w32(t9 + 0x10, screen_[1]);
-  memory_.mem_w32(t9 + 0x18, screen_[2]);
+  memory_.storeVertex(t9 + 0x08, screen_[0]);
+  memory_.storeVertex(t9 + 0x10, screen_[1]);
+  memory_.storeVertex(t9 + 0x18, screen_[2]);
   v0_ = v0_ + v1_ + d2 + d2 - depthBias_;
   memory_.mem_w32(t9 + 0x04, c0 + guest_packet::kG3Code);
   if (asSigned(v0_) <= 0) {
@@ -502,7 +490,6 @@ void SpriteQueue::drawGouraud(const PolygonTail &tail) {
   memory_.mem_w32(t9 + 0x14, c2);
   v0_ = sra(v0_, 5) + (colours & 3u);
   memory_.mem_w32(t9, guest_packet::kG3Tag);
-  declarePlaces(t9, 3);
   v1_ = bins_.link(kLocalBins + (v0_ << 3));
   v0_ = kLocalBins + (v0_ << 3);
 }
@@ -513,7 +500,7 @@ void SpriteQueue::drawLit(const PolygonTail &tail) {
   const std::uint32_t palette = kPalette + sra(paletteWord_, 22);
   const bool opaque = sra(paletteWord_, 22) != 0;
   if (asSigned(core_.gte().readData(gte::kMac0)) <= 0) {
-    core_.gte().writeData(gte::kSxy0, screen_[3]);
+    core_.gte().writeData(gte::kSxy0, screen_[3].word());
     if (a0 == a1) {
       return;
     }
@@ -527,11 +514,11 @@ void SpriteQueue::drawLit(const PolygonTail &tail) {
   core_.gte().writeData(gte::kIr3, sra(colours, 24));
   core_.gte().writeData(gte::kIr1, sra(colours << 8, 24));
   core_.gte().writeData(gte::kIr2, sra(colours << 16, 24));
-  memory_.mem_w32(t9 + 0x08, screen_[0]);
-  memory_.mem_w32(t9 + 0x0C, screen_[1]);
+  memory_.storeVertex(t9 + 0x08, screen_[0]);
+  memory_.storeVertex(t9 + 0x0C, screen_[1]);
   core_.gte().execute(gte::kMvmvaRtIr);
-  memory_.mem_w32(t9 + 0x10, screen_[2]);
-  memory_.mem_w32(t9 + 0x14, screen_[3]);
+  memory_.storeVertex(t9 + 0x10, screen_[2]);
+  memory_.storeVertex(t9 + 0x14, screen_[3]);
   const BackColour back = backColour(base);
   core_.gte().writeData(gte::kIr0, (base >> 23) & 0x1Eu);
   core_.gte().execute(gte::kGpf);
@@ -571,7 +558,6 @@ void SpriteQueue::drawLit(const PolygonTail &tail) {
     }
   }
   memory_.mem_w32(t9 + 0x04, colour | v1_);
-  declarePlaces(t9, a0 != a1 ? 4 : 3);
   (void)bins_.link(kLocalBins + (sra(depth, 5) << 3));
 }
 
@@ -586,7 +572,7 @@ void SpriteQueue::drawFlat(const PolygonTail &tail) {
   } else {
     opaque = guest_packet::kSemiCode;
     if (asSigned(face) <= 0) {
-      core_.gte().writeData(gte::kSxy0, screen_[3]);
+      core_.gte().writeData(gte::kSxy0, screen_[3].word());
       if (a0 == a1) {
         return;
       }
@@ -598,10 +584,10 @@ void SpriteQueue::drawFlat(const PolygonTail &tail) {
     }
   }
   const std::uint32_t t9 = bins_.cursor();
-  memory_.mem_w32(t9 + 0x08, screen_[0]);
-  memory_.mem_w32(t9 + 0x0C, screen_[1]);
-  memory_.mem_w32(t9 + 0x10, screen_[2]);
-  memory_.mem_w32(t9 + 0x14, screen_[3]);
+  memory_.storeVertex(t9 + 0x08, screen_[0]);
+  memory_.storeVertex(t9 + 0x0C, screen_[1]);
+  memory_.storeVertex(t9 + 0x10, screen_[2]);
+  memory_.storeVertex(t9 + 0x14, screen_[3]);
   core_.gte().writeData(gte::kIr3, sra(colours, 24));
   core_.gte().writeData(gte::kIr1, sra(colours << 8, 24));
   core_.gte().writeData(gte::kIr2, sra(colours << 16, 24));
@@ -654,15 +640,8 @@ void SpriteQueue::drawFlat(const PolygonTail &tail) {
   if (asSigned(depth) <= 0) {
     return;
   }
-  declarePlaces(t9, a0 != a1 ? 4 : 3);
   v1_ = bins_.link(kLocalBins + (v0_ << 3));
   v0_ = kLocalBins + (v0_ << 3);
-}
-
-void SpriteQueue::declarePlaces(std::uint32_t packet, std::size_t count) const {
-  if (places_ != nullptr) {
-    places_->placeCorners(packet, std::span(cornerPlaces_).first(count));
-  }
 }
 
 // 8002397C..800239B4: the bins the record reached, deepest first, into one chain; each emptied.

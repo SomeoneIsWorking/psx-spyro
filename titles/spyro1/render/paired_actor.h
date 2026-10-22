@@ -5,7 +5,7 @@
 // field and over host memory for an in-between.
 #pragma once
 
-#include "gte_state.h"
+#include "projected_vertex.h"
 #include "render/field/guest_working_memory.h"
 #include "spyro1/render/actor_facts.h"
 #include "spyro1/render/local_bins.h"
@@ -17,18 +17,11 @@
 
 class Core;
 
-namespace psx::present {
-class PrimitiveSink;
-}
-
 namespace spyro1::actors {
 
 class PairedActor {
 public:
-  // `places`: where a render declares each projected vertex's unrounded place.
-  PairedActor(Core &core,
-              const psx::present::EmitMemory &memory,
-              psx::present::PrimitiveSink *places = nullptr);
+  PairedActor(Core &core, const psx::present::EmitMemory &memory);
 
   // 80023AFC..800258AC. False when the centre was culled or no polygon reached a bin.
   bool draw();
@@ -57,9 +50,6 @@ private:
   std::uint32_t keepInput();
   void loadVertex();
   void keepProjection();
-  // The projection just stored at screen_ - 4 keeps its unrounded place.
-  void keepPlace();
-  [[nodiscard]] GtePlace placeAt(std::uint32_t slotOffset) const;
   void measureHeights();
   void tintColours();
 
@@ -96,17 +86,14 @@ private:
   void emitWholeTriangle(const WholePolygon &polygon, bool backHalf);
   void drawCut();
   void cutTriangle(const CutTriangle &triangle);
-  // The crossing's unrounded place, blended as its screen word is.
-  GtePlace cutEdge(const CutEdge &edge);
+  // The crossing written at written_, its place blended as its screen word is.
+  void cutEdge(const CutEdge &edge);
   // The local bin a polygon's depth sum falls in; `shifted` takes the shifted sum either way.
   [[nodiscard]] std::optional<std::uint32_t> binOf(std::uint32_t sum, std::uint32_t &shifted) const;
   [[nodiscard]] bool mergeBins();
 
   Core &core_;
   const psx::present::EmitMemory &memory_;
-  psx::present::PrimitiveSink *places_;
-  // Each screen slot's unrounded projection, kept while `places_` is set.
-  std::array<GtePlace, kVertexSlots> vertexPlaces_{};
 
   // Retail's registers that outlive one step.
   std::uint32_t v0_ = 0;

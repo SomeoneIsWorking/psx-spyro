@@ -283,9 +283,8 @@ void FarPass::emit(std::uint32_t second, std::uint32_t depthSum, const Corners &
       colour += code;
     }
     memory_.mem_w32(prim + 4 + 8 * static_cast<std::uint32_t>(i), colour);
-    memory_.mem_w32(prim + 8 + 8 * static_cast<std::uint32_t>(i), screens[i]);
+    memory_.storeVertex(prim + 8 + 8 * static_cast<std::uint32_t>(i), memory_.loadVertex(corners.cells[i], screens[i]));
   }
-  frame_.declarePlaces(prim, corners.cells);
   const Linked linked = frame_.linkAndAdvance(bin, PacketSize{triangle ? guest_packet::kG3Bytes : guest_packet::kG4Bytes});
   static_cast<void>(linked);
 }

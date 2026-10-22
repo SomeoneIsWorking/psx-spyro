@@ -29,10 +29,12 @@ constexpr std::uint32_t position(std::uint32_t x, std::uint32_t y) {
   return ((y & 0xFFFFu) << 16) | (x & 0xFFFFu);
 }
 
-psx::present::DrawPrimitive quad(const std::array<std::uint32_t, 5> &words) {
-  const auto primitive = psx::gpu::decodePacketPrimitive(words);
+using Quad = psx::gpu::PacketBuffer<5>;
+
+psx::present::DrawPrimitive quad(const Quad &words) {
+  const auto primitive = psx::gpu::decodePacketPrimitive(words.view());
   if (!primitive) {
-    lucent::error("overlays", "the overlay quad 0x{:08X} does not decode", words[0]);
+    lucent::error("overlays", "the overlay quad 0x{:08X} does not decode", words.word(0));
     std::abort();
   }
   return *primitive;
@@ -92,11 +94,11 @@ void FullscreenTint::render(const psx::present::StateInterval &states,
   const std::uint32_t colour = (guest_packet::kF4Code | guest_packet::kSemiCode) |
                                (std::uint32_t{shown.b} << 16) | (std::uint32_t{shown.g} << 8) |
                                shown.r;
-  psx::present::DrawPrimitive primitive = quad({colour,
-                                                position(0, facts_.top),
-                                                position(kScreenWidth, facts_.top),
-                                                position(0, facts_.bottom),
-                                                position(kScreenWidth, facts_.bottom)});
+  psx::present::DrawPrimitive primitive = quad(Quad(std::array{colour,
+                                                           position(0, facts_.top),
+                                                           position(kScreenWidth, facts_.top),
+                                                           position(0, facts_.bottom),
+                                                           position(kScreenWidth, facts_.bottom)}));
   psx::gpu::applyTexPageAttribute(primitive.state, static_cast<std::uint16_t>(after.blend << 5));
   sink.emit(depth_bins::kOverlaySlot, primitive);
 }
@@ -119,27 +121,26 @@ void CinematicLetterbox::render(const psx::present::StateInterval &states,
   const State after = psx::present::stateAs<State>(states.to);
   const float shown = static_cast<float>(before.height) +
                       static_cast<float>(after.height - before.height) * states.t;
-  const auto height = static_cast<std::uint32_t>(after.height);
-  psx::present::DrawPrimitive top = quad({guest_packet::kF4Code,
-                                          position(0, facts_.top),
-                                          position(kScreenWidth, facts_.top),
-                                          position(0, facts_.top + height),
-                                          position(kScreenWidth, facts_.top + height)});
-  psx::present::DrawPrimitive bottom = quad({guest_packet::kF4Code,
-                                             position(0, facts_.bottom - height),
-                                             position(kScreenWidth, facts_.bottom - height),
-                                             position(0, facts_.bottom),
-                                             position(kScreenWidth, facts_.bottom)});
+  // A corner on the bar's moving edge, `y` down the screen.
+  const auto edge = [](std::uint32_t x, float y) {
+    return psx::gte::ProjectedVertex::nearest({static_cast<float>(x), y});
+  };
   const float topEdge = static_cast<float>(facts_.top) + shown;
   const float bottomEdge = static_cast<float>(facts_.bottom) - shown;
-  for (std::size_t corner = 0; corner < 2; ++corner) {
-    psx::present::RecordVertex &lower = top.vertices[corner + 2];
-    psx::present::placeVertex(lower, static_cast<float>(lower.x), topEdge);
-    psx::present::RecordVertex &upper = bottom.vertices[corner];
-    psx::present::placeVertex(upper, static_cast<float>(upper.x), bottomEdge);
-  }
-  sink.emit(depth_bins::kOverlaySlot, top);
-  sink.emit(depth_bins::kOverlaySlot, bottom);
+  Quad top;
+  top.store(0, guest_packet::kF4Code);
+  top.store(1, position(0, facts_.top));
+  top.store(2, position(kScreenWidth, facts_.top));
+  top.storeVertex(3, edge(0, topEdge));
+  top.storeVertex(4, edge(kScreenWidth, topEdge));
+  Quad bottom;
+  bottom.store(0, guest_packet::kF4Code);
+  bottom.storeVertex(1, edge(0, bottomEdge));
+  bottom.storeVertex(2, edge(kScreenWidth, bottomEdge));
+  bottom.store(3, position(0, facts_.bottom));
+  bottom.store(4, position(kScreenWidth, facts_.bottom));
+  sink.emit(depth_bins::kOverlaySlot, quad(top));
+  sink.emit(depth_bins::kOverlaySlot, quad(bottom));
 }
 
 bool CinematicLetterbox::rests(std::span<const std::byte>, std::span<std::byte> into) const {

@@ -291,15 +291,10 @@ void DetailPass::drawQuad(const PackedIndices &vertices) {
   const std::uint32_t prim = frame_.primitive;
   const PackedIndices colours(memory_.mem_r32(record_ - polygon::kSize + polygon::kColours));
   const std::uint32_t bin = polygonBin(sum, binBias(draw));
-  memory_.mem_w32(prim + packet::kXy0, xy[0]);
-  memory_.mem_w32(prim + packet::kXy1, xy[1]);
-  memory_.mem_w32(prim + packet::kXy2, xy[3]);
-  memory_.mem_w32(prim + packet::kXy3, xy[2]);
-  frame_.declarePlaces(prim,
-                       std::array{kScratchpad + vertices.first,
-                                  kScratchpad + vertices.second,
-                                  kScratchpad + vertices.fourth,
-                                  kScratchpad + vertices.third});
+  memory_.storeVertex(prim + packet::kXy0, memory_.loadVertex(kScratchpad + vertices.first, xy[0]));
+  memory_.storeVertex(prim + packet::kXy1, memory_.loadVertex(kScratchpad + vertices.second, xy[1]));
+  memory_.storeVertex(prim + packet::kXy2, memory_.loadVertex(kScratchpad + vertices.fourth, xy[3]));
+  memory_.storeVertex(prim + packet::kXy3, memory_.loadVertex(kScratchpad + vertices.third, xy[2]));
   std::uint32_t record = (draw & kTextureRecordMask) * kTextureRecordSize;
 
   const ShadedVertex first = shadeVertex({colours.first, depths[0]});
@@ -371,11 +366,9 @@ void DetailPass::drawTriangle(const PackedIndices &vertices) {
   const std::uint32_t prim = frame_.primitive;
   const PackedIndices colours(memory_.mem_r32(record_ - polygon::kSize + polygon::kColours));
   const std::uint32_t bin = polygonBin(sum, binBias(draw));
-  memory_.mem_w32(prim + packet::kXy0, xy[0]);
-  memory_.mem_w32(prim + packet::kXy1, xy[1]);
-  memory_.mem_w32(prim + packet::kXy2, xy[2]);
-  frame_.declarePlaces(
-      prim, std::array{kScratchpad + vertices.first, kScratchpad + vertices.second, kScratchpad + vertices.third});
+  memory_.storeVertex(prim + packet::kXy0, memory_.loadVertex(kScratchpad + vertices.first, xy[0]));
+  memory_.storeVertex(prim + packet::kXy1, memory_.loadVertex(kScratchpad + vertices.second, xy[1]));
+  memory_.storeVertex(prim + packet::kXy2, memory_.loadVertex(kScratchpad + vertices.third, xy[2]));
   std::uint32_t record = (draw & kTextureRecordMask) * kTextureRecordSize;
 
   const ShadedVertex first = shadeVertex({colours.first, depths[0]});

@@ -146,7 +146,8 @@ void projectGrid(TerrainFrame &frame, std::uint32_t count, bool markBehind) {
     core.gte().execute(gte::kRtps);
     const bool scaled = next.scaled;
     next = loadGridVertex(memory, address);
-    const std::uint32_t sxy = core.gte().readData(gte::kSxy2);
+    const psx::gte::ProjectedVertex projected = core.gte().projected(2);
+    const std::uint32_t sxy = projected.word();
     std::uint32_t code = core.gte().readData(gte::kSz3);
     core.gte().writeData(gte::kVz0, next.z);
     core.gte().writeData(gte::kVxy0, next.xy);
@@ -169,8 +170,7 @@ void projectGrid(TerrainFrame &frame, std::uint32_t count, bool markBehind) {
     if (frame.bounds.atOrRightOfRight(sxy)) {
       code |= kRight;
     }
-    frame.keepPlace(address - 2 * kCellSize + cell::kScreen);
-    memory.mem_w32(address - 2 * kCellSize + cell::kScreen, sxy);
+    memory.storeVertex(address - 2 * kCellSize + cell::kScreen, projected);
     memory.mem_w32(address - 2 * kCellSize + cell::kDepth, code);
   } while (address != end);
 }
@@ -245,12 +245,10 @@ bool pieceFacesCamera(TerrainFrame &frame, const TrianglePiece &piece, bool over
 
 void storePieceScreens(TerrainFrame &frame, PieceCorners corners) {
   constexpr std::array<std::uint32_t, 4> kSlots = {packet::kXy0, packet::kXy1, packet::kXy2, packet::kXy3};
-  std::array<std::uint32_t, 4> words{};
   for (std::size_t i = 0; i < corners.screens.size(); ++i) {
-    frame.memory.mem_w32(frame.primitive + kSlots[i], corners.screens[i]);
-    words[i] = corners.cells[i] + cell::kScreen;
+    frame.memory.storeVertex(frame.primitive + kSlots[i],
+                             frame.memory.loadVertex(corners.cells[i] + cell::kScreen, corners.screens[i]));
   }
-  frame.declarePlaces(frame.primitive, std::span(words).first(corners.screens.size()));
 }
 
 void storePieceColours(TerrainFrame &frame, std::span<const std::uint32_t> cells) {
@@ -307,12 +305,15 @@ void pullTowardPair(TerrainFrame &frame, const GridPull &pull) {
   const auto high = [](std::uint32_t sxy) {
     return sra(sxy, 16);
   };
-  const std::uint32_t own = memory.mem_r32(point + cell::kScreen);
+  const psx::gte::ProjectedVertex self = memory.loadVertex(point + cell::kScreen);
+  const std::uint32_t own = self.word();
   core.gte().writeData(gte::kIr0, ownWeight);
   core.gte().writeData(gte::kIr1, low(own));
   core.gte().writeData(gte::kIr2, high(own));
-  const std::uint32_t a = memory.mem_r32(first + cell::kScreen);
-  const std::uint32_t b = memory.mem_r32(second + cell::kScreen);
+  const psx::gte::ProjectedVertex pairFirst = memory.loadVertex(first + cell::kScreen);
+  const psx::gte::ProjectedVertex pairSecond = memory.loadVertex(second + cell::kScreen);
+  const std::uint32_t a = pairFirst.word();
+  const std::uint32_t b = pairSecond.word();
   core.gte().execute(gte::kGpf);
   core.gte().writeData(gte::kIr0, pairWeight);
   core.gte().writeData(gte::kIr1, low(a) + low(b));
@@ -322,20 +323,18 @@ void pullTowardPair(TerrainFrame &frame, const GridPull &pull) {
   core.gte().execute(gte::kGpf);
   const std::int32_t x = asSigned(ownX + core.gte().readData(gte::kMac1)) >> 8;
   const std::int32_t y = asSigned(ownY + core.gte().readData(gte::kMac2)) >> 8;
-  memory.mem_w32(point + cell::kScreen,
-             (static_cast<std::uint32_t>(x) & 0xFFFFu) + (static_cast<std::uint32_t>(y) << 16));
-  if (frame.places != nullptr) {
-    const GtePlace self = frame.placeAt(point + cell::kScreen);
-    const GtePlace a = frame.placeAt(first + cell::kScreen);
-    const GtePlace b = frame.placeAt(second + cell::kScreen);
-    // IR0 holds the weights as signed halfwords.
-    const auto selfWeight = static_cast<float>(static_cast<std::int16_t>(ownWeight));
-    const auto pairsWeight = static_cast<float>(static_cast<std::int16_t>(pairWeight));
-    const auto blend = [selfWeight, pairsWeight](float own, float pair) {
-      return (selfWeight * own + pairsWeight * pair) / 256.0f;
-    };
-    frame.setPlace(point + cell::kScreen, {blend(self.x, a.x + b.x), blend(self.y, a.y + b.y)});
-  }
+  // IR0 holds the weights as signed halfwords.
+  const auto selfWeight = static_cast<float>(static_cast<std::int16_t>(ownWeight));
+  const auto pairsWeight = static_cast<float>(static_cast<std::int16_t>(pairWeight));
+  const auto blend = [selfWeight, pairsWeight](float own, float pair) {
+    return (selfWeight * own + pairsWeight * pair) / 256.0f;
+  };
+  const GtePlace at = self.place();
+  const GtePlace pa = pairFirst.place();
+  const GtePlace pb = pairSecond.place();
+  memory.storeVertex(point + cell::kScreen,
+                     {(static_cast<std::uint32_t>(x) & 0xFFFFu) + (static_cast<std::uint32_t>(y) << 16),
+                      {blend(at.x, pa.x + pb.x), blend(at.y, pa.y + pb.y)}});
 }
 
 std::uint32_t quadNeighbourEdges(TerrainFrame &frame,

@@ -72,7 +72,7 @@ void MobyShadowProducer::render(const psx::present::StateInterval &states,
   between.mapTable();
   between.provide(state.record, shadowRecordBetween(before.header.bytes, state.bytes, states.t));
   MobyShadows shadows(
-      core_, between.memory(), spyro::presentedBounds(core_, terrain::kSharedFacts), &sink);
+      core_, between.memory(), spyro::presentedBounds(core_, terrain::kSharedFacts));
   shadows.begin();
   shadows.draw(state.record, psx::present::lerpWord(before.header.radius, state.radius, states.t));
   between.emitBins(sink);

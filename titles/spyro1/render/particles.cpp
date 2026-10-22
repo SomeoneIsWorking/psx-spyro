@@ -35,9 +35,8 @@ bool retailDrops(std::uint32_t sxy) {
 
 EmitList::EmitList(Core &core,
                    const psx::present::EmitMemory &memory,
-                   const spyro::guest_terrain::ScreenBounds &bounds,
-                   psx::present::PrimitiveSink *places)
-    : core_(core), memory_(memory), places_(places),
+                   const spyro::guest_terrain::ScreenBounds &bounds)
+    : core_(core), memory_(memory),
       leftEdge_(static_cast<std::uint32_t>(bounds.left()) << 16),
       rightEdge_(static_cast<std::uint32_t>(bounds.right()) << 16) {}
 
@@ -88,12 +87,6 @@ void EmitList::writeUvs(std::uint32_t first, std::uint32_t second) {
   memory_.mem_w32(cursor_ + 0x24, second);
   memory_.mem_w32(cursor_ + 0x1C, (first & 0xFFu) | (second & 0xFF00u));
   memory_.mem_w32(cursor_ + 0x14, (second ^ (second & 0xFF00u)) | (first & 0xFF00u));
-}
-
-void EmitList::declarePlaces(std::span<const GtePlace> corners) const {
-  if (places_ != nullptr) {
-    places_->placeCorners(cursor_, corners);
-  }
 }
 
 std::uint32_t EmitList::link(std::uint32_t binOffset, Packet packet) {
@@ -167,11 +160,12 @@ Outcome EmitList::quad(std::uint32_t at) {
   const std::uint32_t frame = ((frameBias & 0xFFu) << 3) + frames;
   const std::uint32_t first = memory_.mem_r32(frame + 4);
   const std::uint32_t second = memory_.mem_r32(frame + 8);
-  const std::uint32_t s0 = gte.readData(gte::kSxy0);
-  v0_ = gte.readData(gte::kSxy1);
-  v1_ = gte.readData(gte::kSxy2);
-  std::array<GtePlace, 4> places = {
-      gte.projectedPlace(0), gte.projectedPlace(1), gte.projectedPlace(2), {}};
+  const psx::gte::ProjectedVertex p0 = gte.projected(0);
+  const psx::gte::ProjectedVertex p1 = gte.projected(1);
+  const psx::gte::ProjectedVertex p2 = gte.projected(2);
+  const std::uint32_t s0 = p0.word();
+  v0_ = p1.word();
+  v1_ = p2.word();
   gte.writeData(gte::kVxy0, lastXy);
   gte.writeData(gte::kVz0, lastZ);
   std::uint32_t depth = gte.readData(gte::kSz1) + gte.readData(gte::kSz2) + gte.readData(gte::kSz3);
@@ -179,8 +173,8 @@ Outcome EmitList::quad(std::uint32_t at) {
   memory_.mem_w32(cursor_ + 4, colour);
   memory_.mem_w32(cursor_, guest_packet::kFt4Tag);
   writeUvs(first, second);
-  const std::uint32_t s3 = gte.readData(gte::kSxy2);
-  places[3] = gte.projectedPlace(2);
+  const psx::gte::ProjectedVertex p3 = gte.projected(2);
+  const std::uint32_t s3 = p3.word();
   depth += gte.readData(gte::kSz3);
   if (asSigned(depth - 0x200) < 0 || asSigned(depth - 0x8000) >= 0) {
     return Outcome::Skipped;
@@ -189,10 +183,10 @@ Outcome EmitList::quad(std::uint32_t at) {
   if (asSigned(bin) < 0) {
     return Outcome::Skipped;
   }
-  memory_.mem_w32(cursor_ + 0x08, s0);
-  memory_.mem_w32(cursor_ + 0x10, v0_);
-  memory_.mem_w32(cursor_ + 0x18, v1_);
-  memory_.mem_w32(cursor_ + 0x20, s3);
+  memory_.storeVertex(cursor_ + 0x08, p0);
+  memory_.storeVertex(cursor_ + 0x10, p1);
+  memory_.storeVertex(cursor_ + 0x18, p2);
+  memory_.storeVertex(cursor_ + 0x20, p3);
   const std::uint32_t corners[4] = {s0, v0_, v1_, s3};
   const auto all = [&](auto outside) {
     for (const std::uint32_t corner : corners) {
@@ -223,7 +217,6 @@ Outcome EmitList::quad(std::uint32_t at) {
                all([](std::uint32_t sxy) {
                  return kRetailBounds.atOrRightOfRight(sxy);
                }));
-  declarePlaces(places);
   link(bin << 3, Packet::Quad);
   return Outcome::Drawn;
 }
@@ -273,9 +266,10 @@ Outcome EmitList::placedLine(std::uint32_t at) {
   gte.writeControl(gte::kTranslationY, signedHalf(second));
   gte.writeControl(gte::kTranslationZ, sra(second, 16));
   v0_ = gte.readData(gte::kSz3);
-  const std::uint32_t sxy = gte.readData(gte::kSxy2);
+  const psx::gte::ProjectedVertex start = gte.projected(2);
+  const std::uint32_t sxy = start.word();
   gte.execute(gte::kRtps);
-  const std::array<GtePlace, 2> ends = {gte.projectedPlace(1), gte.projectedPlace(2)};
+  const psx::gte::ProjectedVertex end = gte.projected(2);
   const std::uint32_t colour = memory_.mem_r32(at + 0x10);
   std::uint32_t colourBias = memory_.mem_r32(at + 0x14);
   gte.loadTranslation({});
@@ -309,9 +303,9 @@ Outcome EmitList::placedLine(std::uint32_t at) {
     return Outcome::Skipped;
   }
   markSeen(at, retailDrops(sxy));
-  v1_ = gte.readData(gte::kSxy2);
-  memory_.mem_w32(cursor_ + 0x08, sxy);
-  memory_.mem_w32(cursor_ + 0x10, v1_);
+  v1_ = end.word();
+  memory_.storeVertex(cursor_ + 0x08, start);
+  memory_.storeVertex(cursor_ + 0x10, end);
   memory_.mem_w32(cursor_ + 0x04, colour);
   memory_.mem_w32(cursor_ + 0x0C, colourBias);
   colourBias >>= 24;
@@ -320,7 +314,6 @@ Outcome EmitList::placedLine(std::uint32_t at) {
     v0_ = 0;
   }
   memory_.mem_w32(cursor_, guest_packet::kLineG2Tag);
-  declarePlaces(ends);
   v0_ <<= 3;
   v1_ = link(v0_, Packet::Line);
   return Outcome::Drawn;
@@ -346,8 +339,8 @@ Outcome EmitList::scaledQuad(std::uint32_t at) {
   gte.writeData(gte::kIr1, (a0 >> 16) & 0xFFu);
   gte.writeData(gte::kIr2, a0 >> 24);
   v1 = gte.readData(gte::kSz3);
-  v0 = gte.readData(gte::kSxy2);
-  const GtePlace centrePlace = gte.projectedPlace(2);
+  const psx::gte::ProjectedVertex centre = gte.projected(2);
+  v0 = centre.word();
   v0_ = v0;
   v1_ = v1;
   if (asSigned(v1 - 0x80) < 0 || asSigned(v1 - 0x2000) >= 0 || asSigned(v0 - kTop) <= 0) {
@@ -379,21 +372,17 @@ Outcome EmitList::scaledQuad(std::uint32_t at) {
   const std::uint32_t colour = memory_.mem_r32(at + 0xC);
   v0 += (width >> 1) + ((height >> 1) << 16);
   memory_.mem_w32(cursor_ + 0x04, colour);
-  memory_.mem_w32(cursor_ + 0x20, v0);
-  memory_.mem_w32(cursor_ + 0x18, v0 - width);
-  memory_.mem_w32(cursor_ + 0x10, v0 - (height << 16));
-  memory_.mem_w32(cursor_ + 0x08, v0 - (height << 16) - width);
-  writeUvs(first, second);
-  memory_.mem_w32(cursor_, guest_packet::kFt4Tag);
   // The sides' places: MAC0 is the projection scale in 2^-24, before IR0 and the GPF truncate it.
   const float scale = static_cast<float>(projection) / 16777216.0f;
   const float halfWidth = scale * static_cast<float>((a0 >> 16) & 0xFFu) / 2.0f;
   const float halfHeight = scale * static_cast<float>(a0 >> 24) / 2.0f;
-  declarePlaces(
-      std::array<GtePlace, 4>{GtePlace{centrePlace.x - halfWidth, centrePlace.y - halfHeight},
-                              GtePlace{centrePlace.x + halfWidth, centrePlace.y - halfHeight},
-                              GtePlace{centrePlace.x - halfWidth, centrePlace.y + halfHeight},
-                              GtePlace{centrePlace.x + halfWidth, centrePlace.y + halfHeight}});
+  const GtePlace middle = centre.place();
+  memory_.storeVertex(cursor_ + 0x20, {v0, {middle.x + halfWidth, middle.y + halfHeight}});
+  memory_.storeVertex(cursor_ + 0x18, {v0 - width, {middle.x - halfWidth, middle.y + halfHeight}});
+  memory_.storeVertex(cursor_ + 0x10, {v0 - (height << 16), {middle.x + halfWidth, middle.y - halfHeight}});
+  memory_.storeVertex(cursor_ + 0x08, {v0 - (height << 16) - width, {middle.x - halfWidth, middle.y - halfHeight}});
+  writeUvs(first, second);
+  memory_.mem_w32(cursor_, guest_packet::kFt4Tag);
   v1_ = link(v1 << 3, Packet::Quad);
   return Outcome::Drawn;
 }
@@ -418,7 +407,7 @@ Outcome EmitList::turnedQuad(std::uint32_t at) {
   v0_ = (a0 >> 16) & 0xFFu;
   const std::uint32_t entry = (((a0 >> 23) + 0x40u) & 0x1FEu) + kSineTable;
   std::uint32_t depth = gte.readData(gte::kSz3);
-  const std::uint32_t sxy = gte.readData(gte::kSxy2);
+  const std::uint32_t sxy = gte.projected(2).word();
   v1_ = signedHalf(memory_.mem_r16(entry));
   if (asSigned(depth - 0x80) < 0 || asSigned(depth - 0x2000) >= 0 || asSigned(sxy - kTop) <= 0) {
     return Outcome::Skipped;
@@ -471,25 +460,22 @@ Outcome EmitList::turnedTail(std::uint32_t at, TurnedQuad quad) {
   const std::uint32_t frame = quad.frames + ((frameBias & 0xFFu) << 3);
   const std::uint32_t first = memory_.mem_r32(frame + 4);
   const std::uint32_t second = memory_.mem_r32(frame + 8);
-  const std::uint32_t s0 = gte.readData(gte::kSxy0);
+  const psx::gte::ProjectedVertex s0 = gte.projected(0);
   gte.writeData(gte::kVxy0, v0_);
   gte.writeData(gte::kVz0, 0);
-  v0_ = gte.readData(gte::kSxy1);
-  const std::uint32_t s2 = gte.readData(gte::kSxy2);
-  std::array<GtePlace, 4> places = {
-      gte.projectedPlace(0), gte.projectedPlace(1), gte.projectedPlace(2), {}};
+  const psx::gte::ProjectedVertex s1 = gte.projected(1);
+  v0_ = s1.word();
+  const psx::gte::ProjectedVertex s2 = gte.projected(2);
   gte.execute(gte::kRtps);
-  places[3] = gte.projectedPlace(2);
-  memory_.mem_w32(cursor_ + 0x08, s0);
-  memory_.mem_w32(cursor_ + 0x10, v0_);
-  memory_.mem_w32(cursor_ + 0x18, s2);
+  memory_.storeVertex(cursor_ + 0x08, s0);
+  memory_.storeVertex(cursor_ + 0x10, s1);
+  memory_.storeVertex(cursor_ + 0x18, s2);
   memory_.mem_w32(cursor_ + 0x04, v1_);
   memory_.mem_w32(cursor_, guest_packet::kFt4Tag);
   writeUvs(first, second);
-  memory_.mem_w32(cursor_ + 0x20, gte.readData(gte::kSxy2));
+  memory_.storeVertex(cursor_ + 0x20, gte.projected(2));
   gte.loadRotation(rotation);
   gte.loadTranslation({});
-  declarePlaces(places);
   link(depth << 3, Packet::Quad);
   return Outcome::Drawn;
 }
@@ -519,9 +505,10 @@ Outcome EmitList::line(std::uint32_t at) {
   gte.writeData(gte::kVxy0, v0);
   gte.writeData(gte::kVz0, x);
   v0_ = gte.readData(gte::kSz3);
-  const std::uint32_t sxy = gte.readData(gte::kSxy2);
+  const psx::gte::ProjectedVertex start = gte.projected(2);
+  const std::uint32_t sxy = start.word();
   gte.execute(gte::kRtps);
-  const std::array<GtePlace, 2> ends = {gte.projectedPlace(1), gte.projectedPlace(2)};
+  const psx::gte::ProjectedVertex end = gte.projected(2);
   const std::uint32_t colour = memory_.mem_r32(at + 0x10);
   const std::uint32_t depth = v0_;
   v1_ = depth - 0x2000;
@@ -550,9 +537,9 @@ Outcome EmitList::line(std::uint32_t at) {
   if (rightOf(sxy)) {
     return Outcome::Skipped;
   }
-  v1_ = gte.readData(gte::kSxy2);
-  memory_.mem_w32(cursor_ + 0x08, sxy);
-  memory_.mem_w32(cursor_ + 0x10, v1_);
+  v1_ = end.word();
+  memory_.storeVertex(cursor_ + 0x08, start);
+  memory_.storeVertex(cursor_ + 0x10, end);
   memory_.mem_w32(cursor_ + 0x04, colour);
   memory_.mem_w32(cursor_ + 0x0C, colourBias);
   colourBias >>= 24;
@@ -562,7 +549,6 @@ Outcome EmitList::line(std::uint32_t at) {
   }
   memory_.mem_w32(cursor_, guest_packet::kLineG2Tag);
   markSeen(at, retailDrops(sxy));
-  declarePlaces(ends);
   v0_ <<= 3;
   v1_ = link(v0_, Packet::Line);
   return Outcome::Drawn;
@@ -588,9 +574,9 @@ Outcome EmitList::dot(std::uint32_t at) {
   memory_.mem_w32(cursor_ + 4, memory_.mem_r32(at + 0xC));
   memory_.mem_w8(at + record::kSeen, 0);
   v1_ = gte.readData(gte::kSz3);
-  v0_ = gte.readData(gte::kSxy2);
+  const psx::gte::ProjectedVertex point = gte.projected(2);
+  v0_ = point.word();
   const std::uint32_t sxy = v0_;
-  const GtePlace place = gte.projectedPlace(2);
   if (v1_ == 0 || asSigned(v1_ - 0x2000) >= 0 || asSigned(sxy - kTop) <= 0 ||
       asSigned(sxy - kBottom) >= 0 || leftOf(sxy)) {
     return Outcome::Skipped;
@@ -600,9 +586,9 @@ Outcome EmitList::dot(std::uint32_t at) {
     return Outcome::Skipped;
   }
   markSeen(at, retailDrops(sxy));
-  memory_.mem_w32(cursor_ + 0x08, sxy);
+  memory_.storeVertex(cursor_ + 0x08, point);
   v0_ = sxy + 1;
-  memory_.mem_w32(cursor_ + 0x0C, v0_);
+  memory_.storeVertex(cursor_ + 0x0C, point.steppedTo(v0_));
   v0_ = guest_packet::kLineF2Tag;
   memory_.mem_w32(cursor_, v0_);
   v1_ -= bias;
@@ -612,7 +598,6 @@ Outcome EmitList::dot(std::uint32_t at) {
   if (behind) {
     return Outcome::Skipped;
   }
-  declarePlaces(std::array<GtePlace, 2>{place, psx::present::placeOffset(place, sxy, sxy + 1)});
   v1_ = link(v1_, Packet::Dot);
   return Outcome::Drawn;
 }

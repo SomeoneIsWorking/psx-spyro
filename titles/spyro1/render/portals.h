@@ -6,7 +6,7 @@
 #pragma once
 
 #include "gte_registers.h"
-#include "gte_state.h"
+#include "projected_vertex.h"
 #include "render/field/guest_working_memory.h"
 #include "render/terrain/guest_camera_builder.h"
 #include "spyro1/render/actor_facts.h"
@@ -19,10 +19,6 @@
 #include <utility>
 
 class Core;
-
-namespace psx::present {
-class PrimitiveSink;
-}
 
 namespace spyro1::portals {
 
@@ -84,10 +80,7 @@ struct SkySpin {
 
 class Portals final : public sky::TriangleCut {
 public:
-  // `places`, when given, is told each emitted vertex's unrounded place.
-  Portals(Core &core,
-          const psx::present::EmitMemory &memory,
-          psx::present::PrimitiveSink *places = nullptr);
+  Portals(Core &core, const psx::present::EmitMemory &memory);
 
   // 80050E90..800518CC for portal `index`: the outline and, when it shows, the fill. Nullopt when
   // the portal is skipped whole.
@@ -112,16 +105,13 @@ private:
     std::int32_t z = 0;
   };
 
-  // A screen point, the colour word carried with it and its unrounded place.
+  // A screen point and the colour word carried with it.
   struct Corner {
-    std::uint32_t point = 0;
+    psx::gte::ProjectedVertex point;
     std::uint32_t colour = 0;
-    GtePlace place{};
   };
   // The outline's points, edges and queued pieces as kProjected, kEdges and kPieces lay them out.
   static constexpr std::size_t kOutlinePoints = kProjectedBytes / portal::kPointBytes;
-  static constexpr std::size_t kPieceSlots =
-      (actors::kWorkBlock + actors::kWorkBlockBytes - kPieces) / kPieceBytes;
 
   [[nodiscard]] Point projected(std::uint32_t i) const;
   [[nodiscard]] std::uint32_t
@@ -156,8 +146,6 @@ private:
   [[nodiscard]] Corner crossing(Corner inside, Corner outside, std::uint32_t edge);
   // The same crossing on the edge's unrounded line, between the two places.
   [[nodiscard]] GtePlace crossingPlace(GtePlace inside, GtePlace outside, std::uint32_t edge) const;
-  // The places kept for the piece queued at `piece`, `bytes` a piece.
-  std::array<GtePlace, 3> &piecePlaces(std::uint32_t piece, std::uint32_t bytes);
   // ColorLerp 0x80017E54.
   [[nodiscard]] std::uint32_t
   colourToward(std::uint32_t colour, std::uint32_t target, std::uint32_t amount);
@@ -166,11 +154,8 @@ private:
 
   Core &core_;
   const psx::present::EmitMemory &memory_;
-  psx::present::PrimitiveSink *places_;
-  // Kept while `places_` takes them.
+  // Each outline point's place; kProjected keeps its x and y as separate words.
   std::array<GtePlace, kOutlinePoints> outline_{};
-  std::array<std::array<GtePlace, 2>, kOutlinePoints> edgeEnds_{};
-  std::array<std::array<GtePlace, 3>, kPieceSlots> pieces_{};
 };
 
 // 80050BD0..80050C58: the near sky's spin advanced, as the drawer does once a call.

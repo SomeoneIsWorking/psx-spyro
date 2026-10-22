@@ -81,7 +81,7 @@ void FlameProducer::render(const psx::present::StateInterval &states,
   between.mapTable();
   between.provide(flame_block::kBlock,
                   blockBetween(before.header.block, after.header.block, states.t));
-  FlameTrails(core_, between.memory(), &sink).draw();
+  FlameTrails(core_, between.memory()).draw();
   between.emitBins(sink);
 }
 

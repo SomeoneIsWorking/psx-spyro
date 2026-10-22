@@ -81,7 +81,7 @@ void SkyProducer::render(const psx::present::StateInterval &states,
   between.mapTable();
   between.host().zero(terrain::kPoolExhausted, 4);
   Cyclorama sky(
-      core_, between.memory(), spyro::presentedBounds(core_, spyro1::terrain::kSharedFacts), &sink);
+      core_, between.memory(), spyro::presentedBounds(core_, spyro1::terrain::kSharedFacts));
   const std::optional<SkyChain> chain = sky.draw(after.header.group, rotations);
   if (!chain) {
     return;

@@ -29,13 +29,12 @@ class PassEmitter {
 public:
   PassEmitter(const EmitterPass &pass,
               Core &core,
-              const psx::present::EmitMemory &memory,
-              psx::present::PrimitiveSink *places = nullptr) {
+              const psx::present::EmitMemory &memory) {
     const auto bounds = spyro::presentedBounds(core, spyro1::terrain::kSharedFacts);
     if (pass.lit) {
-      emitter_ = &lit_.emplace(core, memory, bounds, places);
+      emitter_ = &lit_.emplace(core, memory, bounds);
     } else {
-      emitter_ = &plain_.emplace(core, memory, bounds, places);
+      emitter_ = &plain_.emplace(core, memory, bounds);
     }
   }
   PassEmitter(const PassEmitter &) = delete;
@@ -130,7 +129,7 @@ void ActorEmitterProducer::render(const psx::present::StateInterval &states,
   const std::uint32_t frame = memory.mem_r32(kDrawList + entry::kFrame);
   const std::uint32_t nearPolygons = memory.mem_r32(frame + emitter::frame::kNearPolygons);
   between.host().mapGuest(core_, nearPolygons, memory.mem_r32(nearPolygons) + 4);
-  const PassEmitter emitter(pass_, core_, memory, &sink);
+  const PassEmitter emitter(pass_, core_, memory);
   emitter->begin(0);
   if (emitter->draw(kDrawList)) {
     between.emitBins(sink);

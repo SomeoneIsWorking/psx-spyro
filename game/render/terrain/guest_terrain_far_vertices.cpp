@@ -44,7 +44,8 @@ bool projectFarVertices(TerrainFrame &frame,
   for (std::uint32_t i = 1; i <= vertices.count; ++i) {
     core.gte().execute(gte::kRtps);
     loadVertex(core, frame.memory.mem_r32(vertices.data + 4 * i), vertices.origin, height);
-    const std::uint32_t sxy = core.gte().readData(gte::kSxy2);
+    const psx::gte::ProjectedVertex projected = core.gte().projected(2);
+    const std::uint32_t sxy = projected.word();
     const std::uint32_t sz = core.gte().readData(gte::kSz3);
     frame.v0 = sxy;
     frame.v1 = sz;
@@ -67,8 +68,7 @@ bool projectFarVertices(TerrainFrame &frame,
       }
       shared &= word;
     }
-    frame.keepPlace(cell);
-    frame.memory.mem_w32(cell, word);
+    frame.memory.storeVertex(cell, {word, projected.place()});
     frame.memory.mem_w32(cell + 4, sz);
     cell += kFarCellSize;
   }

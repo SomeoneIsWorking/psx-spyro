@@ -76,7 +76,7 @@ void RescueStarProducer::render(const psx::present::StateInterval &states,
   const std::uint32_t pair = between.memory().mem_r32(kRenderGlobals.overlayPair);
   between.provideWord(pair, 0);
   between.provideWord(pair + 4, 0);
-  const std::uint32_t first = RescueStar(core_, between.memory(), &sink).draw();
+  const std::uint32_t first = RescueStar(core_, between.memory()).draw();
   psx::present::DrawModeTracker drawMode;
   between.emitChain(first, spyro::depth_bins::kOverlaySlot, drawMode, sink);
 }

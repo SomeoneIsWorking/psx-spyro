@@ -60,16 +60,16 @@ void PairedActor::drawWhole() {
     v1_ = (word >> 11) & 0x7FCu;
     const std::uint32_t a0 = (word >> 2) & 0x7FCu;
     const std::uint32_t twoSided = word & 1u;
-    const std::uint32_t a2 = memory_.mem_r32(v0_ + screens);
-    const std::uint32_t a3 = memory_.mem_r32(v1_ + screens);
-    const std::uint32_t t0 = memory_.mem_r32(a0 + screens);
-    gte.writeData(gte::kSxy0, a2);
-    gte.writeData(gte::kSxy1, a3);
-    gte.writeData(gte::kSxy2, t0);
+    const psx::gte::ProjectedVertex a2 = memory_.loadVertex(v0_ + screens);
+    const psx::gte::ProjectedVertex a3 = memory_.loadVertex(v1_ + screens);
+    const psx::gte::ProjectedVertex t0 = memory_.loadVertex(a0 + screens);
+    gte.writeData(gte::kSxy0, a2.word());
+    gte.writeData(gte::kSxy1, a3.word());
+    gte.writeData(gte::kSxy2, t0.word());
     gte.execute(gte::kNclip);
-    memory_.mem_w32(bins_.cursor() + 0x08, a2);
-    memory_.mem_w32(bins_.cursor() + 0x14, a3);
-    memory_.mem_w32(bins_.cursor() + 0x20, t0);
+    memory_.storeVertex(bins_.cursor() + 0x08, a2);
+    memory_.storeVertex(bins_.cursor() + 0x14, a3);
+    memory_.storeVertex(bins_.cursor() + 0x20, t0);
     const std::uint32_t t2 = ((s0 >> 17) & 0x7FCu) + colours_;
 
     if (asSigned(word) >= 0) {
@@ -94,8 +94,8 @@ void PairedActor::drawWhole() {
     // 80024C9C: a quad.
     std::uint32_t t5 = memory_.mem_r32(polygon_ + 8);
     const std::uint32_t a1 = t5 & 0x7FCu;
-    const std::uint32_t t1 = memory_.mem_r32(a1 + screens);
-    memory_.mem_w32(bins_.cursor() + 0x2C, t1);
+    const psx::gte::ProjectedVertex t1 = memory_.loadVertex(a1 + screens);
+    memory_.storeVertex(bins_.cursor() + 0x2C, t1);
     if (twoSided != 0) {
       t5 = ((t5 >> 9) & 0x7FCu) + colours_;
       word = memory_.mem_r32(polygon_ + 0x18);
@@ -106,7 +106,7 @@ void PairedActor::drawWhole() {
       continue;
     }
     const std::uint32_t front = gte.readData(gte::kMac0);
-    gte.writeData(gte::kSxy0, t1);
+    gte.writeData(gte::kSxy0, t1.word());
     gte.execute(gte::kNclip);
     word = memory_.mem_r32(polygon_ + 0x18);
     polygon_ += 0x18;
@@ -117,7 +117,7 @@ void PairedActor::drawWhole() {
       if (asSigned(back) <= 0) {
         continue;
       }
-      memory_.mem_w32(bins_.cursor() + 0x08, t1);
+      memory_.storeVertex(bins_.cursor() + 0x08, t1);
       v0_ = a1;
       emitWholeTriangle({.colourWord = s0, .third = a0, .colours = {t5, t3, 0}, .end = polygon_},
                         true);
@@ -131,16 +131,11 @@ void PairedActor::drawWhole() {
   }
 }
 
-GtePlace PairedActor::placeAt(std::uint32_t slotOffset) const {
-  return vertexPlaces_[slotOffset / 4u];
-}
-
 // 80024D98..80024EA4
 void PairedActor::emitWholeQuad(const WholePolygon &polygon) {
   const auto &[s0, a0, a1, colourAddresses, ra] = polygon;
   const auto [t2, t3, t5] = colourAddresses;
   const std::uint32_t depths = kVertexTable;
-  const std::array<std::uint32_t, 4> slots = {v0_, v1_, a0, a1};
   const std::uint32_t t4 = memory_.mem_r32(((s0 << 1) & 0x7FCu) + colours_);
   const std::uint32_t colour = (memory_.mem_r32(t2) & kColourMask) + guest_packet::kGt4Code;
   v0_ = memory_.mem_r16((v0_ << 2) + depths);
@@ -164,11 +159,6 @@ void PairedActor::emitWholeQuad(const WholePolygon &polygon) {
   memory_.mem_w32(bins_.cursor() + 0x18, memory_.mem_r32(ra - 8));
   memory_.mem_w32(bins_.cursor() + 0x24, uv);
   memory_.mem_w32(bins_.cursor() + 0x30, uv >> 16);
-  if (places_ != nullptr) {
-    places_->placeCorners(
-        bins_.cursor(),
-        {{placeAt(slots[0]), placeAt(slots[1]), placeAt(slots[2]), placeAt(slots[3])}});
-  }
   v1_ = bins_.link(v0_);
 }
 
@@ -180,7 +170,6 @@ void PairedActor::emitWholeTriangle(const WholePolygon &polygon, bool backHalf) 
   const std::uint32_t t3 = polygon.colours[1];
   const std::uint32_t ra = polygon.end;
   const std::uint32_t depths = kVertexTable;
-  const std::array<std::uint32_t, 3> slots = {v0_, v1_, a0};
   const std::uint32_t t4 = memory_.mem_r32(((s0 << 1) & 0x7FCu) + colours_);
   const std::uint32_t colour = (memory_.mem_r32(t2) & kColourMask) + guest_packet::kGt3Code;
   v0_ = memory_.mem_r16((v0_ << 2) + depths);
@@ -206,10 +195,6 @@ void PairedActor::emitWholeTriangle(const WholePolygon &polygon, bool backHalf) 
   memory_.mem_w32(bins_.cursor(), guest_packet::kGt3Tag);
   memory_.mem_w32(bins_.cursor() + 0x18, memory_.mem_r32(ra - 8));
   memory_.mem_w32(bins_.cursor() + 0x24, uv);
-  if (places_ != nullptr) {
-    places_->placeCorners(bins_.cursor(),
-                          {{placeAt(slots[0]), placeAt(slots[1]), placeAt(slots[2])}});
-  }
   v1_ = bins_.link(v0_);
 }
 
@@ -265,21 +250,19 @@ void PairedActor::cutTriangle(const CutTriangle &triangle) {
   std::uint32_t depth = memory_.mem_r32(corners[0] + depths);
   const std::uint32_t b = memory_.mem_r32(corners[1] + depths);
   const std::uint32_t c = memory_.mem_r32(corners[2] + depths);
-  std::array<std::uint32_t, 3> screens{};
-  std::array<GtePlace, 3> places{};
+  std::array<psx::gte::ProjectedVertex, 3> screens{};
   for (std::uint32_t i = 0; i < 3; ++i) {
-    screens[i] = memory_.mem_r32((corners[i] >> 2) + kVertexScreens);
-    places[i] = placeAt(corners[i] >> 2);
+    screens[i] = memory_.loadVertex((corners[i] >> 2) + kVertexScreens);
   }
-  v0_ = screens[1];
-  v1_ = screens[2];
-  gte.writeData(gte::kSxy0, screens[0]);
-  gte.writeData(gte::kSxy1, screens[1]);
-  gte.writeData(gte::kSxy2, screens[2]);
-  memory_.mem_w32(bins_.cursor() + 0x08, screens[0]);
-  memory_.mem_w32(bins_.cursor() + 0x14, screens[1]);
+  v0_ = screens[1].word();
+  v1_ = screens[2].word();
+  gte.writeData(gte::kSxy0, screens[0].word());
+  gte.writeData(gte::kSxy1, screens[1].word());
+  gte.writeData(gte::kSxy2, screens[2].word());
+  memory_.storeVertex(bins_.cursor() + 0x08, screens[0]);
+  memory_.storeVertex(bins_.cursor() + 0x14, screens[1]);
   gte.execute(gte::kNclip);
-  memory_.mem_w32(bins_.cursor() + 0x20, screens[2]);
+  memory_.storeVertex(bins_.cursor() + 0x20, screens[2]);
   depth += depth >> 1;
   depth += b >> 1;
   if ((s1 & 1u) == 0) {
@@ -309,9 +292,6 @@ void PairedActor::cutTriangle(const CutTriangle &triangle) {
     memory_.mem_w32(bins_.cursor() + 0x18, uvs[1]);
     memory_.mem_w32(bins_.cursor() + 0x24, uvs[2]);
     memory_.mem_w32(bins_.cursor(), guest_packet::kGt3Tag);
-    if (places_ != nullptr) {
-      places_->placeCorners(bins_.cursor(), places);
-    }
     bins_.link(*bin);
     return;
   }
@@ -324,31 +304,24 @@ void PairedActor::cutTriangle(const CutTriangle &triangle) {
     return;
   }
   written_ = bins_.cursor();
-  // The written corners' places, in packet order.
-  std::array<GtePlace, 4> cut{};
-  std::size_t count = 0;
   for (std::uint32_t i = 0; i < 3; ++i) {
     const std::uint32_t next = (i + 1) % 3;
     if (asSigned(heights[i]) >= 0) {
       memory_.mem_w32(written_ + 4, colours[i]);
-      memory_.mem_w32(written_ + 8, screens[i]);
+      memory_.storeVertex(written_ + 8, screens[i]);
       memory_.mem_w16(written_ + 0xC, static_cast<std::uint16_t>(uvs[i]));
       written_ += 0xC;
-      cut[count++] = places[i];
     }
     if (asSigned(heights[i] ^ heights[next]) < 0) {
-      cut[count++] = cutEdge({.heights = {heights[i], heights[next]},
-                              .from = {colours[i], screens[i], uvs[i]},
-                              .to = {colours[next], screens[next], uvs[next]},
-                              .places = {places[i], places[next]}});
+      cutEdge({.heights = {heights[i], heights[next]},
+               .from = {colours[i], screens[i].word(), uvs[i]},
+               .to = {colours[next], screens[next].word(), uvs[next]},
+               .places = {screens[i].place(), screens[next].place()}});
     }
   }
   if (written_ - bins_.cursor() - 0x30 != 0) {
     memory_.mem_w8(bins_.cursor() + 7, static_cast<std::uint8_t>(guest_packet::kGt3Code >> 24));
     memory_.mem_w32(bins_.cursor(), guest_packet::kGt3Tag);
-    if (places_ != nullptr) {
-      places_->placeCorners(bins_.cursor(), std::span(cut).first(3));
-    }
     bins_.link(*bin);
     return;
   }
@@ -357,23 +330,23 @@ void PairedActor::cutTriangle(const CutTriangle &triangle) {
   for (std::uint32_t i = 0; i < 6; ++i) {
     tail[i] = memory_.mem_r32(bins_.cursor() + 0x1C + 4 * i);
   }
+  const psx::gte::ProjectedVertex third = memory_.loadVertex(bins_.cursor() + 0x20);
+  const psx::gte::ProjectedVertex fourth = memory_.loadVertex(bins_.cursor() + 0x2C);
   v0_ = tail[1];
   v1_ = tail[2];
   for (std::uint32_t i = 0; i < 6; ++i) {
     memory_.mem_w32(bins_.cursor() + 0x1C + 4 * i, tail[(i + 3) % 6]);
   }
+  memory_.storeVertex(bins_.cursor() + 0x20, fourth);
+  memory_.storeVertex(bins_.cursor() + 0x2C, third);
   memory_.mem_w8(bins_.cursor() + 7, static_cast<std::uint8_t>(guest_packet::kGt4Code >> 24));
   memory_.mem_w32(bins_.cursor(), guest_packet::kGt4Tag);
-  if (places_ != nullptr) {
-    std::swap(cut[2], cut[3]);
-    places_->placeCorners(bins_.cursor(), cut);
-  }
   bins_.link(*bin);
 }
 
 // 8002531C..8002542C: the point where an edge crosses the surface, its colour, screen position and
 // uv interpolated by INTPL at height from / (from - to).
-GtePlace PairedActor::cutEdge(const CutEdge &edge) {
+void PairedActor::cutEdge(const CutEdge &edge) {
   auto &gte = core_.gte();
   const auto [from, to] = edge.heights;
   const std::uint32_t weight = psx::cpu::quotient({from << 12, from - to});
@@ -399,17 +372,16 @@ GtePlace PairedActor::cutEdge(const CutEdge &edge) {
   memory_.mem_w32(written_ + 4, colour);
   channels(1, half);
   gte.execute(gte::kIntpl);
-  memory_.mem_w32(written_ + 8,
-              (gte.readData(gte::kMac1) & 0xFFFFu) + (gte.readData(gte::kMac2) << 16));
+  const std::uint32_t screen = (gte.readData(gte::kMac1) & 0xFFFFu) + (gte.readData(gte::kMac2) << 16);
+  const float along = static_cast<float>(static_cast<std::int32_t>(weight)) / 4096.0f;
+  const auto [near, far] = edge.places;
+  memory_.storeVertex(written_ + 8, {screen, {near.x + (far.x - near.x) * along, near.y + (far.y - near.y) * along}});
   channels(2, byte);
   gte.execute(gte::kIntpl);
   memory_.mem_w16(
       written_ + 0xC,
       static_cast<std::uint16_t>(gte.readData(gte::kMac1) + (gte.readData(gte::kMac2) << 8)));
   written_ += 0xC;
-  const float along = static_cast<float>(static_cast<std::int32_t>(weight)) / 4096.0f;
-  const auto [near, far] = edge.places;
-  return {near.x + (far.x - near.x) * along, near.y + (far.y - near.y) * along};
 }
 
 // 800257A0..800258AC: the local bins, nearest first, into the ordering table's bins from the

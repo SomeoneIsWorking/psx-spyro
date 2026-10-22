@@ -62,8 +62,7 @@ void TerrainStateProducer::render(const psx::present::StateInterval &states,
                   FieldInputs{.visibleSectors = visible,
                               .readWords = after.reads,
                               .argument = after.header.argument,
-                              .packetBudget = after.header.packetBudget},
-                  sink);
+                              .packetBudget = after.header.packetBudget});
   rebuild.emit(sink);
 }
 

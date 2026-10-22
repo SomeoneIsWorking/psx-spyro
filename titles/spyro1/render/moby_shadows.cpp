@@ -51,9 +51,8 @@ constexpr std::int32_t kEdgeSlack = 8;
 
 MobyShadows::MobyShadows(Core &core,
                          const psx::present::EmitMemory &memory,
-                         const spyro::guest_terrain::ScreenBounds &bounds,
-                         psx::present::PrimitiveSink *places)
-    : core_(core), memory_(memory), bounds_(bounds), places_(places) {}
+                         const spyro::guest_terrain::ScreenBounds &bounds)
+    : core_(core), memory_(memory), bounds_(bounds) {}
 
 void MobyShadows::begin() {
   for (std::uint32_t axis = 0; axis < 3; ++axis) {
@@ -90,7 +89,6 @@ void MobyShadows::draw(std::uint32_t record, std::uint32_t radius) {
                 (memory_.mem_r32(record + moby_record::kX) >> 2) -
                     memory_.mem_r32(kCameraQuarters));
   gte.execute(gte::kRtps);
-  const GtePlace centrePlace = gte.projectedPlace(2);
   const std::uint32_t slopeX = ((ground >> 16) & 0x3Fu) << 2;
   const std::uint32_t slopeZ = ((ground >> 22) & 0x3Fu) << 2;
   const std::uint32_t depth = gte.readData(gte::kMac3);
@@ -107,7 +105,8 @@ void MobyShadows::draw(std::uint32_t record, std::uint32_t radius) {
       spyro::guest_moby_rotation::Byte0Result::Stored,
       spyro::guest_moby_rotation::Byte1Rt12::Byte0Offset);
   gte.loadRotation(r);
-  const std::uint32_t centre = gte.readData(gte::kSxy2);
+  const psx::gte::ProjectedVertex centreVertex = gte.projected(2);
+  const std::uint32_t centre = centreVertex.word();
   const std::uint32_t centreDepth = gte.readData(gte::kSz3);
   gte.writeData(gte::kVxy0, 0);
   gte.writeData(gte::kVz0, radius);
@@ -122,17 +121,11 @@ void MobyShadows::draw(std::uint32_t record, std::uint32_t radius) {
     const std::uint32_t level = (kFadeEnd - static_cast<std::uint32_t>(fade)) >> 3;
     command = spyro::guest_packet::kSemiFt3Code | level | (level << 8) | (level << 16);
   }
-  const std::uint32_t first = gte.readData(gte::kSxy0);
-  // The rim's places in kPoints order, the closing point last.
-  std::array<GtePlace, 5> rimPlaces = {gte.projectedPlace(0),
-                                       gte.projectedPlace(1),
-                                       gte.projectedPlace(2),
-                                       {},
-                                       gte.projectedPlace(0)};
-  memory_.mem_w32(kPoints, first);
-  memory_.mem_w32(kPoints + 4, gte.readData(gte::kSxy1));
-  memory_.mem_w32(kPoints + 8, gte.readData(gte::kSxy2));
-  memory_.mem_w32(kClosingPoint, first);
+  const psx::gte::ProjectedVertex first = gte.projected(0);
+  memory_.storeVertex(kPoints, first);
+  memory_.storeVertex(kPoints + 4, gte.projected(1));
+  memory_.storeVertex(kPoints + 8, gte.projected(2));
+  memory_.storeVertex(kClosingPoint, first);
   gte.execute(gte::kNclip);
   const std::uint32_t firstDepth = gte.readData(gte::kSz1);
   memory_.mem_w32(kDepths, firstDepth);
@@ -153,21 +146,18 @@ void MobyShadows::draw(std::uint32_t record, std::uint32_t radius) {
   if (x + kEdgeSlack <= bounds_.left() || x - kEdgeSlack - bounds_.right() >= 0) {
     return;
   }
-  memory_.mem_w32(kPoints + 0xC, gte.readData(gte::kSxy2));
-  rimPlaces[3] = gte.projectedPlace(2);
+  memory_.storeVertex(kPoints + 0xC, gte.projected(2));
   memory_.mem_w32(kDepths + 0xC, gte.readData(gte::kSz3));
   // 8005A370..8005A3B8: a near disc's rim rows step one toward the centre's depth.
   if (asSigned(gte.readControl(gte::kTranslationZ)) - kNudgeDepth > 0) {
     for (std::uint32_t at = kPoints; at != kDepths; at += 4) {
       const std::int32_t behind = asSigned(memory_.mem_r32(at + 0x14) - centreDepth);
-      const std::uint32_t word = memory_.mem_r32(at);
+      const psx::gte::ProjectedVertex point = memory_.loadVertex(at);
       if (behind < 0) {
-        memory_.mem_w32(at, word + kOneRow);
+        memory_.storeVertex(at, point.steppedTo(point.word() + kOneRow));
       } else if (behind != 0) {
-        memory_.mem_w32(at, word - kOneRow);
+        memory_.storeVertex(at, point.steppedTo(point.word() - kOneRow));
       }
-      GtePlace &place = rimPlaces[(at - kPoints) / 4];
-      place = psx::present::placeOffset(place, word, memory_.mem_r32(at));
     }
   }
   const std::uint32_t uv0 = memory_.mem_r32(kTextureWords);
@@ -176,22 +166,18 @@ void MobyShadows::draw(std::uint32_t record, std::uint32_t radius) {
   std::uint32_t cursor = memory_.mem_r32(kCursor);
   for (std::uint32_t at = kPoints; at != kClosingPoint; at += 4) {
     memory_.mem_w32(cursor + 0x04, command);
-    memory_.mem_w32(cursor + 0x08, centre);
+    memory_.storeVertex(cursor + 0x08, centreVertex);
     memory_.mem_w32(cursor + 0x0C, uv0);
     memory_.mem_w32(cursor + 0x14, uv1);
     memory_.mem_w32(cursor + 0x1C, uv0 + kThirdTexel);
-    memory_.mem_w32(cursor + 0x10, memory_.mem_r32(at));
-    memory_.mem_w32(cursor + 0x18, memory_.mem_r32(at + 4));
+    memory_.storeVertex(cursor + 0x10, memory_.loadVertex(at));
+    memory_.storeVertex(cursor + 0x18, memory_.loadVertex(at + 4));
     memory_.mem_w32(cursor, spyro::guest_packet::kFt3Tag);
     std::uint32_t rim = memory_.mem_r32(at + 0x14) + memory_.mem_r32(at + 0x18);
     rim += rim >> 1;
     const std::uint32_t bin = ((rim + centreDepth) >> 7) - step;
     if (asSigned(bin) < 0) {
       continue;
-    }
-    if (places_ != nullptr) {
-      const std::size_t point = (at - kPoints) / 4;
-      places_->placeCorners(cursor, {{centrePlace, rimPlaces[point], rimPlaces[point + 1]}});
     }
     spyro::depth_bins::linkIntoBin(memory_, (bin << 3) + table, cursor, cursor);
     cursor += spyro::guest_packet::kFt3Bytes;

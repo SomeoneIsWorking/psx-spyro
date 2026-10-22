@@ -14,10 +14,9 @@ using spyro::guest_word::signedHalf;
 ActorEmitter::Projected ActorEmitter::readProjected() {
   auto &gte = core_.gte();
   return Projected{
-      .screen = gte.readData(gte::kSxy2),
+      .screen = gte.projected(2),
       .depth = gte.readData(gte::kSz3),
-      .view = {gte.readData(gte::kMac1), gte.readData(gte::kMac2), gte.readData(gte::kMac3)},
-      .place = gte.projectedPlace(2)};
+      .view = {gte.readData(gte::kMac1), gte.readData(gte::kMac2), gte.readData(gte::kMac3)}};
 }
 
 // 8001FA00..8001FA18: up to 0x80 depths fit the scratchpad after the screen words.
@@ -33,10 +32,7 @@ void ActorEmitter::keepDepth(const Projected &vertex) {
 // 8001FC70..8001FCA8: a straddling record keeps the screen word shifted up past four outcodes, and
 // what every vertex shares.
 bool ActorEmitter::keepScreen(const Projected &vertex) {
-  const std::uint32_t screen = vertex.screen;
-  if (places_ != nullptr) {
-    vertexPlaces_[(screen_ - 4 - kVertexScreens) / 4u] = vertex.place;
-  }
+  const std::uint32_t screen = vertex.screen.word();
   if (asSigned(flags_) < 0) {
     std::uint32_t code = screen << 5;
     code |= bounds_.aboveTop(screen) ? 1u : 0u;
@@ -44,9 +40,9 @@ bool ActorEmitter::keepScreen(const Projected &vertex) {
     code |= bounds_.atOrLeftOfLeft(screen) ? 4u : 0u;
     code |= bounds_.atOrRightOfRight(screen) ? 8u : 0u;
     outside_ &= code;
-    memory_.mem_w32(screen_ - 4, code);
+    memory_.storeVertex(screen_ - 4, {code, vertex.screen.place()});
   } else {
-    memory_.mem_w32(screen_ - 4, screen);
+    memory_.storeVertex(screen_ - 4, vertex.screen);
   }
   return screen_ == screenEnd_;
 }

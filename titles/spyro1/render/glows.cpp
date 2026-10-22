@@ -36,9 +36,8 @@ std::uint32_t slotOf(std::uint32_t table, std::uint32_t bin) {
 
 GlowFans::GlowFans(Core &core,
                    const psx::present::EmitMemory &memory,
-                   const spyro::guest_terrain::ScreenBounds &bounds,
-                   psx::present::PrimitiveSink *places)
-    : core_(core), memory_(memory), bounds_(bounds), places_(places) {}
+                   const spyro::guest_terrain::ScreenBounds &bounds)
+    : core_(core), memory_(memory), bounds_(bounds) {}
 
 void GlowFans::begin() {
   auto &gte = core_.gte();
@@ -102,8 +101,9 @@ std::optional<std::uint32_t> GlowFans::draw(std::uint32_t entry) {
   memory_.mem_w32(cursor_, kModeTag);
   memory_.mem_w32(cursor_ + 4, kAdditiveMode);
   memory_.mem_w32(cursor_ + 8, 0);
-  const std::uint32_t centre = gte.readData(gte::kSxy2);
-  const GtePlace centrePlace = gte.projectedPlace(2);
+  const psx::gte::ProjectedVertex centreVertex = gte.projected(2);
+  const std::uint32_t centre = centreVertex.word();
+  const GtePlace centrePlace = centreVertex.place();
   const std::uint32_t depth = gte.readData(gte::kMac3) << (shift & 31u);
   const std::uint32_t centreY = sra(centre, 16);
   const std::uint32_t centreX = signedHalf(centre);
@@ -142,7 +142,7 @@ std::optional<std::uint32_t> GlowFans::draw(std::uint32_t entry) {
 
   // 8005832C..80058464: the first rim point, then a triangle to each next one.
   std::uint32_t rim = memory_.mem_r32(entry + emitter::kRim);
-  GtePlace pointPlace = rimPlace(rim);
+  const GtePlace firstPlace = rimPlace(rim);
   gte.writeData(gte::kIr1, memory_.mem_r32(rim));
   gte.writeData(gte::kIr2, memory_.mem_r32(rim + 4));
   rim += 8;
@@ -153,34 +153,30 @@ std::optional<std::uint32_t> GlowFans::draw(std::uint32_t entry) {
   std::uint32_t pointX = gte.readData(gte::kMac1) + centreX;
   std::uint32_t pointY = gte.readData(gte::kMac2) + centreY;
   std::uint32_t edges = outcode({.x = pointX, .y = pointY});
-  std::uint32_t point = (pointX & 0xFFFFu) | (pointY << 16);
+  psx::gte::ProjectedVertex point((pointX & 0xFFFFu) | (pointY << 16), firstPlace);
   do {
     const GtePlace nextPlace = rimPlace(rim);
     gte.writeData(gte::kIr1, memory_.mem_r32(rim));
     gte.writeData(gte::kIr2, memory_.mem_r32(rim + 4));
     memory_.mem_w32(cursor_, guest_packet::kG3Tag);
     gte.execute(gte::kGpfSf);
-    memory_.mem_w32(cursor_ + 8, centre);
+    memory_.storeVertex(cursor_ + 8, centreVertex);
     memory_.mem_w32(cursor_ + 4, colour);
-    memory_.mem_w32(cursor_ + 0x10, point);
+    memory_.storeVertex(cursor_ + 0x10, point);
     memory_.mem_w32(cursor_ + 0xC, 0);
     memory_.mem_w32(cursor_ + 0x14, 0);
     pointX = gte.readData(gte::kMac1) + centreX;
     pointY = gte.readData(gte::kMac2) + centreY;
     const std::uint32_t nextEdges = outcode({.x = pointX, .y = pointY});
-    const std::uint32_t next = (pointX & 0xFFFFu) | (pointY << 16);
-    memory_.mem_w32(cursor_ + 0x18, next);
+    const psx::gte::ProjectedVertex next((pointX & 0xFFFFu) | (pointY << 16), nextPlace);
+    memory_.storeVertex(cursor_ + 0x18, next);
     if (asSigned(centreEdges & edges & nextEdges) <= 0) {
-      if (places_ != nullptr) {
-        places_->placeCorners(cursor_, {{centrePlace, pointPlace, nextPlace}});
-      }
       link(slot, cursor_);
       cursor_ += 0x1C;
     }
     --count;
     rim += 8;
     point = next;
-    pointPlace = nextPlace;
     edges = nextEdges;
   } while (asSigned(count) > 0);
   return bin;
@@ -188,9 +184,8 @@ std::optional<std::uint32_t> GlowFans::draw(std::uint32_t entry) {
 
 Sparkles::Sparkles(Core &core,
                    const psx::present::EmitMemory &memory,
-                   const spyro::guest_terrain::ScreenBounds &bounds,
-                   psx::present::PrimitiveSink *places)
-    : core_(core), memory_(memory), bounds_(bounds), places_(places) {}
+                   const spyro::guest_terrain::ScreenBounds &bounds)
+    : core_(core), memory_(memory), bounds_(bounds) {}
 
 void Sparkles::begin(std::uint32_t delta) {
   auto &gte = core_.gte();
@@ -256,7 +251,7 @@ std::optional<std::uint32_t> Sparkles::draw(std::uint32_t record) {
   const std::uint32_t farthest = sizeDepth & 0xFF00u;
   const std::uint32_t size = sizeDepth & 0xFFu;
   const std::uint32_t depth = gte.readData(gte::kSz3);
-  const std::uint32_t screen = gte.readData(gte::kSxy2);
+  const std::uint32_t screen = gte.projected(2).word();
   const bool inView = asSigned(farthest - depth) > 0 && asSigned(depth - 0x80) > 0 &&
                       !bounds_.aboveTop(screen) && !bounds_.belowBottom(screen);
   if (!inView || bounds_.atOrLeftOfLeft(screen) || bounds_.atOrRightOfRight(screen)) {
@@ -295,22 +290,15 @@ std::optional<std::uint32_t> Sparkles::draw(std::uint32_t record) {
   gte.writeControl(gte::kRotation + 2, scale);
   gte.writeControl(gte::kRotation + 4, scale);
   gte.execute(gte::kRtpt);
-  const std::uint32_t first = gte.readData(gte::kSxy0);
+  const psx::gte::ProjectedVertex first = gte.projected(0);
   gte.writeData(gte::kVxy0, (armY << 16) + (armX & 0xFFFFu));
   gte.writeData(gte::kVz0, 0);
-  const std::uint32_t second = gte.readData(gte::kSxy1);
-  const std::uint32_t third = gte.readData(gte::kSxy2);
-  const GtePlace firstPlace = gte.projectedPlace(0);
-  const GtePlace secondPlace = gte.projectedPlace(1);
-  const GtePlace thirdPlace = gte.projectedPlace(2);
+  const psx::gte::ProjectedVertex second = gte.projected(1);
+  const psx::gte::ProjectedVertex third = gte.projected(2);
   gte.execute(gte::kRtps);
-  if (places_ != nullptr) {
-    places_->placeCorners(cursor_, {{firstPlace, gte.projectedPlace(2)}});
-    places_->placeCorners(cursor_ + 0x10, {{secondPlace, thirdPlace}});
-  }
-  memory_.mem_w32(cursor_ + 8, first);
-  memory_.mem_w32(cursor_ + 0x18, second);
-  memory_.mem_w32(cursor_ + 0x1C, third);
+  memory_.storeVertex(cursor_ + 8, first);
+  memory_.storeVertex(cursor_ + 0x18, second);
+  memory_.storeVertex(cursor_ + 0x1C, third);
   std::uint32_t bin = (depth >> 5) - 6;
   if (asSigned(bin) < 0) {
     bin = 0;
@@ -321,7 +309,7 @@ std::optional<std::uint32_t> Sparkles::draw(std::uint32_t record) {
   }
   memory_.mem_w32(cursor_ + 0x10, kLinePairTag ^ cursor_);
   const std::uint32_t slot = slotOf(table_, bin);
-  memory_.mem_w32(cursor_ + 0xC, gte.readData(gte::kSxy2));
+  memory_.storeVertex(cursor_ + 0xC, gte.projected(2));
 
   // 800587A8..800587E8: the camera back from the light matrix.
   const psx::gte::RotationWords rotation = gte.storeLight();

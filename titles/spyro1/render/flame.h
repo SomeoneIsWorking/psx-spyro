@@ -4,7 +4,7 @@
 // Runs over guest memory for the real field and over host memory for an in-between.
 #pragma once
 
-#include "gte_state.h"
+#include "projected_vertex.h"
 
 #include "render/field/guest_working_memory.h"
 
@@ -12,10 +12,6 @@
 #include <cstdint>
 
 class Core;
-
-namespace psx::present {
-class PrimitiveSink;
-}
 
 namespace spyro1::flame {
 
@@ -30,9 +26,7 @@ inline constexpr std::uint32_t kCapColours = 0x8006E1A8u;
 
 class FlameTrails {
 public:
-  FlameTrails(Core &core,
-              const psx::present::EmitMemory &memory,
-              psx::present::PrimitiveSink *places = nullptr);
+  FlameTrails(Core &core, const psx::present::EmitMemory &memory);
 
   // The whole routine.
   void draw();
@@ -49,8 +43,7 @@ private:
   bool drawTip(std::uint32_t entry);
   // A tip triangle: written, and linked into `slot` when it faces the camera.
   void tipTriangle(std::uint32_t slot,
-                   const std::array<std::uint32_t, 3> &screens,
-                   const std::array<GtePlace, 3> &places,
+                   const std::array<psx::gte::ProjectedVertex, 3> &screens,
                    const std::array<std::uint32_t, 3> &colours);
   // A part's walk: its newest arc entry, the last entry it may reach and its age descriptor.
   struct PartWalk {
@@ -63,7 +56,6 @@ private:
 
   Core &core_;
   const psx::present::EmitMemory &memory_;
-  psx::present::PrimitiveSink *places_;
   std::uint32_t table_ = 0;
   std::uint32_t cursor_ = 0;
   bool superflame_ = false;
