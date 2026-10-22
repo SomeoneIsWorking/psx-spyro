@@ -1,59 +1,40 @@
-// screen_overlays.h — Spyro 1's whole-screen overlays as state producers: the fullscreen tint
-// 0x800190D4 and the cinematic letterbox 0x80018F30.
-//
-// Each override keys the packets its guest body writes by the call site, saves what the body
-// draws from and runs the body. Both bodies link through AddPrimToOT 0x800168DC into the overlay
-// pair (titles/spyro1/render/ordering_table.h), so their renders emit into that one slot.
+// screen_overlays.h — SCUS_942.28's whole-screen overlays (game/render/screen_overlays.h): both
+// link through AddPrimToOT 0x800168DC into the overlay pair
+// (titles/spyro1/render/ordering_table.h).
 #pragma once
 
-#include "state_producer.h"
-
-#include <cstddef>
-#include <cstdint>
-#include <span>
+#include "render/screen_overlays.h"
+#include "spyro1/render/terrain_facts.h"
 
 class Core;
 
 namespace spyro1 {
 
-// DrawFullscreenTint($a0 blend, $a1 r, $a2 g, $a3 b): a DR_MODE carrying the blend, then one
-// semi-transparent POLY_F4 over (0,8)-(512,232).
-class FullscreenTint final : public psx::present::StateProducer {
-public:
-  static constexpr std::uint32_t kEntry = 0x800190D4u;
-
-  struct State {
-    std::uint32_t blend = 0;
-    std::uint8_t r = 0;
-    std::uint8_t g = 0;
-    std::uint8_t b = 0;
-    std::uint8_t pad = 0;
-  };
-
-  void render(const psx::present::StateInterval &states,
-              psx::present::PrimitiveSink &sink) const override;
-  // An additive or subtractive tint the guest skips (the dragon flash at fade 0) is one of colour
-  // 0.
-  [[nodiscard]] bool rests(std::span<const std::byte> drawn,
-                           std::span<std::byte> into) const override;
+// DrawFullscreenTint 0x800190D4: its POLY_F4 covers rows 8 to 0xE8.
+inline constexpr spyro::screen_overlays::TintFacts kFullscreenTint{
+    .entry = 0x800190D4u,
+    .overrideName = "spyro1-fullscreen-tint",
+    .top = 8,
+    .bottom = 0xE8,
 };
 
-// DrawCinematicLetterbox(): steps the bar height at 0x800756C0 toward 0 or 22, then draws two
-// opaque black POLY_F4 bars that tall at the top and bottom of the 512x240 screen.
-class CinematicLetterbox final : public psx::present::StateProducer {
-public:
-  static constexpr std::uint32_t kEntry = 0x80018F30u;
-  static constexpr std::uint32_t kBarHeight = 0x800756C0u;
-
-  struct State {
-    std::int32_t height = 0;
-  };
-
-  void render(const psx::present::StateInterval &states,
-              psx::present::PrimitiveSink &sink) const override;
+// DrawCinematicLetterbox 0x80018F30: steps 0x800756C0 toward 0 or 22, bars from the screen's top
+// and up from row 0xF0.
+inline constexpr spyro::screen_overlays::LetterboxFacts kCinematicLetterbox{
+    .entry = 0x80018F30u,
+    .overrideName = "spyro1-cinematic-letterbox",
+    .height = 0x800756C0u,
+    .primitiveCursor = terrain::kRenderGlobals.primitiveCursor,
+    .top = 0,
+    .bottom = 0xF0,
 };
 
-// The overrides and their renders.
-void registerScreenOverlayOverrides(Core &core);
+inline void registerScreenOverlayOverrides(Core &core) {
+  namespace screen_overlays = spyro::screen_overlays;
+  screen_overlays::installTint(
+      core, kFullscreenTint, screen_overlays::tintOverride<kFullscreenTint>);
+  screen_overlays::installLetterbox(
+      core, kCinematicLetterbox, screen_overlays::letterboxOverride<kCinematicLetterbox>);
+}
 
 } // namespace spyro1

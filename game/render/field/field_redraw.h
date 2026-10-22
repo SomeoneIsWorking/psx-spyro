@@ -51,8 +51,6 @@ struct Facts {
   std::uint32_t spyroKeyframes = 0;     // keyframe_blend::Pose keyframes, then the head's
   std::uint32_t spyroKeyProgress = 0;   // the body's progress byte, then the head's
   effect_pools::Facts effects;
-  std::uint32_t lastDrawer = 0; // the dispatcher's last call, after which it links nothing
-  const char *lastDrawerName = "";
   std::span<const ScreenDraw> screenDraws;
 };
 
@@ -104,8 +102,9 @@ void redrawField(Core &core, const Image &image);
 // A screen draw's override body: the redraw of `entry`, then the real call.
 void redrawScreen(Core &core, const Image &image, std::uint32_t entry);
 
-// The last drawer's override body: the real call, then where the field's packets end.
-void endField(Core &core, const Image &image);
+// The dispatcher's last drawer (the letterbox, after which it links nothing) returned: where the
+// field's packets end.
+void endField(Core &core, const guest_render_globals::Globals &globals);
 
 // What the flatten claims for the field: every packet linked before the dispatcher's end, which the
 // redraw reproduces, all linked so far after a screen draw, and none when no dispatcher ran to its

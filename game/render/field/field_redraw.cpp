@@ -268,7 +268,8 @@ void placeSky(History &history, std::uint32_t skyBin) {
       std::memcpy(&slot, history.state.data() + at + offsetof(SavedPrimitive, slot), sizeof(slot));
       if (slot.table == depth_bins::kTable && slot.index == history.redrawSkyBin) {
         slot.index = skyBin;
-        std::memcpy(history.state.data() + at + offsetof(SavedPrimitive, slot), &slot, sizeof(slot));
+        std::memcpy(
+            history.state.data() + at + offsetof(SavedPrimitive, slot), &slot, sizeof(slot));
       }
     }
   }
@@ -390,10 +391,8 @@ void redrawScreen(Core &core, const Image &image, std::uint32_t entry) {
   (void)psx::cpu::callOriginalOrPropagate(core, entry);
 }
 
-void endField(Core &core, const Image &image) {
-  if (psx::cpu::callOriginalOrPropagate(core, image.field.lastDrawer)) {
-    session(core).fieldRedraw.packetsEnd = core.mem_r32(image.terrain.globals().primitiveCursor);
-  }
+void endField(Core &core, const guest_render_globals::Globals &globals) {
+  session(core).fieldRedraw.packetsEnd = core.mem_r32(globals.primitiveCursor);
 }
 
 depth_bins::Claim fieldClaim(Core &core, const guest_render_globals::Globals &globals) {

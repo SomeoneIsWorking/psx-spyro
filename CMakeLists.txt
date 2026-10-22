@@ -111,7 +111,6 @@ set(SPYRO_RUNTIME_SOURCES
   titles/spyro1/core/effect/native_particle_alloc.cpp
   titles/spyro1/core/hud/native_pause_menu.cpp
   titles/spyro1/core/hud/native_pixel_fade.cpp
-  titles/spyro1/render/screen_overlays.cpp
   titles/spyro1/render/title_sprites.cpp
   titles/spyro1/render/hud_anchor.cpp
   titles/spyro1/core/player/native_player_animation.cpp
@@ -131,6 +130,7 @@ set(SPYRO_RUNTIME_SOURCES
   game/render/field/moby_record.cpp
   game/render/field/field_redraw.cpp
   game/render/field/loading_picture.cpp
+  game/render/screen_overlays.cpp
   game/render/field/effect_pools.cpp
   game/render/field/keyframe_blend.cpp
   game/render/field/guest_moby_visibility.cpp

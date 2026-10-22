@@ -14,6 +14,7 @@
 #include "render/field/guest_moby_visibility.h"
 #include "render/field/guest_render_globals.h"
 #include "render/field/loading_picture.h"
+#include "render/screen_overlays.h"
 #include "render/state_producer_override.h"
 #include "render/terrain/engine_terrain_image.h"
 #include "render/terrain/guest_depth_bins.h"
@@ -42,6 +43,9 @@ struct EngineRenderFacts {
   // Flatten calls, by return address, whose pass is chained after the first and keeps no bins.
   std::span<const std::uint32_t> unbinnedFlattens;
   loading_picture::Facts loadingPicture;
+  screen_overlays::TintFacts tint;
+  // The dispatcher's last drawer, after which it links nothing.
+  screen_overlays::LetterboxFacts letterbox;
 };
 
 namespace engine_render {
@@ -63,7 +67,9 @@ template <const EngineRenderFacts &facts> void redrawField(Core *core) {
 }
 
 template <const EngineRenderFacts &facts> void endField(Core *core) {
-  field_redraw::endField(*core, kFieldImage<facts>);
+  if (screen_overlays::drawLetterbox(*core, facts.letterbox)) {
+    field_redraw::endField(*core, facts.globals);
+  }
 }
 
 template <const EngineRenderFacts &facts, std::size_t screen> void redrawScreen(Core *core) {
@@ -79,7 +85,8 @@ void installScreenDraw(Core &core, std::uint64_t overlay) {
     return;
   }
   if (overlay == 0) {
-    psx::cpu::installNativeOverride(core, draw.entry, draw.overrideName, redrawScreen<facts, screen>);
+    psx::cpu::installNativeOverride(
+        core, draw.entry, draw.overrideName, redrawScreen<facts, screen>);
     return;
   }
   std::vector<psx::cpu::NativeKey> &installed = session(core).screenDrawOverrides;
@@ -106,14 +113,17 @@ void installScreenDraws(Core &core, std::uint64_t overlay, std::index_sequence<s
 
 // A stock read landed as the image `content` names: the screen draws of the overlay it loaded.
 template <const EngineRenderFacts &facts>
-void screenDrawsLanded(Core &core, const psx::cd::StockReadLanding &landing, std::uint64_t content) {
+void screenDrawsLanded(Core &core,
+                       const psx::cd::StockReadLanding &landing,
+                       std::uint64_t content) {
   const bool holdsOne = std::ranges::any_of(facts.field.screenDraws, [&](const auto &draw) {
     return draw.overlay != 0 && draw.entry - landing.destination < landing.bytes;
   });
   if (!holdsOne) {
     return;
   }
-  installScreenDraws<facts>(core, content, std::make_index_sequence<facts.field.screenDraws.size()>{});
+  installScreenDraws<facts>(
+      core, content, std::make_index_sequence<facts.field.screenDraws.size()>{});
 }
 
 template <const EngineRenderFacts &facts> void drawLoadingPicture(Core *core) {
@@ -168,8 +178,10 @@ template <const EngineRenderFacts &facts> void registerEngineRenderOverrides(Cor
   }
   psx::cpu::installNativeOverride(
       core, facts.field.entry, facts.field.overrideName, engine_render::redrawField<facts>);
-  psx::cpu::installNativeOverride(
-      core, facts.field.lastDrawer, facts.field.lastDrawerName, engine_render::endField<facts>);
+  screen_overlays::installLetterbox(core, facts.letterbox, engine_render::endField<facts>);
+  if (facts.tint.entry != 0) {
+    screen_overlays::installTint(core, facts.tint, screen_overlays::tintOverride<facts.tint>);
+  }
   engine_render::installScreenDraws<facts>(
       core, 0, std::make_index_sequence<facts.field.screenDraws.size()>{});
   installProducerOverride(core,
