@@ -6,7 +6,7 @@ Dependency direction: `titles/<title>/` (one image's facts and natives) → `gam
 - `game/core/runtime.*` — Spyro runtime base: session, state producers, presentation pacing, widescreen projection policy, panel logo, run report
 - `game/core/session.*` — per-Core title state: archive transfer, field owner, HUD draw context, terrain visibility, state producers
 - `game/core/field_owner.*` — display field / VSync delivery sequence: pad, clock, VBlank root counter, observers, snapshot, presentation fence, audio, host turn
-- `game/core/boot_prefix_runtime.*`, `boot_prefix_frame_driver.*` — S2/S3 boot: crt0, stock libraries, the retail boot prefix as a resumable call, then update and draw one field per step, each logic frame presented when its draw returns
+- `game/core/boot_prefix_runtime.*`, `boot_prefix_frame_driver.*` — S2/S3 boot: crt0, stock libraries, the retail boot prefix as a resumable call, then update and draw one field per step, each logic frame presented when its draw returns, each field of the fade-before-load loop presented on its own
 - `game/core/frame_cut.*` — cut detection for 60 fps in-betweens: gamestate, level, camera placement, a cutscene camera track's shot change
 - `game/core/native_execution.h` — nested guest call return address `$ra` and lowered stack frame
 - `game/core/archive_transfer*` — WAD archive / CD file transfer with per-Core completion and refusal
@@ -14,7 +14,8 @@ Dependency direction: `titles/<title>/` (one image's facts and natives) → `gam
 - `game/core/title_logo*` — title wordmark / logo snapshotted from guest VRAM for the picker panel
 - `game/core/debug/warp.*` — `warp <level>` control command / level select / dev warp, applied when the title screen is idle
 - `game/render/engine_render_overrides.*` — S2/S3 render overrides bound to one image: terrain producer, moby walk, field dispatcher and its last drawer, flatten depth bins and field producer
-- `game/render/field/field_redraw.*` — S2/S3 field in-between: the draw dispatcher re-run as a guest redraw at the in-between camera, mobys, Spyro and effects, its packets saved by the flatten as the field's state, the sky moved at the flatten to the deeper of the two real fields' sky bins; screen draws (a state's draw with 2D after the dispatcher, title overlays keyed by the landed read's published content, the replaced image's override removed) redrawn whole
+- `game/render/field/field_redraw.*` — S2/S3 field in-between: the draw dispatcher re-run as a guest redraw at the in-between camera, mobys, Spyro and effects, its packets saved by the flatten as the field's state, the sky moved at the flatten to the deeper of the two real fields' sky bins; the Spyro 3 pause menu's second moby pass (Sparx) redrawn in its own depth table; screen draws (a state's draw with 2D after the dispatcher, title overlays keyed by the landed read's published content, the replaced image's override removed) redrawn whole
+- `game/render/screen_overlays.*` — fullscreen tint / fade and cinematic letterbox producers shared by all three images
 - `game/render/field/loading_picture.*` — S2/S3 loading screen picture: page sprites faded in by a counter, saved with their packets, redrawn at the in-between brightness
 - `game/render/field/effect_pools.*` — S2/S3 effects pass pools (sprites, glows, beams, trails, vertex meshes, particles): one field's records read, paired by slot and moved for the in-between
 - `game/render/field/keyframe_blend.*` — moby / Spyro animation keyframe pair and progress (S2/S3 nibbles, S1 64ths and 16ths), pose between two fields and across an animation switch
@@ -44,7 +45,7 @@ Dependency direction: `titles/<title>/` (one image's facts and natives) → `gam
 - `titles/spyro1/core/effect/` — S1 effects: ground shadow block and ring, flame block, particle pool allocation
 - `titles/spyro1/core/hud/` — S1 HUD: collectables, pause menu, pixel fade
 - `titles/spyro1/core/input/` — S1 gamepad buffers, input phase for `.pad` recordings
-- `titles/spyro1/core/debug/` — S1 warp route (reset then TSD_Level flyby); `teleport`: `gates` / `gate-teleport` onto a level portal, `dragons` / `dragon-teleport` onto a crystal dragon (the rescue cutscene route)
+- `titles/spyro1/core/debug/` — S1 warp route (reset then TSD_Level flyby); `teleport`: `gates` / `gate-teleport` onto a level portal, `dragons` / `dragon-teleport` onto a crystal dragon (the rescue cutscene route); `mobys` / `moby-teleport` onto any moby by class
 - `titles/spyro1/render/terrain_*` — S1 terrain drawer RenderWorldChunks: sector loop, far, detail, coarse and fine subdivision passes, facts
 - `titles/spyro1/render/actor_*`, `lit_actor_emitter.*`, `local_bins.*` — S1 actors / mobys: draw list builders, emitters (flat light, reflection), layouts, producers, in-between record blend and host-memory run (`InBetween`), local depth bins
 - `titles/spyro1/render/sprite_queue*` — S1 sprite queue: lit and HUD mobys, producer
@@ -58,7 +59,7 @@ Dependency direction: `titles/<title>/` (one image's facts and natives) → `gam
 - `titles/spyro1/render/glow*` — S1 glow fans and sparkles, their emitter and sparkle pools, producers
 - `titles/spyro1/render/ordering_table.*` — S1 LinkOTPrimitives / ordering table slots
 - `titles/spyro1/render/hud_anchor.*` — S1 HUD anchor class per HUD record
-- `titles/spyro1/render/screen_overlays.*` — S1 fullscreen tint and cinematic letterbox producers
+- `titles/spyro1/render/screen_overlays.h` — S1 facts for the shared tint and letterbox
 - `titles/spyro1/render/title_sprites.*` — S1 title screen sprites (logo slide, PRESS START, memory card menus) producer, installed per title overlay landing
 - `titles/spyro1/render/particle*` — S1 particles / emit list, producer
 - `titles/spyro1/render/screen.h` — S1 retail outcode window for widened culls
