@@ -62,6 +62,7 @@ set(SPYRO_RUNTIME_SOURCES
   game/core/frame_cut.cpp
   game/core/guest_magnitude.cpp
   game/core/session.cpp
+  game/core/debug/moby_teleport.cpp
   game/core/debug/warp.cpp
   game/core/runtime.cpp
   game/core/title_runtime_registry.cpp
@@ -189,8 +190,10 @@ set(SPYRO_RUNTIME_SOURCES
   titles/spyro1/render/terrain_image.cpp
   titles/spyro1/render/terrain_sectors.cpp
   titles/spyro1/render/terrain_split.cpp
+  titles/spyro2/core/moby_teleport.cpp
   titles/spyro2/core/runtime.cpp
   titles/spyro2/core/warp.cpp
+  titles/spyro2/render/conversation_box.cpp
   titles/spyro2/render/hud_anchor.cpp
   titles/spyro3/core/runtime.cpp
   titles/spyro3/core/warp.cpp
