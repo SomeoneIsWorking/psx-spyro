@@ -1,15 +1,14 @@
 #include "spyro1/core/moby/native_shaded_moby_queue.h"
 
 #include "core/native_execution.h"
+#include "spyro1/core/guest_globals.h"
 
 #include <cstdint>
 
 namespace spyro1::native {
 namespace {
 
-constexpr std::uint32_t kShadedMobyList = 0x800720F4u;  // g_SonyImage.m_ShadedMobys
-constexpr std::uint32_t kHudMobyCursor = 0x80075710u;   // g_HudMobys
-constexpr std::uint32_t kHudMobyArenaEnd = 0x800756FCu; // D_800756FC
+constexpr std::uint32_t kShadedMobyList = 0x800720F4u; // g_SonyImage.m_ShadedMobys
 constexpr std::uint32_t kQueueSlotBytes = 4u;
 constexpr std::uint32_t kMobyBytes = 0x58u; // the stride g_HudMobys is walked by
 constexpr std::uint32_t kGuestSegmentBase =
@@ -31,14 +30,14 @@ void appendHudMobysToShadedQueue(Core *c) {
   while (c->mem_r32(slot) != 0u) {
     slot += kQueueSlotBytes;
   }
-  const std::uint32_t arenaEnd = c->mem_r32(kHudMobyArenaEnd);
-  std::uint32_t cursor = c->mem_r32(kHudMobyCursor);
+  const std::uint32_t arenaEnd = c->mem_r32(guest::kHudMobyArenaEnd);
+  std::uint32_t cursor = c->mem_r32(guest::kHudMobys);
   if (cursor != arenaEnd) {
     c->r[1] = kGuestSegmentBase;
     do {
       c->mem_w32(slot, cursor);
       cursor += kMobyBytes;
-      c->mem_w32(kHudMobyCursor, cursor);
+      c->mem_w32(guest::kHudMobys, cursor);
       slot += kQueueSlotBytes;
     } while (cursor != arenaEnd);
   }

@@ -7,6 +7,7 @@
 #include "render/hud/ui_anchor.h"
 #include "render/state_producer_override.h"
 #include "render/terrain/guest_depth_bins.h"
+#include "spyro1/core/guest_globals.h"
 #include "spyro1/render/actor_between.h"
 #include "spyro1/render/actor_facts.h"
 #include "spyro1/render/hud_anchor.h"
@@ -30,6 +31,14 @@ SavedRecord readRecord(std::span<const std::byte> bytes) {
   return memory::unpackDraw<QueuedRecordState>(bytes, "queue record");
 }
 
+// A record in the HUD arena is rebuilt every frame in the other draw buffer's arena, in the order
+// its builder runs: its place below the arena end names it. Any other record is its address.
+std::uint32_t objectOf(Core &core, std::uint32_t record) {
+  const std::uint32_t arenaEnd = core.mem_r32(guest::kHudMobyArenaEnd);
+  const std::uint32_t cursor = core.mem_r32(kRenderGlobals.primitiveCursor);
+  return record >= cursor && record < arenaEnd ? arenaEnd - record : record;
+}
+
 void drawQueue(Core *core) {
   Core &guest = *core;
   spyro::guest_render_globals::spillBorrowedRegisters(guest, kRenderGlobals);
@@ -42,7 +51,13 @@ void drawQueue(Core *core) {
   const psx::present::Kept<psx::present::LevelReads>::Use reads(spyro::session(guest).drawReads);
   const psx::present::EmitMemory memory(guest, *reads, working);
   SpriteQueue queue(guest, memory, presentedQueueView(guest));
-  QueuedRecordState state{.camera = spyro::guest_terrain::readCamera(guest, kRenderGlobals)};
+  const bool overlayFolded = guest.r[31] == kTitleDrawQueueReturn &&
+                             guest.mem_r32(guest::kTitlescreenStage) == guest::kTitleStageActive;
+  QueuedRecordState state{
+      .camera = spyro::guest_terrain::readCamera(guest, kRenderGlobals),
+      .overlaySlot = overlayFolded
+                         ? psx::present::OtSlot{spyro::depth_bins::kTable, kTitleOverlayBin}
+                         : spyro::depth_bins::kOverlaySlot};
   guest.readBytes(kLightVector, std::as_writable_bytes(std::span(state.light)));
   hud_anchor::QueueAnchors anchors;
   queue.begin();
@@ -60,7 +75,7 @@ void drawQueue(Core *core) {
                                                    anchors.next(record))
                     : 0;
     guest.readBytes(record, std::as_writable_bytes(std::span(state.bytes)));
-    const auto scope = guest.emission.instance(record);
+    const auto scope = guest.emission.instance(objectOf(guest, record));
     reads->clear();
     if (const auto chain = queue.draw(record, state.hudShift)) {
       queue.link(*chain);
@@ -93,7 +108,7 @@ void SpriteQueueProducer::render(const psx::present::StateInterval &states,
     return;
   }
   const psx::present::OtSlot slot =
-      chain->overlay ? spyro::depth_bins::kOverlaySlot
+      chain->overlay ? state.overlaySlot
                      : psx::present::OtSlot{spyro::depth_bins::kTable, chain->depthBin};
   psx::present::DrawModeTracker drawMode;
   if (chain->drawMode != 0) {
