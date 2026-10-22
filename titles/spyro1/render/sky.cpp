@@ -47,9 +47,8 @@ struct Vertex {
 
 Cyclorama::Cyclorama(Core &core,
                      const psx::present::EmitMemory &memory,
-                     const spyro::guest_terrain::ScreenBounds &bounds,
-                     psx::present::PrimitiveSink *places)
-    : core_(core), memory_(memory), bounds_(bounds), places_(places) {}
+                     const spyro::guest_terrain::ScreenBounds &bounds)
+    : core_(core), memory_(memory), bounds_(bounds) {}
 
 std::optional<SkyChain> Cyclorama::draw(std::int32_t group, const Rotations &rotations) {
   auto &gte = core_.gte();
@@ -198,7 +197,8 @@ bool Cyclorama::outcodeSector(std::uint32_t sector) {
     gte.execute(gte::kRtps);
     next = unpack(memory_.mem_r32(word));
     gte.writeData(gte::kVz0, next.z);
-    const std::uint32_t sxy = gte.readData(gte::kSxy2);
+    const psx::gte::ProjectedVertex projected = gte.projected(2);
+    const std::uint32_t sxy = projected.word();
     gte.writeData(gte::kVxy0, next.xy);
     v0_ = sxy;
     v1_ = next.xy;
@@ -208,10 +208,7 @@ bool Cyclorama::outcodeSector(std::uint32_t sector) {
     code += bounds_.atOrLeftOfLeft(sxy) ? 4u : 0u;
     code += bounds_.atOrRightOfRight(sxy) ? 8u : 0u;
     edges &= code;
-    if (places_ != nullptr) {
-      outcodePlaces_[(outcode - kOutcodes) / 4u] = gte.projectedPlace(2);
-    }
-    memory_.mem_w32(outcode, code);
+    memory_.storeVertex(outcode, {code, projected.place()});
     outcode += 4;
   }
   return (edges & 0xFu) == 0;
@@ -233,8 +230,8 @@ bool Cyclorama::drawPolygons(std::uint32_t polygons) {
       continue;
     }
     const SkyTriangle drawn = triangle(polygon, colours_);
-    v0_ = drawn.points[1];
-    v1_ = drawn.points[2];
+    v0_ = drawn.points[1].word();
+    v1_ = drawn.points[2].word();
     emit(drawn, polygon.shades[0] == polygon.shades[1] && polygon.shades[0] == polygon.shades[2]);
   }
   return true;
@@ -258,13 +255,8 @@ Cyclorama::Polygon Cyclorama::polygonAt(std::uint32_t at) const {
 SkyTriangle Cyclorama::triangle(const Polygon &polygon, std::uint32_t colours) const {
   SkyTriangle out;
   for (std::uint32_t corner = 0; corner < 3; ++corner) {
-    out.points[corner] = sra(polygon.outcodes[corner], 5);
+    out.points[corner] = memory_.loadVertex(kOutcodes + polygon.corners[corner], sra(polygon.outcodes[corner], 5));
     out.colours[corner] = memory_.mem_r32(colours + polygon.shades[corner]);
-  }
-  if (places_ != nullptr) {
-    out.places = std::array<GtePlace, 3>{outcodePlaces_[polygon.corners[0] / 4u],
-                                         outcodePlaces_[polygon.corners[1] / 4u],
-                                         outcodePlaces_[polygon.corners[2] / 4u]};
   }
   return out;
 }
@@ -273,26 +265,23 @@ SkyTriangle Cyclorama::triangle(const Polygon &polygon, std::uint32_t colours) c
 void Cyclorama::emit(const SkyTriangle &triangle, bool flat) {
   memory_.mem_w32(last_, tag_ ^ cursor_);
   last_ = cursor_;
-  if (places_ != nullptr && triangle.places) {
-    places_->placeCorners(cursor_, *triangle.places);
-  }
   const auto &p = triangle.points;
   const auto &c = triangle.colours;
   if (flat) {
     tag_ = kFlatTag;
     memory_.mem_w32(cursor_ + 4, c[0] - kFlatCommand);
-    memory_.mem_w32(cursor_ + 8, p[0]);
-    memory_.mem_w32(cursor_ + 0xC, p[1]);
-    memory_.mem_w32(cursor_ + 0x10, p[2]);
+    memory_.storeVertex(cursor_ + 8, p[0]);
+    memory_.storeVertex(cursor_ + 0xC, p[1]);
+    memory_.storeVertex(cursor_ + 0x10, p[2]);
     cursor_ += 0x14;
   } else {
     tag_ = kGouraudTag;
     memory_.mem_w32(cursor_ + 4, c[0]);
-    memory_.mem_w32(cursor_ + 8, p[0]);
+    memory_.storeVertex(cursor_ + 8, p[0]);
     memory_.mem_w32(cursor_ + 0xC, c[1]);
-    memory_.mem_w32(cursor_ + 0x10, p[1]);
+    memory_.storeVertex(cursor_ + 0x10, p[1]);
     memory_.mem_w32(cursor_ + 0x14, c[2]);
-    memory_.mem_w32(cursor_ + 0x18, p[2]);
+    memory_.storeVertex(cursor_ + 0x18, p[2]);
     cursor_ += 0x1C;
   }
 }

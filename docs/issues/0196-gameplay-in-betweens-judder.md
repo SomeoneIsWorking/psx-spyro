@@ -211,8 +211,9 @@ Cause, two roundings of one in-between camera:
 - `game/render/terrain/guest_camera_builder.cpp:interpolate` rounded the in-between camera angles to whole guest
   units; the intro camera turns three units per field, so the in-between sat 2/3 of the way, not 1/2.
 
-Fix: each producer declares the unrounded place of every vertex it copies from a projection into a packet,
-by packet address and vertex index, and the composer gives those polygons their fraction (psxport issue 0169).
+Fix: each producer declared the unrounded place of every vertex it copies from a projection into a packet,
+by packet address and vertex index, and the composer gave those polygons their fraction (psxport issue 0169;
+since 2026-10-22 the place is stored with the word and no producer declares it, see the end of this issue).
 Spyro 1 declares places in the sky (`Cyclorama`), the moby emitters (`ActorEmitter`, `LitActorEmitter`) and all
 terrain passes (`TerrainFrame::declarePlaces`, kept per scratchpad word as each pass projects, carried through
 the split grid's pulls and the re-split midpoints). A first version matched places by the packed SXY value;
@@ -811,3 +812,11 @@ counts across repeated states. Pass 10 also edited `field_redraw.cpp` twice; thi
   ("p50 16.75 ms except Toy Story 2") was wrong: Tomba 2's first 40 s are its 30 Hz boot cards and
   previews (psxport 0158) and Toy Story 2's p99 is 100 ms; both read the same before this pass's psxport
   change (`rv10-titles`), which adds work only where Spyro places an empty bucket.
+
+## Places stored with the word (2026-10-22)
+psxport issue 0169 replaced the declarations: every producer above stores its projected vertices with
+`EmitMemory::storeVertex` and reads them back with `loadVertex`, so the place travels with the word through
+scratch, queues and packets, and only the vertices a producer computes (clip crossings, split midpoints, pulls,
+scaled corners, whole-pixel steps) take a place it computes. `TerrainFrame::declarePlaces` and every per-producer
+declaration are gone. At 8x the Spyro 1 flag intro, Spyro 1 `warp 10` turning (portals included), Spyro 2 boot and
+Spyro 3 `warp 10` are byte-identical to a build of HEAD before the change, 24 of 24 presents each.

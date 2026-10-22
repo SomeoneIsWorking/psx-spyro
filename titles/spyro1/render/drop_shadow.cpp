@@ -43,10 +43,7 @@ std::uint32_t frameData(std::uint32_t word) {
 
 } // namespace
 
-DropShadow::DropShadow(Core &core,
-                       const psx::present::EmitMemory &memory,
-                       psx::present::PrimitiveSink *places)
-    : core_(core), memory_(memory), places_(places) {}
+DropShadow::DropShadow(Core &core, const psx::present::EmitMemory &memory) : core_(core), memory_(memory) {}
 
 bool DropShadow::draw() {
   if (asSigned(memory_.mem_r32(shadow_block::kSuppress)) > 0) {
@@ -80,8 +77,7 @@ void DropShadow::placeCentre() {
   gte.writeData(gte::kVxy0, (y & 0xFFFFu) + (z << 16));
   gte.execute(gte::kRtps);
   const std::uint32_t heading = static_cast<std::uint32_t>(memory_.mem_r8(kSpyro + kHeading)) << 1;
-  centreScreen_ = gte.readData(gte::kSxy2);
-  centrePlace_ = gte.projectedPlace(2);
+  centreScreen_ = gte.projected(2);
   centreDepth_ = gte.readData(gte::kSz3);
   gte.writeControl(gte::kTranslationZ, gte.readData(gte::kMac3));
   gte.writeControl(gte::kTranslationY, gte.readData(gte::kMac2));
@@ -188,9 +184,8 @@ void DropShadow::projectRing() {
     gte.writeData(gte::kVz0, z);
     gte.writeData(gte::kVxy0, (x & 0xFFFFu) + (sra(height << 24, 24) << 18));
     gte.execute(gte::kRtps);
-    memory_.mem_w32(kStaging + point * 8, gte.readData(gte::kSxy2));
+    memory_.storeVertex(kStaging + point * 8, gte.projected(2));
     memory_.mem_w32(kStaging + point * 8 + 4, gte.readData(gte::kSz3));
-    ringPlaces_[point] = gte.projectedPlace(2);
   }
 }
 
@@ -199,18 +194,18 @@ void DropShadow::drawSegments() {
   std::uint32_t cursor = memory_.mem_r32(kRenderGlobals.primitiveCursor);
   const std::uint32_t bias = memory_.mem_r32(shadow_block::kBias);
   const std::uint32_t closing = kStaging + kPoints * 8;
-  memory_.mem_w32(closing, memory_.mem_r32(kStaging));
+  memory_.storeVertex(closing, memory_.loadVertex(kStaging));
   memory_.mem_w32(closing + 4, memory_.mem_r32(kStaging + 4));
-  for (std::uint32_t at = kStaging, point = 0; at != closing; at += 8, ++point) {
-    const std::uint32_t screen = memory_.mem_r32(at);
-    const std::uint32_t nextScreen = memory_.mem_r32(at + 8);
+  for (std::uint32_t at = kStaging; at != closing; at += 8) {
+    const psx::gte::ProjectedVertex screen = memory_.loadVertex(at);
+    const psx::gte::ProjectedVertex nextScreen = memory_.loadVertex(at + 8);
     const std::uint32_t rimDepth = memory_.mem_r32(at + 4) + memory_.mem_r32(at + 0xC);
     memory_.mem_w32(cursor + 0x10, kTriangleCentre);
-    memory_.mem_w32(cursor + 0x14, centreScreen_);
+    memory_.storeVertex(cursor + 0x14, centreScreen_);
     memory_.mem_w32(cursor + 0x18, 0);
-    memory_.mem_w32(cursor + 0x1C, screen);
+    memory_.storeVertex(cursor + 0x1C, screen);
     memory_.mem_w32(cursor + 0x20, 0);
-    memory_.mem_w32(cursor + 0x24, nextScreen);
+    memory_.storeVertex(cursor + 0x24, nextScreen);
     memory_.mem_w32(cursor + 0x08, 0);
     memory_.mem_w32(cursor + 0x04, kDrawMode);
     memory_.mem_w32(cursor, (kModeTag ^ cursor) + 0xC);
@@ -219,17 +214,13 @@ void DropShadow::drawSegments() {
     if (asSigned(bin) < 0) {
       continue;
     }
-    if (places_ != nullptr) {
-      places_->placeCorners(
-          cursor + 0xC, {{centrePlace_, ringPlaces_[point], ringPlaces_[(point + 1) % kPoints]}});
-    }
     const std::uint32_t slot = (bin << 3) + table;
     spyro::depth_bins::linkIntoBin(memory_, slot, cursor, cursor + 0xC);
     cursor += kSegmentBytes;
   }
   memory_.mem_w32(kRenderGlobals.primitiveCursor, cursor);
   v0_ = kRadii;
-  v1_ = centreScreen_;
+  v1_ = centreScreen_.word();
 }
 
 } // namespace spyro1::shadow

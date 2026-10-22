@@ -108,7 +108,7 @@ void SpriteQueueProducer::render(const psx::present::StateInterval &states,
   between.host().provide(kLightVector, std::as_bytes(std::span(light)));
   between.provideWord(kShadowListEnd, kShadowList);
 
-  SpriteQueue queue(core_, between.memory(), presentedQueueView(core_), &sink);
+  SpriteQueue queue(core_, between.memory(), presentedQueueView(core_));
   queue.begin();
   const std::optional<QueuedChain> chain =
       queue.draw(state.record, state.hudShift, shown.angleFractions);

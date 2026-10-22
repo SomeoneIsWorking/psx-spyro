@@ -39,10 +39,7 @@ std::uint32_t packXy(std::uint32_t x, std::uint32_t y) {
 
 } // namespace
 
-FlameTrails::FlameTrails(Core &core,
-                         const psx::present::EmitMemory &memory,
-                         psx::present::PrimitiveSink *places)
-    : core_(core), memory_(memory), places_(places) {}
+FlameTrails::FlameTrails(Core &core, const psx::present::EmitMemory &memory) : core_(core), memory_(memory) {}
 
 void FlameTrails::draw() {
   table_ = memory_.mem_r32(kRenderGlobals.orderingTable);
@@ -126,8 +123,7 @@ bool FlameTrails::drawTip(std::uint32_t entry) {
                                    11);
   const std::uint32_t sineStep = sra(ring * static_cast<std::uint32_t>(memory_.mem_r16s(sine)), 11);
   const std::uint32_t tipDepth = gte.readData(gte::kSz3);
-  const std::uint32_t tipScreen = gte.readData(gte::kSxy2);
-  const GtePlace tipPlace = gte.projectedPlace(2);
+  const psx::gte::ProjectedVertex tipScreen = gte.projected(2);
   const std::uint32_t frontX = cosine - x;
   const std::uint32_t frontY = sineStep - y;
   // The third corner lies across the angle, half as far for a superflame.
@@ -156,45 +152,29 @@ bool FlameTrails::drawTip(std::uint32_t entry) {
     return false;
   }
   const std::uint32_t slot = (bin << 3) + table_;
-  const std::array<std::uint32_t, 3> ring3 = {
-      gte.readData(gte::kSxy0), gte.readData(gte::kSxy1), gte.readData(gte::kSxy2)};
-  const std::array<GtePlace, 3> places = {
-      gte.projectedPlace(0), gte.projectedPlace(1), gte.projectedPlace(2)};
-  tipTriangle(slot,
-              {tipScreen, ring3[1], ring3[0]},
-              {tipPlace, places[1], places[0]},
-              {colour[0], colour[2], colour[1]});
-  tipTriangle(slot,
-              {tipScreen, ring3[0], ring3[2]},
-              {tipPlace, places[0], places[2]},
-              {colour[0], colour[1], colour[3]});
-  tipTriangle(slot,
-              {tipScreen, ring3[2], ring3[1]},
-              {tipPlace, places[2], places[1]},
-              {colour[0], colour[3], colour[2]});
-  tipTriangle(slot, {ring3[0], ring3[1], ring3[2]}, places, {colour[1], colour[2], colour[3]});
+  const std::array<psx::gte::ProjectedVertex, 3> ring3 = {gte.projected(0), gte.projected(1), gte.projected(2)};
+  tipTriangle(slot, {tipScreen, ring3[1], ring3[0]}, {colour[0], colour[2], colour[1]});
+  tipTriangle(slot, {tipScreen, ring3[0], ring3[2]}, {colour[0], colour[1], colour[3]});
+  tipTriangle(slot, {tipScreen, ring3[2], ring3[1]}, {colour[0], colour[3], colour[2]});
+  tipTriangle(slot, ring3, {colour[1], colour[2], colour[3]});
   return true;
 }
 
 void FlameTrails::tipTriangle(std::uint32_t slot,
-                              const std::array<std::uint32_t, 3> &screens,
-                              const std::array<GtePlace, 3> &places,
+                              const std::array<psx::gte::ProjectedVertex, 3> &screens,
                               const std::array<std::uint32_t, 3> &colours) {
   auto &gte = core_.gte();
-  gte.writeData(gte::kSxy0, screens[0]);
-  gte.writeData(gte::kSxy1, screens[1]);
-  gte.writeData(gte::kSxy2, screens[2]);
+  gte.writeData(gte::kSxy0, screens[0].word());
+  gte.writeData(gte::kSxy1, screens[1].word());
+  gte.writeData(gte::kSxy2, screens[2].word());
   gte.execute(gte::kNclip);
   for (std::uint32_t i = 0; i < 3; ++i) {
     memory_.mem_w32(cursor_ + 4 + 8 * i, colours[i]);
-    memory_.mem_w32(cursor_ + 8 + 8 * i, screens[i]);
+    memory_.storeVertex(cursor_ + 8 + 8 * i, screens[i]);
   }
   memory_.mem_w32(cursor_, kTipTag);
   if (asSigned(gte.readData(gte::kMac0)) <= 0) {
     return;
-  }
-  if (places_ != nullptr) {
-    places_->placeCorners(cursor_, places);
   }
   spyro::depth_bins::linkIntoBin(memory_, slot, cursor_, cursor_);
   cursor_ += kTipBytes;
@@ -222,8 +202,8 @@ void FlameTrails::drawRibbon(const PartWalk &walk, bool tipped) {
   std::uint32_t darken = 0x0A0A0Au;
   std::uint32_t wide = tipped ? 1u : 0u;
   // The first step only primes the pair; its packet words are written and never linked.
-  std::uint32_t previous[2] = {0, greys};
-  GtePlace previousPlace[2]{};
+  std::array<psx::gte::ProjectedVertex, 2> previous = {psx::gte::ProjectedVertex::whole(0),
+                                                       psx::gte::ProjectedVertex::whole(greys)};
   while (true) {
     const std::uint32_t point = memory_.mem_r32(entry);
     const std::uint32_t angle = memory_.mem_r32(entry + 4);
@@ -233,7 +213,7 @@ void FlameTrails::drawRibbon(const PartWalk &walk, bool tipped) {
     const std::uint32_t sine = kRenderGlobals.cameraSineTable + ((angle >> 15) & 0x1FEu);
     std::uint32_t ring = kNarrowRing;
     if (asSigned(steps) > 0) {
-      wide += previous[0];
+      wide += previous[0].word();
       if (wide != 0) {
         ring = superflame_ ? kSuperRing : kTipRing;
       }
@@ -251,19 +231,18 @@ void FlameTrails::drawRibbon(const PartWalk &walk, bool tipped) {
     gte.writeData(gte::kVxy0, packXy(frontX, frontY));
     gte.writeData(gte::kVxy1, packXy(frontX - (cosine << 1), frontY - (sineStep << 1)));
     gte.execute(gte::kRtpt);
-    memory_.mem_w32(cursor_ + 0x08, previous[0]);
-    memory_.mem_w32(cursor_ + 0x14, previous[1]);
+    memory_.storeVertex(cursor_ + 0x08, previous[0]);
+    memory_.storeVertex(cursor_ + 0x14, previous[1]);
     memory_.mem_w32(cursor_ + 0x0C, uv0);
     memory_.mem_w32(cursor_ + 0x18, uv1);
     memory_.mem_w32(cursor_ + 0x04, colour);
     memory_.mem_w32(cursor_ + 0x10, colour);
     memory_.mem_w32(cursor_, kRibbonTag);
-    const std::uint32_t screens[2] = {gte.readData(gte::kSxy0), gte.readData(gte::kSxy1)};
-    const GtePlace places[2] = {gte.projectedPlace(0), gte.projectedPlace(1)};
+    const std::array<psx::gte::ProjectedVertex, 2> screens = {gte.projected(0), gte.projected(1)};
     const std::uint32_t depth = gte.readData(gte::kSz1) + gte.readData(gte::kSz2);
-    if (previous[0] != 0) {
-      memory_.mem_w32(cursor_ + 0x20, screens[0]);
-      memory_.mem_w32(cursor_ + 0x2C, screens[1]);
+    if (previous[0].word() != 0) {
+      memory_.storeVertex(cursor_ + 0x20, screens[0]);
+      memory_.storeVertex(cursor_ + 0x2C, screens[1]);
       uv0 += vStep;
       memory_.mem_w32(cursor_ + 0x24, uv0);
       uv1 += vStep;
@@ -273,21 +252,14 @@ void FlameTrails::drawRibbon(const PartWalk &walk, bool tipped) {
       memory_.mem_w32(cursor_ + 0x28, colour);
       const std::uint32_t bin = (depth >> 8) - 2;
       if (asSigned(bin) >= 0) {
-        if (places_ != nullptr) {
-          places_->placeCorners(cursor_,
-                                {{previousPlace[0], previousPlace[1], places[0], places[1]}});
-        }
         spyro::depth_bins::linkIntoBin(memory_, (bin << 3) + table_, cursor_, cursor_);
         cursor_ += kRibbonBytes;
       }
     }
-    previous[0] = screens[0];
-    previous[1] = screens[1];
-    previousPlace[0] = places[0];
-    previousPlace[1] = places[1];
+    previous = screens;
     // 80059298: two steps an entry; an odd last step closes half an entry at half the rate.
     if (asSigned(steps) <= 0) {
-      v0_ = previous[1];
+      v0_ = previous[1].word();
       v1_ = uv0;
       return;
     }

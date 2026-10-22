@@ -93,19 +93,7 @@ std::uint32_t packed(std::uint32_t x, std::uint32_t y) {
 
 } // namespace
 
-Portals::Portals(Core &core,
-                 const psx::present::EmitMemory &memory,
-                 psx::present::PrimitiveSink *places)
-    : core_(core), memory_(memory), places_(places) {}
-
-std::array<GtePlace, 3> &Portals::piecePlaces(std::uint32_t piece, std::uint32_t bytes) {
-  const std::uint32_t slot = (piece - kPieces) / bytes;
-  if (slot >= pieces_.size()) {
-    lucent::error("spyro1-portals", "piece 0x{:08X} is past the work block", piece);
-    std::abort();
-  }
-  return pieces_[slot];
-}
+Portals::Portals(Core &core, const psx::present::EmitMemory &memory) : core_(core), memory_(memory) {}
 
 std::uint32_t
 Portals::colourToward(std::uint32_t colour, std::uint32_t target, std::uint32_t amount) {
@@ -150,14 +138,11 @@ Portals::appendEdge(std::uint32_t i, std::uint32_t j, std::uint32_t &edges) {
   const std::uint32_t a = asWord(from.y) - asWord(to.y);
   const std::uint32_t b = asWord(to.x) - asWord(from.x);
   memory_.mem_w32(at + edge::kFlag, 1);
-  memory_.mem_w32(at + edge::kFrom, packed(asWord(from.x), asWord(from.y)));
-  memory_.mem_w32(at + edge::kTo, packed(asWord(to.x), asWord(to.y)));
+  memory_.storeVertex(at + edge::kFrom, {packed(asWord(from.x), asWord(from.y)), outline_.at(i)});
+  memory_.storeVertex(at + edge::kTo, {packed(asWord(to.x), asWord(to.y)), outline_.at(j)});
   memory_.mem_w32(at + edge::kA, a);
   memory_.mem_w32(at + edge::kB, b);
   memory_.mem_w32(at + edge::kC, (0u - a) * asWord(from.x) - b * asWord(from.y));
-  if (places_ != nullptr) {
-    edgeEnds_.at(edges) = {outline_.at(i), outline_.at(j)};
-  }
   ++edges;
   return std::array<std::uint32_t, 2>{absolute(asWord(from.x) - asWord(to.x)),
                                       absolute(asWord(from.y) - asWord(to.y))};
@@ -281,10 +266,9 @@ std::optional<Approach> Portals::drawFar(std::uint32_t index) {
     gte.writeData(gte::kVz0, sra(x - cameraX, shift));
     gte.writeData(gte::kVxy0, packed(sra(cameraY - y, shift), sra(cameraZ - z, shift)));
     gte.execute(gte::kRtps);
-    const std::uint32_t screen = gte.readData(gte::kSxy2);
-    if (places_ != nullptr) {
-      outline_.at(i) = gte.projectedPlace(2);
-    }
+    const psx::gte::ProjectedVertex projected = gte.projected(2);
+    const std::uint32_t screen = projected.word();
+    outline_.at(i) = projected.place();
     const std::uint32_t out = kProjected + i * portal::kPointBytes;
     memory_.mem_w32(out, signedHalf(screen));
     memory_.mem_w32(out + 4, sra(screen, 16));
@@ -388,8 +372,7 @@ void Portals::drawSky(std::uint32_t skyAt, bool fading, const sky::Rotations &ro
       memory_,
       spyro::guest_terrain::ScreenBounds::edges(asSigned(sra(memory_.mem_r32(kWindow + 0xC), 16)),
                                                 asSigned(sra(memory_.mem_r32(kWindow + 0x8), 16)),
-                                                vertical),
-      places_);
+                                                vertical));
   std::optional<sky::SkyFade> fade;
   if (fading) {
     fade = sky::SkyFade{.colour = memory_.mem_r32(kFadeColour), .step = memory_.mem_r32(kFadeStep)};
@@ -417,9 +400,7 @@ std::optional<std::pair<std::uint32_t, bool>> Portals::outlineNear(const Approac
       }
       if (push != 0) {
         memory_.mem_w32(point + axis * 4, asWord(value + push));
-        if (places_ != nullptr) {
-          (axis == 0 ? outline_.at(i).x : outline_.at(i).y) += static_cast<float>(push);
-        }
+        (axis == 0 ? outline_.at(i).x : outline_.at(i).y) += static_cast<float>(push);
       }
     }
     const Point pushed = projected(i);
@@ -466,8 +447,7 @@ void Portals::fill(std::uint32_t colour) {
   const std::uint32_t slot =
       memory_.mem_r32(kRenderGlobals.orderingTable) + (memory_.mem_r32(kBin) << 3);
   const auto screenCorner = [this](std::uint32_t at) {
-    const std::uint32_t point = memory_.mem_r32(at);
-    return Corner{.point = point, .place = psx::present::wholePlace(point)};
+    return Corner{.point = memory_.loadVertex(at)};
   };
   for (std::uint32_t triangle = 0; triangle < 2; ++triangle) {
     const std::uint32_t corners = kScreenTriangles + triangle * 12;
@@ -479,10 +459,7 @@ void Portals::fill(std::uint32_t colour) {
          slot);
   }
   for (std::uint32_t piece = kPieces; piece != queued; piece += kPieceBytes) {
-    const std::array<GtePlace, 3> &places = piecePlaces(piece, kPieceBytes);
-    clip({Corner{.point = memory_.mem_r32(piece), .place = places[0]},
-          Corner{.point = memory_.mem_r32(piece + 4), .place = places[1]},
-          Corner{.point = memory_.mem_r32(piece + 8), .place = places[2]}},
+    clip({screenCorner(piece), screenCorner(piece + 4), screenCorner(piece + 8)},
          memory_.mem_r32(piece + 12),
          queued,
          cursor,
@@ -502,28 +479,22 @@ void Portals::clip(std::array<Corner, 3> p,
                    std::uint32_t command,
                    std::uint32_t slot) {
   const auto queue = [&](const Corner &a, const Corner &b, const Corner &c, std::uint32_t next) {
-    memory_.mem_w32(queued, a.point);
-    memory_.mem_w32(queued + 4, b.point);
-    memory_.mem_w32(queued + 8, c.point);
+    memory_.storeVertex(queued, a.point);
+    memory_.storeVertex(queued + 4, b.point);
+    memory_.storeVertex(queued + 8, c.point);
     memory_.mem_w32(queued + 12, next);
-    if (places_ != nullptr) {
-      piecePlaces(queued, kPieceBytes) = {a.place, b.place, c.place};
-    }
     queued += kPieceBytes;
   };
   // The fill's crossings carry no colour.
   const auto cross = [&](const Corner &inside, const Corner &outside) {
-    const Corner found = crossing({.point = inside.point, .place = inside.place},
-                                  {.point = outside.point, .place = outside.place},
-                                  at);
-    return Corner{.point = found.point, .place = found.place};
+    return Corner{.point = crossing({.point = inside.point}, {.point = outside.point}, at).point};
   };
   for (;; at += kEdgeBytes) {
     if (memory_.mem_r32(at + edge::kFlag) == 0) {
       break;
     }
     const std::uint32_t next = at + kEdgeBytes;
-    switch (outsideCorners({p[0].point, p[1].point, p[2].point}, at)) {
+    switch (outsideCorners({p[0].point.word(), p[1].point.word(), p[2].point.word()}, at)) {
     case 0:
       continue;
     case kFirstOut: {
@@ -571,12 +542,9 @@ void Portals::clip(std::array<Corner, 3> p,
   }
   memory_.mem_w32(cursor, spyro::guest_packet::kF3Tag);
   memory_.mem_w32(cursor + 0x04, command);
-  memory_.mem_w32(cursor + 0x08, p[0].point);
-  memory_.mem_w32(cursor + 0x0C, p[1].point);
-  memory_.mem_w32(cursor + 0x10, p[2].point);
-  if (places_ != nullptr) {
-    places_->placeCorners(cursor, {{p[0].place, p[1].place, p[2].place}});
-  }
+  memory_.storeVertex(cursor + 0x08, p[0].point);
+  memory_.storeVertex(cursor + 0x0C, p[1].point);
+  memory_.storeVertex(cursor + 0x10, p[2].point);
   spyro::depth_bins::linkIntoBin(memory_, slot, cursor, cursor);
   cursor += spyro::guest_packet::kF3Bytes;
 }
@@ -586,23 +554,20 @@ void Portals::clip(std::array<Corner, 3> p,
 void Portals::cutShaded(std::array<Corner, 3> q, std::uint32_t at, sky::Cyclorama &sky) {
   const auto queue = [this, &at](Corner a, Corner b, Corner c) {
     const std::uint32_t piece = memory_.mem_r32(kPieceQueue);
-    memory_.mem_w32(piece + 0x00, a.point);
-    memory_.mem_w32(piece + 0x04, b.point);
-    memory_.mem_w32(piece + 0x08, c.point);
+    memory_.storeVertex(piece + 0x00, a.point);
+    memory_.storeVertex(piece + 0x04, b.point);
+    memory_.storeVertex(piece + 0x08, c.point);
     memory_.mem_w32(piece + 0x0C, a.colour);
     memory_.mem_w32(piece + 0x10, b.colour);
     memory_.mem_w32(piece + 0x14, c.colour);
     memory_.mem_w32(piece + 0x18, at);
-    if (places_ != nullptr) {
-      piecePlaces(piece, kShadedPieceBytes) = {a.place, b.place, c.place};
-    }
     memory_.mem_w32(kPieceQueue, piece + kShadedPieceBytes);
   };
   for (;; at += kEdgeBytes) {
     if (memory_.mem_r32(at + edge::kFlag) == 0) {
       break;
     }
-    switch (outsideCorners({q[0].point, q[1].point, q[2].point}, at)) {
+    switch (outsideCorners({q[0].point.word(), q[1].point.word(), q[2].point.word()}, at)) {
     case 0:
       continue;
     case kFirstOut: {
@@ -642,25 +607,15 @@ void Portals::cutShaded(std::array<Corner, 3> q, std::uint32_t at, sky::Cycloram
       return;
     }
   }
-  sky::SkyTriangle drawn{.points = {q[0].point, q[1].point, q[2].point},
-                         .colours = {q[0].colour, q[1].colour, q[2].colour}};
-  if (places_ != nullptr) {
-    drawn.places = std::array<GtePlace, 3>{q[0].place, q[1].place, q[2].place};
-  }
+  const sky::SkyTriangle drawn{.points = {q[0].point, q[1].point, q[2].point},
+                               .colours = {q[0].colour, q[1].colour, q[2].colour}};
   sky.emit(drawn, q[0].colour == q[1].colour && q[0].colour == q[2].colour);
 }
 
 void Portals::cut(const sky::SkyTriangle &triangle, sky::Cyclorama &sky) {
   const auto &p = triangle.points;
   const auto &c = triangle.colours;
-  std::array<GtePlace, 3> places{};
-  if (triangle.places) {
-    places = *triangle.places;
-  }
-  cutShaded(
-      {Corner{p[0], c[0], places[0]}, Corner{p[1], c[1], places[1]}, Corner{p[2], c[2], places[2]}},
-      kEdges,
-      sky);
+  cutShaded({Corner{p[0], c[0]}, Corner{p[1], c[1]}, Corner{p[2], c[2]}}, kEdges, sky);
 }
 
 // 8004FC98..8004FD0C: the queued pieces last first, each from the edge after the one that split it.
@@ -669,11 +624,8 @@ void Portals::finishSector(sky::Cyclorama &sky) {
        piece = memory_.mem_r32(kPieceQueue)) {
     piece -= kShadedPieceBytes;
     memory_.mem_w32(kPieceQueue, piece);
-    const std::array<GtePlace, 3> places =
-        places_ != nullptr ? piecePlaces(piece, kShadedPieceBytes) : std::array<GtePlace, 3>{};
-    const auto corner = [this, piece, &places](std::uint32_t n) {
-      return Corner{
-          memory_.mem_r32(piece + n * 4), memory_.mem_r32(piece + 0x0C + n * 4), places[n]};
+    const auto corner = [this, piece](std::uint32_t n) {
+      return Corner{memory_.loadVertex(piece + n * 4), memory_.mem_r32(piece + 0x0C + n * 4)};
     };
     cutShaded({corner(0), corner(1), corner(2)}, memory_.mem_r32(piece + 0x18) + kEdgeBytes, sky);
   }
@@ -702,10 +654,10 @@ Portals::Corner Portals::crossing(Corner inside, Corner outside, std::uint32_t a
   auto &gte = core_.gte();
   gte.writeData(gte::kRgbc, inside.colour);
   spyro::guest_terrain::loadFarColour(gte, outside.colour);
-  const std::uint32_t x0 = signedHalf(inside.point);
-  const std::uint32_t y0 = sra(inside.point, 16);
-  const std::uint32_t dx = signedHalf(outside.point) - x0;
-  const std::uint32_t dy = sra(outside.point, 16) - y0;
+  const std::uint32_t x0 = signedHalf(inside.point.word());
+  const std::uint32_t y0 = sra(inside.point.word(), 16);
+  const std::uint32_t dx = signedHalf(outside.point.word()) - x0;
+  const std::uint32_t dy = sra(outside.point.word(), 16) - y0;
   const std::uint32_t a = memory_.mem_r32(at + edge::kA);
   const std::uint32_t b = memory_.mem_r32(at + edge::kB);
   const std::uint32_t c = memory_.mem_r32(at + edge::kC);
@@ -716,7 +668,7 @@ Portals::Corner Portals::crossing(Corner inside, Corner outside, std::uint32_t a
   const std::uint32_t along = a * dx + b * dy;
   if (along == 0) {
     // 8004FE98: retail returns with its scratch registers as they stand.
-    return Corner{.point = x0, .colour = y0 | dy, .place = inside.place};
+    return Corner{.point = {x0, inside.point.place()}, .colour = y0 | dy};
   }
   const std::uint32_t side = ((a * x0 + c + b * y0) << kCrossingShift) + kCrossingRound;
   gte.writeData(gte::kIr0, ((0u - psx::cpu::quotient({side, along})) << kFractionShift) + kFractionRound);
@@ -724,14 +676,13 @@ Portals::Corner Portals::crossing(Corner inside, Corner outside, std::uint32_t a
   const std::uint32_t point =
       (gte.readData(gte::kMac2) << 16) | (gte.readData(gte::kMac1) & 0xFFFFu);
   gte.execute(gte::kDpcs);
-  return Corner{.point = point,
-                .colour = spyro::guest_packet::kG3Code | gte.readData(gte::kRgb2),
-                .place = places_ != nullptr ? crossingPlace(inside.place, outside.place, at)
-                                            : GtePlace{}};
+  return Corner{.point = {point, crossingPlace(inside.point.place(), outside.point.place(), at)},
+                .colour = spyro::guest_packet::kG3Code | gte.readData(gte::kRgb2)};
 }
 
 GtePlace Portals::crossingPlace(GtePlace inside, GtePlace outside, std::uint32_t at) const {
-  const auto &[from, to] = edgeEnds_.at((at - kEdges) / kEdgeBytes);
+  const GtePlace from = memory_.loadVertex(at + edge::kFrom).place();
+  const GtePlace to = memory_.loadVertex(at + edge::kTo).place();
   const float a = from.y - to.y;
   const float b = to.x - from.x;
   const float c = -a * from.x - b * from.y;

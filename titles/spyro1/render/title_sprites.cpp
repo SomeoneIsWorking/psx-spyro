@@ -10,6 +10,8 @@
 #include "spyro1/render/terrain_facts.h"
 
 #include <cstdlib>
+#include <span>
+#include <tuple>
 #include <memory>
 
 namespace spyro1 {
@@ -41,12 +43,7 @@ void drawSpriteOverride(Core *core) {
 void TitleSprite::render(const psx::present::StateInterval &states,
                          psx::present::PrimitiveSink &sink) const {
   const State after = psx::present::stateAs<State>(states.to);
-  auto primitive = psx::gpu::decodePacketPrimitive(after.words);
-  if (!primitive) {
-    lucent::error(
-        "title-sprite", "the title sprite packet 0x{:08X} does not decode", after.words[0]);
-    std::abort();
-  }
+  psx::gpu::PacketBuffer<std::tuple_size_v<decltype(after.words)>> packet(std::span(after.words));
   const State before = psx::present::stateAs<State>(states.from);
   // Texture words (UV, CLUT, texpage) equal: the same sprite moved; anything else is drawn as it is
   // now.
@@ -54,10 +51,17 @@ void TitleSprite::render(const psx::present::StateInterval &states,
       before.words[6] == after.words[6] && before.words[8] == after.words[8]) {
     const float dx = static_cast<float>(before.x - after.x) * (1.0f - states.t);
     const float dy = static_cast<float>(before.y - after.y) * (1.0f - states.t);
-    for (psx::present::RecordVertex &vertex : primitive->vertices) {
-      psx::present::placeVertex(
-          vertex, static_cast<float>(vertex.x) + dx, static_cast<float>(vertex.y) + dy);
+    // The FT4's corner words.
+    for (const std::size_t corner : {1u, 3u, 5u, 7u}) {
+      const GtePlace place = psx::gte::ProjectedVertex::whole(after.words[corner]).place();
+      packet.storeVertex(corner, psx::gte::ProjectedVertex::nearest({place.x + dx, place.y + dy}));
     }
+  }
+  auto primitive = psx::gpu::decodePacketPrimitive(packet.view());
+  if (!primitive) {
+    lucent::error(
+        "title-sprite", "the title sprite packet 0x{:08X} does not decode", after.words[0]);
+    std::abort();
   }
   sink.emit(spyro::depth_bins::kOverlaySlot, *primitive);
 }

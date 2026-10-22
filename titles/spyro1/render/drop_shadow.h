@@ -5,7 +5,7 @@
 // for an in-between.
 #pragma once
 
-#include "gte_state.h"
+#include "projected_vertex.h"
 #include "guest_memory_map.h"
 
 #include "render/field/guest_working_memory.h"
@@ -16,10 +16,6 @@
 #include <optional>
 
 class Core;
-
-namespace psx::present {
-class PrimitiveSink;
-}
 
 namespace spyro1::shadow {
 
@@ -32,9 +28,7 @@ inline constexpr std::uint32_t kPoints = 16;
 
 class DropShadow {
 public:
-  DropShadow(Core &core,
-             const psx::present::EmitMemory &memory,
-             psx::present::PrimitiveSink *places = nullptr);
+  DropShadow(Core &core, const psx::present::EmitMemory &memory);
 
   // The whole routine; false when the shadow is disabled and nothing was touched.
   bool draw();
@@ -55,13 +49,9 @@ private:
 
   Core &core_;
   const psx::present::EmitMemory &memory_;
-  psx::present::PrimitiveSink *places_;
-  // The centre's and each ring point's unrounded projection, kept while `places_` takes them.
-  GtePlace centrePlace_{};
-  std::array<GtePlace, kPoints> ringPlaces_{};
   std::uint32_t v0_ = 0;
   std::uint32_t v1_ = 0;
-  std::uint32_t centreScreen_ = 0;
+  psx::gte::ProjectedVertex centreScreen_;
   std::uint32_t centreDepth_ = 0;
 };
 

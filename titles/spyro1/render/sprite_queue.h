@@ -4,7 +4,7 @@
 // depth 0. Runs over guest memory for the real field and over host memory for an in-between.
 #pragma once
 
-#include "gte_state.h"
+#include "projected_vertex.h"
 #include "render/field/guest_moby_frustum.h"
 #include "render/field/guest_moby_rotation.h"
 #include "render/field/guest_working_memory.h"
@@ -17,10 +17,6 @@
 #include <optional>
 
 class Core;
-
-namespace psx::present {
-class PrimitiveSink;
-}
 
 namespace spyro1::actors {
 
@@ -49,11 +45,7 @@ struct QueuedChain {
 
 class SpriteQueue {
 public:
-  // `places`: where a render declares each projected vertex's unrounded place.
-  SpriteQueue(Core &core,
-              const psx::present::EmitMemory &memory,
-              const QueueView &view,
-              psx::present::PrimitiveSink *places = nullptr);
+  SpriteQueue(Core &core, const psx::present::EmitMemory &memory, const QueueView &view);
 
   // 80022A64..80022B04: the camera into the scratchpad, the light into the colour matrix.
   void begin();
@@ -105,17 +97,10 @@ private:
   void drawLit(const PolygonTail &tail);
   void drawFlat(const PolygonTail &tail);
   [[nodiscard]] std::optional<QueuedChain> chainLocalBins();
-  // The packet at `packet` takes the drawn polygon's first `count` corner places.
-  void declarePlaces(std::uint32_t packet, std::size_t count) const;
 
   Core &core_;
   const psx::present::EmitMemory &memory_;
   QueueView view_;
-  psx::present::PrimitiveSink *places_;
-  // Each vertex slot's unrounded projection and the drawn polygon's corners, kept while `places_`
-  // is set.
-  std::array<GtePlace, kVertexSlots> vertexPlaces_{};
-  std::array<GtePlace, 4> cornerPlaces_{};
   // Retail's registers that outlive one step: v0, v1, the shadow cursor (sp), the edge class and
   // draw mode (s7), the mesh (s6), the angles (s4), the depth bin (t9) and bias (t8), the packet
   // cursor, the vertex colours (s4 again), the palette word (LO), the four packed screen words,
@@ -132,7 +117,7 @@ private:
   std::uint32_t depthBias_ = 0;
   std::uint32_t vertexColours_ = 0;
   std::uint32_t paletteWord_ = 0;
-  std::uint32_t screen_[4] = {};
+  std::array<psx::gte::ProjectedVertex, 4> screen_{};
   LocalBins bins_;
 };
 

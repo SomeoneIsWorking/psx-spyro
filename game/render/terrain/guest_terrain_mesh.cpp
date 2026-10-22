@@ -79,8 +79,7 @@ void SectorProjector::advance() {
 }
 
 void SectorProjector::store(const Projected &projected) {
-  frame_.keepPlace(slot_);
-  frame_.memory.mem_w32(slot_, projected.word);
+  frame_.memory.storeVertex(slot_, projected.vertex);
   frame_.memory.mem_w16(depthSlot_, static_cast<std::uint16_t>(projected.depth));
   slot_ += 4;
   depthSlot_ += 2;
@@ -91,11 +90,11 @@ void SectorProjector::projectInside() {
   do {
     core.gte().execute(gte::kRtps);
     advance();
-    const std::uint32_t sxy = core.gte().readData(gte::kSxy2);
+    const psx::gte::ProjectedVertex vertex = core.gte().projected(2);
     const std::uint32_t depth = core.gte().readData(gte::kSz3);
-    frame_.v0 = sxy;
+    frame_.v0 = vertex.word();
     frame_.v1 = depth;
-    store({sxy, depth});
+    store({vertex, depth});
   } while (cursor_ != end_);
 }
 
@@ -122,9 +121,9 @@ void SectorProjector::projectEdge() {
   do {
     core.gte().execute(gte::kRtps);
     advance();
-    const std::uint32_t sxy = core.gte().readData(gte::kSxy2);
+    const psx::gte::ProjectedVertex vertex = core.gte().projected(2);
     const std::uint32_t depth = core.gte().readData(gte::kSz3);
-    store({edgeOutcode(sxy), depth});
+    store({{edgeOutcode(vertex.word()), vertex.place()}, depth});
   } while (cursor_ != end_);
 }
 
@@ -138,14 +137,15 @@ void SectorProjector::projectClose() {
     next_ = frame_.memory.mem_r32(cursor_);
     cursor_ += 4;
     const std::uint32_t depth = core.gte().readData(gte::kSz3);
-    std::uint32_t sxy = core.gte().readData(gte::kSxy2);
+    psx::gte::ProjectedVertex projected = core.gte().projected(2);
+    std::uint32_t sxy = projected.word();
     lastDeep = depth >= kFarDepth;
     if (sumsDepth(lastDeep)) {
       depthSum += depth;
     }
     if (lastDeep) {
       load(vertex);
-      store({edgeOutcode(sxy), depth});
+      store({{edgeOutcode(sxy), projected.place()}, depth});
       continue;
     }
     if (depth < kCloseDepth && refines(depth)) {
@@ -156,7 +156,8 @@ void SectorProjector::projectClose() {
         core.gte().writeData(gte::kVz0, core.gte().readData(gte::kVz0) << 4);
         core.gte().writeData(gte::kVxy0, (core.gte().readData(gte::kVxy0) << 4) & kRefineMask);
         core.gte().execute(gte::kRtps);
-        sxy = core.gte().readData(gte::kSxy2);
+        projected = core.gte().projected(2);
+        sxy = projected.word();
       }
     }
     std::uint32_t code = sxy << 5;
@@ -180,7 +181,7 @@ void SectorProjector::projectClose() {
     frame_.v0 = code;
     frame_.v1 = (sxy << 16) - 0x2000000u;
     common_ &= code;
-    store({code, depth});
+    store({{code, projected.place()}, depth});
   } while (cursor_ != end_);
   // A sector whose depths sum to zero is behind the camera; one whose last vertex was deep is not
   // given that test.

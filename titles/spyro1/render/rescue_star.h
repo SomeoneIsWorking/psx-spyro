@@ -5,19 +5,14 @@
 // memory for an in-between.
 #pragma once
 
-#include "gte_state.h"
+#include "projected_vertex.h"
 #include "guest_memory_map.h"
 
 #include "render/field/guest_working_memory.h"
 
-#include <array>
 #include <cstdint>
 
 class Core;
-
-namespace psx::present {
-class PrimitiveSink;
-}
 
 namespace spyro1::rescue_star {
 
@@ -36,9 +31,7 @@ inline constexpr std::uint32_t kPoints = 8;
 
 class RescueStar {
 public:
-  RescueStar(Core &core,
-             const psx::present::EmitMemory &memory,
-             psx::present::PrimitiveSink *places = nullptr);
+  RescueStar(Core &core, const psx::present::EmitMemory &memory);
 
   // The whole routine; the first packet it appended to the overlay pair.
   std::uint32_t draw();
@@ -55,11 +48,7 @@ private:
 
   Core &core_;
   const psx::present::EmitMemory &memory_;
-  psx::present::PrimitiveSink *places_;
-  std::uint32_t centreScreen_ = 0;
-  GtePlace centrePlace_{};
-  std::array<GtePlace, kPoints + 1> innerPlaces_{};
-  std::array<GtePlace, kPoints> spikePlaces_{};
+  psx::gte::ProjectedVertex centreScreen_;
 };
 
 } // namespace spyro1::rescue_star

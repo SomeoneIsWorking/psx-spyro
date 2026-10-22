@@ -6,7 +6,7 @@
 // the real field and over host memory for an in-between.
 #pragma once
 
-#include "gte_state.h"
+#include "projected_vertex.h"
 #include "render/field/guest_working_memory.h"
 #include "render/terrain/guest_terrain_screen.h"
 #include "spyro1/render/actor_facts.h"
@@ -19,18 +19,13 @@
 
 class Core;
 
-namespace psx::present {
-class PrimitiveSink;
-}
-
 namespace spyro1::actors {
 
 class ActorEmitter {
 public:
   ActorEmitter(Core &core,
                const psx::present::EmitMemory &memory,
-               const spyro::guest_terrain::ScreenBounds &bounds,
-               psx::present::PrimitiveSink *places = nullptr);
+               const spyro::guest_terrain::ScreenBounds &bounds);
   virtual ~ActorEmitter() = default;
   ActorEmitter(const ActorEmitter &) = delete;
   ActorEmitter &operator=(const ActorEmitter &) = delete;
@@ -47,10 +42,9 @@ public:
 protected:
   // A projected vertex as the vertex loop reads it before the next decode.
   struct Projected {
-    std::uint32_t screen = 0; // SXY2
-    std::uint32_t depth = 0;  // SZ3
+    psx::gte::ProjectedVertex screen; // SXY2
+    std::uint32_t depth = 0;          // SZ3
     std::array<std::uint32_t, 3> view{};
-    GtePlace place{}; // SXY2 unrounded
   };
 
   [[nodiscard]] Projected readProjected();
@@ -89,8 +83,6 @@ protected:
   virtual void drawTriangleTail(const Triangle &triangle);
   [[nodiscard]] TriangleColours readColours(const Triangle &triangle) const;
   void linkTriangle(const Triangle &triangle, const TriangleColours &colours);
-  // The unrounded places of the packet at `packet`'s corners, from their slots, while `places_` is set.
-  void declarePlaces(std::uint32_t packet, std::span<const std::uint32_t> slots) const;
 
   Core &core_;
   const psx::present::EmitMemory &memory_;
@@ -145,7 +137,7 @@ private:
     std::array<std::uint32_t, 2> colours{};
     bool textured = false;
   };
-  [[nodiscard]] std::optional<std::array<std::uint32_t, 4>>
+  [[nodiscard]] std::optional<std::array<psx::gte::ProjectedVertex, 4>>
   screens(const std::array<std::uint32_t, 4> &slots, std::uint32_t corners) const;
   void drawQuad(std::uint32_t colourWord);
   void drawWholeQuad(const Quad &quad);
@@ -156,10 +148,6 @@ private:
   std::uint32_t stepsWord_ = 0;  // t3
   std::uint32_t blendSteps_ = 0; // t4
   std::uint32_t cursor_ = 0;     // HI
-
-  psx::present::PrimitiveSink *places_;
-  // Each vertex slot's unrounded projection, kept while `places_` is set.
-  std::array<GtePlace, kVertexSlots> vertexPlaces_{};
 };
 
 } // namespace spyro1::actors

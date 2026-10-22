@@ -8,7 +8,7 @@
 #include "guest_memory_map.h"
 
 #include "gte_registers.h"
-#include "gte_state.h"
+#include "projected_vertex.h"
 #include "render/field/guest_working_memory.h"
 #include "render/terrain/guest_terrain_screen.h"
 
@@ -17,10 +17,6 @@
 #include <optional>
 
 class Core;
-
-namespace psx::present {
-class PrimitiveSink;
-} // namespace psx::present
 
 namespace spyro1::sky {
 
@@ -49,12 +45,10 @@ struct SkyChain {
   std::uint32_t last = 0;
 };
 
-// A polygon as the drawer emits it: three screen points and their POLY_G3 colour words, and the
-// points' unrounded projections when they are the GTE's own.
+// A polygon as the drawer emits it: three screen points and their POLY_G3 colour words.
 struct SkyTriangle {
-  std::array<std::uint32_t, 3> points{};
+  std::array<psx::gte::ProjectedVertex, 3> points{};
   std::array<std::uint32_t, 3> colours{};
-  std::optional<std::array<GtePlace, 3>> places;
 };
 
 class Cyclorama;
@@ -78,11 +72,9 @@ struct SkyFade {
 
 class Cyclorama {
 public:
-  // `places`, when given, is told each emitted vertex's unrounded projection.
   Cyclorama(Core &core,
             const psx::present::EmitMemory &memory,
-            const spyro::guest_terrain::ScreenBounds &bounds,
-            psx::present::PrimitiveSink *places = nullptr);
+            const spyro::guest_terrain::ScreenBounds &bounds);
 
   // The whole routine for sector group `group` (negative: every sector). Nullopt when nothing was
   // linked.
@@ -120,9 +112,6 @@ private:
   Core &core_;
   const psx::present::EmitMemory &memory_;
   spyro::guest_terrain::ScreenBounds bounds_;
-  psx::present::PrimitiveSink *places_;
-  // Each outcode word's unrounded projection, kept while `places_` is set.
-  std::array<GtePlace, kOutcodesBytes / 4u> outcodePlaces_{};
   std::uint32_t v0_ = 0;
   std::uint32_t v1_ = 0;
   // The sector's vertex base: z, x and y (s4, s5, s6), and where its colours start.

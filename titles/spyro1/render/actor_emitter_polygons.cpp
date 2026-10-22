@@ -55,13 +55,13 @@ void ActorEmitter::drawPolygons() {
 
 // The screen words at the corner slots; nullopt when a straddling polygon's corners share an
 // outcode. Unpacks a straddling record's screen words.
-std::optional<std::array<std::uint32_t, 4>>
+std::optional<std::array<psx::gte::ProjectedVertex, 4>>
 ActorEmitter::screens(const std::array<std::uint32_t, 4> &slots, std::uint32_t corners) const {
-  std::array<std::uint32_t, 4> words{};
+  std::array<psx::gte::ProjectedVertex, 4> words{};
   std::uint32_t shared = 0xFFFFFFFFu;
   for (std::uint32_t i = 0; i < corners; ++i) {
-    words[i] = memory_.mem_r32(slots[i] + kVertexScreens);
-    shared &= words[i];
+    words[i] = memory_.loadVertex(slots[i] + kVertexScreens);
+    shared &= words[i].word();
   }
   if (asSigned(binShift_) >= 0) {
     return words;
@@ -70,7 +70,7 @@ ActorEmitter::screens(const std::array<std::uint32_t, 4> &slots, std::uint32_t c
     return std::nullopt;
   }
   for (std::uint32_t i = 0; i < corners; ++i) {
-    words[i] = sra(words[i], 5);
+    words[i] = memory_.loadVertex(slots[i] + kVertexScreens, sra(words[i].word(), 5));
   }
   return words;
 }
@@ -86,9 +86,9 @@ void ActorEmitter::drawQuad(std::uint32_t colourWord) {
   const bool textured = (word & kTextured) != 0;
   const auto corners = screens(slots, 4);
   if (corners) {
-    gte.writeData(gte::kSxy0, (*corners)[0]);
-    gte.writeData(gte::kSxy1, (*corners)[1]);
-    gte.writeData(gte::kSxy2, (*corners)[2]);
+    gte.writeData(gte::kSxy0, (*corners)[0].word());
+    gte.writeData(gte::kSxy1, (*corners)[1].word());
+    gte.writeData(gte::kSxy2, (*corners)[2].word());
   }
   if (!corners || (word & kHidden) != 0) {
     polygon_ += textured ? 0x18 : 0xC;
@@ -97,18 +97,18 @@ void ActorEmitter::drawQuad(std::uint32_t colourWord) {
   }
   const auto [a2, a3, t0, t1] = *corners;
   gte.execute(gte::kNclip);
-  memory_.mem_w32(t8 + 0x08, a2);
+  memory_.storeVertex(t8 + 0x08, a2);
   if (textured) {
     polygon_ += 0xC;
-    memory_.mem_w32(t8 + 0x14, a3);
-    memory_.mem_w32(t8 + 0x20, t0);
-    memory_.mem_w32(t8 + 0x2C, t1);
+    memory_.storeVertex(t8 + 0x14, a3);
+    memory_.storeVertex(t8 + 0x20, t0);
+    memory_.storeVertex(t8 + 0x2C, t1);
   } else {
-    memory_.mem_w32(t8 + 0x10, a3);
-    memory_.mem_w32(t8 + 0x18, t0);
-    memory_.mem_w32(t8 + 0x20, t1);
+    memory_.storeVertex(t8 + 0x10, a3);
+    memory_.storeVertex(t8 + 0x18, t0);
+    memory_.storeVertex(t8 + 0x20, t1);
   }
-  const QuadFaces faces = faceQuad((word & kTwoSided) != 0, t1);
+  const QuadFaces faces = faceQuad((word & kTwoSided) != 0, t1.word());
   const std::uint32_t firstColour = slot(colourWord, 17) + colours_;
   word_ = memory_.mem_r32(polygon_ + 0xC);
   polygon_ += 0xC;
@@ -123,7 +123,7 @@ void ActorEmitter::drawQuad(std::uint32_t colourWord) {
   }
   if (faces == QuadFaces::Back) {
     // 80020114: only the back half faces; it is drawn from the fourth corner.
-    memory_.mem_w32(t8 + 0x08, t1);
+    memory_.storeVertex(t8 + 0x08, t1);
     Triangle backHalf = shared;
     backHalf.slots[0] = slots[3];
     backHalf.firstColour = fourthColour;
@@ -171,7 +171,6 @@ void ActorEmitter::drawWholeQuad(const Quad &quad) {
     if (asSigned(sum) < 0) {
       return;
     }
-    declarePlaces(t8, quad.slots);
     v1_ = bins_.link((sra(sum, shift) << 3) + binsBase_);
     return;
   }
@@ -195,7 +194,6 @@ void ActorEmitter::drawWholeQuad(const Quad &quad) {
   memory_.mem_w32(t8 + 0x18, uv1);
   memory_.mem_w32(t8 + 0x24, uv2);
   memory_.mem_w32(t8 + 0x30, uv2 >> 16);
-  declarePlaces(t8, quad.slots);
   v1_ = bins_.link((sra(sum, shift) << 3) + binsBase_);
 }
 
@@ -233,18 +231,18 @@ void ActorEmitter::drawTriangle(std::uint32_t colourWord) {
     return;
   }
   const auto [a2, a3, t0, unused] = *corners;
-  gte.writeData(gte::kSxy0, a2);
-  gte.writeData(gte::kSxy1, a3);
-  gte.writeData(gte::kSxy2, t0);
+  gte.writeData(gte::kSxy0, a2.word());
+  gte.writeData(gte::kSxy1, a3.word());
+  gte.writeData(gte::kSxy2, t0.word());
   gte.execute(gte::kNclip);
-  memory_.mem_w32(t8 + 0x08, a2);
+  memory_.storeVertex(t8 + 0x08, a2);
   if (textured) {
     polygon_ += 0xC;
-    memory_.mem_w32(t8 + 0x14, a3);
-    memory_.mem_w32(t8 + 0x20, t0);
+    memory_.storeVertex(t8 + 0x14, a3);
+    memory_.storeVertex(t8 + 0x20, t0);
   } else {
-    memory_.mem_w32(t8 + 0x10, a3);
-    memory_.mem_w32(t8 + 0x18, t0);
+    memory_.storeVertex(t8 + 0x10, a3);
+    memory_.storeVertex(t8 + 0x18, t0);
   }
   polygon_ += 8;
   word_ = memory_.mem_r32(polygon_);
@@ -300,7 +298,6 @@ void ActorEmitter::linkTriangle(const Triangle &triangle, const TriangleColours 
       return;
     }
     memory_.mem_w32(t8, guest_packet::kG3Tag);
-    declarePlaces(t8, triangle.slots);
     v1_ = bins_.link((sum << 3) + binsBase_);
     return;
   }
@@ -324,19 +321,7 @@ void ActorEmitter::linkTriangle(const Triangle &triangle, const TriangleColours 
   memory_.mem_w32(t8, guest_packet::kGt3Tag);
   memory_.mem_w32(t8 + 0x18, uv1);
   memory_.mem_w32(t8 + 0x24, uv2);
-  declarePlaces(t8, triangle.slots);
   v1_ = bins_.link((sum << 3) + binsBase_);
-}
-
-void ActorEmitter::declarePlaces(std::uint32_t packet, std::span<const std::uint32_t> slots) const {
-  if (places_ == nullptr) {
-    return;
-  }
-  std::array<GtePlace, 4> corners{};
-  for (std::size_t vertex = 0; vertex < slots.size(); ++vertex) {
-    corners[vertex] = vertexPlaces_[slots[vertex] / 4u];
-  }
-  places_->placeCorners(packet, std::span(corners).first(slots.size()));
 }
 
 // 800205C4..80020748: a quad facing the camera around the first corner, sized by the depth cue of

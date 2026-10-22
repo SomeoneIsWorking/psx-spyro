@@ -89,7 +89,7 @@ void ParticleProducer::render(const psx::present::StateInterval &states,
   between.mapTable();
   between.provide(state.record, particleBetween(before.header.bytes, state.bytes, states.t));
   EmitList list(
-      core_, between.memory(), spyro::presentedBounds(core_, spyro1::terrain::kSharedFacts), &sink);
+      core_, between.memory(), spyro::presentedBounds(core_, spyro1::terrain::kSharedFacts));
   list.begin();
   if (list.draw(state.record) == Outcome::Drawn) {
     between.emitBins(sink);

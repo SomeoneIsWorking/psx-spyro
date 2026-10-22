@@ -21,6 +21,8 @@
 // it) a close sector whose depths sum to zero.
 #pragma once
 
+#include "projected_vertex.h"
+
 #include <cstdint>
 
 namespace spyro::guest_terrain {
@@ -83,8 +85,9 @@ private:
     std::uint32_t z;
     std::uint32_t xy;
   };
+  // The scratchpad word for one vertex (its SXY or its outcode) at the vertex's place, and its depth.
   struct Projected {
-    std::uint32_t word = 0;
+    psx::gte::ProjectedVertex vertex;
     std::uint32_t depth = 0;
   };
 

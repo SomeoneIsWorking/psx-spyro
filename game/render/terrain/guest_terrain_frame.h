@@ -6,7 +6,6 @@
 
 #include "core.h"
 #include "gte_registers.h"
-#include "gte_state.h"
 #include "guest_memory_map.h"
 #include "render/field/guest_render_globals.h"
 #include "render/field/guest_working_memory.h"
@@ -102,31 +101,6 @@ struct TerrainFrame {
     return linked;
   }
 
-  // The projection just pushed to SXY2, kept as the place of the scratchpad word at `word`.
-  void keepPlace(std::uint32_t word) {
-    if (places != nullptr) {
-      setPlace(word, core.gte().projectedPlace(2));
-    }
-  }
-  void setPlace(std::uint32_t word, const GtePlace &place) {
-    scratchPlaces_[(word - kScratchpad) / 4] = place;
-  }
-  [[nodiscard]] const GtePlace &placeAt(std::uint32_t word) const {
-    return scratchPlaces_[(word - kScratchpad) / 4];
-  }
-  // The packet at `packet` takes the places of the scratchpad words its corners came from, in
-  // packet order.
-  void declarePlaces(std::uint32_t packet, std::span<const std::uint32_t> words) const {
-    if (places == nullptr) {
-      return;
-    }
-    std::array<GtePlace, 4> corners{};
-    for (std::size_t vertex = 0; vertex < words.size(); ++vertex) {
-      corners[vertex] = placeAt(words[vertex]);
-    }
-    places->placeCorners(packet, std::span(corners).first(words.size()));
-  }
-
   // Retail publishes the mark as a slot address; the ordinal is the same bin without the table's
   // address.
   [[nodiscard]] std::uint32_t markSlot(std::uint32_t bin) const {
@@ -173,8 +147,6 @@ struct TerrainFrame {
 
   // Null for a real field, which reads the guest's own camera words.
   const InBetweenCamera *inBetweenCamera = nullptr;
-  // Set for an in-between: the sink its packets' unrounded vertex places are declared to.
-  psx::present::PrimitiveSink *places = nullptr;
   // The packet arena an in-between was given, 0 for a real field.
   std::uint32_t inBetweenArenaBase = 0;
   std::int32_t inBetweenPacketBudget = 0;
@@ -196,9 +168,6 @@ struct TerrainFrame {
   std::uint32_t coarseSplitCursor = 0; // next free kCoarseSplitList word
   std::uint32_t v0 = 0;
   std::uint32_t v1 = 0;
-
-  // Each scratchpad word's unrounded projection, kept while `places` is set.
-  std::array<GtePlace, kScratchpadBytes / 4> scratchPlaces_{};
 };
 
 } // namespace spyro::guest_terrain

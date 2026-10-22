@@ -22,7 +22,6 @@
 
 #include <array>
 #include <cstddef>
-#include <optional>
 #include <span>
 
 namespace spyro::guest_terrain {
@@ -145,39 +144,30 @@ void ResplitPass::loadPoints(std::uint32_t primitive,
                              const std::array<std::uint32_t, Corners> &corners,
                              const std::array<Midpoint, Midpoints> &midpoints,
                              std::uint32_t colourAdjust) {
-  std::array<std::uint32_t, Corners> screens{};
+  std::array<psx::gte::ProjectedVertex, Corners> vertices{};
   std::array<std::uint32_t, Corners> colours{};
   std::array<std::uint32_t, Corners> uvs{};
   for (std::size_t i = 0; i < Corners; ++i) {
-    screens[i] = memory_.mem_r32(primitive + kPacketScreens[i]);
+    vertices[i] = memory_.loadVertex(primitive + kPacketScreens[i]);
     colours[i] = memory_.mem_r32(primitive + kPacketColours[i]) - colourAdjust;
     uvs[i] = memory_.mem_r32(primitive + kPacketUvs[i]);
     const std::uint32_t cell = kScratchpad + corners[i];
-    memory_.mem_w32(cell + point::kScreen, screens[i]);
-    if (frame_.places != nullptr) {
-      // A corner keeps the place its packet declared, or its whole screen word when it declared none.
-      const std::optional<GtePlace> place = frame_.places->placed(psx::kseg0Address(primitive), static_cast<int>(i));
-      frame_.setPlace(cell + point::kScreen,
-                      place.value_or(GtePlace{static_cast<float>(asSigned(signedHalf(screens[i]))),
-                                              static_cast<float>(asSigned(sra(screens[i], 16)))}));
-    }
+    memory_.storeVertex(cell + point::kScreen, vertices[i]);
     memory_.mem_w32(cell + point::kColour, colours[i]);
     memory_.mem_w16(cell + point::kUv, static_cast<std::uint16_t>(uvs[i]));
   }
   for (const Midpoint &mid : midpoints) {
     const std::uint32_t cell = kScratchpad + mid.cell;
-    const std::uint32_t a = screens[mid.first];
-    const std::uint32_t b = screens[mid.second];
-    memory_.mem_w16(cell + point::kScreen, static_cast<std::uint16_t>((asSigned(signedHalf(a)) + asSigned(signedHalf(b))) >> 1));
-    memory_.mem_w16(cell + point::kScreen + 2,
-                static_cast<std::uint16_t>((asSigned(sra(a, 16)) + asSigned(sra(b, 16))) >> 1));
+    const std::uint32_t a = vertices[mid.first].word();
+    const std::uint32_t b = vertices[mid.second].word();
+    const auto x = static_cast<std::uint16_t>((asSigned(signedHalf(a)) + asSigned(signedHalf(b))) >> 1);
+    const auto y = static_cast<std::uint16_t>((asSigned(sra(a, 16)) + asSigned(sra(b, 16))) >> 1);
+    const GtePlace pa = vertices[mid.first].place();
+    const GtePlace pb = vertices[mid.second].place();
+    memory_.storeVertex(cell + point::kScreen,
+                        {x | (static_cast<std::uint32_t>(y) << 16), {(pa.x + pb.x) * 0.5f, (pa.y + pb.y) * 0.5f}});
     memory_.mem_w32(cell + point::kColour, blend(colours[mid.first], colours[mid.second]));
     memory_.mem_w16(cell + point::kUv, uvMidpoint(uvs[mid.first], uvs[mid.second]));
-    if (frame_.places != nullptr) {
-      const GtePlace &pa = frame_.placeAt(kScratchpad + corners[mid.first] + point::kScreen);
-      const GtePlace &pb = frame_.placeAt(kScratchpad + corners[mid.second] + point::kScreen);
-      frame_.setPlace(cell + point::kScreen, {(pa.x + pb.x) * 0.5f, (pa.y + pb.y) * 0.5f});
-    }
   }
   clut_ = uvs[0] & 0xFFFF0000u;
   page_ = uvs[1] & 0xFFFF0000u;
@@ -241,10 +231,8 @@ void ResplitPass::emitPieces(std::uint32_t primitive, PieceTable pieces) {
       queueEnd_ += 4;
     }
     for (std::size_t i = 0; i < cells.size(); ++i) {
-      memory_.mem_w32(prim + kPacketScreens[i], screens[i]);
+      memory_.storeVertex(prim + kPacketScreens[i], memory_.loadVertex(cells[i] + point::kScreen));
     }
-    frame_.declarePlaces(prim,
-                         std::array{cells[0] + point::kScreen, cells[1] + point::kScreen, cells[2] + point::kScreen});
     memory_.mem_w32(prim, guest_packet::kGt3Tag);
     guest_memory::linkAfter(memory_, tail, prim);
     tail = prim;

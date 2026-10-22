@@ -289,7 +289,6 @@ void LitActorEmitter::drawReflection(const Triangle &triangle, const TriangleCol
   memory_.mem_w16(t8 + 0x0C, static_cast<std::uint16_t>(uv[0]));
   memory_.mem_w16(t8 + 0x18, static_cast<std::uint16_t>(uv[1]));
   memory_.mem_w16(t8 + 0x24, static_cast<std::uint16_t>(uv[2]));
-  declarePlaces(t8, triangle.slots);
   v1_ = bins_.link((sum << 3) + binsBase_);
 }
 
