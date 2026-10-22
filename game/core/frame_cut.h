@@ -9,9 +9,12 @@
 //   mode 0xB  sub-state 0 -> 1: the player and camera at the respawn position
 //   mode 10   sub-state 0 -> 1: the scripted camera begins, and
 //             sub-state 0x80 -> 0x81: it ends and the gameplay camera returns
-// Every other mode change keeps the camera where it was. The scene and the camera are sampled when
-// the draw returns, right after its DrawOTag walked the table, because the draw that walks a table
-// often resumes a step after the one that built it.
+// Every other mode change keeps the camera where it was. A cutscene camera is not the controller's:
+// Spyro 2's cutscene overlay (state 6, 0x8007490C) plays a track of keys, one per two ticks, and
+// blends toward the next key on an odd tick only when both are one shot (FrameCut::sameShot); a
+// record whose camera fails that test against the previous one is a cut. The scene and the camera
+// are sampled when the draw returns, right after its DrawOTag walked the table, because the draw
+// that walks a table often resumes a step after the one that built it.
 #pragma once
 
 #include <cstdint>
@@ -27,11 +30,20 @@ struct CameraMachineWords {
   std::uint32_t subState = 0;
 };
 
+// A cutscene state whose camera a key track places: the state, and the camera's position (three
+// words) and angles (three halfwords) the track writes.
+struct ScriptedCameraFacts {
+  std::uint32_t gameState = 0;
+  std::uint32_t position = 0;
+  std::uint32_t angles = 0;
+};
+
 // The guest words a title's cut is read from. Spyro 1's camera machine is not read.
 struct FrameCutFacts {
   std::uint32_t gameState = 0;
   std::uint32_t levelId = 0;
   std::optional<CameraMachineWords> camera;
+  std::optional<ScriptedCameraFacts> scriptedCamera;
 };
 
 // Owned by the title's frame driver, so a new session's first record is a cut.
@@ -55,14 +67,25 @@ private:
     bool operator==(const SceneIdentity &) const = default;
   };
 
+  // A cutscene camera when sampled.
+  struct ScriptedCamera {
+    std::int32_t position[3]{};
+    std::int16_t angles[3]{};
+  };
+
   // Whether the camera controller placed the camera between two samples of its mode machine.
   [[nodiscard]] static bool cameraPlaced(const CameraMachineWords &before, const CameraMachineWords &after);
+  // The track player's own test for blending two keys (0x80074F4C..0x80074F74): the position moved
+  // less than 0x100 (0x8001BA20 over x, y, z) and the third angle at most 0xFF (0x8001BF00's fold).
+  [[nodiscard]] static bool sameShot(const ScriptedCamera &before, const ScriptedCamera &after);
 
   FrameCutFacts facts_;
   std::optional<SceneIdentity> walked_; // the last table walked this step
   std::optional<SceneIdentity> sealed_; // the last table a sealed record holds
   CameraMachineWords walkedCamera_;
   CameraMachineWords sealedCamera_;
+  std::optional<ScriptedCamera> walkedShot_; // set while the walked scene is the cutscene state
+  std::optional<ScriptedCamera> sealedShot_;
   bool cut_ = true;
 };
 

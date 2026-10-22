@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/boot_prefix_frame_driver.h"
+#include "spyro2/render/render_facts.h"
 
 #include <cstdint>
 
@@ -13,6 +14,8 @@ inline constexpr std::uint32_t kLevelId = 0x80066F90u;
 // Camera controller FUN_8001FA58's mode and sub-state.
 inline constexpr std::uint32_t kCameraMode = 0x80067ED0u;
 inline constexpr std::uint32_t kCameraSubState = 0x80067ED4u;
+// The state whose overlay (0x800742F8) plays a cutscene's camera track.
+inline constexpr std::uint32_t kCutsceneGameState = 6u;
 
 // Game main 0x80011ADC: boot prefix 0x80011E9C (jal at 0x80011AE4), then the loop jal 0x8001B140 /
 // jal 0x800156FC. Bound measurements: docs/issues/0156.
@@ -38,6 +41,12 @@ inline constexpr spyro::BootPrefixFacts kBootPrefixFacts{
             .gameState = kGameState,
             .levelId = kLevelId,
             .camera = spyro::CameraMachineWords{.mode = kCameraMode, .subState = kCameraSubState},
+            .scriptedCamera =
+                spyro::ScriptedCameraFacts{
+                    .gameState = kCutsceneGameState,
+                    .position = kRenderGlobals.cameraPosition,
+                    .angles = kRenderGlobals.cameraAngles,
+                },
         },
 };
 
