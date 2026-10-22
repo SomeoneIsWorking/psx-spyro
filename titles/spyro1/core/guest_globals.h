@@ -70,13 +70,8 @@ inline constexpr std::uint32_t kGameplayDrawFrame = 0x8007593Cu;
 
 // g_LevelMobys (moby.h): pointer to the level's Moby array.
 inline constexpr std::uint32_t kLevelMobys = 0x80075828u;
-// Moby (moby.h): 0x58 bytes; the level array ends at an m_State of 0xFF.
-inline constexpr std::uint32_t kMobyStride = 0x58u;
+// Moby (moby.h) m_Props, its class's props; the rest of the record is render/field/moby_record.h.
 inline constexpr std::uint32_t kMobyProps = 0x00u;
-inline constexpr std::uint32_t kMobyPosition = 0x0Cu;
-inline constexpr std::uint32_t kMobyClass = 0x36u;
-inline constexpr std::uint32_t kMobyState = 0x48u;
-inline constexpr std::uint32_t kMobyStateEnd = 0xFFu;
 // MOBYCLASS_CRYSTAL_DRAGON: the statue whose touch calls func_8002C924 into GS_Dragon.
 inline constexpr std::uint32_t kMobyClassCrystalDragon = 250u;
 

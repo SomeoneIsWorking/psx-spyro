@@ -9,16 +9,6 @@
 #include <optional>
 
 namespace spyro {
-namespace {
-
-constexpr std::uint32_t kRamBegin = 0x80000000u;
-constexpr std::uint32_t kRamEnd = 0x801FFFFFu;
-
-bool inRam(std::uint32_t address, std::uint32_t bytes) {
-  return address >= kRamBegin && address <= kRamEnd && bytes <= kRamEnd - address + 1u;
-}
-
-} // namespace
 
 std::vector<MobyTeleport::LevelMoby> MobyTeleport::ofClass(Core &core,
                                                            std::uint32_t mobyClass) const {
@@ -27,7 +17,8 @@ std::vector<MobyTeleport::LevelMoby> MobyTeleport::ofClass(Core &core,
   if (first == 0) {
     return mobys;
   }
-  for (std::uint32_t moby = first; inRam(moby, moby_record::kBytes); moby += moby_record::kBytes) {
+  for (std::uint32_t moby = first; core.isGuestStorage(moby, moby_record::kBytes);
+       moby += moby_record::kBytes) {
     if (static_cast<std::int8_t>(core.mem_r8(moby + guest_moby::record::kFlag)) ==
         guest_moby::record::kEnd) {
       break;
