@@ -8,8 +8,9 @@ class Core;
 
 namespace spyro1::teleport {
 
-// `gates`, `gate-teleport <portal> <node>`, `dragons` and `dragon-teleport <n>`: list a level's
-// portals or crystal dragons and place Spyro on one, for the guest's own touch to act on.
+// `gates`, `gate-teleport <portal> <node>`, `dragons`, `dragon-teleport <n>`, `mobys <class>` and
+// `moby-teleport <class> <n>`: list a level's portals, crystal dragons or mobys of one class and
+// place Spyro on one, for the guest's own touch or range check to act on.
 bool command(Core &core, const psx::game::TitleCommandLine &input, std::FILE *reply);
 
 } // namespace spyro1::teleport
