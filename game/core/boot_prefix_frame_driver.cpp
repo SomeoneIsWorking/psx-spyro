@@ -122,7 +122,10 @@ BootPrefixFrameDriver::runCall(Core &core,
     if (step.reason == psx::cpu::ExecutionExitReason::FrameBoundary) {
       // A guest display wait is one field. The one reaching the bound is the step's own, delivered
       // by the step; the others are real time and the guest's own vblank work, not presented, and a
-      // boot call paces each.
+      // boot call paces each. The fade loop draws a frame per field, so its wait is the step's own.
+      if (call.resumePc() == facts_.fadeFrameWait) {
+        return CallProgress::FadeFrame;
+      }
       if (fields_.fields() + 1u >= fieldBound) {
         return CallProgress::FieldBoundReached;
       }
@@ -212,6 +215,9 @@ BootPrefixFrameDriver::LoopStop BootPrefixFrameDriver::stepMainLoop(Core &core) 
     }
     const CallProgress progress =
         runCall(core, call_, kFrameTurnsPerStep, siteOf(loopCall_), fields_.fields() + 1u);
+    if (progress == CallProgress::FadeFrame) {
+      return LoopStop::FadeFrame;
+    }
     if (progress != CallProgress::Returned) {
       return LoopStop::Field;
     }
@@ -295,13 +301,16 @@ void BootPrefixFrameDriver::stepFrame(Core &core, std::uint32_t frame) {
       break;
     case LoopStop::Field:
       // A field inside a logic frame passes unpresented, so the frame is presented over all its
-      // fields with in-betweens. Past the guest's delta clamp the frame is a stall, and each further
-      // field shows what VRAM holds, as the display would.
+      // fields with in-betweens. Past the guest's delta clamp the frame is a stall, and each
+      // further field shows what VRAM holds, as the display would.
       if (static_cast<int>(fields_.fieldsThisLogicFrame()) < facts_.deltaClampFields) {
         deferField(core, siteOf(loopCall_));
       } else {
         presentField(core, frame, siteOf(loopCall_));
       }
+      break;
+    case LoopStop::FadeFrame:
+      presentField(core, frame, siteOf(loopCall_));
       break;
     }
   }

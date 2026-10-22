@@ -26,6 +26,8 @@ inline constexpr spyro::BootPrefixFacts kBootPrefixFacts{
     .frameDraw = 0x800156FCu,
     // FUN_8001271C clamps the delta 0x80067018 to [2, 4].
     .deltaClampFields = 4,
+    // FUN_8004D810 waits at 0x8004D910.
+    .fadeFrameWait = 0x8004D918u,
     .field =
         {
             .titleName = "Spyro 2",
