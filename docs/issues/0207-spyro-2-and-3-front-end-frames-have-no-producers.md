@@ -71,26 +71,28 @@ splits the presents by game state and simulates a 60.00 Hz display. Before the c
   attract demos and back): title 1415/1415 and demo gameplay 640/640 composed, load 0.39-0.69.
 
 ## Open
-- **The fade before a load (Spyro 2).** `FUN_8004D810` copies the shown picture into the draw buffer
-  and darkens it over 16 one-field presents with a subtractive tint `FUN_8004D748`; its first present
-  follows a 5-field stall and shows whole (`no state saved`), so the first darkening step lands at once
-  (mean grey 88 → 60, then about one step per field). Seen at every load (records 1886, 3059, 4282 in
-  `s2-walk3`). Proper fix: one owner for the fullscreen tint shared by Spyro 1 `0x800190D4` and
-  Spyro 2 `0x8004D748` (lift `spyro1::FullscreenTint` into `game/render`), whose rest state of colour 0
-  composes the copied picture with the tint at t. Not done this pass: it moves Spyro 1's
-  `screen_overlays`, already changed in it. The same owner would take the dispatcher's own fades
-  (Spyro 2 `0x8004D748` at `0x80066F68`/`0x80067150`, Spyro 3 `0x800200A0`), which the redraw draws at
-  the next frame's level, so the fade-in after each load steps at 30 fps (issue 0196, pass 7).
+- **The fade before a load (Spyro 2)** — fixed, pass 9 (issue 0196). Cause:
+  `game/core/boot_prefix_frame_driver.cpp:BootPrefixFrameDriver::stepFrame` deferred the VSync fields
+  of `FUN_8004D810`'s loop, which swaps and draws one frame per field, as waits inside a logic frame, so
+  3 iterations (16 in boot) were merged into one record and the tint was ambiguous. `fadeFrameWait`
+  (Spyro 2 `0x8004D918`, Spyro 3 `0x80020270`) presents each one. The tint and letterbox now have one
+  owner, `game/render/screen_overlays.*`, shared by all three images.
 - **Spyro 3 loading screen after the fade** (`0x80059038` steps 1, 2 and 4, about 280 in-betweens per
   load): shown whole (`no state saved`), but the picture is still — 30 consecutive stepped presents
   identical (`s3-gs5`). Its draw calls the overlay's `0x80075114` after a `VSync(0)` of its own, which
   is where its 3-field frames come from. No visible gap.
-- **Spyro 3 pause menu** (game state 4): Sparx's cursor is drawn by the second moby pass the draw
-  `0x8001E638` chains after the flatten (`kSecondPassFlattenReturns`), unkeyed, so in-betweens show
-  whole (77 in `s3-atlas`). Proper fix: key the second pass to a producer of its own.
-- **Spyro 3 cutscene cameras.** Spyro 2's cutscene shot changes are cuts now (issue 0196, pass 8);
-  whether Spyro 3's cutscene overlay plays its camera by the same track player is not traced, and no
-  Spyro 3 cutscene was reached this pass.
-- **Spyro 3 Atlas** (state 4, steps 0x14–0x18, `FUN_80058408` and the menu `FUN_80020D70`): the opening
-  book and Sparx moving over the contents show whole, `no state saved`. Needs `FUN_80058408` traced
-  (the book's open angle and the page state) for a producer.
+- **Spyro 3 pause menu** — fixed, pass 9: the second moby pass (walk return `0x8001EA28`, drawer
+  `0x80031124`, flatten return `0x8001EA40`) is redrawn in the field redraw and owned in its own depth
+  table `kSecondPassTable` (`p9-s3pause`: all composed, Sparx 0.62–1.59 of halfway). The 3D counters
+  along the top of the pause screen still equal the next frame in every in-between (30 fps); their
+  drawer is not traced (`FUN_8001EDEC` is not it).
+- **Spyro 3 cutscene cameras** — fixed, pass 9: the overlay's blend at `0x80077E0C` uses Spyro 2's
+  rule, so `scriptedCamera` facts (state 6, `0x8006E020`/`0x8006E03C`) make each shot change a cut.
+- **Spyro 3 Atlas** (pause steps 0x14–0x18 of `0x8006FBC8`, `FUN_8001DD1C` → `FUN_80058408` then
+  `FUN_80020D70`): every opening in-between is shown whole, `entry 1 unkeyed`, the first packet of the
+  buffer (`p9-s3atlas`: 11 of 11, brightness and extent step every second present). `FUN_80058408`
+  writes at the cursor `0x8006C664` outside any scope: a black TILE at (0x80,0x41) 0x100×0x80, a textured
+  quad of the copied page through `FUN_800289C8` (tpage word 0x168), then the sparkles `FUN_8002ECA8`.
+  Both packets are constant, so what grows and brightens is drawn by the menu `FUN_80020530` (table
+  `0x80067570` indexed by `0x8006FBD0`), not yet traced. Proper fix: key `FUN_80058408`'s packets as
+  constant elements and give the menu's opening its producer from the words it reads.

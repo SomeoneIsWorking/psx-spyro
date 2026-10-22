@@ -694,3 +694,23 @@ Walks, per screen in boot order, composed/shown and repeats/drops:
   font moby with no place or CLUT in the shown frame.
 - A real-time check by the operator is still to do: these runs measure the composed images, not the play
   feel.
+
+## Pass 9
+Judgement runs: ires 0, fps60, the player's aspect, 3840x2160 sink, hidden window, paced.
+- Spyro 1 title-to-demo seam: fixed. Cause: `titles/spyro1/render/sprite_queue_producer.cpp` keyed the
+  title overlay's queued sprites outside the overlay bin and took HUD-arena mobys (`0x80075710`–`0x800756FC`)
+  as world identities. `p9-s1walk` (load 1.28–1.73): every phase composed, 0 shown whole; playcheck p50
+  16.75 ms, p99 17.00, missed 1. Open: `moby_record::between` rounds angles to whole bytes, so the title
+  letters' rotation sticks to one side (ratio 4.12, `p9-s1seam4`).
+- Spyro 1 motion trails `0x800189F0`: not reached. The new `mobys`/`moby-teleport` commands put Spyro on
+  level 50's class 91 moby with no trail in 900 frames; level 63 not tried. Still no producer.
+- Spyro 2 fade before each load: fixed (issue 0207). `p9-s2walk3` (load 0.95–2.03): press cross 227/227
+  (was 12 whole), state 0 123/123, state 11 1200/1200, state 6 1788/1788, play end 96/96, 0 shown whole.
+  The fade-in after a load (`p9-s2fadein`, 8x, load 0.50) ramps 1, 2, 2, 3, 5, 6, 9, 12, 16, 21, 26, ...,
+  each in-between the mean of its neighbours.
+- Spyro 2 letterbox `0x8004D604`: the shared `CinematicLetterbox` is installed, no refusals; the slide was
+  not reached (state 6 showed only the constant border). Conversation box: not reached. Both need a
+  Spyro 2 NPC route.
+- Spyro 3 cutscene shot changes: cuts (issue 0207). `p9-s3cut` (load 0.95): state 6 2494/2494, 21 cuts;
+  8x at a shot change the in-between equals the next frame (diff 0.0 vs 32.5), smooth neighbours 0.4–0.6.
+- Spyro 3 pause Sparx: composed (issue 0207). Pause counters and the Atlas opening still step (open, 0207).
