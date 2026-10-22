@@ -683,7 +683,8 @@ Walks, per screen in boot order, composed/shown and repeats/drops:
   56.3, 71.1 per frame, the in-betweens equal to the next frame). Lerping the words in the redraw composes
   except where the shown frame has no overlay entry (the fade's last step, no HUD): the whole field is then
   refused. Proper fix: the shared fullscreen tint producer with its rest state (issue 0207, open).
-- Spyro 2 letterbox and conversation box: fixed in pass 10 (below).
+- Spyro 2 conversation: box, tab, name and lines fixed (passes 10, 11); the difficulty stars, "Your Total"
+  and the orb message box are still unkeyed and show field n+1 in the in-between.
 - Spyro 3's cutscene cameras have no `scriptedCamera` facts, so its shot changes are not declared cuts
   (issue 0207).
 - Spyro 1's motion trails `0x800189F0` (levels 50 and 63, not reached on the routes) have no producer;
@@ -720,7 +721,8 @@ Same judgement settings as pass 9. Route to a Spyro 2 conversation: `warp 11` th
 - Spyro 1 title letters' rotation: fixed in `529ea52` (angle fractions kept, light turned between frames).
 - Spyro 2 letterbox margins: fixed (issue 0199, psxport `ecbdf0e2`). Cause: psxport
   `gpu/record_geometry.cpp:flatRectangle` rejected the in-between bars, whose rows sit between whole lines.
-  `g2-lbox3`: centre and margins match on all 90 presents; the bars grow 4 rows of 2160 per present.
+  `g2-lbox3`: centre and margins match on all 90 presents; the bars grow 96 to 192 rows of the 1920-row
+  record picture, 4 per present.
 - Spyro 2 conversation box: fixed (`22444e0`). Cause: `titles/spyro2` had no producer for the box drawer
   `FUN_8004D3FC` or the name tab's `FUN_8004D2D8` rects, and `game/render/field/field_redraw.cpp:redraw`
   kept the box packets logic linked before the dispatcher, so an in-between showed n+1's box. Fix:
@@ -747,3 +749,65 @@ Same judgement settings as pass 9. Route to a Spyro 2 conversation: `warp 11` th
 - Every product, 40 s from boot at real speed (`fx-titles`, load 0.77-2.68): all exit 0, Clang, 0 warnings;
   errors as before (Mega Man X4 154, Tekken 3 1, the rest 0); p50 16.75 ms except Toy Story 2's 33.5 ms;
   Tomba sits in its picker after the two panels' previews.
+
+## Pass 11 (2026-10-22, review of pass 10)
+Same judgement settings. Screens are labelled by `r11_walk.py`/`r11_gaps.py` (scratch): the warp mark waits
+until the game leaves the title before marking `warped`, and a repeated state is its own screen (`gs0#2`).
+Pass 10's labels were off: its Spyro 1 `warp 123/123` was the attract demo, and the earlier screens shared
+counts across repeated states. Pass 10 also edited `field_redraw.cpp` twice; this pass touches each file once.
+- Spyro 1 title fade-in, last step: fixed. Repro `r11-s1title`: at state 13 the subtractive tint
+  `DrawFullscreenTint` 0x800190D4 steps 16 per frame; the in-between after the last step equalled the next
+  frame (mean 129.69, 145.10, 145.03; 431 of 630 blocks stuck). `529ea52` had no repro or proof for this
+  screen. Cause: the shown frame links no overlay packet, so psxport `FrameComposer::slotPosition` had no
+  start for the overlay table and the tint's rest state (`FullscreenTint::rests`) was never placed. Fix:
+  `game/render/terrain/guest_depth_bins.cpp:assignOverlay` places an empty overlay bin after the lowest
+  linked bin, where the flatten would have drawn it (psxport `OtTables::placeEmpty`). Proof
+  `r11-s1title3` (8x): the in-between is 137.44, halfway; 0 blocks stuck, 0 shown whole.
+- Spyro 2 conversation text: fixed. Cause: `titles/spyro2/render/conversation.cpp` keyed only the box and
+  tab, so the name (FUN_8004D1BC underline at 80013DB0, FUN_8004A374 at 80013DC8) and lines linked before
+  the dispatcher showed field n+1 in the in-between. Fix: `ConversationText` keys each FUN_8004A374 call of
+  FUN_80013BC4 by its string (not the difficulty stars at 80014350, one string drawn five times) and the
+  underline, and an in-between draws the earlier field's packets where both fields drew them. Proof
+  `r11-box`: the box edge moves 128 columns per present with every bounce in-between at the midpoint; the
+  name first shows on the real frame where the box rests (yellow pixels 12 in the in-between before it,
+  36428 on it); typed letters change on real frames only. Not keyed: the stars, "Your Total"
+  (FUN_8004DA6C, FUN_800520CC, FUN_80052328) and the orb box FUN_8004D508. The dead `redrawing` guards are
+  gone: FUN_8004D3FC's only caller is FUN_80013BC4, whose only caller is FUN_800156FC.
+- `passOverKeyed` (`game/render/field/field_redraw.cpp`): when every packet of a pair was keyed it left the
+  head word pointing at an unlinked packet; it now clears it, the guest's own empty test.
+- Angle rounding since `529ea52`: `field_redraw.cpp:recordBetween` floored the blended angle byte for
+  draws that read no fraction; `moby_record::nearest` rounds it. Spyro 1's shadow reads no angle.
+- Spyro 2 load seam (state 5 to 3): not a visible defect. `r11-s2perf` (load 1.98-3.70, perf at 2 kHz on
+  the guest thread): fences 9078 (3 fields) and 9081 are 41 and 33 ms late; 161 of the 229 samples from
+  fence 9074 to 9081 are Lightrec compiling (`_jit_optimize`, `_jit_reglive`, `lightrec_emit_code`), the
+  cause recorded in psxport issue 0174 (`LightrecExecutor::executeWithBoundary` compiles the newly loaded
+  level code on its first field). `r11-s2seam` captures fences 9061-9081: every picture is black (mean
+  0.00) between the fade-out and the fade-in, so nothing is held that moves. The conversation route's
+  46.5 ms at state 3 did not recur (`r11-s2conv`, load 2.38-2.70, no present over 8 ms late).
+- Walks from boot, real speed, hidden window, no `PSXPORT_NOPACE` (read from `/proc/<pid>/environ`);
+  composed/in-betweens and repeats/drops on a simulated 60.00 Hz display. The remaining repeats/drops are
+  0.2 ms late presents at the field grid's phase slip, about every 16.7 s.
+  - Spyro 1 (`r11-s1walk2`, load 1.44-2.51): boot 0/0; state 0 6/6; title state 13 1553/1553 6/2; attract
+    demo state 0 351/351 1/0; warp (demo until the warp takes) 513/513 3/2; state 13 transit 240/240 1/0;
+    level 10 state 0 120/120; play 44/44; state 8 200/200; play end 97/97; turn 345/345 2/1. p50 16.75 ms,
+    p99 17.00, missed 1.
+  - Spyro 2 (`r11-s2perf`, load 1.98-3.70): state 0 6/6 2/1; title 240/240; new game 97/97 1/1; press
+    start 54/54 1/1; menu presses 54, 54 (1/0), 54, 53, 54 and 26, all composed; state 5 0/0; state 6
+    898/898 3/1; press 20/20; state 5 1/1; state 6 890/890 4/2; press 20/20; state 5 1/1 3/0; state 3
+    21/21 0/2 (the seam above); state 0 120/120; play 19/19; state 1 224/224 2/1; play end 96/96; turn
+    343/343. p50 16.75 ms, p99 17.25, missed 5.
+  - Spyro 2 conversation (`r11-s2conv`, load 2.38-2.70): title 304/304 1/1; warp 51/51; state 5 12/12
+    3/2; state 3 22/22; state 0 120/120; conversation state 1 936/936 3/1. p99 19.25 ms, missed 1.
+  - Spyro 3 (`r11-s3walk`, load 2.40-3.24): state 0 1/1 1/0; title 601/601 1/0; warp 4/4; state 5 11/273
+    1/0 (261 still loading pictures with no state saved and one at 0x80059038, issue 0207); state 3
+    15/15; state 0 120/120; play 43/43; state 1 200/200; play end 96/96 1/0; turn 343/343. p99 18.00 ms,
+    missed 2.
+- Every product, 40 s from boot at real speed on psxport `c647fdc6` (`r11-titles`, load 0.98-3.60 at
+  start, a 1-CPU game of another user running throughout): all exit 0, Clang, 0 warnings; errors Mega Man
+  X4 154, Tekken 3 1, the rest 0. Present intervals (p50/p99, missed): Spyro 16.75/17.00, 0; Toy Story 2
+  33.50/100.25, 4; Crash Bash 16.75/33.50, 0; Crash 16.75/20.50, 12 (rerun, load 3.38); CTR 16.75/17.00,
+  2; Tomba 2 33.50/33.75, 2; Spider-Man 16.75/17.75, 2; Vagrant Story 16.75/17.00, 0; Mega Man X4
+  16.75/17.00, 0; Tekken 3 16.75/17.75, 2; C-12 16.75/21.50, 15 (rerun, load 2.76). Pass 10's line
+  ("p50 16.75 ms except Toy Story 2") was wrong: Tomba 2's first 40 s are its 30 Hz boot cards and
+  previews (psxport 0158) and Toy Story 2's p99 is 100 ms; both read the same before this pass's psxport
+  change (`rv10-titles`), which adds work only where Spyro places an empty bucket.

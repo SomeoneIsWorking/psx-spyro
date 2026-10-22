@@ -37,4 +37,4 @@ in-between bars are drawn at a sub-row height, and their margins stayed uncovere
 `RecordPlanner::Builder::addCanvasMargins` skipped it. Fix: `flatRectangle` returns the rectangle with
 its edges' sub-pixel offsets, and the margins are written on the same scaled rows as the centre. Proof
 `scratch/inbetween-gaps/g2-lbox3` (load 4.88 falling): centre and both margins match on all 90 presents,
-top and bottom, the bars growing 96 to 192 rows of 2160 at 4 per present.
+top and bottom, the bars growing 96 to 192 rows of the 1920-row record picture, 4 per present.
