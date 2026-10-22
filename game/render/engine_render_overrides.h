@@ -142,8 +142,10 @@ template <const EngineRenderFacts &facts> void flatten(Core *core) {
     const depth_bins::Claim claim = facts.field.entry != 0
                                         ? field_redraw::fieldClaim(*core, facts.globals)
                                         : depth_bins::Claim{};
-    depth_bins::assignBins(*core, depth_bins::publishedBins(*core, facts.globals), claim);
-    depth_bins::assignBins(*core, depth_bins::overlayBins(*core, facts.globals), claim);
+    const depth_bins::Bins published = depth_bins::publishedBins(*core, facts.globals);
+    depth_bins::assignBins(*core, published, claim);
+    depth_bins::assignOverlay(
+        *core, published, depth_bins::overlayBins(*core, facts.globals), claim);
     if (facts.field.entry != 0) {
       field_redraw::saveField(*core, facts.globals);
     }

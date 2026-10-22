@@ -70,6 +70,20 @@ void assignBins(Core &core, const Bins &bins, Claim claim) {
   }
 }
 
+void assignOverlay(Core &core, const Bins &published, const Bins &overlay, Claim claim) {
+  assignBins(core, overlay, claim);
+  if (core.mem_r32(overlay.base + kBinFirstOffset) != 0) {
+    return;
+  }
+  // The flatten walks the bins deepest first, so the lowest linked one ends the chain.
+  for (std::uint32_t bin = 0; bin < published.linked; ++bin) {
+    if (const std::uint32_t head = core.mem_r32(published.base + bin * kBinStride); head != 0) {
+      core.otTables.placeEmpty(psx::present::OtSlot{overlay.table, 0}, head);
+      return;
+    }
+  }
+}
+
 std::uint32_t linkIntoBin(const psx::present::EmitMemory &memory,
                           std::uint32_t slot,
                           std::uint32_t first,
