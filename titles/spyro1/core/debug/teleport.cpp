@@ -56,7 +56,7 @@ struct GateInfo {
   Position nodes[kMaxPathNodes]{};
 };
 
-struct Dragon {
+struct LevelMoby {
   uint32_t moby = 0;
   Position position;
 };
@@ -134,22 +134,23 @@ std::optional<GateInfo> inspectGate(Core &core, uint32_t index) {
   return readGatePath(core, portal);
 }
 
-// The level's crystal dragons in array order, walked as the guest walks g_LevelMobys.
-std::vector<Dragon> crystalDragons(Core &core) {
-  std::vector<Dragon> dragons;
+// The level's mobys of one class in array order, walked as the guest walks g_LevelMobys.
+std::vector<LevelMoby> mobysOfClass(Core &core, uint32_t mobyClass) {
+  std::vector<LevelMoby> mobys;
   const uint32_t levelMobys = core.mem_r32(kLevelMobys);
   if (!validPointer(levelMobys)) {
-    return dragons;
+    return mobys;
   }
   for (uint32_t moby = levelMobys; validAddress(moby, kMobyStride); moby += kMobyStride) {
     if (core.mem_r8(moby + kMobyState) == kMobyStateEnd) {
       break;
     }
-    if (core.mem_r16(moby + kMobyClass) == kMobyClassCrystalDragon) {
-      dragons.push_back(Dragon{.moby = moby, .position = readPosition(core, moby + kMobyPosition)});
+    if (core.mem_r16(moby + kMobyClass) == mobyClass) {
+      mobys.push_back(
+          LevelMoby{.moby = moby, .position = readPosition(core, moby + kMobyPosition)});
     }
   }
-  return dragons;
+  return mobys;
 }
 
 bool inActiveField(Core &core) {
@@ -171,11 +172,13 @@ bool teleportToGate(Core &core, uint32_t index, uint32_t node) {
   }
   const std::optional<GateInfo> gate = inspectGate(core, index);
   if (!gate) {
-    lucent::info("spyro-teleport", "gate-teleport refused: gate {} is not a valid loaded portal", index);
+    lucent::info(
+        "spyro-teleport", "gate-teleport refused: gate {} is not a valid loaded portal", index);
     return false;
   }
   if (node >= gate->nodeCount) {
-    lucent::info("spyro-teleport", "gate-teleport refused: node {} is outside gate {}", node, index);
+    lucent::info(
+        "spyro-teleport", "gate-teleport refused: node {} is outside gate {}", node, index);
     return false;
   }
   const Position destination = gate->nodes[node];
@@ -191,25 +194,29 @@ bool teleportToGate(Core &core, uint32_t index, uint32_t node) {
   return true;
 }
 
-bool teleportToDragon(Core &core, uint32_t index) {
+bool teleportToMoby(Core &core, uint32_t mobyClass, uint32_t index) {
   if (!inActiveField(core)) {
-    lucent::info("spyro-teleport", "dragon-teleport refused: gameplay is not in an active field");
+    lucent::info("spyro-teleport", "moby-teleport refused: gameplay is not in an active field");
     return false;
   }
-  const std::vector<Dragon> dragons = crystalDragons(core);
-  if (index >= dragons.size()) {
-    lucent::info("spyro-teleport", "dragon-teleport refused: the level has {} crystal dragons", dragons.size());
+  const std::vector<LevelMoby> mobys = mobysOfClass(core, mobyClass);
+  if (index >= mobys.size()) {
+    lucent::info("spyro-teleport",
+                 "moby-teleport refused: the level has {} mobys of class {}",
+                 mobys.size(),
+                 mobyClass);
     return false;
   }
-  const Dragon &dragon = dragons[index];
-  placeSpyro(core, dragon.position);
+  const LevelMoby &target = mobys[index];
+  placeSpyro(core, target.position);
   lucent::info("spyro-teleport",
-               "dragon-teleport dragon={} moby={:#010x} position=({}, {}, {})",
+               "moby-teleport class={} index={} moby={:#010x} position=({}, {}, {})",
+               mobyClass,
                index,
-               dragon.moby,
-               dragon.position.x,
-               dragon.position.y,
-               dragon.position.z);
+               target.moby,
+               target.position.x,
+               target.position.y,
+               target.position.z);
   return true;
 }
 
@@ -248,22 +255,23 @@ void listGates(Core &core, std::FILE *reply) {
   }
 }
 
-void listDragons(Core &core, std::FILE *reply) {
-  const std::vector<Dragon> dragons = crystalDragons(core);
+void listMobys(Core &core, uint32_t mobyClass, std::FILE *reply) {
+  const std::vector<LevelMoby> mobys = mobysOfClass(core, mobyClass);
   std::fprintf(reply,
-               "level=%d gamestate=%u dragons=%zu\n",
+               "level=%d gamestate=%u class=%u mobys=%zu\n",
                static_cast<int32_t>(core.mem_r32(kLevelId)),
                core.mem_r32(kGamestate),
-               dragons.size());
-  for (std::size_t i = 0; i < dragons.size(); ++i) {
+               mobyClass,
+               mobys.size());
+  for (std::size_t i = 0; i < mobys.size(); ++i) {
     std::fprintf(reply,
-                 "dragon=%zu moby=0x%08x state=%u position=(%d, %d, %d)\n",
+                 "moby=%zu address=0x%08x state=%u position=(%d, %d, %d)\n",
                  i,
-                 dragons[i].moby,
-                 core.mem_r8(dragons[i].moby + kMobyState),
-                 dragons[i].position.x,
-                 dragons[i].position.y,
-                 dragons[i].position.z);
+                 mobys[i].moby,
+                 core.mem_r8(mobys[i].moby + kMobyState),
+                 mobys[i].position.x,
+                 mobys[i].position.y,
+                 mobys[i].position.z);
   }
 }
 
@@ -276,7 +284,16 @@ bool command(Core &core, const psx::game::TitleCommandLine &input, std::FILE *re
     return true;
   }
   if (std::strcmp(name, "dragons") == 0) {
-    listDragons(core, reply);
+    listMobys(core, kMobyClassCrystalDragon, reply);
+    return true;
+  }
+  if (std::strcmp(name, "mobys") == 0) {
+    const std::optional<std::uint32_t> mobyClass = input.args.number(1);
+    if (!mobyClass) {
+      std::fprintf(reply, "usage: mobys <class>\n");
+      return true;
+    }
+    listMobys(core, *mobyClass, reply);
     return true;
   }
   if (std::strcmp(name, "gate-teleport") == 0) {
@@ -286,8 +303,11 @@ bool command(Core &core, const psx::game::TitleCommandLine &input, std::FILE *re
       std::fprintf(reply, "usage: gate-teleport <portal-index> <path-node>\n");
       return true;
     }
-    std::fprintf(
-        reply, "gate-teleport %u %u: %s\n", *index, *node, teleportToGate(core, *index, *node) ? "ok" : "refused");
+    std::fprintf(reply,
+                 "gate-teleport %u %u: %s\n",
+                 *index,
+                 *node,
+                 teleportToGate(core, *index, *node) ? "ok" : "refused");
     return true;
   }
   if (std::strcmp(name, "dragon-teleport") == 0) {
@@ -296,7 +316,24 @@ bool command(Core &core, const psx::game::TitleCommandLine &input, std::FILE *re
       std::fprintf(reply, "usage: dragon-teleport <dragon-index>\n");
       return true;
     }
-    std::fprintf(reply, "dragon-teleport %u: %s\n", *index, teleportToDragon(core, *index) ? "ok" : "refused");
+    std::fprintf(reply,
+                 "dragon-teleport %u: %s\n",
+                 *index,
+                 teleportToMoby(core, kMobyClassCrystalDragon, *index) ? "ok" : "refused");
+    return true;
+  }
+  if (std::strcmp(name, "moby-teleport") == 0) {
+    const std::optional<std::uint32_t> mobyClass = input.args.number(1);
+    const std::optional<std::uint32_t> index = input.args.number(2);
+    if (!mobyClass || !index) {
+      std::fprintf(reply, "usage: moby-teleport <class> <index>\n");
+      return true;
+    }
+    std::fprintf(reply,
+                 "moby-teleport %u %u: %s\n",
+                 *mobyClass,
+                 *index,
+                 teleportToMoby(core, *mobyClass, *index) ? "ok" : "refused");
     return true;
   }
   return false;
