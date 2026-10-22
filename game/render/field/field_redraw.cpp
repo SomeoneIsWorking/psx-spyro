@@ -275,6 +275,32 @@ void placeSky(History &history, std::uint32_t skyBin) {
   }
 }
 
+// Before a redraw runs, passes the chain of the (head, first) pair at `pair` over the packets a
+// producer keyed: logic linked them before the dispatcher and their producer's render draws them.
+void passOverKeyed(Core &core, psx::present::GuestRedraw &run, std::uint32_t pair) {
+  const std::uint32_t firstLink = pair + depth_bins::kBinFirstOffset;
+  const std::uint32_t head = core.mem_r32(pair);
+  std::uint32_t kept = 0;
+  for (std::uint32_t packet = core.mem_r32(firstLink); packet != 0;) {
+    const psx::gpu::OtNode node(psx::gpu::mainRamOffsetOf(packet),
+                                psx::gpu::OtHeaderWord{core.mem_r32(packet)});
+    const std::uint32_t next =
+        packet == head || node.endsChain() ? 0 : psx::gpu::guestAddressOf(node.nextRamOffset());
+    if (!core.emission.keyFor(packet)) {
+      kept = packet;
+    } else if (next == 0) {
+      run.writeWord(kept == 0 ? firstLink : pair, kept);
+    } else if (kept == 0) {
+      run.writeWord(firstLink, next);
+    } else {
+      run.writeWord(kept,
+                    (core.mem_r32(kept) & ~psx::gpu::kOtNextAddressMask) |
+                        (next & psx::gpu::kOtNextAddressMask));
+    }
+    packet = next;
+  }
+}
+
 // What a redraw runs: `entry` with `arguments`, after the native moby walk for a second pass, whose
 // packets are read from the bins as its own table and not from the overlay pair.
 struct RedrawCall {
@@ -300,6 +326,12 @@ bool redraw(Core &core,
   const guest_render_globals::Globals &globals = image.terrain.globals();
   bool &redrawing = session(core).fieldRedraw.redrawing;
   redrawing = true;
+  for (const depth_bins::Bins &bins :
+       {depth_bins::publishedBins(core, globals), depth_bins::overlayBins(core, globals)}) {
+    for (std::uint32_t bin = 0; bin < bins.linked; ++bin) {
+      passOverKeyed(core, run, bins.base + bin * depth_bins::kBinStride);
+    }
+  }
   if (call.secondPass) {
     guest_moby::walk(core, image.moby, globals);
   }
