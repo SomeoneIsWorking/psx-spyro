@@ -17,7 +17,8 @@ psx-spyro 0196 pass 6, fps60, 16:9, hidden window, real speed, `warp <level>` fr
 (ires 0, fps60 1, 16:9), `PSXPORT_PRESENT_SINK=3840x2160`, hidden window, no `PSXPORT_NOPACE`; `gaps.py`
 splits the presents by game state and simulates a 60.00 Hz display. Before the changes below:
 - Spyro 2 (`IDLE=40 NEWGAME=1`, load ~1): game state 11 (intro cutscene, title, menus) 877 of 1200
-  in-betweens whole, `entry N unkeyed`; the loading storybook's fade-in (game state 5) 46 whole,
+  in-betweens whole, `entry N unkeyed`; in the walk's press-cross segment (the menus, the fades before
+  each load and the storybook's two-field frames before game state 5 is first sampled) 46 whole,
   `no state saved`.
 - Spyro 3 (`IDLE=40`, load ~0.9): title 864 of 1214 whole, `entry N unkeyed`; the attract demo's
   gameplay (game state 0) every in-between whole, `entry N unkeyed`; game state 5 307 whole.
@@ -51,13 +52,23 @@ splits the presents by game state and simulates a 60.00 Hz display. Before the c
 
 ## Proof (2026-10-22)
 - Spyro 2, `s2-walk3`, load 0.81–1.35: title and menus 1200/1200, new game 97/97, press start 54/54;
-  the storybook fade composes (46 → 0 whole); conversation (game state 6) 1795/1795; gameplay 584/584.
-  Stepped 8x capture (`s2-book`): book in-betweens at 0.42–0.50 of the way between their frames' mean
-  brightness over seven frames. Title at 8x (`s2-title8x`): halfway 0.65–0.93 over 21 moving blocks,
-  logo and Press Start present in every in-between.
+  the press-cross segment 46 → 12 whole (34 in-betweens the loading picture now composes; the 12 left
+  are the fade-to-black seams, open below); game state 5's own 2 in-betweens composed; conversation
+  (game state 6) 1795/1795; gameplay 584/584. Correction (review): at real speed most of the storybook
+  fade runs one present per field (`fields=1/1`, 192 presents in the first load of `rv-s2`), which has
+  no in-between to compose; an earlier line here said the fade went 46 → 0 whole, which mixed the two
+  segments. The 8x figure (`s2-book`, in-betweens 0.42–0.50 of the way between their frames' mean
+  brightness) was REPL-stepped and its captures are deleted, so it is unverified. Title at 8x
+  (`s2-title8x`): halfway 0.65–0.93 over 21 moving blocks, logo and Press Start present in every
+  in-between.
 - Spyro 3, `s3-walk5`/`s3-warp`, load 1.3–3.1: title 1098/1098; demo gameplay 576/576 (was 0);
   `warp 11` gameplay 560/560 plus play and turn phases all composed; the loading picture's fade 31
   composed. Stepped capture (`s3-gs5`): fade in-betweens at 0.41–0.50 of the way between their frames.
+- Re-landing (review): each landing of the title overlay removes the screen draw's override keyed to
+  the image it replaced and installs one on the new image, keyed by the content
+  `publishStockReadLanding` published (no second hash). `fx-s3w` (debug `cd`): the overlay at
+  `0x800742D0` landed 4 times from boot to the warp, title 240/240 composed. `fx-s3` (100 s idle, two
+  attract demos and back): title 1415/1415 and demo gameplay 640/640 composed, load 0.39-0.69.
 
 ## Open
 - **The fade before a load (Spyro 2).** `FUN_8004D810` copies the shown picture into the draw buffer
@@ -77,6 +88,9 @@ splits the presents by game state and simulates a 60.00 Hz display. Before the c
 - **Spyro 3 pause menu** (game state 4): Sparx's cursor is drawn by the second moby pass the draw
   `0x8001E638` chains after the flatten (`kSecondPassFlattenReturns`), unkeyed, so in-betweens show
   whole (77 in `s3-atlas`). Proper fix: key the second pass to a producer of its own.
+- **Spyro 3 cutscene cameras.** Spyro 2's cutscene shot changes are cuts now (issue 0196, pass 8);
+  whether Spyro 3's cutscene overlay plays its camera by the same track player is not traced, and no
+  Spyro 3 cutscene was reached this pass.
 - **Spyro 3 Atlas** (state 4, steps 0x14–0x18, `FUN_80058408` and the menu `FUN_80020D70`): the opening
   book and Sparx moving over the contents show whole, `no state saved`. Needs `FUN_80058408` traced
   (the book's open angle and the page state) for a producer.

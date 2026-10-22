@@ -622,6 +622,59 @@ far towers against the sky in each in-between. Walks at load 0.9-1.3 (`s2-walk4`
 as before: Spyro 2 title and menus 1200/1200, conversation 1795/1795, gameplay 584/584, turn 309/309;
 Spyro 3 title 600/600, gameplay 560/560, turn 309/309.
 
+## Pass 8 (2026-10-22): review of pass 7
+Runs: ires 0, fps60, the player's settings, `PSXPORT_PRESENT_SINK=3840x2160`, hidden window, unpaced
+(checked in `/proc/<pid>/environ`); repeats/drops are the simulated 60 Hz display's.
+
+Conversation shot changes. Reproduction: Spyro 2 from boot, new game, the Summer Forest opening (game
+state 6), 8x stepped capture (`scratch/inbetween-gaps/fx-conv`): at each scripted shot change the
+in-between shows a camera half way between two shots, a view the guest never draws. Cause:
+`game/core/frame_cut.cpp:FrameCut::onFrameTail` declared no cut for the cutscene overlay's camera: the
+camera mode word stays 0/0 through state 6 and the overlay's track player (`0x8007490C`, called from
+`0x800742F8`) writes the camera (`0x80067EAC` position, `0x80067EC8` angles) from 12-byte keys, one key per
+two ticks, blending to the next key on the odd tick only when the step is under 0x100 (`0x8001BA20`) and the
+third angle's folded difference (`0x8001BF00`) is within 0xFF. Fix: `FrameCutFacts::scriptedCamera` names
+the state and the camera words (Spyro 2 `boot_facts.h`), and FrameCut declares a cut when two shown frames
+fail the guest's own blend rule. Proof: `fx-conv2`, the in-between at each of the 28 shot changes equals
+the next frame (mean difference 0.0, against 34 before), the castle whole in every in-between; state 6
+composes 1787-1795/1795, repeats 4, drops 0. A fast dolly (records 2183-2195, 600-1180 units a frame) also
+fails the guest's rule and shows at 30 fps, as the guest blends it.
+
+Sky bin. Pass 7 left the redraw's sky in the deepest far bin (`deepestFarMark`), a bin the guest never
+gives it. Cause: `game/render/field/field_redraw.cpp:writeInBetween` has no far pass to raise the mark,
+so the sky drawer `0x80029170` links where the written mark puts it. Fix: `saveField` reads the sky bin of
+each shown field (the flatten's top bin) and `placeSky` moves the redraw's sky primitives to the deeper of
+the two shown frames' sky bins. Proof: 8x turns (`fx-s2`, `fx-s3w`): far towers and sky in every
+in-between, halfway ratios 0.67-1.32 (Spyro 2) and 0.82-1.51 (Spyro 3).
+
+Screen-draw keys. `game/render/engine_render_overrides.h:installScreenDraw` added a dispatcher entry on
+every overlay landing and never removed the last one, and `screenDrawsLanded` hashed the read a second
+time. The session now keeps the installed keys and removes them before reinstalling; the landing passes the
+digest `psx::code_module::publishStockReadLanding` already computed. Proof: `fx-s3w`, the title overlay
+landed 4 times at `0x800742D0` and composed 240/240.
+
+Framework: `frame_composer.cpp:compose` takes the appearing path only when S does not hold the id
+(`holds`, not `find`), so an ambiguous id renders at t=1; `ExecutionControl::Unsuspendable`'s budget is
+documented per call. `kOverlaySlot` is one constant in `guest_depth_bins.h`.
+
+Spyro 1 rescue: `dragon-teleport 0` (title debug option `teleport`) puts Spyro on the first crystal
+dragon and the guest's own touch enters state 8 within a frame (issue 0186).
+
+Walks, per screen in boot order, composed/shown and repeats/drops:
+- Spyro 1 (`fx-s1`, load 1.46-1.89): boot 0/0; title state 0 337/337 0/0; state 13 241/241 1/0; warp
+  354/354 1/0; rescue state 8 696/696 2/0; turn 311/311 1/0. Present interval p50 16.75 ms, p99 17.00,
+  missed 1.
+- Spyro 2 (`fx-s2`, load 0.47-0.98): state 0 125/125 1/0; state 11 1200/1200 2/0; new game 97/97;
+  press start 54/54; press cross 227/239 1/0 (12 shown whole); state 5 2/2 1/1; conversation state 6
+  1795/1795 4/0; state 3 20/20 5/4 (load stalls); play 19/19; state 1 136/136; play end 96/96; turn
+  358/358 1/0. Worst present 2002 ms (boot logo hold), missed 17.
+- Spyro 3 (`fx-s3w`, load 0.54-1.29): state 0 125/125 1/0; state 11 240/240 0/0; warp 96/96 1/0; state 5
+  11/277 1/1 (266 still pictures shown whole); state 3 15/15; play 43/43 1/0; state 1 112/112; play end
+  96/96; turn 357/357 1/0. p99 33.5 ms, worst 1751.8 (load stall), missed 19.
+- Every product, 40 s from boot at real speed (`fx-titles`, load 0.63-1.96): all exit 0, Clang, 0
+  warnings; errors as before (Mega Man X4 154, Tekken 3 1, the rest 0); present intervals as before
+  (p50 16.75 ms except Toy Story 2's 30 fps 33.5 ms).
+
 ## Next
 - Spyro 2 and 3 fades: the dispatcher draws the fullscreen tints (Spyro 2 `0x8004D748` at the words
   `0x80066F68` subtractive and `0x80067150` additive; Spyro 3 `0x800200A0` at `0x8006C598`, `0x8006C7C0`
@@ -634,6 +687,8 @@ Spyro 3 title 600/600, gameplay 560/560, turn 309/309.
   own draw (12 steps): 30 fps by construction; needs a producer as Spyro 1's `CinematicLetterbox`.
 - Spyro 2 conversation box: linked by logic before the dispatcher, so the redraw keeps n+1's box; not
   seen moving on the opening route (`s2-conv400`, `s2-conv800`), still unverified elsewhere.
+- Spyro 3's cutscene cameras have no `scriptedCamera` facts, so its shot changes are not declared cuts
+  (issue 0207).
 - Spyro 1's motion trails `0x800189F0` (levels 50 and 63, not reached on the routes) have no producer.
 - Spyro 1, the title-to-demo seam (`s1-final` record 2377): one in-between shown whole, a type 0x147 HUD
   font moby with no place or CLUT in the shown frame.

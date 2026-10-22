@@ -92,7 +92,10 @@ starts, adjacent differences 7.1..10.4 (`scratch/interp2/s1`).
 
 ## Dragon rescue (2026-10-22)
 Reproduction: player settings (16:9, ires auto, fps60), `PSXPORT_PRESENT_SINK=3840x2160`, hidden window,
-`warp 10`, walk into the first dragon statue; the freed-dragon scene is gamestate 8.
+`warp 10`, then `dragon-teleport 0` on the control channel: Spyro is placed on the level's first crystal
+dragon (moby class 250) and the statue's own touch calls `func_8002C924` into gamestate 8 within a frame.
+The first proof below walked into the statue by holding a button, which steers gameplay; it was redone
+on this route (review, below).
 
 Before: 34 of 38 in-betweens in gamestate 8 were shown whole (`compose` names unkeyed packets from
 GamestateDraw), and a stepped capture showed the white flash popping on and off at the in-between
@@ -116,6 +119,14 @@ Proof: override differential, 16 of 16 sampled calls match (memory, $v0, $v1). R
 320 of 320 in-betweens composed. Stepped 8x capture (`scratch/inbetween-gaps/s1-star8xb/star-and-flash.png`):
 each in-between's difference to the frame before over the one after is 0.87..1.44 across the star and
 the flash start (1.04), against 66/4.3 before; at 1x the flash's vanish is 33.5/33.4 and its start 24.4/28.6.
+
+Review (2026-10-22): the stepped captures of `s1-star8xb` were deleted, so the figures above could not
+be rechecked. Redone on the `dragon-teleport` route at HEAD: `scratch/inbetween-gaps/fx-s1rescue2`
+(8x, 40 presents from gamestate 8's first frame): the star grows and the additive flash ramps the mean
+grey 99 -> 208 over 14 presents with each present's difference to the one before about equal to the one
+after (16.3/15.7, 15.7/15.3, ... 5.6/3.5, against 28.9..8.6 between its neighbours), so every in-between
+of the star and the flash sits halfway. Real speed, no capture (`fx-s1`, load 1.46-1.89): gamestate 8
+696 of 696 in-betweens composed, simulated 60.00 Hz display 2 repeats, 0 drops.
 
 ## Motion trails (2026-10-22)
 `0x800189F0` draws up to four trails pushed each frame (count `0x80075684`, cleared by the draw; point

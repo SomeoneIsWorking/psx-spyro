@@ -7,14 +7,14 @@ Dependency direction: `titles/<title>/` (one image's facts and natives) → `gam
 - `game/core/session.*` — per-Core title state: archive transfer, field owner, HUD draw context, terrain visibility, state producers
 - `game/core/field_owner.*` — display field / VSync delivery sequence: pad, clock, VBlank root counter, observers, snapshot, presentation fence, audio, host turn
 - `game/core/boot_prefix_runtime.*`, `boot_prefix_frame_driver.*` — S2/S3 boot: crt0, stock libraries, the retail boot prefix as a resumable call, then update and draw one field per step, each logic frame presented when its draw returns
-- `game/core/frame_cut.*` — cut detection for 60 fps in-betweens: gamestate, level, camera jump
+- `game/core/frame_cut.*` — cut detection for 60 fps in-betweens: gamestate, level, camera placement, a cutscene camera track's shot change
 - `game/core/native_execution.h` — nested guest call return address `$ra` and lowered stack frame
 - `game/core/archive_transfer*` — WAD archive / CD file transfer with per-Core completion and refusal
 - `game/core/guest_magnitude.*` — reciprocal magnitude / vector length normalise step, GTE square sum and square root table
 - `game/core/title_logo*` — title wordmark / logo snapshotted from guest VRAM for the picker panel
 - `game/core/debug/warp.*` — `warp <level>` control command / level select / dev warp, applied when the title screen is idle
 - `game/render/engine_render_overrides.*` — S2/S3 render overrides bound to one image: terrain producer, moby walk, field dispatcher and its last drawer, flatten depth bins and field producer
-- `game/render/field/field_redraw.*` — S2/S3 field in-between: the draw dispatcher re-run as a guest redraw at the in-between camera, mobys, Spyro and effects, its packets saved by the flatten as the field's state, the sky placed past the far pass's deepest mark; screen draws (a state's draw with 2D after the dispatcher, title overlays found by content identity on landing) redrawn whole
+- `game/render/field/field_redraw.*` — S2/S3 field in-between: the draw dispatcher re-run as a guest redraw at the in-between camera, mobys, Spyro and effects, its packets saved by the flatten as the field's state, the sky moved at the flatten to the deeper of the two real fields' sky bins; screen draws (a state's draw with 2D after the dispatcher, title overlays keyed by the landed read's published content, the replaced image's override removed) redrawn whole
 - `game/render/field/loading_picture.*` — S2/S3 loading screen picture: page sprites faded in by a counter, saved with their packets, redrawn at the in-between brightness
 - `game/render/field/effect_pools.*` — S2/S3 effects pass pools (sprites, glows, beams, trails, vertex meshes, particles): one field's records read, paired by slot and moved for the in-between
 - `game/render/field/keyframe_blend.*` — moby / Spyro animation keyframe pair and progress (S2/S3 nibbles, S1 64ths and 16ths), pose between two fields and across an animation switch
@@ -31,7 +31,7 @@ Dependency direction: `titles/<title>/` (one image's facts and natives) → `gam
 - `game/render/terrain/engine_terrain_image.*` — S2/S3 terrain drawer as one TerrainImage
 - `game/render/terrain/guest_terrain_*` (classify, sphere, animation, mesh, cull, screen, far, far_vertices, detail, translucent, polygon, coarse, fine, split, grid, resplit, fog) — terrain passes: sector classification and bounding sphere, sector animation, vertex projection (RTPS), outcode and NCLIP culls, far LOD and its far bin limit / deepest ordering-table mark, near detail and translucent, subdivision grids, split pieces and edge cracks, re-split of oversized polygons, distance fog
 - `game/render/terrain/guest_camera_builder.*` — guest camera builder re-run for an in-between camera
-- `game/render/terrain/guest_depth_bins.*` — depth bins and overlay pair / ordering-table slot of each packet before the flatten, the field's claim of unkeyed packets
+- `game/render/terrain/guest_depth_bins.*` — depth bins and overlay pair / ordering-table slot of each packet before the flatten (the overlay slot constant), the field's claim of unkeyed packets
 - `game/render/terrain/terrain_rebuild.*`, `terrain_state_producer.*` — terrain interpolation: drawer re-run over saved words at an in-between camera, terrain state producer
 - `titles/spyro1/core/runtime/` — S1 runtime: crt0, stock bindings, native leaves, pad delivery, Record capabilities, cut, title command
 - `titles/spyro1/core/guest_globals.h`, `guest_gp.h`, `guest_functions.h` — S1 guest globals, gp, callee entries, names from the spyro-1 decomp
@@ -44,7 +44,7 @@ Dependency direction: `titles/<title>/` (one image's facts and natives) → `gam
 - `titles/spyro1/core/effect/` — S1 effects: ground shadow block and ring, flame block, particle pool allocation
 - `titles/spyro1/core/hud/` — S1 HUD: collectables, pause menu, pixel fade
 - `titles/spyro1/core/input/` — S1 gamepad buffers, input phase for `.pad` recordings
-- `titles/spyro1/core/debug/` — S1 warp route (reset then TSD_Level flyby), `gates` / `gate-teleport` commands
+- `titles/spyro1/core/debug/` — S1 warp route (reset then TSD_Level flyby); `teleport`: `gates` / `gate-teleport` onto a level portal, `dragons` / `dragon-teleport` onto a crystal dragon (the rescue cutscene route)
 - `titles/spyro1/render/terrain_*` — S1 terrain drawer RenderWorldChunks: sector loop, far, detail, coarse and fine subdivision passes, facts
 - `titles/spyro1/render/actor_*`, `lit_actor_emitter.*`, `local_bins.*` — S1 actors / mobys: draw list builders, emitters (flat light, reflection), layouts, producers, in-between record blend and host-memory run (`InBetween`), local depth bins
 - `titles/spyro1/render/sprite_queue*` — S1 sprite queue: lit and HUD mobys, producer

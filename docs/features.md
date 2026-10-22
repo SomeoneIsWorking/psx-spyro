@@ -94,7 +94,7 @@ The portal fill and near sky of `0x80050BD0` stay on retail's 512-wide window: t
 | 10 | S1 | psxport F-FPS60.1 | `titles/spyro1/render/actor_emitter_producer.cpp:ActorEmitterProducer` — each moby the emitters (`0x8001F798`, `0x80020F34`) draw, its list entry rebuilt and drawn at t, record and camera moved |
 | 11 | S1 | psxport F-FPS60.1 | `titles/spyro1/render/portal_producer.cpp:PortalProducer`, `titles/spyro1/render/moby_shadow_producer.cpp:MobyShadowProducer` — each portal (`0x80050BD0`: fill, and near sky with the sky's spin at t) and each moby shadow (`0x80059F8C`) redrawn at t, camera moved |
 | 12 | S2 | psxport F-FPS60.1 | `game/render/field/field_redraw.cpp:redrawField`, `FieldRedrawProducer` — the draw dispatcher `0x800155A0` re-run less the terrain at the in-between camera, mobys and Spyro; the flatten `0x8001B2A8` claims every unkeyed packet linked before the letterbox `0x8004D604` returns and saves the redraw |
-| 6 | all | psxport F-FPS60.2 | `game/core/frame_cut.cpp:FrameCut::isCut` — game state, level, or (S2, S3) a camera placement inside a scene |
+| 6 | all | psxport F-FPS60.2 | `game/core/frame_cut.cpp:FrameCut::isCut` — game state, level, or (S2, S3) a camera placement inside a scene, or (S2) a cutscene track's shot change by the track player's own blend test |
 
 S1's motion trails `0x800189F0` have no producer (unreached: only moby type 104 in levels 50 and 63 pushes them; issue 0186). S2 and S3 redraw a state's whole draw where it links 2D after the dispatcher (title screens, S3's gameplay draw with the demo text) and give the loading picture a producer; the fade before a load, S3's pause menu and Atlas still show whole (issue 0207). The redraw puts the sky past the far pass's deepest bin, so it stays behind the far terrain; the dispatcher's fades and S2's letterbox are drawn at the next frame's level and step at 30 fps (issue 0196). The field redraw runs once per in-between of a frame as long as the last; a frame of another length shows whole.
 
@@ -102,5 +102,5 @@ S1's motion trails `0x800189F0` have no producer (unreached: only moby type 104 
 
 | hop | title | joins | owner |
 |---|---|---|---|
-| 1 | S1 | psxport F-DEBUG.1 | `titles/spyro1/core/runtime/runtime.cpp:spyro1::Runtime::titleCommand` — `gate_debug::command`: `gates`, `gate-teleport` |
+| 1 | S1 | psxport F-DEBUG.1 | `titles/spyro1/core/runtime/runtime.cpp:spyro1::Runtime::titleCommand` — `teleport::command`: `gates`, `gate-teleport`, `dragons`, `dragon-teleport` |
 | 2 | S1/S2/S3 | title | `game/core/runtime.cpp:spyro::Runtime::titleCommand` — `warp <level-id>` arms `game/core/debug/warp.cpp:spyro::Warp`; the S1 `FrameDriver` and S2/S3 `BootPrefixFrameDriver` apply it before the update once the title screen is idle, through `titles/spyro1/core/debug/warp.cpp`, `titles/spyro{2,3}/core/warp.cpp` |
