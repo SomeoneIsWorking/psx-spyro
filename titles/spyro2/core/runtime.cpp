@@ -4,6 +4,7 @@
 #include "game.h"
 #include "spyro2/core/boot_facts.h"
 #include "spyro2/core/warp.h"
+#include "spyro2/render/conversation_box.h"
 #include "spyro2/render/hud_anchor.h"
 #include "spyro2/render/render_facts.h"
 
@@ -82,14 +83,20 @@ void Runtime::registerOverrides(Game &game) {
   libgte_.bind(game);
   spyro::registerEngineRenderOverrides<kRenderFacts>(game.core);
   hud_anchor::registerOverrides(game.core);
+  installConversationBox(game.core);
   lucent::info(
       "boot",
       "installed Spyro 2's stock libraries and natives for the projection leaves, the moby "
-      "visibility walk, the terrain drawer, the flatten and the HUD anchor");
+      "visibility walk, the terrain drawer, the flatten, the HUD anchor and the conversation box");
 }
 
 std::optional<psx::gpu::PacketPoolExtent> Runtime::packetPool(Core &core) const {
   return kPacketPool.extent(core);
+}
+
+bool Runtime::titleCommand(Core &core, const psx::game::TitleCommandLine &input, std::FILE *reply) {
+  return spyro::Runtime::titleCommand(core, input, reply) ||
+         mobyTeleport_.command(core, input, reply);
 }
 
 std::unique_ptr<spyro::Warp> Runtime::createWarp() const {

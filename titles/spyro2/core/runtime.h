@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/boot_prefix_runtime.h"
+#include "spyro2/core/moby_teleport.h"
 #include "stock_libcd.h"
 #include "stock_libgpu.h"
 #include "stock_libgte.h"
@@ -18,6 +19,9 @@ public:
 
   void registerOverrides(Game &game) override;
   std::optional<psx::gpu::PacketPoolExtent> packetPool(Core &core) const override;
+  // `warp`, then `mobys` and `moby-teleport`.
+  bool
+  titleCommand(Core &core, const psx::game::TitleCommandLine &input, std::FILE *reply) override;
 
 protected:
   std::unique_ptr<spyro::Warp> createWarp() const override;
@@ -27,6 +31,7 @@ private:
   psx::hle::StockLibgpu libgpu_;
   psx::cd::GuestInterruptLibcd libcd_;
   psx::hle::StockLibgte libgte_;
+  MobyTeleport mobyTeleport_;
 };
 
 } // namespace spyro2

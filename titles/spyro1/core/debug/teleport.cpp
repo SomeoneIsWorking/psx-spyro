@@ -2,6 +2,7 @@
 #include "spyro1/core/guest_globals.h"
 
 #include "core.h"
+#include "core/debug/moby_teleport.h"
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
@@ -18,12 +19,8 @@ using spyro1::guest::kGamestate;
 using spyro1::guest::kLevelId;
 using spyro1::guest::kLevelMobys;
 using spyro1::guest::kLoadStage;
-using spyro1::guest::kMobyClass;
 using spyro1::guest::kMobyClassCrystalDragon;
-using spyro1::guest::kMobyPosition;
 using spyro1::guest::kMobyProps;
-using spyro1::guest::kMobyState;
-using spyro1::guest::kMobyStateEnd;
 using spyro1::guest::kMobyStride;
 using spyro1::guest::kNextLevelId;
 using spyro1::guest::kPortalCount;
@@ -42,11 +39,7 @@ constexpr uint32_t kSpyroPreviousPosition = 0x8cu;
 constexpr uint32_t kMaxPortals = 16u;
 constexpr uint32_t kMaxPathNodes = 16u;
 
-struct Position {
-  int32_t x = 0;
-  int32_t y = 0;
-  int32_t z = 0;
-};
+using Position = spyro::MobyTeleport::Position;
 
 struct GateInfo {
   int32_t pathMoby = -1;
@@ -54,11 +47,6 @@ struct GateInfo {
   Position firstPoint;
   uint32_t nodeCount = 0;
   Position nodes[kMaxPathNodes]{};
-};
-
-struct LevelMoby {
-  uint32_t moby = 0;
-  Position position;
 };
 
 bool validAddress(uint32_t address, uint32_t bytes = 4u) {
@@ -134,25 +122,6 @@ std::optional<GateInfo> inspectGate(Core &core, uint32_t index) {
   return readGatePath(core, portal);
 }
 
-// The level's mobys of one class in array order, walked as the guest walks g_LevelMobys.
-std::vector<LevelMoby> mobysOfClass(Core &core, uint32_t mobyClass) {
-  std::vector<LevelMoby> mobys;
-  const uint32_t levelMobys = core.mem_r32(kLevelMobys);
-  if (!validPointer(levelMobys)) {
-    return mobys;
-  }
-  for (uint32_t moby = levelMobys; validAddress(moby, kMobyStride); moby += kMobyStride) {
-    if (core.mem_r8(moby + kMobyState) == kMobyStateEnd) {
-      break;
-    }
-    if (core.mem_r16(moby + kMobyClass) == mobyClass) {
-      mobys.push_back(
-          LevelMoby{.moby = moby, .position = readPosition(core, moby + kMobyPosition)});
-    }
-  }
-  return mobys;
-}
-
 bool inActiveField(Core &core) {
   return core.mem_r32(kGamestate) == 0u && core.mem_r32(kLoadStage) == 0xffffffffu;
 }
@@ -164,6 +133,20 @@ void placeSpyro(Core &core, const Position &destination) {
     core.mem_w32(kSpyro + field + 8u, static_cast<uint32_t>(destination.z));
   }
 }
+
+// SCUS_942.28's g_LevelMobys, its active field and Spyro's two position copies.
+class MobyTeleport final : public spyro::MobyTeleport {
+protected:
+  [[nodiscard]] uint32_t levelMobysWord() const override {
+    return kLevelMobys;
+  }
+  [[nodiscard]] bool inActiveField(Core &core) const override {
+    return teleport::inActiveField(core);
+  }
+  void placeSpyro(Core &core, const Position &destination) const override {
+    teleport::placeSpyro(core, destination);
+  }
+};
 
 bool teleportToGate(Core &core, uint32_t index, uint32_t node) {
   if (!inActiveField(core)) {
@@ -191,32 +174,6 @@ bool teleportToGate(Core &core, uint32_t index, uint32_t node) {
                destination.x,
                destination.y,
                destination.z);
-  return true;
-}
-
-bool teleportToMoby(Core &core, uint32_t mobyClass, uint32_t index) {
-  if (!inActiveField(core)) {
-    lucent::info("spyro-teleport", "moby-teleport refused: gameplay is not in an active field");
-    return false;
-  }
-  const std::vector<LevelMoby> mobys = mobysOfClass(core, mobyClass);
-  if (index >= mobys.size()) {
-    lucent::info("spyro-teleport",
-                 "moby-teleport refused: the level has {} mobys of class {}",
-                 mobys.size(),
-                 mobyClass);
-    return false;
-  }
-  const LevelMoby &target = mobys[index];
-  placeSpyro(core, target.position);
-  lucent::info("spyro-teleport",
-               "moby-teleport class={} index={} moby={:#010x} position=({}, {}, {})",
-               mobyClass,
-               index,
-               target.moby,
-               target.position.x,
-               target.position.y,
-               target.position.z);
   return true;
 }
 
@@ -255,26 +212,6 @@ void listGates(Core &core, std::FILE *reply) {
   }
 }
 
-void listMobys(Core &core, uint32_t mobyClass, std::FILE *reply) {
-  const std::vector<LevelMoby> mobys = mobysOfClass(core, mobyClass);
-  std::fprintf(reply,
-               "level=%d gamestate=%u class=%u mobys=%zu\n",
-               static_cast<int32_t>(core.mem_r32(kLevelId)),
-               core.mem_r32(kGamestate),
-               mobyClass,
-               mobys.size());
-  for (std::size_t i = 0; i < mobys.size(); ++i) {
-    std::fprintf(reply,
-                 "moby=%zu address=0x%08x state=%u position=(%d, %d, %d)\n",
-                 i,
-                 mobys[i].moby,
-                 core.mem_r8(mobys[i].moby + kMobyState),
-                 mobys[i].position.x,
-                 mobys[i].position.y,
-                 mobys[i].position.z);
-  }
-}
-
 } // namespace
 
 bool command(Core &core, const psx::game::TitleCommandLine &input, std::FILE *reply) {
@@ -283,17 +220,9 @@ bool command(Core &core, const psx::game::TitleCommandLine &input, std::FILE *re
     listGates(core, reply);
     return true;
   }
+  const MobyTeleport mobys;
   if (std::strcmp(name, "dragons") == 0) {
-    listMobys(core, kMobyClassCrystalDragon, reply);
-    return true;
-  }
-  if (std::strcmp(name, "mobys") == 0) {
-    const std::optional<std::uint32_t> mobyClass = input.args.number(1);
-    if (!mobyClass) {
-      std::fprintf(reply, "usage: mobys <class>\n");
-      return true;
-    }
-    listMobys(core, *mobyClass, reply);
+    mobys.list(core, kMobyClassCrystalDragon, reply);
     return true;
   }
   if (std::strcmp(name, "gate-teleport") == 0) {
@@ -319,24 +248,10 @@ bool command(Core &core, const psx::game::TitleCommandLine &input, std::FILE *re
     std::fprintf(reply,
                  "dragon-teleport %u: %s\n",
                  *index,
-                 teleportToMoby(core, kMobyClassCrystalDragon, *index) ? "ok" : "refused");
+                 mobys.teleport(core, kMobyClassCrystalDragon, *index) ? "ok" : "refused");
     return true;
   }
-  if (std::strcmp(name, "moby-teleport") == 0) {
-    const std::optional<std::uint32_t> mobyClass = input.args.number(1);
-    const std::optional<std::uint32_t> index = input.args.number(2);
-    if (!mobyClass || !index) {
-      std::fprintf(reply, "usage: moby-teleport <class> <index>\n");
-      return true;
-    }
-    std::fprintf(reply,
-                 "moby-teleport %u %u: %s\n",
-                 *mobyClass,
-                 *index,
-                 teleportToMoby(core, *mobyClass, *index) ? "ok" : "refused");
-    return true;
-  }
-  return false;
+  return mobys.command(core, input, reply);
 }
 
 } // namespace spyro1::teleport
