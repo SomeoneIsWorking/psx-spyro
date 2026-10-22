@@ -25,4 +25,14 @@ Between between(const Bytes &from, const Bytes &to, float t) {
   return shown;
 }
 
+Bytes nearest(const Between &shown) {
+  Bytes bytes = shown.bytes;
+  for (std::uint32_t axis = 0; axis < 3; ++axis) {
+    if (((shown.angleFractions >> (8 * axis)) & 0xFu) >= 8) {
+      ++bytes[kAngles + axis];
+    }
+  }
+  return bytes;
+}
+
 } // namespace spyro::moby_record
