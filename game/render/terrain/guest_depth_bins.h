@@ -54,6 +54,10 @@ struct Claim {
 // Names the table in `core.otTables` and gives every packet linked into a bin that bin's slot.
 void assignBins(Core &core, const Bins &bins, Claim claim = {});
 
+// assignBins for the overlay pair, which the flatten chains after `published`'s bins. When it holds
+// no packet, its slot is placed after the last of them, where its packets would have been drawn.
+void assignOverlay(Core &core, const Bins &published, const Bins &overlay, Claim claim = {});
+
 // Links the packets `first`..`last` as the new head of the (head, first) pair at `slot`; returns
 // the old head.
 std::uint32_t linkIntoBin(const psx::present::EmitMemory &memory,

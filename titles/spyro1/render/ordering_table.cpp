@@ -17,12 +17,13 @@ void flattenOverride(Core *core) {
 
 void OrderingTable::assignSlots(Core &core, std::uint32_t bins) {
   namespace depth_bins = spyro::depth_bins;
-  depth_bins::assignBins(core,
-                         {.table = depth_bins::kTable,
-                          .base = core.mem_r32(terrain::kRenderGlobals.orderingTable),
-                          .named = bins,
-                          .linked = bins});
-  depth_bins::assignBins(core, depth_bins::overlayBins(core, terrain::kRenderGlobals));
+  const depth_bins::Bins published{.table = depth_bins::kTable,
+                                   .base = core.mem_r32(terrain::kRenderGlobals.orderingTable),
+                                   .named = bins,
+                                   .linked = bins};
+  depth_bins::assignBins(core, published);
+  depth_bins::assignOverlay(
+      core, published, depth_bins::overlayBins(core, terrain::kRenderGlobals));
 }
 
 void OrderingTable::registerOverrides(Core &core) {
