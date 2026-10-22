@@ -8,7 +8,7 @@
 #include "spyro1/core/audio/native_sound_position.h"
 #include "spyro1/core/audio/spu_library.h"
 #include "spyro1/core/camera/native_camera.h"
-#include "spyro1/core/debug/gate_debug.h"
+#include "spyro1/core/debug/teleport.h"
 #include "spyro1/core/debug/warp.h"
 #include "spyro1/core/effect/native_effect_state.h"
 #include "spyro1/core/effect/native_particle_alloc.h"
@@ -202,7 +202,7 @@ const spyro::TitleLogoFacts &Runtime::logoFacts() const {
 
 bool Runtime::titleCommand(Core &core, const psx::game::TitleCommandLine &input, std::FILE *reply) {
   return spyro::Runtime::titleCommand(core, input, reply) ||
-         spyro1::gate_debug::command(core, input, reply);
+         spyro1::teleport::command(core, input, reply);
 }
 
 std::uint64_t Runtime::inputPhase(Core &core) const {
