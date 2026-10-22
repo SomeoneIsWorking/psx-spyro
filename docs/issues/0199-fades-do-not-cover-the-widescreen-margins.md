@@ -29,3 +29,12 @@ Same route after the fix (`scratch/b1/s1_fade2/`): presents 659-688 brighten tog
 left 13.5 / centre 9.6 / right 13.7, p0680 62.8 / 48.2 / 53.3; `p0680.png` is evenly darkened across
 all 684 columns with no seam. Spyro 2 (`scratch/b1/spyro2_wide/`, p0026-p0044) and Spyro 3
 (`scratch/b1/spyro3_wide/`, p0609-p0627) fades darken the margins with the centre.
+
+## Rectangles placed between rows (2026-10-22)
+Spyro 2's conversation letterbox (`0x8004D604`, `warp 11` then `moby-teleport 554 2`): at 60 fps the
+in-between bars are drawn at a sub-row height, and their margins stayed uncovered. Cause: psxport
+`gpu/record_geometry.cpp:flatRectangle` rejected a quad whose vertices carry a sub-pixel row offset, so
+`RecordPlanner::Builder::addCanvasMargins` skipped it. Fix: `flatRectangle` returns the rectangle with
+its edges' sub-pixel offsets, and the margins are written on the same scaled rows as the centre. Proof
+`scratch/inbetween-gaps/g2-lbox3` (load 4.88 falling): centre and both margins match on all 90 presents,
+top and bottom, the bars growing 96 to 192 rows of 2160 at 4 per present.

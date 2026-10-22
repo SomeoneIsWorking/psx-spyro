@@ -83,9 +83,12 @@ splits the presents by game state and simulates a 60.00 Hz display. Before the c
   is where its 3-field frames come from. No visible gap.
 - **Spyro 3 pause menu** — fixed, pass 9: the second moby pass (walk return `0x8001EA28`, drawer
   `0x80031124`, flatten return `0x8001EA40`) is redrawn in the field redraw and owned in its own depth
-  table `kSecondPassTable` (`p9-s3pause`: all composed, Sparx 0.62–1.59 of halfway). The 3D counters
-  along the top of the pause screen still equal the next frame in every in-between (30 fps); their
-  drawer is not traced (`FUN_8001EDEC` is not it).
+  table `kSecondPassTable` (`p9-s3pause`: all composed, Sparx 0.62–1.59 of halfway). The counters along
+  the top (gem, lives head, egg) are not 3D: `FUN_80029904` and `FUN_80029BB0`, from the HUD pass
+  `FUN_80029E48`, draw each as a 2D sprite through `FUN_800289C8`, the frame chosen by the element's
+  byte +0x1F (gem element `0x80067248`, one frame per logic tick, RAM dumps `g3ram` r1→r2 0x16→0x17).
+  A flipbook frame has no pose between two, so stepping at the logic rate is faithful; their positions do
+  not move (`g3-pause`: only the gem and egg sprites change, at x 160-407 and 4631-4647). Not a gap.
 - **Spyro 3 cutscene cameras** — fixed, pass 9: the overlay's blend at `0x80077E0C` uses Spyro 2's
   rule, so `scriptedCamera` facts (state 6, `0x8006E020`/`0x8006E03C`) make each shot change a cut.
 - **Spyro 3 Atlas** (pause steps 0x14–0x18 of `0x8006FBC8`, `FUN_8001DD1C` → `FUN_80058408` then
@@ -96,3 +99,4 @@ splits the presents by game state and simulates a 60.00 Hz display. Before the c
   Both packets are constant, so what grows and brightens is drawn by the menu `FUN_80020530` (table
   `0x80067570` indexed by `0x8006FBD0`), not yet traced. Proper fix: key `FUN_80058408`'s packets as
   constant elements and give the menu's opening its producer from the words it reads.
+  Pass 10 (issue 0196) did not reach it: still open, unchanged.
