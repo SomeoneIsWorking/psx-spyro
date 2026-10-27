@@ -4,6 +4,7 @@
 #include "core.h"
 #include "core/native_execution.h"
 #include "core/session.h"
+#include "render/field/guest_view_slope.h"
 #include "render/field/guest_word.h"
 #include "render/state_producer_override.h"
 #include "spyro1/core/guest_globals.h"
@@ -63,7 +64,7 @@ void drawPortals(Core *core) {
   {
     const psx::present::Kept<psx::present::LevelReads>::Use reads(spyro::session(guest).drawReads);
     const psx::present::EmitMemory emit(guest, *reads, working);
-    Portals portals(guest, emit);
+    Portals portals(guest, emit, spyro::presentedBounds(guest, terrain::kSharedFacts));
     const std::int32_t count = asSigned(guest.mem_r32(guest::kPortalCount));
     for (std::int32_t index = 0; index < count; ++index) {
       state.index = static_cast<std::uint32_t>(index);
@@ -108,7 +109,7 @@ void PortalProducer::render(const psx::present::StateInterval &states,
                          before.header.spin.yaw, after.header.spin.yaw, kTurnBits, states.t),
                      .pitch = psx::present::lerpTurn(
                          before.header.spin.pitch, after.header.spin.pitch, kTurnBits, states.t)};
-  Portals portals(core_, between.memory());
+  Portals portals(core_, between.memory(), spyro::presentedBounds(core_, terrain::kSharedFacts));
   if (const std::optional<Approach> approach = portals.drawFar(after.header.index)) {
     portals.drawNear(
         *approach,

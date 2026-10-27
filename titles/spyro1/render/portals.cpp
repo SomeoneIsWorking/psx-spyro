@@ -56,8 +56,7 @@ constexpr std::int32_t kNearBins = 0x100;
 constexpr std::uint32_t kBinPush = 0x40u;
 constexpr std::int32_t kLastBin = 0x7FF;
 constexpr std::uint32_t kBinShift = 7u;
-// The retail screen: 512 by 240.
-constexpr std::int32_t kScreenWidth = 0x200;
+// The retail screen's height; its width is `screen_`.
 constexpr std::int32_t kScreenHeight = 0xF0;
 // 8005193C: the near outline's points step this far out from its middle.
 constexpr std::uint32_t kNearPush = 2u;
@@ -93,7 +92,8 @@ std::uint32_t packed(std::uint32_t x, std::uint32_t y) {
 
 } // namespace
 
-Portals::Portals(Core &core, const psx::present::EmitMemory &memory) : core_(core), memory_(memory) {}
+Portals::Portals(Core &core, const psx::present::EmitMemory &memory, spyro::guest_terrain::ScreenBounds screen)
+    : core_(core), memory_(memory), screen_(screen) {}
 
 std::uint32_t
 Portals::colourToward(std::uint32_t colour, std::uint32_t target, std::uint32_t amount) {
@@ -130,7 +130,8 @@ std::optional<std::array<std::uint32_t, 2>>
 Portals::appendEdge(std::uint32_t i, std::uint32_t j, std::uint32_t &edges) {
   const Point from = projected(i);
   const Point to = projected(j);
-  if ((from.x >= kScreenWidth && to.x >= kScreenWidth) || (from.x <= 0 && to.x <= 0) ||
+  if ((from.x >= screen_.right() && to.x >= screen_.right()) ||
+      (from.x <= screen_.left() && to.x <= screen_.left()) ||
       (from.y >= kScreenHeight && to.y >= kScreenHeight) || (from.y <= 0 && to.y <= 0)) {
     return std::nullopt;
   }
@@ -152,9 +153,9 @@ Portals::appendEdge(std::uint32_t i, std::uint32_t j, std::uint32_t &edges) {
 // all.
 std::uint32_t Portals::coverage(const Box &box, std::uint32_t edges, std::uint32_t onScreen) const {
   const std::int32_t bin = asSigned(memory_.mem_r32(kBin));
-  const bool overlaps = box.minX < kScreenWidth && box.minY < kScreenHeight && box.maxX > 0 &&
+  const bool overlaps = box.minX < screen_.right() && box.minY < kScreenHeight && box.maxX > screen_.left() &&
                         box.maxY > 0 && bin > 0 && edges != 0;
-  const bool covers = box.minX <= 0 && box.minY <= 0 && box.maxX >= kScreenWidth &&
+  const bool covers = box.minX <= screen_.left() && box.minY <= 0 && box.maxX >= screen_.right() &&
                       box.maxY >= kScreenHeight && bin > 0;
   return overlaps || covers ? onScreen | 2u : 0u;
 }
@@ -188,15 +189,27 @@ bool Portals::facesCamera(const std::array<std::uint32_t, 3> &centre) const {
 
 // 800517E4..80051858: the box clamped to the screen into D_8007AA00, the edge list ended.
 void Portals::publishWindow(Box box, std::uint32_t edges) {
-  box.minX = std::max(box.minX, 0);
+  box.minX = std::max(box.minX, screen_.left());
   box.minY = std::max(box.minY, 0);
-  box.maxX = std::min(box.maxX, kScreenWidth);
+  box.maxX = std::min(box.maxX, screen_.right());
   box.maxY = std::min(box.maxY, kScreenHeight);
   memory_.mem_w32(kWindow + 0x0, asWord(box.minY) << 16);
   memory_.mem_w32(kWindow + 0x4, asWord(box.maxY) << 16);
   memory_.mem_w32(kWindow + 0x8, asWord(box.maxX) << 16);
   memory_.mem_w32(kWindow + 0xC, asWord(box.minX) << 16);
   memory_.mem_w32(kEdges + edges * kEdgeBytes + edge::kFlag, 0);
+}
+
+// 80051354, 8005199C: x and y strictly inside the screen, as `x - 1 < width - 1` unsigned.
+bool Portals::insideOpen(const Point &point) const {
+  return point.x > screen_.left() && point.x < screen_.right() && asWord(point.y) - 1u < kScreenHeight - 1u;
+}
+
+// D_8006CB8C's corners sit on retail's edges x = 0 and x = 512; they are moved onto the window's.
+Portals::Corner Portals::spanned(Corner corner) const {
+  const std::int32_t x = asSigned(signedHalf(corner.point.word())) <= 0 ? screen_.left() : screen_.right();
+  corner.point = corner.point.steppedTo(packed(asWord(x), corner.point.word() >> 16));
+  return corner;
 }
 
 std::optional<Approach> Portals::drawFar(std::uint32_t index) {
@@ -307,8 +320,7 @@ std::optional<Approach> Portals::drawFar(std::uint32_t index) {
     sum[0] += asWord(next.x);
     sum[1] += asWord(next.y);
     memory_.mem_w32(kBin, memory_.mem_r32(kBin) + asWord(next.z));
-    if (asWord(next.x) - 1u < kScreenWidth - 1u && asWord(next.y) - 1u < kScreenHeight - 1u &&
-        next.z > 0) {
+    if (insideOpen(next) && next.z > 0) {
       onScreen = 1;
     }
     box.maxX = std::max(box.maxX, next.x);
@@ -385,7 +397,7 @@ void Portals::drawSky(std::uint32_t skyAt, bool fading, const sky::Rotations &ro
 std::optional<std::pair<std::uint32_t, bool>> Portals::outlineNear(const Approach &approach) {
   const std::uint32_t at = approach.portal;
   const std::uint32_t count = memory_.mem_r32(at + portal::kPointCount);
-  Box box{.minX = kScreenWidth, .maxX = 0, .minY = kScreenHeight, .maxY = 0};
+  Box box{.minX = screen_.right(), .maxX = screen_.left(), .minY = kScreenHeight, .maxY = 0};
   memory_.mem_w32(kPieceQueue, kPieces);
   for (std::uint32_t i = 0; i < count; ++i) {
     const std::uint32_t point = kProjected + i * portal::kPointBytes;
@@ -414,8 +426,7 @@ std::optional<std::pair<std::uint32_t, bool>> Portals::outlineNear(const Approac
   for (std::uint32_t i = 0; i < count; ++i) {
     const std::uint32_t j = neighbour(i, count, approach.winding);
     const Point next = projected(j);
-    if (asWord(next.x) - 1u < kScreenWidth - 1u && asWord(next.y) - 1u < kScreenHeight - 1u &&
-        next.z > 0) {
+    if (insideOpen(next) && next.z > 0) {
       onScreen = 1;
     }
     static_cast<void>(appendEdge(i, j, edges));
@@ -451,7 +462,7 @@ void Portals::fill(std::uint32_t colour) {
   };
   for (std::uint32_t triangle = 0; triangle < 2; ++triangle) {
     const std::uint32_t corners = kScreenTriangles + triangle * 12;
-    clip({screenCorner(corners), screenCorner(corners + 4), screenCorner(corners + 8)},
+    clip({spanned(screenCorner(corners)), spanned(screenCorner(corners + 4)), spanned(screenCorner(corners + 8))},
          kEdges,
          queued,
          cursor,

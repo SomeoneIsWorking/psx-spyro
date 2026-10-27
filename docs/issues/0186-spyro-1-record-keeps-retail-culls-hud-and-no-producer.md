@@ -140,5 +140,4 @@ frames idle on each pushed none; what spawns it is not found, so no trail has be
 ## Proper fix
 The motion trails: a producer pairing points by index, once the spawner of moby type 104 is found
 and a trail can be reached.
-For 16:9, the portal fill's screen triangles (`0x8006CB8C`, retail 512x240) and the outline window
-clamp (`Portals::publishWindow`) need the presented width.
+The portal's 16:9 width is issue 0211.
