@@ -2,6 +2,7 @@
 // the moby teleport. Each title's menu derives from it and adds its own.
 #pragma once
 
+#include "core/frame_cut.h"
 #include "title_debug_menu.h"
 
 #include <cstdint>
@@ -15,8 +16,8 @@ class MobyTeleport;
 class DebugMenu : public psx::game::TitleDebugMenu {
 public:
   // `warp <level>` over the ids `levelExists` accepts; `mobys` and `moby-teleport` when `mobys` is
-  // given.
-  DebugMenu(bool (*levelExists)(std::uint32_t), const MobyTeleport *mobys);
+  // given. A screen is the game state and level id `scene` names, reached by warping to the level.
+  DebugMenu(bool (*levelExists)(std::uint32_t), const MobyTeleport *mobys, const FrameCutFacts &scene);
 
 private:
   // The disc's level ids as the menu and the control line spell them.

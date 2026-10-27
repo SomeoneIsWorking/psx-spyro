@@ -257,9 +257,9 @@ std::uint32_t topBin(Core &core, const guest_render_globals::Globals &globals) {
 // 0x80029170 links the sky one bin past the mark and advances the mark onto it; the redraw's sky
 // goes to the deeper of the two real fields' sky bins, behind the far terrain of both.
 void placeSky(History &history, std::uint32_t skyBin) {
-  const Header header = headerOf(history.state);
+  // The waiting redraws are history's; the header bytes are the last save's until saveRedraws writes them.
   std::size_t at = sizeof(Header);
-  for (std::uint32_t field = 1; header.redrawn != 0 && field < header.fields; ++field) {
+  for (std::uint32_t field = 1; history.redrawn && field < history.fields; ++field) {
     std::uint32_t count = 0;
     std::memcpy(&count, history.state.data() + at, sizeof(count));
     at += sizeof(count);
