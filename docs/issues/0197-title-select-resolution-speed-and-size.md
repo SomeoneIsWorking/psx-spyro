@@ -60,9 +60,9 @@ boots; Spyro 1/2/3 `warp 10` gameplay in `gameplay-montage.png`):
   in colour, the others grey and dimmed, gold seams.
 - `tap right` x3, `tap left`: `selected panel 1`, `2`, `0`, `2`; `tap l2`, `tap r2`: no selection change;
   `select right` / `select left`: `0`, `2`.
-- `menu on`: the menu is drawn over the selector (`scratch/overlay-shot/run/selector-menu.png`; `pshot`
-  now captures the window's screen pass, overlay included).
-  `menu nav down`, `menu nav enter`: handled, the dump reads
+- The menu over the selector (the `menu on` / `menu nav` verbs of that run are retired; reproduce with injected
+  `key Escape`, `key Down`, `key Return`): drawn over the selector (`scratch/overlay-shot/run/selector-menu.png`;
+  `pshot` captures the window's screen pass, overlay included). Down then Return: handled, the dump reads
   `Internal Resolution = X2` (was `Vanilla`), and the running panel's picture shows the finer raster
   (`selector-fast-after-menu.png`).
 - `pick spyro2`: `spyro2 confirmed at panel 1`, its boot prefix returns and its title frame is captured.
