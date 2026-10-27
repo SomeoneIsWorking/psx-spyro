@@ -63,8 +63,8 @@ fresh process. Issue 0169.
   `PSXPORT_SHOW_WINDOW=0`: the player's window, never mapped, presenting at real speed; check it in
   `/proc/<pid>/environ`, never set it to 1). To measure judder, drop `PSXPORT_NOPACE`, keep `fps60=1`, reach the
   scene (`warp <level>` on the control channel) and read the run-end `[playcheck] presents:` line
-  (p50/p99/missed). Tool button presses go through a forced-input path, not the player's SDL path: when a fix is
-  about input, check it through the live path too.
+  (p50/p99/missed). `tap`/`press` force pad bits past the player's SDL path; `key`, `mouse`, `gamepad`, `touch` and `text` on the
+  control channel inject real SDL events, so a fix about input is checked through them.
 - Check work by running the game and looking at the capture. There are no unit tests or gates. Build with
   `CC=clang CXX=clang++ uv run --frozen python external/psxport/tools/port/consumer_build.py --build build/agent --target spyro_port`.
 
