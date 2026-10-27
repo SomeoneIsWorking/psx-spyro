@@ -188,7 +188,6 @@ ShapeOutcome testBoxShape(
       (static_cast<std::uint32_t>(static_cast<std::int32_t>(packed) >> 16)) + off.z;
   const std::uint32_t xExtent =
       static_cast<std::uint32_t>(static_cast<std::int32_t>(packed << 16) >> 16) + off.z;
-  // The `bltz` delay slot picks which later record word is the y extent.
   if (!isNegative(yExtent | (0u - xExtent))) {
     outcome.hit = true;
     outcome.step = step;
@@ -196,7 +195,8 @@ ShapeOutcome testBoxShape(
     outcome.normalZ = 0u;
     return outcome;
   }
-  const std::uint32_t slot = isNegative(yExtent) ? yExtent : 4u;
+  // 0x8004E760: the `bltz` delay slot loads 6 on both arms and the fall-through overwrites it with 4.
+  const std::uint32_t slot = isNegative(yExtent) ? 6u : 4u;
   const std::uint32_t y = static_cast<std::uint32_t>(c->mem_r16s(slot + shape - 0x10u)) + off.z;
   const std::uint32_t target = multiplyLow(c, y, y) + sep.mac1 + sep.mac2;
   const std::uint32_t xHalf = c->mem_r32(shape - 8u) + w.radius;
