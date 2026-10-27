@@ -5,6 +5,7 @@
 #include "core/session.h"
 
 #include <charconv>
+#include <lucent/log.h>
 
 namespace spyro {
 namespace {
@@ -20,7 +21,14 @@ constexpr std::int64_t kMaxMobyIndex = 255;
 
 } // namespace
 
-DebugMenu::DebugMenu(bool (*levelExists)(std::uint32_t), const MobyTeleport *mobys) {
+DebugMenu::DebugMenu(bool (*levelExists)(std::uint32_t), const MobyTeleport *mobys, const FrameCutFacts &scene) {
+  screen(
+      [scene](Core &core) {
+        return (std::uint64_t{core.mem_r32(scene.gameState)} << 32) | core.mem_r32(scene.levelId);
+      },
+      [](Core &, std::uint64_t key) {
+        return lucent::format("warp {}", static_cast<std::uint32_t>(key));
+      });
   for (std::uint32_t level = 0; level < kLevelIdEnd; ++level) {
     if (levelExists(level)) {
       levels_.push_back(std::to_string(level));

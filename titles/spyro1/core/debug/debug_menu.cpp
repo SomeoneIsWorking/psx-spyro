@@ -1,6 +1,7 @@
 #include "spyro1/core/debug/debug_menu.h"
 
 #include "spyro1/core/debug/warp.h"
+#include "spyro1/core/frame/frame_driver.h"
 #include "spyro1/core/guest_globals.h"
 
 #include "core.h"
@@ -23,7 +24,7 @@ std::string activeFieldRefusal(Core &core) {
 
 } // namespace
 
-DebugMenu::DebugMenu() : spyro::DebugMenu(&Warp::levelExists, &mobys_) {
+DebugMenu::DebugMenu() : spyro::DebugMenu(&Warp::levelExists, &mobys_, kFrameCutFacts) {
   section("Portals and Dragons");
   verb({
       .name = "gates",

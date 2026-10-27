@@ -2,6 +2,7 @@
 
 #include "core/boot_prefix_runtime.h"
 #include "core/debug/debug_menu.h"
+#include "spyro3/core/boot_facts.h"
 #include "spyro3/core/warp.h"
 #include "stock_libcd.h"
 #include "stock_libgte.h"
@@ -31,7 +32,7 @@ private:
   psx::hle::StockVSync vsync_;
   psx::cd::GuestInterruptLibcd libcd_;
   psx::hle::StockLibgte libgte_;
-  spyro::DebugMenu debugMenu_{&Warp::levelExists, nullptr};
+  spyro::DebugMenu debugMenu_{&Warp::levelExists, nullptr, kBootPrefixFacts.cut};
 };
 
 } // namespace spyro3
