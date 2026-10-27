@@ -21,7 +21,8 @@ freely; only the in-between's map was short.
 
 ## Shown
 The same oracle route ran the product from boot past REPL frame 100,000 (ten attract-demo cycles through the 7513 scene)
-with no `emit-memory` error, where every run before the fix aborted at 7513 (`scratch/oracle/native.log`).
+with no `emit-memory` error, where every run before the fix aborted at 7513. The run's last 200 log lines are
+`scratch/oracle/native_tail.log`.
 
 ## Reproduction
 `scratch/player-bugs-3/vib/walk_taps.pad` with the command above.

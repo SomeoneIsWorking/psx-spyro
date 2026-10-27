@@ -27,7 +27,7 @@ is guest state written by guest code, so retail draws it on its own 30 fps frame
 What the port adds is halfway and nothing else:
 - the rebuilt matrices equal the guest's at every real field (`image.camera` against `0x80076DD0`, 0 words differ);
 - each in-between's camera is the midpoint of its two fields (angles and position as logged);
-- at fps60 off and 1x (`vib/a30`) the same near stones reshape on real frames alone.
+- at fps60 off and 1x (`vib/a30crops`) the same near stones reshape on real frames alone.
 
 The near stones' texel grid reshaping is the PSX's affine texture mapping of large near polygons under that
 camera motion, which the Record renderer reproduces.
