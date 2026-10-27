@@ -322,11 +322,10 @@ same module directory at the same time; the third, once it was quiet, succeeded.
 
 Every leg in this section is one command of the form
 
-    ~/repo/shared/re-harness/tools/heavy.py -- python3 tools/drive.py gameplay \
+    python3 tools/drive.py gameplay \
         --settings tools/shipping_settings.ini --settle 0 <the flags in the table>
 
-with no `--kind`, no `--lock-dir` and no `--mem-mib`: heavy.py's flags were removed (re-harness
-13817db) and passing any of them exits 2. Output goes to a file under `scratch/tasks/`, one product
+Output goes to a file under `scratch/tasks/`, one product
 instance at a time, headless and silent. The RAM comparison is a plain tool, not a run:
 
     python3 tools/ram_compare.py scratch/ram/base.bin scratch/ram/skip-cross.bin
