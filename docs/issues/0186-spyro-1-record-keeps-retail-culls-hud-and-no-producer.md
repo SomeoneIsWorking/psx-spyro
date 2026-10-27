@@ -32,7 +32,7 @@ Every Spyro 1 horizontal cull and HUD placement sits inside a whole guest routin
 | particles | RasterizeEmitList `0x800573C8` (hand asm) | native, x tests widened, producer per drawn record (`spyro1::particles::EmitList`) |
 | glows | `0x80058BA8` (C) calls the fans `0x800580F4` and sparkles `0x800584C4` | native, x outcodes widened, producer per emitter and per sparkle (`spyro1::glows`) |
 | sky | cyclorama `0x8004EBA8`, the tail of `0x80050BD0` | native, x outcodes widened, producer (`spyro1::sky::Cyclorama`) |
-| portals | `0x80050BD0`: fill `0x8004FEA0`, near sky `0x8004F4BC` / `0x80050240` | native, producer per portal (`spyro1::portals::Portals`); fill and window on retail's 512x240 |
+| portals | `0x80050BD0`: fill `0x8004FEA0`, near sky `0x8004F4BC` / `0x80050240` | native, producer per portal (`spyro1::portals::Portals`); fill and window on the presented width (0211) |
 | moby shadows | RenderMobyShadows `0x80059F8C` | native, x tests widened, producer per record (`spyro1::shadows::MobyShadows`) |
 | flame (horn strike) | `0x80058D64` | native, producer (`spyro1::flame`) |
 | dragon-rescue star | `0x80058864` | native, producer (`spyro1::rescue_star::RescueStarProducer`) |
