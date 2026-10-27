@@ -9,6 +9,7 @@
 #include "projected_vertex.h"
 #include "render/field/guest_working_memory.h"
 #include "render/terrain/guest_camera_builder.h"
+#include "render/terrain/guest_terrain_screen.h"
 #include "spyro1/render/actor_facts.h"
 #include "spyro1/render/sky.h"
 
@@ -80,7 +81,8 @@ struct SkySpin {
 
 class Portals final : public sky::TriangleCut {
 public:
-  Portals(Core &core, const psx::present::EmitMemory &memory);
+  // `screen` is the window the outline is tested and the fill spans: retail's 512 wide, or the presented one.
+  Portals(Core &core, const psx::present::EmitMemory &memory, spyro::guest_terrain::ScreenBounds screen);
 
   // 80050E90..800518CC for portal `index`: the outline and, when it shows, the fill. Nullopt when
   // the portal is skipped whole.
@@ -124,6 +126,10 @@ private:
   coverage(const Box &box, std::uint32_t edges, std::uint32_t onScreen) const;
   [[nodiscard]] bool facesCamera(const std::array<std::uint32_t, 3> &centre) const;
   void publishWindow(Box box, std::uint32_t edges);
+  // Strictly inside the screen on both axes.
+  [[nodiscard]] bool insideOpen(const Point &point) const;
+  // A screen-triangle corner moved from retail's edge onto the window's.
+  [[nodiscard]] Corner spanned(Corner corner) const;
   // The outline pushed out; its sky and whether it fades, when it shows.
   std::optional<std::pair<std::uint32_t, bool>> outlineNear(const Approach &approach);
   // 0x8004F4BC, or 0x80050240 when `fading`: sky `sky` through the outline, linked into the
@@ -154,6 +160,7 @@ private:
 
   Core &core_;
   const psx::present::EmitMemory &memory_;
+  spyro::guest_terrain::ScreenBounds screen_;
   // Each outline point's place; kProjected keeps its x and y as separate words.
   std::array<GtePlace, kOutlinePoints> outline_{};
 };
