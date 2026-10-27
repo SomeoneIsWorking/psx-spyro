@@ -130,3 +130,27 @@ tricks that hide a wait are not implementations of this goal. Loading removal is
 oracle comparison.
 
 Contributing state: S033, S034, S035.
+
+## G006 — More vegetation
+
+Add vegetation beyond the original in Spyro 1, 2 and 3: denser grass, plants and flowers on the
+terrain where each level already grows them.
+
+Why it matters: levels read sparse at 4K/16:9. Added foliage makes them fuller without changing how
+they play.
+
+Success conditions:
+
+- Added vegetation is built from the level's own vegetation models and textures, placed
+  deterministically on terrain faces whose material already carries vegetation, and never placed on
+  paths, water or gameplay objects.
+- It sits in the terrain's own ordering-table slots, interpolates at 60 fps and fills the widescreen
+  margins like the rest of the level.
+- It is a saved setting, off in the faithful mode and under oracle comparison.
+
+Constraints and non-goals:
+
+- Added vegetation has no collision and changes no guest state, gameplay or timing.
+- No new art assets, and nothing that has to ship with the product.
+
+Related state: none yet.
