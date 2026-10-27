@@ -3,16 +3,9 @@
 #include <lucent/log.h>
 
 namespace spyro {
-std::string Warp::arm(const psx::debug::CommandArgs &args) {
-  const std::optional<std::uint32_t> level = args.number(1);
-  if (!level || args.size() != 2) {
-    return "usage: warp <level-id>";
-  }
-  if (!levelExists(*level)) {
-    return lucent::format("refused: level {} is not a level on this disc", *level);
-  }
+std::string Warp::arm(std::uint32_t level) {
   level_ = level;
-  return lucent::format("ok: warp armed for level {}; it starts from the title screen", *level);
+  return lucent::format("ok: warp armed for level {}; it starts from the title screen", level);
 }
 
 void Warp::applyArmed(Core &core, std::uint32_t frame) {

@@ -102,5 +102,5 @@ S1's motion trails `0x800189F0` have no producer (unreached: only moby type 104 
 
 | hop | title | joins | owner |
 |---|---|---|---|
-| 1 | S1 | psxport F-DEBUG.1 | `titles/spyro1/core/runtime/runtime.cpp:spyro1::Runtime::titleCommand` — `teleport::command`: `gates`, `gate-teleport`, `dragons`, `dragon-teleport` |
-| 2 | S1/S2/S3 | title | `game/core/runtime.cpp:spyro::Runtime::titleCommand` — `warp <level-id>` arms `game/core/debug/warp.cpp:spyro::Warp`; the S1 `FrameDriver` and S2/S3 `BootPrefixFrameDriver` apply it before the update once the title screen is idle, through `titles/spyro1/core/debug/warp.cpp`, `titles/spyro{2,3}/core/warp.cpp` |
+| 1 | S1 | psxport F-DEBUG.1 | `titles/spyro1/core/debug/debug_menu.cpp:spyro1::DebugMenu` — `gates`, `gate-teleport`, `dragons`, `dragon-teleport` over `titles/spyro1/core/debug/teleport.cpp` |
+| 2 | S1/S2/S3 | title | `game/core/debug/debug_menu.cpp:spyro::DebugMenu` — `warp <level-id>` (and `mobys`/`moby-teleport` in S1/S2) arms `game/core/debug/warp.cpp:spyro::Warp`; the S1 `FrameDriver` and S2/S3 `BootPrefixFrameDriver` apply it before the update once the title screen is idle, through `titles/spyro1/core/debug/warp.cpp`, `titles/spyro{2,3}/core/warp.cpp` |

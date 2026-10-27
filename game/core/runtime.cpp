@@ -6,9 +6,6 @@
 #include "frame_pacer.h"
 #include "game.h"
 
-#include <cstdio>
-#include <cstring>
-
 namespace spyro {
 namespace {
 
@@ -51,14 +48,6 @@ bool Runtime::interpolates() const {
 
 const psx::present::GuestWidescreenProjection *Runtime::guestWidescreenProjection() const {
   return &aspectPolicy_;
-}
-
-bool Runtime::titleCommand(Core &core, const psx::game::TitleCommandLine &input, std::FILE *reply) {
-  if (std::strcmp(input.command, "warp") != 0) {
-    return false;
-  }
-  std::fprintf(reply, "%s\n", session(core).warp->arm(input.args).c_str());
-  return true;
 }
 
 void Runtime::reportRun(Core &core) const {

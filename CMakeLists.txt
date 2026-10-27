@@ -62,6 +62,7 @@ set(SPYRO_RUNTIME_SOURCES
   game/core/frame_cut.cpp
   game/core/guest_magnitude.cpp
   game/core/session.cpp
+  game/core/debug/debug_menu.cpp
   game/core/debug/moby_teleport.cpp
   game/core/debug/warp.cpp
   game/core/runtime.cpp
@@ -80,6 +81,7 @@ set(SPYRO_RUNTIME_SOURCES
   titles/spyro1/core/input/input_phase.cpp
   titles/spyro1/core/frame/transition_skip.cpp
   titles/spyro1/core/runtime/runtime.cpp
+  titles/spyro1/core/debug/debug_menu.cpp
   titles/spyro1/core/debug/teleport.cpp
   titles/spyro1/core/execution/cd_queue.cpp
   titles/spyro1/core/execution/native_angle.cpp
@@ -190,6 +192,7 @@ set(SPYRO_RUNTIME_SOURCES
   titles/spyro1/render/terrain_image.cpp
   titles/spyro1/render/terrain_sectors.cpp
   titles/spyro1/render/terrain_split.cpp
+  titles/spyro2/core/debug_menu.cpp
   titles/spyro2/core/moby_teleport.cpp
   titles/spyro2/core/runtime.cpp
   titles/spyro2/core/warp.cpp

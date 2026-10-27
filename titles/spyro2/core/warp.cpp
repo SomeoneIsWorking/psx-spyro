@@ -28,7 +28,7 @@ constexpr std::array<std::uint32_t, 29> kLevels{10, 11, 12, 13, 21, 22, 23, 25, 
 
 } // namespace
 
-bool Warp::levelExists(std::uint32_t level) const {
+bool Warp::levelExists(std::uint32_t level) {
   return std::ranges::find(kLevels, level) != kLevels.end();
 }
 

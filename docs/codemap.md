@@ -12,7 +12,8 @@ Dependency direction: `titles/<title>/` (one image's facts and natives) → `gam
 - `game/core/archive_transfer*` — WAD archive / CD file transfer with per-Core completion and refusal
 - `game/core/guest_magnitude.*` — reciprocal magnitude / vector length normalise step, GTE square sum and square root table
 - `game/core/title_logo*` — title wordmark / logo snapshotted from guest VRAM for the picker panel
-- `game/core/debug/warp.*` — `warp <level>` control command / level select / dev warp, applied when the title screen is idle
+- `game/core/debug/debug_menu.*` — `spyro::DebugMenu`, the title debug menu (psxport `TitleDebugMenu`): level warp verb over each title's level ids, moby teleport verbs; S1/S2 derive their own
+- `game/core/debug/warp.*` — `warp <level>` request / level select / dev warp, applied when the title screen is idle
 - `game/core/debug/moby_teleport.*` — `mobys <class>` / `moby-teleport <class> <n>`: list a level's mobys of one class and place Spyro on one (NPC conversation, dragon rescue routes); each title names its moby array, active field and position words
 - `game/render/engine_render_overrides.*` — S2/S3 render overrides bound to one image: terrain producer, moby walk, field dispatcher and its last drawer, flatten depth bins and field producer
 - `game/render/field/field_redraw.*` — S2/S3 field in-between: the draw dispatcher re-run as a guest redraw at the in-between camera, mobys, Spyro and effects, its packets saved by the flatten as the field's state, the sky moved at the flatten to the deeper of the two real fields' sky bins; the Spyro 3 pause menu's second moby pass (Sparx) redrawn in its own depth table; packets a producer keyed passed over in the bins before the redraw runs; screen draws (a state's draw with 2D after the dispatcher, title overlays keyed by the landed read's published content, the replaced image's override removed) redrawn whole
@@ -46,7 +47,7 @@ Dependency direction: `titles/<title>/` (one image's facts and natives) → `gam
 - `titles/spyro1/core/effect/` — S1 effects: ground shadow block and ring, flame block, particle pool allocation
 - `titles/spyro1/core/hud/` — S1 HUD: collectables, pause menu, pixel fade
 - `titles/spyro1/core/input/` — S1 gamepad buffers, input phase for `.pad` recordings
-- `titles/spyro1/core/debug/` — S1 warp route (reset then TSD_Level flyby); `teleport`: `gates` / `gate-teleport` onto a level portal, `dragons` / `dragon-teleport` onto a crystal dragon (the rescue cutscene route); `mobys` / `moby-teleport` onto any moby by class (on `game/core/debug/moby_teleport`)
+- `titles/spyro1/core/debug/` — S1 debug menu (`spyro1::DebugMenu`), S1 warp route (reset then TSD_Level flyby); `teleport`: `gates` / `gate-teleport` onto a level portal, `dragons` / `dragon-teleport` onto a crystal dragon (the rescue cutscene route); `mobys` / `moby-teleport` onto any moby by class (on `game/core/debug/moby_teleport`)
 - `titles/spyro1/render/terrain_*` — S1 terrain drawer RenderWorldChunks: sector loop, far, detail, coarse and fine subdivision passes, facts
 - `titles/spyro1/render/actor_*`, `lit_actor_emitter.*`, `local_bins.*` — S1 actors / mobys: draw list builders, emitters (flat light, reflection), layouts, producers, in-between record blend and host-memory run (`InBetween`), local depth bins
 - `titles/spyro1/render/sprite_queue*` — S1 sprite queue: lit and HUD mobys, producer
@@ -64,7 +65,7 @@ Dependency direction: `titles/<title>/` (one image's facts and natives) → `gam
 - `titles/spyro1/render/title_sprites.*` — S1 title screen sprites (logo slide, PRESS START, memory card menus) producer, installed per title overlay landing
 - `titles/spyro1/render/particle*` — S1 particles / emit list, producer
 - `titles/spyro1/render/screen.h` — S1 retail outcode window for widened culls
-- `titles/spyro2/core/`, `titles/spyro3/core/` — S2/S3 runtime: crt0, stock libraries, interrupt-driven libcd, module landing, packet pool, cut, logo; boot facts (boot prefix, update / draw, gamestate and level words); warp route through the title screen's Start teardown; S2 `mobys` / `moby-teleport`
+- `titles/spyro2/core/`, `titles/spyro3/core/` — S2/S3 runtime: crt0, stock libraries, interrupt-driven libcd, module landing, packet pool, cut, logo; boot facts (boot prefix, update / draw, gamestate and level words); warp route through the title screen's Start teardown; S2 debug menu (`spyro2::DebugMenu`) with `mobys` / `moby-teleport`
 - `titles/spyro2/render/`, `titles/spyro3/render/` — S2/S3 render facts per image, HUD widget anchoring; S2 conversation producers: box and name tab (slide lerp), underline and text (held to the earlier field)
 - `titles/*/executable.json`, `titles/*/README.md` — title manifest: serial, hashes, labels, disc keys
 - `CMakeLists.txt`, `pyproject.toml`, `uv.lock`, `.github/` — `spyro_port` product, title catalog generation, locked Python environment, release CI

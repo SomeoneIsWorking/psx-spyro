@@ -30,7 +30,7 @@ constexpr std::uint32_t kLastLevelOfWorld = 5u;
 
 } // namespace
 
-bool Warp::levelExists(std::uint32_t level) const {
+bool Warp::levelExists(std::uint32_t level) {
   return level >= kFirstLevel && level < kLevelEnd && level % 10u <= kLastLevelOfWorld;
 }
 
