@@ -18,6 +18,7 @@ from compare import (
     DeclaredRange,
     Driver,
     Settle,
+    step_until_counter_consumed,
     step_until_counter_resets,
     u32,
 )
@@ -135,9 +136,15 @@ def summary(core: CoreSession) -> dict:
 
 
 def advance(core: CoreSession, frames: int, strict: bool = False) -> None:
-    """Step `frames` guest main-loop iterations, each ending when the main loop consumes g_UnprocessedFrames."""
+    """Step `frames` guest main-loop iterations, each ending when the main loop consumes g_UnprocessedFrames.
+
+    The console parks per field and sees the counter fall. The product's step is a whole logic frame: its
+    frame driver zeroes the counter and the frame's two fields refill it, so it reads 2 at every step end."""
     for _ in range(frames):
-        step_until_counter_resets(core, guest_globals.kUnprocessedFrames)
+        if core.reference:
+            step_until_counter_resets(core, guest_globals.kUnprocessedFrames)
+        else:
+            step_until_counter_consumed(core, guest_globals.kUnprocessedFrames)
 
 
 def _tapping(frame: int) -> bool:
