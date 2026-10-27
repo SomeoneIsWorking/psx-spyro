@@ -24,7 +24,12 @@ std::string activeFieldRefusal(Core &core) {
 
 } // namespace
 
-DebugMenu::DebugMenu() : spyro::DebugMenu(&Warp::levelExists, &mobys_, kFrameCutFacts) {
+DebugMenu::DebugMenu()
+    : spyro::DebugMenu(
+          &Warp::levelExists,
+          &mobys_,
+          kFrameCutFacts,
+          {.title = guest::kGamestateTitleScreen, .pause = guest::kGamestatePauseMenu}) {
   section("Portals and Dragons");
   verb({
       .name = "gates",

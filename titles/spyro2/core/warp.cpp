@@ -10,8 +10,6 @@
 namespace spyro2 {
 namespace {
 
-constexpr std::uint32_t kTitleScreen = 11u;
-
 // The title image's state, its tick and the start index state 5 passes to 0x80019230.
 constexpr std::uint32_t kTitleState = 0x80067E0Cu;
 constexpr std::uint32_t kTitleTick = 0x80067E00u;
@@ -33,7 +31,8 @@ bool Warp::levelExists(std::uint32_t level) {
 }
 
 bool Warp::titleScreenIdle(Core &core) const {
-  return core.mem_r32(kGameState) == kTitleScreen && core.mem_r32(kTitleState) == kTitleWaiting;
+  return core.mem_r32(kGameState) == kTitleScreenGameState &&
+         core.mem_r32(kTitleState) == kTitleWaiting;
 }
 
 void Warp::startLevel(Core &core, std::uint32_t level) const {

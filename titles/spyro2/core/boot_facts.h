@@ -14,6 +14,8 @@ inline constexpr std::uint32_t kLevelId = 0x80066F90u;
 // Camera controller FUN_8001FA58's mode and sub-state.
 inline constexpr std::uint32_t kCameraMode = 0x80067ED0u;
 inline constexpr std::uint32_t kCameraSubState = 0x80067ED4u;
+// The title screen's state.
+inline constexpr std::uint32_t kTitleScreenGameState = 11u;
 // The state whose overlay (0x800742F8) plays a cutscene's camera track.
 inline constexpr std::uint32_t kCutsceneGameState = 6u;
 
