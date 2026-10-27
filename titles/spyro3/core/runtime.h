@@ -1,6 +1,8 @@
 #pragma once
 
 #include "core/boot_prefix_runtime.h"
+#include "core/debug/debug_menu.h"
+#include "spyro3/core/warp.h"
 #include "stock_libcd.h"
 #include "stock_libgte.h"
 #include "stock_vsync.h"
@@ -14,6 +16,9 @@ public:
   Runtime();
 
   void registerOverrides(Game &game) override;
+  const psx::game::TitleDebugMenu &debugMenu() const override {
+    return debugMenu_;
+  }
 
 protected:
   void codeLanded(Core &core,
@@ -26,6 +31,7 @@ private:
   psx::hle::StockVSync vsync_;
   psx::cd::GuestInterruptLibcd libcd_;
   psx::hle::StockLibgte libgte_;
+  spyro::DebugMenu debugMenu_{&Warp::levelExists, nullptr};
 };
 
 } // namespace spyro3

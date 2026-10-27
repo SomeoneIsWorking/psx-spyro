@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/runtime.h"
+#include "spyro1/core/debug/debug_menu.h"
 #include "spyro1/core/input/input_phase.h"
 #include "stock_libcd.h"
 #include "stock_libgpu.h"
@@ -27,10 +28,9 @@ public:
   // Where this disc's own logo is; see titles/spyro1/core/frame/logo_facts.h.
   const spyro::TitleLogoFacts &logoFacts() const override;
 
-  // `warp`, then the teleports: `gates`/`gate-teleport` to a level portal, `dragons`/`dragon-teleport`
-  // onto a crystal dragon, whose own touch starts the rescue.
-  bool
-  titleCommand(Core &core, const psx::game::TitleCommandLine &input, std::FILE *reply) override;
+  const psx::game::TitleDebugMenu &debugMenu() const override {
+    return debugMenu_;
+  }
   // The phase pad recordings are keyed on, so a press keeps its offset into its screen (issue
   // 0116).
   std::uint64_t inputPhase(Core &core) const override;
@@ -45,6 +45,7 @@ private:
   psx::cd::StockLibcd libcd_;
   psx::input::StockPadBuffers pad_;
   InputPhase inputPhase_;
+  DebugMenu debugMenu_;
 };
 
 } // namespace spyro1

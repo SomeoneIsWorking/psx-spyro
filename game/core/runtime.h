@@ -27,9 +27,6 @@ public:
   const psx::present::GuestWidescreenProjection *guestWidescreenProjection() const final;
   void reportRun(Core &core) const final;
   bool interpolates() const final;
-  // `warp <level>`, armed on the session's warp.
-  bool
-  titleCommand(Core &core, const psx::game::TitleCommandLine &input, std::FILE *reply) override;
 
 protected:
   Runtime() = default;

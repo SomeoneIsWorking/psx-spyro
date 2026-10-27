@@ -200,11 +200,6 @@ const spyro::TitleLogoFacts &Runtime::logoFacts() const {
   return kLogoFacts;
 }
 
-bool Runtime::titleCommand(Core &core, const psx::game::TitleCommandLine &input, std::FILE *reply) {
-  return spyro::Runtime::titleCommand(core, input, reply) ||
-         spyro1::teleport::command(core, input, reply);
-}
-
 std::uint64_t Runtime::inputPhase(Core &core) const {
   return inputPhase_.of(core);
 }

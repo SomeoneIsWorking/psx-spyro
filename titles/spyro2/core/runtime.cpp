@@ -94,11 +94,6 @@ std::optional<psx::gpu::PacketPoolExtent> Runtime::packetPool(Core &core) const 
   return kPacketPool.extent(core);
 }
 
-bool Runtime::titleCommand(Core &core, const psx::game::TitleCommandLine &input, std::FILE *reply) {
-  return spyro::Runtime::titleCommand(core, input, reply) ||
-         mobyTeleport_.command(core, input, reply);
-}
-
 std::unique_ptr<spyro::Warp> Runtime::createWarp() const {
   return std::make_unique<Warp>();
 }

@@ -8,10 +8,12 @@ namespace spyro3 {
 // fades and prepares, state 20 calls WarpToLevel 0x800584BC(0, level id) at 0x80077A50 in the
 // title image.
 class Warp final : public spyro::Warp {
-protected:
+public:
   // The 37 levels of levelIndexToHomeworldLevelId 0x800671A0: homeworlds 10, 20 and 30 with nine
   // levels each, 40 with ten.
-  [[nodiscard]] bool levelExists(std::uint32_t level) const override;
+  [[nodiscard]] static bool levelExists(std::uint32_t level);
+
+protected:
   // Game state 11 with the title image in state 1, the menu before the demo timeout.
   [[nodiscard]] bool titleScreenIdle(Core &core) const override;
   // The level id, then title state 19 from its first step.
