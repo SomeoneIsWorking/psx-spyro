@@ -64,7 +64,8 @@ fresh process. Issue 0169.
   `/proc/<pid>/environ`, never set it to 1). To measure judder, drop `PSXPORT_NOPACE`, keep `fps60=1`, reach the
   scene (`warp <level>` on the control channel) and read the run-end `[playcheck] presents:` line
   (p50/p99/missed). `key`, `mouse`, `gamepad`, `touch` and `text` on the control channel inject real SDL events, so
-  a fix about input is checked through them; `tap`/`press` drive the guest pad like a replay and check no host input.
+  a fix about input is checked through them; `tap`/`press`/`release`/`hold` press PSX buttons on that same virtual
+  gamepad, through HostInput's one PSX-to-SDL binding.
 - Check work by running the game and looking at the capture. There are no unit tests or gates. Build with
   `CC=clang CXX=clang++ uv run --frozen python external/psxport/tools/port/consumer_build.py --build build/agent --target spyro_port`.
 

@@ -16,7 +16,18 @@ tinted quads cannot cover them.
 ## Proper fix
 A native owner of the pause backdrop that captures the presented (widened) frame on the pause entry, converts it the
 way `func_80017E98` does, and draws the tinted quads across `presentedBounds`. That is a new producer over the pause
-draw, not a one-line widening, and was not done in the player-bug pass.
+draw, not a one-line widening.
+
+It needs a renderer capability psxport does not have (2026-10-28 assessment): the Record renderer keeps one canvas per
+displayed buffer and samples textures only from the VRAM image (`docs/presentation.md`: the margin is never a texture
+source), so no primitive can read the widened canvas. The pieces, in order:
+1. psxport: a FrameRecord entry that snapshots the displayed canvas plane (full presented width) at the point the
+   guest's `StoreImage` of the frame runs, kept until the next snapshot.
+2. psxport: a texture source on a record primitive that samples that snapshot through a 256-entry grey CLUT, which is
+   what `func_80017E98` builds (luma into 8-bit indices, CLUT at (512,224)); the CLUT comes from VRAM as now.
+3. Spyro 1: an override of `func_8001A40C`'s backdrop that emits the four tinted FT4s over `presentedBounds` with that
+   source in place of the (512,0) page, and leaves the 512-wide guest path untouched at 4:3.
+Not started in the player-bug pass 3; the margins are still flat green.
 
 The judder half: the four border lines come from `func_8001844C`, which has no native producer (issue 0144). It was not
 reproduced or assessed in this pass and stays with the redesign's replay stage.
