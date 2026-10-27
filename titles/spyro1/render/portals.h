@@ -81,8 +81,11 @@ struct SkySpin {
 
 class Portals final : public sky::TriangleCut {
 public:
-  // `screen` is the window the outline is tested and the fill spans: retail's 512 wide, or the presented one.
-  Portals(Core &core, const psx::present::EmitMemory &memory, spyro::guest_terrain::ScreenBounds screen);
+  // `screen` is the window the outline is tested and the fill spans: retail's 512 wide, or the
+  // presented one.
+  Portals(Core &core,
+          const psx::present::EmitMemory &memory,
+          spyro::guest_terrain::ScreenBounds screen);
 
   // 80050E90..800518CC for portal `index`: the outline and, when it shows, the fill. Nullopt when
   // the portal is skipped whole.

@@ -1,8 +1,8 @@
 #include "spyro1/core/moby/native_moby_collision.h"
 
-#include "spyro1/core/guest_globals.h"
 #include "core/native_execution.h"
 #include "game.h"
+#include "spyro1/core/guest_globals.h"
 
 #include <lucent/log.h>
 
@@ -12,8 +12,8 @@ namespace spyro1::native {
 namespace {
 
 // Shape table (`lui 0x8007 ; addiu 0x6378`) and the shared callee-saved spill area.
-using spyro1::guest::kModels;
 using spyro1::guest::kMobyCollisionChain;
+using spyro1::guest::kModels;
 using spyro1::guest::kRegisterSpillArea;
 
 // The GTE register numbers this body touches, from external/spyro-1's own asm/c2regs.inc.
@@ -195,7 +195,7 @@ ShapeOutcome testBoxShape(
     outcome.normalZ = 0u;
     return outcome;
   }
-  // 0x8004E760: the `bltz` delay slot loads 6 on both arms and the fall-through overwrites it with 4.
+  // 0x8004E760: `bltz` with 6 in its delay slot; the fall-through sets 4.
   const std::uint32_t slot = isNegative(yExtent) ? 6u : 4u;
   const std::uint32_t y = static_cast<std::uint32_t>(c->mem_r16s(slot + shape - 0x10u)) + off.z;
   const std::uint32_t target = multiplyLow(c, y, y) + sep.mac1 + sep.mac2;
@@ -537,7 +537,6 @@ void mobyCollisionWalk(Core *c) {
   c->r[3] = w.v1;
 }
 
-
 // Moby fields; the two cleared flag bytes have no established name.
 constexpr std::uint32_t kMobyCollisionGroup = 0x08u;
 constexpr std::uint32_t kMobyCollisionRegion = 0x34u;
@@ -558,7 +557,8 @@ void clearMobyCollisionState(Core *c) {
 } // namespace
 
 void registerMobyCollisionOverrides(Core &core) {
-  psx::cpu::installNativeOverride(core, 0x800529CCu, "clear_moby_collision_state", clearMobyCollisionState);
+  psx::cpu::installNativeOverride(
+      core, 0x800529CCu, "clear_moby_collision_state", clearMobyCollisionState);
   psx::cpu::installNativeOverride(core, 0x8004E3C8u, "moby_collision_walk", mobyCollisionWalk);
 }
 
