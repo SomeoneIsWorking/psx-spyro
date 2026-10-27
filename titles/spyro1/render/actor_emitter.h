@@ -21,6 +21,11 @@ class Core;
 
 namespace spyro1::actors {
 
+// The bytes the near detail runs of the frame stepped by `steps` save from kPatchSaves, the closing
+// zero word included.
+[[nodiscard]] std::uint32_t nearPatchSaveBytes(const psx::present::EmitMemory &memory,
+                                               std::uint32_t steps);
+
 class ActorEmitter {
 public:
   ActorEmitter(Core &core,

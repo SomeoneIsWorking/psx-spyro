@@ -27,9 +27,7 @@ using terrain::kRenderGlobals;
 // The pass's emitter, held in place.
 class PassEmitter {
 public:
-  PassEmitter(const EmitterPass &pass,
-              Core &core,
-              const psx::present::EmitMemory &memory) {
+  PassEmitter(const EmitterPass &pass, Core &core, const psx::present::EmitMemory &memory) {
     const auto bounds = spyro::presentedBounds(core, spyro1::terrain::kSharedFacts);
     if (pass.lit) {
       emitter_ = &lit_.emplace(core, memory, bounds);
@@ -129,6 +127,8 @@ void ActorEmitterProducer::render(const psx::present::StateInterval &states,
   const std::uint32_t frame = memory.mem_r32(kDrawList + entry::kFrame);
   const std::uint32_t nearPolygons = memory.mem_r32(frame + emitter::frame::kNearPolygons);
   between.host().mapGuest(core_, nearPolygons, memory.mem_r32(nearPolygons) + 4);
+  between.host().zero(emitter::kPatchSaves,
+                      nearPatchSaveBytes(memory, memory.mem_r32(kDrawList + entry::kSteps)));
   const PassEmitter emitter(pass_, core_, memory);
   emitter->begin(0);
   if (emitter->draw(kDrawList)) {

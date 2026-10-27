@@ -103,6 +103,40 @@ bool ActorEmitter::place() {
   return true;
 }
 
+namespace {
+
+// The near detail runs from `patch` (8001F910): each a header word (the target's offset from the
+// near polygon list in its low half, the word count in bits 24..30, another run while positive) and
+// then its words.
+template <typename Visit>
+void forEachNearRun(const psx::present::EmitMemory &memory, std::uint32_t patch, Visit visit) {
+  std::uint32_t run = 0;
+  do {
+    run = memory.mem_r32(patch);
+    const std::uint32_t words = (run >> 24) & 0x7Fu;
+    visit(run & 0xFFFFu, words, patch + 4);
+    patch += 4 + words * 4;
+  } while (asSigned(run) > 0);
+}
+
+// The first run of the frame's near detail, or 0 when it has none.
+std::uint32_t firstNearRun(const psx::present::EmitMemory &memory, std::uint32_t steps) {
+  const std::uint32_t patch = (memory.mem_r32(steps + 4) & 0xFFFFu) << 2;
+  return patch == 0 ? 0 : patch + steps;
+}
+
+} // namespace
+
+std::uint32_t nearPatchSaveBytes(const psx::present::EmitMemory &memory, std::uint32_t steps) {
+  std::uint32_t bytes = 4;
+  if (const std::uint32_t patch = firstNearRun(memory, steps); patch != 0) {
+    forEachNearRun(memory, patch, [&](std::uint32_t, std::uint32_t words, std::uint32_t) {
+      bytes += 4 + words * 4;
+    });
+  }
+  return bytes;
+}
+
 // 8001F910..8001F9D0: inside the near range the frame's patch list swaps detail words into its near
 // polygon list, each run's old words kept at kPatchSaves; then the vertex streams.
 void ActorEmitter::patchNear() {
@@ -111,27 +145,22 @@ void ActorEmitter::patchNear() {
   stepsWord_ = memory_.mem_r32(steps_ + 4);
   const std::uint32_t nearness = sra(memory_.mem_r32(entry_ + entry::kRotation33), 16);
   std::uint32_t saved = kPatchSaves;
-  std::uint32_t patch = (stepsWord_ & 0xFFFFu) << 2;
+  const std::uint32_t patch = firstNearRun(memory_, steps_);
   if (asSigned(nearness) > 0 && patch != 0) {
-    patch += steps_;
     const std::uint32_t polygons = memory_.mem_r32(frame_ + frame::kNearPolygons);
-    std::uint32_t run = 0;
-    do {
-      run = memory_.mem_r32(patch);
-      patch += 4;
-      std::uint32_t target = (run & 0xFFFFu) + polygons;
-      std::uint32_t words = (run >> 24) & 0x7Fu;
-      memory_.mem_w32(saved, (target << 8) + words);
-      saved += 4;
-      for (; words != 0; --words) {
-        memory_.mem_w32(saved, memory_.mem_r32(target));
-        target += 4;
-        saved += 4;
-        const std::uint32_t word = memory_.mem_r32(patch);
-        patch += 4;
-        memory_.mem_w32(target - 4, word);
-      }
-    } while (asSigned(run) > 0);
+    forEachNearRun(
+        memory_, patch, [&](std::uint32_t offset, std::uint32_t words, std::uint32_t source) {
+          std::uint32_t target = offset + polygons;
+          memory_.mem_w32(saved, (target << 8) + words);
+          saved += 4;
+          for (; words != 0; --words) {
+            memory_.mem_w32(saved, memory_.mem_r32(target));
+            saved += 4;
+            memory_.mem_w32(target, memory_.mem_r32(source));
+            target += 4;
+            source += 4;
+          }
+        });
   }
   memory_.mem_w32(saved, 0);
   const std::uint32_t words = streamBase(memory_.mem_r32(steps_));
