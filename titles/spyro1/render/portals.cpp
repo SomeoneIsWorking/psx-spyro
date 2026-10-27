@@ -92,7 +92,9 @@ std::uint32_t packed(std::uint32_t x, std::uint32_t y) {
 
 } // namespace
 
-Portals::Portals(Core &core, const psx::present::EmitMemory &memory, spyro::guest_terrain::ScreenBounds screen)
+Portals::Portals(Core &core,
+                 const psx::present::EmitMemory &memory,
+                 spyro::guest_terrain::ScreenBounds screen)
     : core_(core), memory_(memory), screen_(screen) {}
 
 std::uint32_t
@@ -153,8 +155,8 @@ Portals::appendEdge(std::uint32_t i, std::uint32_t j, std::uint32_t &edges) {
 // all.
 std::uint32_t Portals::coverage(const Box &box, std::uint32_t edges, std::uint32_t onScreen) const {
   const std::int32_t bin = asSigned(memory_.mem_r32(kBin));
-  const bool overlaps = box.minX < screen_.right() && box.minY < kScreenHeight && box.maxX > screen_.left() &&
-                        box.maxY > 0 && bin > 0 && edges != 0;
+  const bool overlaps = box.minX < screen_.right() && box.minY < kScreenHeight &&
+                        box.maxX > screen_.left() && box.maxY > 0 && bin > 0 && edges != 0;
   const bool covers = box.minX <= screen_.left() && box.minY <= 0 && box.maxX >= screen_.right() &&
                       box.maxY >= kScreenHeight && bin > 0;
   return overlaps || covers ? onScreen | 2u : 0u;
@@ -176,7 +178,8 @@ bool Portals::facesCamera(const std::array<std::uint32_t, 3> &centre) const {
   gte::RotationWords rotation{kFullAmount, 0, kFullAmount, 0, kFullAmount};
   gte.loadRotation(rotation);
   gte.loadTranslation({});
-  (void)spyro::guest_moby_rotation::composeTabled(core_, guest::kSinTable, {.angles = angles}, rotation);
+  (void)spyro::guest_moby_rotation::composeTabled(
+      core_, guest::kSinTable, {.angles = angles}, rotation);
   gte.writeData(gte::kIr3, kFullAmount);
   gte.writeData(gte::kIr1, 0);
   gte.writeData(gte::kIr2, 0);
@@ -202,12 +205,14 @@ void Portals::publishWindow(Box box, std::uint32_t edges) {
 
 // 80051354, 8005199C: x and y strictly inside the screen, as `x - 1 < width - 1` unsigned.
 bool Portals::insideOpen(const Point &point) const {
-  return point.x > screen_.left() && point.x < screen_.right() && asWord(point.y) - 1u < kScreenHeight - 1u;
+  return point.x > screen_.left() && point.x < screen_.right() &&
+         asWord(point.y) - 1u < kScreenHeight - 1u;
 }
 
 // D_8006CB8C's corners sit on retail's edges x = 0 and x = 512; they are moved onto the window's.
 Portals::Corner Portals::spanned(Corner corner) const {
-  const std::int32_t x = asSigned(signedHalf(corner.point.word())) <= 0 ? screen_.left() : screen_.right();
+  const std::int32_t x =
+      asSigned(signedHalf(corner.point.word())) <= 0 ? screen_.left() : screen_.right();
   corner.point = corner.point.steppedTo(packed(asWord(x), corner.point.word() >> 16));
   return corner;
 }
@@ -462,7 +467,9 @@ void Portals::fill(std::uint32_t colour) {
   };
   for (std::uint32_t triangle = 0; triangle < 2; ++triangle) {
     const std::uint32_t corners = kScreenTriangles + triangle * 12;
-    clip({spanned(screenCorner(corners)), spanned(screenCorner(corners + 4)), spanned(screenCorner(corners + 8))},
+    clip({spanned(screenCorner(corners)),
+          spanned(screenCorner(corners + 4)),
+          spanned(screenCorner(corners + 8))},
          kEdges,
          queued,
          cursor,
@@ -682,7 +689,8 @@ Portals::Corner Portals::crossing(Corner inside, Corner outside, std::uint32_t a
     return Corner{.point = {x0, inside.point.place()}, .colour = y0 | dy};
   }
   const std::uint32_t side = ((a * x0 + c + b * y0) << kCrossingShift) + kCrossingRound;
-  gte.writeData(gte::kIr0, ((0u - psx::cpu::quotient({side, along})) << kFractionShift) + kFractionRound);
+  gte.writeData(gte::kIr0,
+                ((0u - psx::cpu::quotient({side, along})) << kFractionShift) + kFractionRound);
   gte.execute(gte::kGplSf);
   const std::uint32_t point =
       (gte.readData(gte::kMac2) << 16) | (gte.readData(gte::kMac1) & 0xFFFFu);
