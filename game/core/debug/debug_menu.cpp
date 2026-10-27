@@ -3,6 +3,7 @@
 #include "core.h"
 #include "core/debug/moby_teleport.h"
 #include "core/session.h"
+#include "game.h"
 
 #include <charconv>
 #include <lucent/log.h>
@@ -21,13 +22,31 @@ constexpr std::int64_t kMaxMobyIndex = 255;
 
 } // namespace
 
-DebugMenu::DebugMenu(bool (*levelExists)(std::uint32_t), const MobyTeleport *mobys, const FrameCutFacts &scene) {
+DebugMenu::DebugMenu(bool (*levelExists)(std::uint32_t),
+                     const MobyTeleport *mobys,
+                     const FrameCutFacts &scene,
+                     const ScreenStates &states) {
+  // Route steps run in order, each once the screen the one before it reaches is shown.
   screen(
       [scene](Core &core) {
         return (std::uint64_t{core.mem_r32(scene.gameState)} << 32) | core.mem_r32(scene.levelId);
       },
-      [](Core &, std::uint64_t key) {
-        return lucent::format("warp {}", static_cast<std::uint32_t>(key));
+      [levelExists, states](Core &core, std::uint64_t key) {
+        const auto state = static_cast<std::uint32_t>(key >> 32);
+        const auto level = static_cast<std::uint32_t>(key);
+        if (state == states.title && core.game->title != nullptr) {
+          return lucent::format("pick {}", core.game->title->slug);
+        }
+        if (!levelExists(level)) {
+          return std::string();
+        }
+        if (state == states.playing) {
+          return lucent::format("warp {}", level);
+        }
+        if (states.pause && state == *states.pause) {
+          return lucent::format("warp {}; tap start", level);
+        }
+        return std::string();
       });
   for (std::uint32_t level = 0; level < kLevelIdEnd; ++level) {
     if (levelExists(level)) {

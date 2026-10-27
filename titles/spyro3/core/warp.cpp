@@ -7,8 +7,6 @@
 namespace spyro3 {
 namespace {
 
-constexpr std::uint32_t kTitleScreen = 11u;
-
 // Title image data, resident whenever the game state is the title's: the state and its step.
 constexpr std::uint32_t kTitleState = 0x8007F12Cu;
 constexpr std::uint32_t kTitleStep = 0x8007F12Eu;
@@ -29,7 +27,8 @@ bool Warp::levelExists(std::uint32_t level) {
 }
 
 bool Warp::titleScreenIdle(Core &core) const {
-  return core.mem_r32(kGameState) == kTitleScreen && core.mem_r8(kTitleState) == kTitleWaiting;
+  return core.mem_r32(kGameState) == kTitleScreenGameState &&
+         core.mem_r8(kTitleState) == kTitleWaiting;
 }
 
 void Warp::startLevel(Core &core, std::uint32_t level) const {

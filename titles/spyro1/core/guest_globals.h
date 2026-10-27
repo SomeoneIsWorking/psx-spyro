@@ -54,6 +54,7 @@ inline constexpr std::uint32_t kTitlescreenStage = kTitlescreenState + 0x04u;   
 inline constexpr std::uint32_t kTitlescreenSubState = kTitlescreenState + 0x10u; // m_SubState
 inline constexpr std::uint32_t kTitlescreenDemoType = kTitlescreenState + 0x1Cu; // m_DemoType
 inline constexpr std::uint32_t kGamestateTitleScreen = 13u;                      // GS_TitleScreen
+inline constexpr std::uint32_t kGamestatePauseMenu = 2u;                         // GS_PauseMenu
 inline constexpr std::uint32_t kTitleModeInit = 0u;                              // TSM_Init
 inline constexpr std::uint32_t kTitleModeDemo = 3u;                              // TSM_Demo
 inline constexpr std::uint32_t kTitleStageSetup = 0u;                            // TSS_Setup

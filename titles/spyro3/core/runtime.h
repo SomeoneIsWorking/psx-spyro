@@ -32,7 +32,8 @@ private:
   psx::hle::StockVSync vsync_;
   psx::cd::GuestInterruptLibcd libcd_;
   psx::hle::StockLibgte libgte_;
-  spyro::DebugMenu debugMenu_{&Warp::levelExists, nullptr, kBootPrefixFacts.cut};
+  spyro::DebugMenu debugMenu_{
+      &Warp::levelExists, nullptr, kBootPrefixFacts.cut, {.title = kTitleScreenGameState}};
 };
 
 } // namespace spyro3
