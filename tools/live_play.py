@@ -50,7 +50,9 @@ def connect(port: int, seconds: float) -> LiveClient:
     last: OSError | None = None
     while time.monotonic() < deadline:
         try:
-            return LiveClient(port)
+            client = LiveClient(port)
+            client.frame()
+            return client
         except OSError as error:
             last = error
             time.sleep(0.5)
@@ -209,7 +211,6 @@ def main() -> int:
     except (OSError, ToolError) as refusal:
         print(f"REFUSED: {refusal}", file=sys.stderr)
         return 2
-    client = None
     try:
         client = connect(args.port, args.connect_timeout)
         session = Session(client, log)
@@ -232,11 +233,8 @@ def main() -> int:
 
         report_run(client)
         session.client.quit()
-        client = None
         return 0
     finally:
-        if client is not None:
-            client.close()
         if product.poll() is None:
             product.send_signal(signal.SIGTERM)
             try:
