@@ -1,6 +1,7 @@
 # 0213 — Spyro 1 ground textures near the camera vibrate
 
-Status: retail behaviour (2026-10-28). Owner: the guest's own camera follow; not a port defect.
+Status: open, not compared with the console (2026-10-28). Owner: the guest's own camera follow as far as the port
+shows; that retail does the same is an inference until the console comparison below is run.
 
 ## Observed
 Player report `20261023-181541-textures-close-to-camera-may-vibrate-when-walkin`, pad frame 5285, mark x 36-58%
@@ -22,7 +23,8 @@ The guest camera itself oscillates. Logging the terrain producer's saved camera 
 (`readCamera`: angles and position, `scratch/player-bugs-3/vib/camera_fields.log`) over the walk shows the
 position reversing every field whenever Spyro slows or stops, `(3,2,2) (-4,-3,-2) (3,2,2) (-3,-4,-2)`, and the
 yaw alternating by one unit (3473/3474). That is the guest's camera follow settling into a one-field limit cycle; it
-is guest state written by guest code, so retail draws it on its own 30 fps frames.
+is guest state written by guest code, so retail should draw it on its own 30 fps frames; this is inferred, not
+measured on the console.
 
 What the port adds is halfway and nothing else:
 - the rebuilt matrices equal the guest's at every real field (`image.camera` against `0x80076DD0`, 0 words differ);

@@ -27,7 +27,11 @@ source), so no primitive can read the widened canvas. The pieces, in order:
    what `func_80017E98` builds (luma into 8-bit indices, CLUT at (512,224)); the CLUT comes from VRAM as now.
 3. Spyro 1: an override of `func_8001A40C`'s backdrop that emits the four tinted FT4s over `presentedBounds` with that
    source in place of the (512,0) page, and leaves the 512-wide guest path untouched at 4:3.
-Not started in the player-bug pass 3; the margins are still flat green.
+Decided (2026-10-28): this plan, with no stopgap. Owners: step 1 is psxport's record raster
+(`runtime/psx/render/record_rasterizer.*`, the canvas a present reads), step 2 the record op layout and raster
+(`record_raster_*`, `shaders_gpu/`), step 3 `titles/spyro1/render/` beside the other Spyro 1 draw owners. It is a
+framework change that every title's Record path compiles against, so it runs as its own pass with the all-title
+real-time check; it is next for Spyro 1 after this review. Until then the margins stay flat green.
 
 The judder half: the four border lines come from `func_8001844C`, which has no native producer (issue 0144). It was not
 reproduced or assessed in this pass and stays with the redesign's replay stage.
