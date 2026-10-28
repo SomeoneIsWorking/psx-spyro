@@ -3,9 +3,9 @@
 #include "render/field/guest_working_memory.h"
 
 #include "core.h"
+#include "draw_list_cycle.h"
 #include "lucent/log.h"
 #include "ordering_table.h"
-#include "record_fault.h"
 
 #include <algorithm>
 #include <optional>
@@ -22,14 +22,15 @@ void assignPair(Core &core, std::uint32_t pair, psx::present::OtSlot slot, Claim
   psx::gpu::LinkCycleCheck cycle;
   while (packet != 0) {
     if (!cycle.enter(psx::gpu::mainRamOffsetOf(packet))) {
-      psx::gpu::raiseRecordFault(
-          psx::gpu::RecordFaultKind::DrawListCycle,
+      psx::gpu::refuseDrawListCycle(
+          core,
           packet,
           "render/terrain/guest_depth_bins.cpp:assignPair",
           lucent::format("the chain of bin pair 0x{:08X} (slot {}:{}) returns to it",
                          pair,
                          slot.table,
                          slot.index));
+      return;
     }
     core.otTables.assign(packet, slot);
     if (packet < claim.below) {
