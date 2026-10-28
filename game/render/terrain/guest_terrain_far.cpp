@@ -233,7 +233,7 @@ Sector FarPass::drawPolygon(std::uint32_t record) {
     }
     memory_.mem_w32(prim + 4 + 8 * i, colour);
     memory_.storeVertex(prim + 8 + 8 * i,
-                        memory_.loadVertex(cells[i], psx::gte::ProjectedVertex::whole(screens[i])));
+                        memory_.loadVertex(cells[i], psx::gte::VertexWord{screens[i]}));
   }
   memory_.mem_w32(prim, triangle ? guest_packet::kG3Tag : guest_packet::kG4Tag);
   return link(bin, triangle ? guest_packet::kG3Bytes : guest_packet::kG4Bytes) ? Sector::Drawn

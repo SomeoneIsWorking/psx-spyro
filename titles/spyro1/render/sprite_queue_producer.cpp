@@ -77,7 +77,7 @@ void drawQueue(Core *core) {
     guest.readBytes(record, std::as_writable_bytes(std::span(state.bytes)));
     const auto scope = guest.emission.instance(objectOf(guest, record));
     reads->clear();
-    if (const auto chain = queue.draw(record, state.hudShift, 0)) {
+    if (const auto chain = queue.draw({.record = record, .hudShift = state.hudShift})) {
       queue.link(*chain);
     }
     memory::saveDraw(guest, state, reads->words());
@@ -110,8 +110,8 @@ void SpriteQueueProducer::render(const psx::present::StateInterval &states,
 
   SpriteQueue queue(core_, between.memory(), presentedQueueView(core_));
   queue.begin();
-  const std::optional<QueuedChain> chain =
-      queue.draw(state.record, state.hudShift, shown.angleFractions);
+  const std::optional<QueuedChain> chain = queue.draw(
+      {.record = state.record, .hudShift = state.hudShift, .angleFractions = shown.angleFractions});
   if (!chain) {
     return;
   }

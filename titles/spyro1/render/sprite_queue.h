@@ -29,6 +29,14 @@ struct QueueView {
 // The view the presented plan asks for now.
 [[nodiscard]] QueueView presentedQueueView(const Core &core);
 
+// A queued record as draw() takes it: a HUD record `hudShift` columns off its authored x, its
+// angles refined by an in-between's `angleFractions` (spyro::moby_record::Between).
+struct QueuedDraw {
+  std::uint32_t record = 0;
+  std::int32_t hudShift = 0;
+  std::uint32_t angleFractions = 0;
+};
+
 // One record's chain, from its deepest local bin to its nearest, and where it is linked.
 struct QueuedChain {
   std::uint32_t first = 0;
@@ -49,11 +57,9 @@ public:
 
   // 80022A64..80022B04: the camera into the scratchpad, the light into the colour matrix.
   void begin();
-  // 80022B20..800239B4: one record drawn into the local bins and chained, a HUD record `hudShift`
-  // columns off its authored x, its angles refined by an in-between's `angleFractions`
-  // (spyro::moby_record::Between). Nullopt when it was culled or linked nothing.
-  std::optional<QueuedChain>
-  draw(std::uint32_t record, std::int32_t hudShift, std::uint32_t angleFractions);
+  // 80022B20..800239B4: one record drawn into the local bins and chained. Nullopt when it was
+  // culled or linked nothing.
+  std::optional<QueuedChain> draw(QueuedDraw queued);
   // 800239B8..80023A74: the chain into the guest's ordering table, behind its draw mode.
   void link(const QueuedChain &chain);
   // 80023A78: the shadow list's end and the registers retail leaves.

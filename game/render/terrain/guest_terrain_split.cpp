@@ -246,10 +246,9 @@ bool pieceFacesCamera(TerrainFrame &frame, const TrianglePiece &piece, bool over
 void storePieceScreens(TerrainFrame &frame, PieceCorners corners) {
   constexpr std::array<std::uint32_t, 4> kSlots = {packet::kXy0, packet::kXy1, packet::kXy2, packet::kXy3};
   for (std::size_t i = 0; i < corners.screens.size(); ++i) {
-    frame.memory.storeVertex(
-        frame.primitive + kSlots[i],
-        frame.memory.loadVertex(corners.cells[i] + cell::kScreen,
-                                psx::gte::ProjectedVertex::whole(corners.screens[i])));
+    frame.memory.storeVertex(frame.primitive + kSlots[i],
+                             frame.memory.loadVertex(corners.cells[i] + cell::kScreen,
+                                                     psx::gte::VertexWord{corners.screens[i]}));
   }
 }
 

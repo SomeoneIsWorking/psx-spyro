@@ -110,8 +110,8 @@ void SpriteQueue::begin() {
   v1_ = kLightVector;
 }
 
-std::optional<QueuedChain>
-SpriteQueue::draw(std::uint32_t record, std::int32_t hudShift, std::uint32_t angleFractions) {
+std::optional<QueuedChain> SpriteQueue::draw(QueuedDraw queued) {
+  const auto [record, hudShift, angleFractions] = queued;
   angleFractions_ = angleFractions;
   const std::uint32_t cull = memory_.mem_r16(record + moby::kCullDistance);
   const std::uint32_t x = memory_.mem_r32(record + moby_record::kX);
@@ -410,8 +410,7 @@ void SpriteQueue::drawPolygon(const PolygonWords &polygon) {
       return;
     }
     for (std::size_t i = 0; i < slots.size(); ++i) {
-      screen_[i] =
-          memory_.loadVertex(slots[i], psx::gte::ProjectedVertex::whole(sra(screen_[i].word(), 5)));
+      screen_[i] = memory_.loadVertex(slots[i], psx::gte::VertexWord{sra(screen_[i].word(), 5)});
     }
   }
   core_.gte().writeData(gte::kSxy0, screen_[0].word());
