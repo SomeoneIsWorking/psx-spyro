@@ -67,6 +67,7 @@ Dependency direction: `titles/<title>/` (one image's facts and natives) → `gam
 - `titles/spyro1/render/screen.h` — S1 retail outcode window for widened culls
 - `titles/spyro1/render/pause_backdrop.*` — S1 pause backdrop: the grey read-back page (func_80017E98) declared as a read-back texture
 - `titles/spyro1/render/shaded_line.*` — S1 shaded border line (func_8001844C): pause, flight, balloonist and inventory borders, producer keyed by call site and turn (`CallSites`, the title state)
+- `titles/spyro1/render/inventory_band.*` — S1 inventory row band (inline in 0x8001A40C, linked at 0x8001BEC0), producer rendering it to the screen edge so the 16:9 margins continue it
 - `titles/spyro2/core/`, `titles/spyro3/core/` — S2/S3 runtime: crt0, stock libraries, interrupt-driven libcd, module landing, packet pool, cut, logo; boot facts (boot prefix, update / draw, gamestate and level words); warp route through the title screen's Start teardown; S2 debug menu (`spyro2::DebugMenu`) with `mobys` / `moby-teleport`
 - `titles/spyro2/render/`, `titles/spyro3/render/` — S2/S3 render facts per image, HUD widget anchoring; S2 conversation producers: box and name tab (slide lerp), underline and text (held to the earlier field)
 - `titles/*/executable.json`, `titles/*/README.md` — title manifest: serial, hashes, labels, disc keys

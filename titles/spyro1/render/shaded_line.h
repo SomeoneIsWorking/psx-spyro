@@ -36,6 +36,10 @@ private:
   std::vector<std::pair<std::uint32_t, std::uint32_t>> calls_; // site, calls so far
 };
 
+// The key of the draw call returning to $ra: its site, its turn there this logic frame and the
+// inventory page.
+std::uint32_t callObject(Core &core);
+
 void registerOverrides(Core &core);
 
 } // namespace spyro1::shaded_line
