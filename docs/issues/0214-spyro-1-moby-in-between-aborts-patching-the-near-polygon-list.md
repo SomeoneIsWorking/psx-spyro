@@ -34,8 +34,8 @@ console parks (per field). The product's REPL step is a whole logic frame: `Fram
 counter and the frame's two fields refill it, so it read 2 at every step end and the barrier ran on for thousands of
 steps per "frame" (`scratch/player-bugs-3/title-probe/`). The title's TSM_Init press-start window passed between two
 observations, Start was never pressed, and the demo looped. The product's barrier is now
-`compare.step_until_counter_consumed` (a step that leaves the counter no higher ran the main loop); the console keeps
-`step_until_counter_resets`. With it the product holds TSM_Init and reaches its press-start sub-state at game frame 599.
+one REPL step after the boot prefix (the prefix's steps run no guest frame, so it steps until `g_DeltaTime`, first
+written by the frame update, is nonzero); the console keeps `step_until_counter_resets`. With it the product holds TSM_Init and reaches its press-start sub-state at game frame 599.
 `tools/oracle_compare.py --budget 3000` then reaches every checkpoint: the save picker after 688 product game frames
 (console 748), GS_Playing, settled play and `gameplay[0]` (`scratch/player-bugs-3/oracle_artisans.log`). The
 comparison at GS_Playing still differs on decisive ranges (`game_tick` 3 vs 2, `player.position`, `pad.down`); the

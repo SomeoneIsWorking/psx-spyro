@@ -171,7 +171,7 @@ pass. An isolated real-executable run passed shared boot initialization, audited
 reached the title-owned `0x80011BBC` boundary with fatal VSync registration intact.
 
 Live PID `3564943` presented all three finite fields, each captured and visually verified as the
-expected uniform black clear picture. It completed display bootstrap, selected NTSC 59.940 Hz,
+expected uniform black clear picture. It completed display bootstrap, selected NTSC (59.817 Hz),
 returned to `0x80011EB4`, and deliberately stopped at later binary-owned boot-prefix leaf
 `0x80011B1C`; no guest VSync violation occurred.
 
