@@ -13,6 +13,7 @@
 #include "render/field/field_redraw.h"
 #include "render/field/guest_moby_visibility.h"
 #include "render/field/guest_render_globals.h"
+#include "render/field/guest_sky_drawer.h"
 #include "render/field/loading_picture.h"
 #include "render/screen_overlays.h"
 #include "render/state_producer_override.h"
@@ -37,6 +38,7 @@ struct EngineRenderFacts {
   guest_render_globals::Globals globals;
   guest_terrain::Facts terrain;
   guest_moby::Facts moby;
+  guest_sky::Facts sky;
   field_redraw::Facts field;
   std::uint32_t flatten = 0;
   const char *flattenName = "";
@@ -56,6 +58,10 @@ inline constexpr guest_terrain::EngineTerrainImage kTerrainImage{facts.terrain, 
 
 template <const EngineRenderFacts &facts> void drawTerrain(Core *core) {
   guest_terrain::drawField(*core, kTerrainImage<facts>);
+}
+
+template <const EngineRenderFacts &facts> void drawSky(Core *core) {
+  guest_sky::draw(*core, facts.sky, facts.terrain, facts.globals);
 }
 
 template <const EngineRenderFacts &facts>
@@ -169,6 +175,8 @@ template <const EngineRenderFacts &facts> void registerEngineRenderOverrides(Cor
                           psx::present::Arg::A1);
   psx::cpu::installNativeOverride(
       core, facts.moby.entry, facts.moby.overrideName, engine_render::walkMobys<facts>);
+  psx::cpu::installNativeOverride(
+      core, facts.sky.entry, facts.sky.overrideName, engine_render::drawSky<facts>);
   if (facts.loadingPicture.entry != 0) {
     installProducerOverride(
         core,

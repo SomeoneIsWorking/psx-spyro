@@ -138,6 +138,7 @@ set(SPYRO_RUNTIME_SOURCES
   game/render/field/keyframe_blend.cpp
   game/render/field/guest_moby_visibility.cpp
   game/render/field/guest_view_slope.cpp
+  game/render/field/guest_sky_drawer.cpp
   game/render/terrain/engine_terrain_image.cpp
   game/render/terrain/guest_terrain_animation.cpp
   game/render/terrain/guest_terrain_classify.cpp
