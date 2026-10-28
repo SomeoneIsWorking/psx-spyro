@@ -1,6 +1,6 @@
 # 0212 — Spyro 1 pause backdrop leaves the 16:9 margins flat
 
-Status: fixed (2026-10-28) for the backdrop; the border-line judder half stays with issue 0144. Owner: `titles/spyro1/render/pause_backdrop.*` over psxport's read-back texture (`docs/presentation.md`).
+Status: partial (2026-10-28). The backdrop fills the margins; the pause in-betweens are held, not composed, and the border-line judder stays with issue 0144. Owner: `titles/spyro1/render/pause_backdrop.*` over psxport's read-back texture (`docs/presentation.md`).
 
 ## Observed
 Player report `20261023-181349-menu-judder-and-wide-margins`, pad frame 1501: in the pause menu the area outside the
@@ -33,3 +33,13 @@ way because the read-back lives in the record path, not in a producer. Unpausing
 
 The judder half: the four border lines come from `func_8001844C`, which has no native producer (issue 0144). It was not
 reproduced or assessed in this pass and stays with the redesign's replay stage.
+
+## Margin rule in the other titles
+The change also widened psxport's margin rule: a flat line, and a flat rectangle reaching past both buffer edges, now
+fills the margins. A 40 s unpaced run from boot of every product with a log at each newly filled rectangle
+(`*/scratch/player-bugs-5/paced40-margins/run.log`, probe not committed) found: C-12 per-row LINE_F2 backdrops
+(x 0..512, rgb 0-99); Toy Story 2 grey fade sprites 320..832; Vagrant Story an rgb 8 sprite 512..1152 and full-VRAM
+black clears; Spider-Man, Mega Man X4 and Tekken 3 one full-VRAM black clear each; Spyro 1 (attract),
+Crash, Crash Bash, CTR and Tomba 2 none. All are screen-wide fills or fades. C-12's title screen and first mission
+street were checked as pictures (`psx-c12/scratch/player-bugs-5/shots-probe{,-game}/strip.png`): margins continue
+the centre with no banding.

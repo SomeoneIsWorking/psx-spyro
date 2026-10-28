@@ -32,9 +32,7 @@ constexpr std::uint8_t kBlueWeight = 1;
 constexpr std::uint8_t kIndexShift = 3;
 
 void convertStrip(Core *core) {
-  // Between its strip's StoreImage and LoadImage the displayed buffer still holds what was read.
-  // Declared first: the conversion may outlast the host turn and return to the guest caller
-  // directly.
+  // Before the call: the conversion can suspend and return to the guest caller directly.
   const int readY =
       core->mem_r32(kCurrentBuffer) != kFirstBuffer ? kSecondBufferRow : kFirstBufferRow;
   core->gpuDevice().declareReadBack({.readX = 0,
