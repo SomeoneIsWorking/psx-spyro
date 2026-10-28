@@ -2,6 +2,8 @@
 
 Dependency direction: `titles/<title>/` (one image's facts and natives) → `game/` (what S1, S2 and S3 share) → `external/psxport` (everything every PSX title shares); `game/` never names a title, and `game/` and `titles/` are the include roots (`"core/runtime.h"`, `"spyro1/render/sky.h"`).
 
+Frame loop: not owned. Spyro 1 runs update `0x8003385C` and draw `0x8001ED5C` and delivers fields as the guest clock crosses them (`FieldOwner`); Spyro 2/3 run update/draw (`0x8001B140`/`0x800156FC`, `0x80055400`/`0x8001E638`) and answer each guest VSync with one field (issue 0217).
+
 - `game/core/title_runtime_registry.*` — product catalog / title picker entries: the three runtimes and their generated identities
 - `game/core/runtime.*` — Spyro runtime base: session, state producers, presentation pacing, widescreen projection policy, panel logo, run report
 - `game/core/session.*` — per-Core title state: archive transfer, field owner, HUD draw context, terrain visibility, state producers
