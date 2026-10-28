@@ -4,6 +4,34 @@ A work-in-progress native PC port of the original PlayStation Spyro trilogy. The
 combines title-owned native subsystems with psxport's runtime Lightrec executor for every remaining
 MIPS instruction read from the player's authenticated game files.
 
+## Screenshots
+
+Captured from the port at 16:9 with 60 fps interpolation on.
+
+### Spyro the Dragon
+
+![Spyro the Dragon: Artisans at 16:9](docs/media/spyro1-artisans.png)
+![Spyro the Dragon: gems under a stone arch at 16:9](docs/media/spyro1-gems.png)
+![Spyro the Dragon: original 4:3 beside 16:9 widescreen](docs/media/spyro1-widescreen.png)
+![Spyro the Dragon: level flyby at the original 30 fps beside 60 fps interpolation](docs/media/spyro1-interpolation.webp)
+
+*The opening level flyby: the original 30 fps on the left, interpolated 60 fps on the right.*
+
+### Spyro 2
+
+![Spyro 2: canyon with a bone arch at 16:9](docs/media/spyro2-bone-canyon.png)
+![Spyro 2: Idol Springs at 16:9](docs/media/spyro2-idol-springs.png)
+![Spyro 2: original 4:3 beside 16:9 widescreen](docs/media/spyro2-widescreen.png)
+
+### Spyro: Year of the Dragon
+
+![Spyro: Year of the Dragon: desert level at 16:9](docs/media/spyro3-desert.png)
+![Spyro: Year of the Dragon: Frozen Altars with Gabrielle at 16:9](docs/media/spyro3-frozen-altars.png)
+![Spyro: Year of the Dragon: original 4:3 beside 16:9 widescreen](docs/media/spyro3-widescreen.png)
+![Spyro: Year of the Dragon: intro at the original 30 fps beside 60 fps interpolation](docs/media/spyro3-interpolation.webp)
+
+*The Insomniac intro: the original 30 fps on the left, interpolated 60 fps on the right.*
+
 No game code, asset, executable, disc image, or BIOS is distributed. Supply a legally obtained copy.
 
 ## Title status
