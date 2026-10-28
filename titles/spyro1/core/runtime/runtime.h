@@ -37,6 +37,7 @@ public:
 
 protected:
   std::unique_ptr<spyro::Warp> createWarp() const override;
+  std::unique_ptr<spyro::TitleState> createTitleState() const override;
 
 private:
   psx::hle::StockVSync vsync_;
