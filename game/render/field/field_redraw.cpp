@@ -346,8 +346,7 @@ bool redraw(Core &core,
   }
   history.redrawSkyBin = topBin(core, globals);
   const psx::present::EmitMemory memory(core);
-  psx::present::PacketChainWalker walker(memory,
-                                         psx::present::PacketBound::count(psx::gpu::kOtNodeLimit));
+  psx::present::PacketChainWalker walker(memory, psx::present::PacketBound::anywhere());
   psx::present::DrawModeTracker drawMode;
   StateSink sink(state);
   const auto emitPair = [&](std::uint32_t pair, psx::present::OtSlot slot) {
