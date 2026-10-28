@@ -31,15 +31,17 @@ CHUNK = 5  # steps per REPL round trip, the resolution every route samples at
 CHANNEL_ENVIRONMENT = {"PSXPORT_DEBUG": "fielddigest"}
 
 _LINE = re.compile(
-    r"\[fielddigest\] field=(\d+) ticks=(\d+) ram=([0-9a-f]{16}) i_stat=([0-9a-f]+) i_mask=([0-9a-f]+) pad=([0-9a-f]{4})"
+    r"\[fielddigest\] field=(\d+) ticks=(\d+) boundary=(\d+) ram=([0-9a-f]{16}) i_stat=([0-9a-f]+) i_mask=([0-9a-f]+) "
+    r"pad=([0-9a-f]{4})"
 )
-_COLUMNS = ("ticks", "ram", "i_stat", "i_mask", "pad")
+_COLUMNS = ("ticks", "boundary", "ram", "i_stat", "i_mask", "pad")
 
 
 @dataclass(frozen=True)
 class FieldState:
     field: int
     ticks: int
+    boundary: int
     ram: str
     i_stat: str
     i_mask: str
@@ -55,7 +57,7 @@ class Divergence:
 def parse_digest(text: str) -> list[FieldState]:
     """Every `fielddigest` line of a run log, in order; refuses a log with none."""
     states = [
-        FieldState(int(m[1]), int(m[2]), m[3], m[4], m[5], m[6]) for m in _LINE.finditer(text)
+        FieldState(int(m[1]), int(m[2]), int(m[3]), m[4], m[5], m[6], m[7]) for m in _LINE.finditer(text)
     ]
     if not states:
         raise ToolError("no [fielddigest] line in the run log: the channel was not on (PSXPORT_DEBUG=fielddigest) "
