@@ -17,7 +17,7 @@ Frame loop: not owned. Spyro 1 runs update `0x8003385C` and draw `0x8001ED5C` an
 - `game/core/debug/debug_menu.*` — `spyro::DebugMenu`, the title debug menu (psxport `TitleDebugMenu`): level warp verb over each title's level ids, moby teleport verbs; S1/S2 derive their own
 - `game/core/debug/warp.*` — `warp <level>` request / level select / dev warp, applied when the title screen is idle
 - `game/core/debug/moby_teleport.*` — `mobys <class>` / `moby-teleport <class> <n>`: list a level's mobys of one class and place Spyro on one (NPC conversation, dragon rescue routes); each title names its moby array, active field and position words
-- `game/render/engine_render_overrides.*` — S2/S3 render overrides bound to one image: terrain producer, moby walk, field dispatcher and its last drawer, flatten depth bins and field producer
+- `game/render/engine_render_overrides.*` — S2/S3 render overrides bound to one image: terrain producer, moby walk, sky drawer, field dispatcher and its last drawer, flatten depth bins and field producer
 - `game/render/field/field_redraw.*` — S2/S3 field in-between: the draw dispatcher re-run as a guest redraw at the in-between camera, mobys, Spyro and effects, its packets saved by the flatten as the field's state, the sky moved at the flatten to the deeper of the two real fields' sky bins; the Spyro 3 pause menu's second moby pass (Sparx) redrawn in its own depth table; packets a producer keyed passed over in the bins before the redraw runs; screen draws (a state's draw with 2D after the dispatcher, title overlays keyed by the landed read's published content, the replaced image's override removed) redrawn whole
 - `game/render/screen_overlays.*` — fullscreen tint / fade and cinematic letterbox producers shared by all three images
 - `game/render/field/loading_picture.*` — S2/S3 loading screen picture: page sprites faded in by a counter, saved with their packets, redrawn at the in-between brightness
@@ -25,6 +25,7 @@ Frame loop: not owned. Spyro 1 runs update `0x8003385C` and draw `0x8001ED5C` an
 - `game/render/field/keyframe_blend.*` — moby / Spyro animation keyframe pair and progress (S2/S3 nibbles, S1 64ths and 16ths), pose between two fields and across an animation switch
 - `game/render/field/moby_record.*`, `record_blend.h` — moby record layout and identity, record lerp, little-endian field load/store and angle lerp shared by S1 and S2
 - `game/render/field/guest_moby_*` — moby / object visibility walk: sphere frustum cull, GTE use, orientation onto camera rotation
+- `game/render/field/guest_sky_drawer.*` — S2/S3 sky drawer: visible sky sectors projected and outcoded against the presented window, triangle strips chained one bin past the mark
 - `game/render/field/guest_view_slope.*` — horizontal frustum slope, screen margin and outcode window at 4:3 or widened 16:9
 - `game/render/field/guest_render_globals.h` — camera, ordering-table, overlay-pair and packet-cursor guest words per image
 - `game/render/field/guest_working_memory.h` — in-between packet arena window, packet tag link, rotation words, saved draws

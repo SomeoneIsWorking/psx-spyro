@@ -236,10 +236,20 @@ inline constexpr spyro::screen_overlays::LetterboxFacts kCinematicLetterbox{
     .bottom = 0xE4,
 };
 
+// The sky drawer, 0x8001C368: its `jal` to the visibility leaf at 0x8001C3A0, and the sky's sector
+// count and table at 0x8006E334.
+inline constexpr spyro::guest_sky::Facts kSkyFacts{
+    .entry = 0x8001C368u,
+    .overrideName = "spyro3-sky-drawer",
+    .visibilityCallSite = 0x8001C3A0u,
+    .sectors = 0x8006E334u,
+};
+
 inline constexpr spyro::EngineRenderFacts kRenderFacts{
     .globals = kRenderGlobals,
     .terrain = kTerrainFacts,
     .moby = kMobyFacts,
+    .sky = kSkyFacts,
     .field = kFieldFacts,
     .flatten = kFlatten,
     .flattenName = "spyro3-depth-bins",
