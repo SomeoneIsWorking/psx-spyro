@@ -19,6 +19,9 @@ class Core;
 
 namespace spyro::screen_overlays {
 
+// The draw buffer's width, which the whole-screen overlays span.
+inline constexpr std::uint32_t kScreenWidth = 0x200;
+
 // DrawFullscreenTint($a0 blend, $a1 r, $a2 g, $a3 b): the blend as a draw mode, then one
 // semi-transparent POLY_F4 512 wide over the rows `top` to `bottom`.
 struct TintFacts {

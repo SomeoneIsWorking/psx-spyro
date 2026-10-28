@@ -19,7 +19,6 @@
 namespace spyro::screen_overlays {
 namespace {
 
-constexpr std::uint32_t kScreenWidth = 0x200;
 constexpr std::uint32_t kBarBytes = guest_packet::kF4Bytes;
 // The semi-transparency modes in which colour 0 leaves the screen as it is.
 constexpr std::uint32_t kAdditive = 1;
@@ -94,11 +93,12 @@ void FullscreenTint::render(const psx::present::StateInterval &states,
   const std::uint32_t colour = (guest_packet::kF4Code | guest_packet::kSemiCode) |
                                (std::uint32_t{shown.b} << 16) | (std::uint32_t{shown.g} << 8) |
                                shown.r;
-  psx::present::DrawPrimitive primitive = quad(Quad(std::array{colour,
-                                                           position(0, facts_.top),
-                                                           position(kScreenWidth, facts_.top),
-                                                           position(0, facts_.bottom),
-                                                           position(kScreenWidth, facts_.bottom)}));
+  psx::present::DrawPrimitive primitive =
+      quad(Quad(std::array{colour,
+                           position(0, facts_.top),
+                           position(kScreenWidth, facts_.top),
+                           position(0, facts_.bottom),
+                           position(kScreenWidth, facts_.bottom)}));
   psx::gpu::applyTexPageAttribute(primitive.state, static_cast<std::uint16_t>(after.blend << 5));
   sink.emit(depth_bins::kOverlaySlot, primitive);
 }

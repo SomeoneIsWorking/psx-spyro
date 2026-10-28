@@ -1,7 +1,8 @@
 // inventory_band.h — the shaded band behind each inventory row as a state producer: a
 // semi-transparent POLY_F4 the inventory handler 0x8001A40C writes inline at x D_800757CC to
-// D_800757CC + 0x1FF and links at 0x8001BEC0. It renders the band to the screen's right edge, so at
-// rest it spans the screen and the 16:9 margins continue it as they continue the full-screen tint.
+// D_800757CC + 0x1FF and links at 0x8001BEC0 into the overlay pair (0x800168DC appends to the list
+// at [0x8007581C]). It renders the guest's quad; on a widened canvas a band written across the
+// screen from column 0 continues across the canvas.
 #pragma once
 
 #include "state_producer.h"
