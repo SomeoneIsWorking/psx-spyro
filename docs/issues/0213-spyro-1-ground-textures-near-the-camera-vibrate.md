@@ -1,7 +1,6 @@
 # 0213 — Spyro 1 ground textures near the camera vibrate
 
-Status: open, not compared with the console (2026-10-28). Owner: the guest's own camera follow as far as the port
-shows; that retail does the same is an inference until the console comparison below is run.
+Status: closed, retail behaviour (2026-10-28, console compared). Owner: the guest's camera follow.
 
 ## Observed
 Player report `20261023-181541-textures-close-to-camera-may-vibrate-when-walkin`, pad frame 5285, mark x 36-58%
@@ -34,7 +33,16 @@ What the port adds is halfway and nothing else:
 The near stones' texel grid reshaping is the PSX's affine texture mapping of large near polygons under that
 camera motion, which the Record renderer reproduces.
 
-## Not compared
-The console reference was not run on this replay: a pad replay recorded on the product does not stay aligned
-through the console's slower loads, so the console frames at pad frame 5285 are not the same moment. A held-input
-walk on the console from a warp would confirm the same per-field camera reversal in retail.
+## Console comparison
+`tools/oracle_compare.py --frame-step 1` route through Artisans, product at 1x with fps60 off
+(`scratch/player-bugs-4/probe/camera_route.py`, `camera_frames.py`): the camera words (`0x80076DD0`, 0x110 bytes,
+position at +0x28) are equal on both cores on the first 279 route frames, up to gameplay[4] frame 24, after the
+console's CD wait at gameplay[3] frame 26 (issue 0215, item 2) changed its `g_DeltaTime`, including
+the reversal frames of the straight walk (gameplay[1] frames 38-43, x 84997, 85005, 84994, 85007). The console's own
+frames over that walk (`cam2/near_seq_37_44.png`, product frame N beside console frame N+1, since the console parks
+before it draws) show the same near-ground texel reshaping. The console draws it the same way: retail.
+
+Not part of this issue: at 1x the product's ground is 3-5 levels brighter per channel than the console's and has no
+dither pattern (`cam2/`, mean RGB 71/143/56 against 68/139/53). The console's frames carry 5 bits per channel (low three
+bits always zero) and the product keeps full precision without dither, by design (psxport `docs/presentation.md`,
+Raster); dropping the product's low three bits lowers its mean by 2.4-3.9 per channel, which is the gap.
