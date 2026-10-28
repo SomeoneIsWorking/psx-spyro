@@ -410,7 +410,8 @@ void SpriteQueue::drawPolygon(const PolygonWords &polygon) {
       return;
     }
     for (std::size_t i = 0; i < slots.size(); ++i) {
-      screen_[i] = memory_.loadVertex(slots[i], sra(screen_[i].word(), 5));
+      screen_[i] =
+          memory_.loadVertex(slots[i], psx::gte::ProjectedVertex::whole(sra(screen_[i].word(), 5)));
     }
   }
   core_.gte().writeData(gte::kSxy0, screen_[0].word());

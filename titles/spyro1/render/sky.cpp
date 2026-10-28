@@ -255,7 +255,9 @@ Cyclorama::Polygon Cyclorama::polygonAt(std::uint32_t at) const {
 SkyTriangle Cyclorama::triangle(const Polygon &polygon, std::uint32_t colours) const {
   SkyTriangle out;
   for (std::uint32_t corner = 0; corner < 3; ++corner) {
-    out.points[corner] = memory_.loadVertex(kOutcodes + polygon.corners[corner], sra(polygon.outcodes[corner], 5));
+    out.points[corner] =
+        memory_.loadVertex(kOutcodes + polygon.corners[corner],
+                           psx::gte::ProjectedVertex::whole(sra(polygon.outcodes[corner], 5)));
     out.colours[corner] = memory_.mem_r32(colours + polygon.shades[corner]);
   }
   return out;

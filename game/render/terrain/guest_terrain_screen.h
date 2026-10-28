@@ -40,6 +40,12 @@ struct VerticalBounds {
   std::uint32_t bottom = 0;
 };
 
+// A drawer's own horizontal window: columns `left` up to, not including, `right`.
+struct HorizontalEdges {
+  std::int32_t left = 0;
+  std::int32_t right = 0;
+};
+
 class ScreenBounds {
 public:
   // A window `nativeWidth` wide, `margin` columns wider on each side. Never narrower than retail's.
@@ -48,11 +54,11 @@ public:
         vertical_(vertical) {}
 
   // A window with these edges, as a drawer that clips to a smaller one tests it.
-  [[nodiscard]] static constexpr ScreenBounds
-  edges(std::int32_t left, std::int32_t right, VerticalBounds vertical) {
+  [[nodiscard]] static constexpr ScreenBounds edges(HorizontalEdges horizontal,
+                                                    VerticalBounds vertical) {
     ScreenBounds bounds(0, 0, vertical);
-    bounds.left_ = left;
-    bounds.right_ = right;
+    bounds.left_ = horizontal.left;
+    bounds.right_ = horizontal.right;
     return bounds;
   }
 

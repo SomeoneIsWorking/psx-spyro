@@ -384,12 +384,12 @@ void Portals::drawNear(const Approach &approach, const sky::Rotations &rotations
 void Portals::drawSky(std::uint32_t skyAt, bool fading, const sky::Rotations &rotations) {
   const spyro::guest_terrain::VerticalBounds vertical{.top = memory_.mem_r32(kWindow),
                                                       .bottom = memory_.mem_r32(kWindow + 4)};
-  sky::Cyclorama cyclorama(
-      core_,
-      memory_,
-      spyro::guest_terrain::ScreenBounds::edges(asSigned(sra(memory_.mem_r32(kWindow + 0xC), 16)),
-                                                asSigned(sra(memory_.mem_r32(kWindow + 0x8), 16)),
-                                                vertical));
+  sky::Cyclorama cyclorama(core_,
+                           memory_,
+                           spyro::guest_terrain::ScreenBounds::edges(
+                               {.left = asSigned(sra(memory_.mem_r32(kWindow + 0xC), 16)),
+                                .right = asSigned(sra(memory_.mem_r32(kWindow + 0x8), 16))},
+                               vertical));
   std::optional<sky::SkyFade> fade;
   if (fading) {
     fade = sky::SkyFade{.colour = memory_.mem_r32(kFadeColour), .step = memory_.mem_r32(kFadeStep)};
