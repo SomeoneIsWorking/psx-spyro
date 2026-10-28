@@ -306,10 +306,18 @@ void DetailPass::drawQuad(const PackedIndices &vertices) {
   // 80026DB8: one GT4 (or G4), xy and colours in (first, second, fourth, third) order.
   const std::uint32_t prim = frame_.primitive;
   const std::uint32_t bin = spyro::guest_terrain::polygonBin(sum, binBias(draw));
-  memory_.storeVertex(prim + packet::kXy0, memory_.loadVertex(kScratchpad + vertices.first, xy[0]));
-  memory_.storeVertex(prim + packet::kXy1, memory_.loadVertex(kScratchpad + vertices.second, xy[1]));
-  memory_.storeVertex(prim + packet::kXy2, memory_.loadVertex(kScratchpad + vertices.fourth, xy[3]));
-  memory_.storeVertex(prim + packet::kXy3, memory_.loadVertex(kScratchpad + vertices.third, xy[2]));
+  memory_.storeVertex(
+      prim + packet::kXy0,
+      memory_.loadVertex(kScratchpad + vertices.first, psx::gte::ProjectedVertex::whole(xy[0])));
+  memory_.storeVertex(
+      prim + packet::kXy1,
+      memory_.loadVertex(kScratchpad + vertices.second, psx::gte::ProjectedVertex::whole(xy[1])));
+  memory_.storeVertex(
+      prim + packet::kXy2,
+      memory_.loadVertex(kScratchpad + vertices.fourth, psx::gte::ProjectedVertex::whole(xy[3])));
+  memory_.storeVertex(
+      prim + packet::kXy3,
+      memory_.loadVertex(kScratchpad + vertices.third, psx::gte::ProjectedVertex::whole(xy[2])));
   fadeBase_ = (depthLimit_ >> 2) + ((draw & kFarFade) != 0 ? kFarFadeShift : 0u);
   const PackedIndices colours(memory_.mem_r32(record_ + polygon::kColours));
   memory_.mem_w32(prim + packet::kColour0,
@@ -390,9 +398,15 @@ void DetailPass::drawTriangle(const PackedIndices &vertices) {
   // 80027310: one GT3 (or G3).
   const std::uint32_t prim = frame_.primitive;
   const std::uint32_t bin = spyro::guest_terrain::polygonBin(sum, binBias(draw));
-  memory_.storeVertex(prim + packet::kXy0, memory_.loadVertex(kScratchpad + vertices.first, xy[0]));
-  memory_.storeVertex(prim + packet::kXy1, memory_.loadVertex(kScratchpad + vertices.second, xy[1]));
-  memory_.storeVertex(prim + packet::kXy2, memory_.loadVertex(kScratchpad + vertices.third, xy[2]));
+  memory_.storeVertex(
+      prim + packet::kXy0,
+      memory_.loadVertex(kScratchpad + vertices.first, psx::gte::ProjectedVertex::whole(xy[0])));
+  memory_.storeVertex(
+      prim + packet::kXy1,
+      memory_.loadVertex(kScratchpad + vertices.second, psx::gte::ProjectedVertex::whole(xy[1])));
+  memory_.storeVertex(
+      prim + packet::kXy2,
+      memory_.loadVertex(kScratchpad + vertices.third, psx::gte::ProjectedVertex::whole(xy[2])));
   fadeBase_ = (depthLimit_ >> 2) + ((draw & kFarFade) != 0 ? kFarFadeShift : 0u);
   const PackedIndices colours(memory_.mem_r32(record_ + polygon::kColours));
   memory_.mem_w32(prim + packet::kColour0,
