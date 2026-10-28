@@ -54,7 +54,8 @@ std::optional<SkyChain> Cyclorama::draw(std::int32_t group, const Rotations &rot
   auto &gte = core_.gte();
   gte.loadRotation(rotations.view);
   gte.loadTranslation({});
-  listSectors(kCyclorama, group);
+  listSectors(kCyclorama,
+              group < 0 ? std::nullopt : std::optional(static_cast<std::uint32_t>(group)));
 
   // 8004ECE0..8004ED40
   beginChain(rotations);
@@ -87,7 +88,7 @@ std::optional<SkyChain> Cyclorama::drawThrough(std::uint32_t sky,
   auto &gte = core_.gte();
   gte.loadRotation(rotations.view);
   gte.loadTranslation({});
-  listSectors(sky, -1);
+  listSectors(sky, std::nullopt);
   beginChain(rotations);
   for (std::uint32_t entry = kSectorList;; entry += 4) {
     const std::uint32_t sector = memory_.mem_r32(entry);
@@ -136,17 +137,17 @@ void Cyclorama::end() {
 }
 
 // 8004EC14..8004ECDC: every sector, or group `group`'s, whose sphere reaches in front of the eye.
-void Cyclorama::listSectors(std::uint32_t sky, std::int32_t group) {
+void Cyclorama::listSectors(std::uint32_t sky, std::optional<std::uint32_t> group) {
   const std::uint32_t sectors = memory_.mem_r32(sky + kSectors);
   std::uint32_t cursor = kSectorList;
-  if (group < 0) {
+  if (!group) {
     const std::uint32_t end = sectors + (memory_.mem_r32(sky + kSectorCount) << 2);
     for (std::uint32_t at = sectors; at != end; at += 4) {
       keepIfInFront(memory_.mem_r32(at), cursor);
     }
   } else {
     const std::uint32_t lists = memory_.mem_r32(sky + kGroupLists);
-    std::uint32_t bytes = memory_.mem_r32(lists + (static_cast<std::uint32_t>(group) << 2));
+    std::uint32_t bytes = memory_.mem_r32(lists + (*group << 2));
     for (;; ++bytes) {
       const std::uint32_t index = memory_.mem_r8(bytes);
       if (index == 0xFFu) {
@@ -255,9 +256,8 @@ Cyclorama::Polygon Cyclorama::polygonAt(std::uint32_t at) const {
 SkyTriangle Cyclorama::triangle(const Polygon &polygon, std::uint32_t colours) const {
   SkyTriangle out;
   for (std::uint32_t corner = 0; corner < 3; ++corner) {
-    out.points[corner] =
-        memory_.loadVertex(kOutcodes + polygon.corners[corner],
-                           psx::gte::ProjectedVertex::whole(sra(polygon.outcodes[corner], 5)));
+    out.points[corner] = memory_.loadVertex(kOutcodes + polygon.corners[corner],
+                                            psx::gte::VertexWord{sra(polygon.outcodes[corner], 5)});
     out.colours[corner] = memory_.mem_r32(colours + polygon.shades[corner]);
   }
   return out;

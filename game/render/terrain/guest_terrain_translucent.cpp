@@ -186,16 +186,16 @@ void TranslucentPass::drawQuad(const PackedIndices &vertices) {
   const std::uint32_t prim = frame_.primitive;
   memory_.storeVertex(
       prim + packet::kXy0,
-      memory_.loadVertex(kScratchpad + vertices.first, psx::gte::ProjectedVertex::whole(xy[0])));
+      memory_.loadVertex(kScratchpad + vertices.first, psx::gte::VertexWord{xy[0]}));
   memory_.storeVertex(
       prim + packet::kXy1,
-      memory_.loadVertex(kScratchpad + vertices.second, psx::gte::ProjectedVertex::whole(xy[1])));
+      memory_.loadVertex(kScratchpad + vertices.second, psx::gte::VertexWord{xy[1]}));
   memory_.storeVertex(
       prim + packet::kXy2,
-      memory_.loadVertex(kScratchpad + vertices.fourth, psx::gte::ProjectedVertex::whole(xy[3])));
+      memory_.loadVertex(kScratchpad + vertices.fourth, psx::gte::VertexWord{xy[3]}));
   memory_.storeVertex(
       prim + packet::kXy3,
-      memory_.loadVertex(kScratchpad + vertices.third, psx::gte::ProjectedVertex::whole(xy[2])));
+      memory_.loadVertex(kScratchpad + vertices.third, psx::gte::VertexWord{xy[2]}));
   const std::uint32_t c0 = fadedColour(d0);
   const std::uint32_t c1 = fadedColour(d1);
   const std::uint32_t c2 = fadedColour(d2);
@@ -251,13 +251,13 @@ void TranslucentPass::drawTriangle(const PackedIndices &vertices) {
   const std::uint32_t prim = frame_.primitive;
   memory_.storeVertex(
       prim + packet::kXy0,
-      memory_.loadVertex(kScratchpad + vertices.first, psx::gte::ProjectedVertex::whole(xy[0])));
+      memory_.loadVertex(kScratchpad + vertices.first, psx::gte::VertexWord{xy[0]}));
   memory_.storeVertex(
       prim + packet::kXy1,
-      memory_.loadVertex(kScratchpad + vertices.second, psx::gte::ProjectedVertex::whole(xy[1])));
+      memory_.loadVertex(kScratchpad + vertices.second, psx::gte::VertexWord{xy[1]}));
   memory_.storeVertex(
       prim + packet::kXy2,
-      memory_.loadVertex(kScratchpad + vertices.third, psx::gte::ProjectedVertex::whole(xy[2])));
+      memory_.loadVertex(kScratchpad + vertices.third, psx::gte::VertexWord{xy[2]}));
   const std::uint32_t c0 = fadedColour(d0);
   const std::uint32_t c1 = fadedColour(d1);
   memory_.mem_w32(prim + packet::kColour0, c0 | guest_packet::kSemiGt3Code);

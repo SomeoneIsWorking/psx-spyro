@@ -71,7 +71,7 @@ ActorEmitter::screens(const std::array<std::uint32_t, 4> &slots, std::uint32_t c
   }
   for (std::uint32_t i = 0; i < corners; ++i) {
     words[i] = memory_.loadVertex(slots[i] + kVertexScreens,
-                                  psx::gte::ProjectedVertex::whole(sra(words[i].word(), 5)));
+                                  psx::gte::VertexWord{sra(words[i].word(), 5)});
   }
   return words;
 }

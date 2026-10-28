@@ -99,7 +99,8 @@ private:
   };
 
   void beginChain(const Rotations &rotations);
-  void listSectors(std::uint32_t sky, std::int32_t group);
+  // Every sector of `sky`, or of `group` alone.
+  void listSectors(std::uint32_t sky, std::optional<std::uint32_t> group);
   void keepIfInFront(std::uint32_t sector, std::uint32_t &cursor);
   // One sector's vertices outcoded; false when all lie past one edge.
   bool outcodeSector(std::uint32_t sector);
