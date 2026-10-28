@@ -222,18 +222,16 @@ read command, named below.
   equal, 553 further per-iteration comparisons equal, and the WAD reload at a reused address is
   measured on both sides of the boundary from the product's own log.
 - **Still open, and it is what keeps this issue open:** a route out of ARTISANS still does not replay,
-  because the camera carries the one CD-wait divergence and the d-pad is camera-relative. The fix is
-  in the CD/archive owner, not in the pacing code, and it is not shipped.
+  because the camera carries the one CD-wait divergence and the d-pad is camera-relative. The product keeps the
+  instant read; the comparison has to align on the console's wait.
 - **Still open:** Lightrec's actual invalidation of the old translations at the crossing. The
   evidence above establishes that the right ranges were handed to the owner, not that Lightrec acted.
 
 ### The next step, named
 
-1. **CD/archive owner:** make a synchronous archive read advance the guest's display field clock by
-   the time the console's read costs, so `g_UnprocessedFrames` reaches 6 on that iteration. Then
-   re-run `tools/oracle_cadence_probe.py --core console` and `--core native`: the product's window
-   distribution should gain a 6 at field 8283 and `delta_time` should read 4 there too. That is the
-   falsifier for this whole section.
+1. **Comparison, not product:** CD reads are instant by design (load removal), so the product never spends the
+   console's 6-field wait and its `g_DeltaTime` stays 2 there (0215). A two-core route across that read aligns on
+   the console's CD wait instead of on main-loop iterations.
 2. **Framework:** one REPL read command exposing `LightrecExecutor`'s invalidation counters and
    `ImageCatalog`'s active identities, so the generation pair and the invalidated-block list are
    measurements rather than a path argument.
