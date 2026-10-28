@@ -5,9 +5,9 @@
 #include "core.h"
 #include "lucent/log.h"
 #include "ordering_table.h"
+#include "record_fault.h"
 
 #include <algorithm>
-#include <cstdlib>
 #include <optional>
 
 namespace spyro::depth_bins {
@@ -19,16 +19,17 @@ constexpr std::uint32_t kMarkSlack = kBinStride;
 void assignPair(Core &core, std::uint32_t pair, psx::present::OtSlot slot, Claim claim) {
   const std::uint32_t head = core.mem_r32(pair);
   std::uint32_t packet = core.mem_r32(pair + kBinFirstOffset);
-  for (int assigned = 0; packet != 0; ++assigned) {
-    if (assigned == psx::gpu::kOtNodeLimit) {
-      lucent::error("depthbins",
-                    "refusing to assign more than {} packets to slot {}:{}: the chain at 0x{:08X} "
-                    "runs on past the packet pool",
-                    psx::gpu::kOtNodeLimit,
-                    slot.table,
-                    slot.index,
-                    pair);
-      std::abort();
+  psx::gpu::LinkCycleCheck cycle;
+  while (packet != 0) {
+    if (!cycle.enter(psx::gpu::mainRamOffsetOf(packet))) {
+      psx::gpu::raiseRecordFault(
+          psx::gpu::RecordFaultKind::DrawListCycle,
+          packet,
+          "render/terrain/guest_depth_bins.cpp:assignPair",
+          lucent::format("the chain of bin pair 0x{:08X} (slot {}:{}) returns to it",
+                         pair,
+                         slot.table,
+                         slot.index));
     }
     core.otTables.assign(packet, slot);
     if (packet < claim.below) {
