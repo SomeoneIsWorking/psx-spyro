@@ -39,6 +39,7 @@
 #include "spyro1/render/actor_list.h"
 #include "spyro1/render/drop_shadow_producer.h"
 #include "spyro1/render/flame_producer.h"
+#include "spyro1/render/pause_backdrop.h"
 #include "spyro1/render/glow_pools.h"
 #include "spyro1/render/glow_producers.h"
 #include "spyro1/render/hud_anchor.h"
@@ -171,6 +172,7 @@ void Runtime::registerOverrides(Game &game) {
   portals::registerPortalOverrides(game.core);
   glows::registerGlowOverrides(game.core);
   particles::registerParticleOverrides(game.core);
+  pause_backdrop::registerOverrides(game.core);
   hud_anchor::registerOverrides(game.core);
   lucent::info("boot", "installed Spyro 1's verified image-scoped native overrides");
 }
