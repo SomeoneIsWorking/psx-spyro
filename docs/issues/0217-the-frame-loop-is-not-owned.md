@@ -10,3 +10,4 @@ The workspace rule (psxport `docs/workspace/WORKSPACE.md`, "Each title owns its 
 
 ## What blocks it
 The update/draw pairs are already driver-run; the guest VSync waits inside the draws (and Spyro 1's draw-wait flag `0x80075784`) still set the cadence. Next: replace the draws' VSync calls with the driver's field count per title.
+The converted driver counts `Timing::vsyncFields` of the loop's own n at the replaced wait (psxport `docs/presentation.md`, Frame fence and pacing), so an overrunning frame keeps its VBlanks, audio and fields on the guest clock's grid; it is done in that conversion, not as a separate step on the current one-field answer.
