@@ -245,3 +245,9 @@ fix). Measured at 16:9 with `drive.py gameplay --tap start --after 60 --preseq 8
 PSXPORT_PRIMRGB=0,56,192` and : the panel spans **columns 226..457, 232 of
 232**, on every present that carries it (4 of 8, peak 118.6). The 4-of-8 presence is the pre-existing
 alternation measured at both aspects in §4's table and is not part of D1.
+
+## 2026-10-28: the pause in-betweens compose
+
+The menu judder in report `20261023-181349` was the border lines of `func_8001844C`: unowned packets whose colours
+change every frame, so the verdict held each in-between. `titles/spyro1/render/shaded_line.*` owns them; proof in
+issue 0212.
