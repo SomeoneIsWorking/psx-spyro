@@ -39,11 +39,11 @@ So the console's R3000 spends about twice the cycles per instruction the product
 a VBlank only on the console, and every later tick keeps the one-tick lead. The removed load plays no part (the
 console reads nothing in the span) and the frame driver delivers the fields the guest clock reaches.
 
-Not fixed; deferred with psxport 0007 (no player-visible effect). A flat cycles-per-instruction factor would be a magic constant that also moves every CD deadline and
-turn budget in all 11 titles. The proper fix is psxport 0007's next step, a cycle cost model in the one
-`EmulatedTime` owner (opcode latency, RAM/BIOS/scratchpad wait states, i-cache, GTE stalls) checked against the
-console's cycle timestamps; this span (364,988 instructions, ~724K cycles) is one of its calibration cases. Until
-then the offset stays: level-tick-driven animation runs one tick behind retail and the dragon cutscene state starts one game frame early.
+Not fixed; deferred with psxport 0007, which records why. Charging two ticks per instruction would move
+every CD deadline and turn budget in all 11 titles; the proper fix is 0007's cycle cost model in the one
+`EmulatedTime` owner, with this span (364,988 instructions, ~724K cycles) as its first calibration case. Until
+then the offset stays: level-tick-driven animation runs one tick behind retail and the dragon cutscene state
+starts one game frame early. That this is invisible in play is reasoned, not shown by a run.
 2. **The console's CD wait, gameplay[3] frame 26 onward.** At that iteration the console ran a 6-field main-loop
    window (`g_DeltaTime` 4 against the product's 2): a synchronous `CDLoadSync` read with `g_CDMaxReadTime` 600, measured
    in 0110 ("RESOLVED 2026-09-28"). The product's CD is instant by design, so it spends no fields there. The offset
