@@ -1,6 +1,6 @@
 # 0212 — Spyro 1 pause backdrop leaves the 16:9 margins flat
 
-Status: partial (2026-10-28). The backdrop fills the margins; the pause in-betweens are held, not composed, and the border-line judder stays with issue 0144. Owner: `titles/spyro1/render/pause_backdrop.*` over psxport's read-back texture (`docs/presentation.md`).
+Status: fixed (2026-10-28). The backdrop fills the margins, and the pause in-betweens are composed (border lines below). Owner: `titles/spyro1/render/pause_backdrop.*` over psxport's read-back texture (`docs/presentation.md`).
 
 ## Observed
 Player report `20261023-181349-menu-judder-and-wide-margins`, pad frame 1501: in the pause menu the area outside the
@@ -31,8 +31,18 @@ not composed: the menu's unowned packets move (issue 0144), so the verdict holds
 way because the read-back lives in the record path, not in a producer. Unpausing through the control channel
 (`tap start`) shows gameplay textured normally (`runs/unpause`).
 
-The judder half: the four border lines come from `func_8001844C`, which has no native producer (issue 0144). It was not
-reproduced or assessed in this pass and stays with the redesign's replay stage.
+The judder half: the menu's border lines come from `func_8001844C`, a LINE_G2 whose endpoint greys follow
+`D_800770C8.m_specularTime` (decomp `draw.c`), so every packet moved each frame and the owner verdict held every pause
+in-between (`UnownedMoving guest fn=0x8001844C`, 299 of 299 in-betweens `composed=0` from fence 698 on HEAD). The
+producer `titles/spyro1/render/shaded_line.*` owns each call under a key made of its endpoints, saves its four packet
+words, and draws an in-between as the later packet with each endpoint's colour moved between the two saves.
+
+Shown (same report, unpaced, ires 0, fps60, sink 3840x2160, `scratch/player-bugs-6/fix1`, `fix4`): no `UnownedMoving`
+row; every in-between from fence 690 to the run end `composed=1` (501 of 501). Twelve consecutive presents of the
+pause: the left border's grey steps 189, 181, 173, 164, 156, 148 a channel across presents in one direction, and each
+in-between lies between its neighbours except edge pixels of the spinning HUD gems. Paced run (`paced2`), after the
+selector's pre-roll ends (fence 901): a simulated 60.00 Hz display over 9.8 s shows 590 vblanks with 2 repeats (the
+59.94 Hz phase), 0 skips, 294 in-betweens shown, none held.
 
 ## Margin rule in the other titles
 The change also widened psxport's margin rule: a flat line, and a flat rectangle reaching past both buffer edges, now

@@ -50,6 +50,7 @@
 #include "spyro1/render/portal_producer.h"
 #include "spyro1/render/rescue_star_producer.h"
 #include "spyro1/render/screen_overlays.h"
+#include "spyro1/render/shaded_line.h"
 #include "spyro1/render/sky_producer.h"
 #include "spyro1/render/sprite_queue_producer.h"
 #include "spyro1/render/terrain_image.h"
@@ -173,6 +174,7 @@ void Runtime::registerOverrides(Game &game) {
   glows::registerGlowOverrides(game.core);
   particles::registerParticleOverrides(game.core);
   pause_backdrop::registerOverrides(game.core);
+  shaded_line::registerOverrides(game.core);
   hud_anchor::registerOverrides(game.core);
   lucent::info("boot", "installed Spyro 1's verified image-scoped native overrides");
 }

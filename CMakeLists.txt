@@ -180,6 +180,7 @@ set(SPYRO_RUNTIME_SOURCES
   titles/spyro1/render/particle_producer.cpp
   titles/spyro1/render/particles.cpp
   titles/spyro1/render/pause_backdrop.cpp
+  titles/spyro1/render/shaded_line.cpp
   titles/spyro1/render/portal_producer.cpp
   titles/spyro1/render/portals.cpp
   titles/spyro1/render/sky.cpp
