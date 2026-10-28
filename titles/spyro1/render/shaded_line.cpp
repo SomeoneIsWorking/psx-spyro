@@ -28,8 +28,6 @@ namespace {
 using LineWords = std::array<std::uint32_t, 4>;
 static_assert(std::is_trivially_copyable_v<LineWords>);
 
-constexpr std::uint32_t kColourMask = 0x00FFFFFFu;
-
 // Word index of a return address in 2 MB of RAM; the turn and the page fill the bits above it.
 constexpr std::uint32_t kSiteBits = 19;
 constexpr std::uint32_t kTurnBits = 8;
@@ -38,19 +36,11 @@ CallSites &callSites(Core &core) {
   return static_cast<CallSites &>(*spyro::session(core).titleState);
 }
 
-// The page joins the key because a page change moves every inventory line by a whole page.
-std::uint32_t lineObject(Core &core) {
-  const std::uint32_t site = core.r[31];
-  const std::uint32_t turn = callSites(core).turn(core.game->timing.logicFrame, site);
-  const std::uint32_t page = core.mem_r32(guest::kInventoryPage);
-  return ((site >> 2) & ((1u << kSiteBits) - 1u)) | ((turn & ((1u << kTurnBits) - 1u)) << kSiteBits) |
-         (page << (kSiteBits + kTurnBits));
-}
-
 void drawLine(Core *core) {
   Core &guest = *core;
   const std::uint32_t packet = guest.mem_r32(terrain::kRenderGlobals.primitiveCursor);
-  const psx::present::EmissionScope::Guard scope(guest.emission, ShadedLineProducer::kEntry, lineObject(guest), 0);
+  const psx::present::EmissionScope::Guard scope(
+      guest.emission, ShadedLineProducer::kEntry, callObject(guest), 0);
   if (!psx::cpu::callOriginalOrPropagate(guest, ShadedLineProducer::kEntry)) {
     return;
   }
@@ -61,17 +51,16 @@ void drawLine(Core *core) {
   guest.frameStates.save(guest.emission.current(), words);
 }
 
-std::uint32_t colourBetween(std::uint32_t from, std::uint32_t to, float t) {
-  std::uint32_t shown = to & ~kColourMask;
-  for (std::uint32_t shift = 0; shift < 24; shift += 8) {
-    const auto channel = spyro::record_blend::byteBetween(
-        static_cast<std::uint8_t>(from >> shift), static_cast<std::uint8_t>(to >> shift), t);
-    shown |= static_cast<std::uint32_t>(channel) << shift;
-  }
-  return shown;
-}
-
 } // namespace
+
+// The page joins the key because a page change moves every inventory line by a whole page.
+std::uint32_t callObject(Core &core) {
+  const std::uint32_t site = core.r[31];
+  const std::uint32_t turn = callSites(core).turn(core.game->timing.logicFrame, site);
+  const std::uint32_t page = core.mem_r32(guest::kInventoryPage);
+  return ((site >> 2) & ((1u << kSiteBits) - 1u)) |
+         ((turn & ((1u << kTurnBits) - 1u)) << kSiteBits) | (page << (kSiteBits + kTurnBits));
+}
 
 std::uint32_t CallSites::turn(std::uint32_t frame, std::uint32_t site) {
   if (frame != frame_) {
@@ -98,9 +87,9 @@ void ShadedLineProducer::render(const psx::present::StateInterval &states,
                                 psx::present::PrimitiveSink &sink) const {
   const LineWords before = psx::present::stateAs<LineWords>(states.from);
   LineWords shown = psx::present::stateAs<LineWords>(states.to);
-  shown[0] = colourBetween(before[0], shown[0], states.t);
+  shown[0] = spyro::record_blend::rgbBetween(before[0], shown[0], states.t);
   shown[1] = psx::present::lerpHalves(before[1], shown[1], states.t);
-  shown[2] = colourBetween(before[2], shown[2], states.t);
+  shown[2] = spyro::record_blend::rgbBetween(before[2], shown[2], states.t);
   shown[3] = psx::present::lerpHalves(before[3], shown[3], states.t);
   std::optional<psx::present::DrawPrimitive> primitive =
       psx::gpu::decodePacketPrimitive({.words = shown, .places = {}});

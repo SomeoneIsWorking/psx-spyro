@@ -53,6 +53,18 @@ void halfBetween(std::array<std::uint8_t, N> &shown,
   return static_cast<std::uint8_t>(psx::present::lerpInt(from, to, t));
 }
 
+// A GP0 colour word's three channels at `t`; the command byte is `to`'s.
+[[nodiscard]] inline std::uint32_t rgbBetween(std::uint32_t from, std::uint32_t to, float t) {
+  std::uint32_t shown = to & 0xFF000000u;
+  for (std::uint32_t shift = 0; shift < 24; shift += 8) {
+    shown |=
+        static_cast<std::uint32_t>(byteBetween(
+            static_cast<std::uint8_t>(from >> shift), static_cast<std::uint8_t>(to >> shift), t))
+        << shift;
+  }
+  return shown;
+}
+
 // An angle byte, 256 steps a turn, at `t` the short way round.
 [[nodiscard]] inline std::uint8_t angleBetween(std::uint8_t from, std::uint8_t to, float t) {
   return static_cast<std::uint8_t>(psx::present::lerpTurn(from, to, 8, t));

@@ -39,14 +39,15 @@
 #include "spyro1/render/actor_list.h"
 #include "spyro1/render/drop_shadow_producer.h"
 #include "spyro1/render/flame_producer.h"
-#include "spyro1/render/pause_backdrop.h"
 #include "spyro1/render/glow_pools.h"
 #include "spyro1/render/glow_producers.h"
 #include "spyro1/render/hud_anchor.h"
+#include "spyro1/render/inventory_band.h"
 #include "spyro1/render/moby_shadow_producer.h"
 #include "spyro1/render/ordering_table.h"
 #include "spyro1/render/paired_actor_producer.h"
 #include "spyro1/render/particle_producer.h"
+#include "spyro1/render/pause_backdrop.h"
 #include "spyro1/render/portal_producer.h"
 #include "spyro1/render/rescue_star_producer.h"
 #include "spyro1/render/screen_overlays.h"
@@ -175,6 +176,7 @@ void Runtime::registerOverrides(Game &game) {
   particles::registerParticleOverrides(game.core);
   pause_backdrop::registerOverrides(game.core);
   shaded_line::registerOverrides(game.core);
+  inventory_band::registerProducer(game.core);
   hud_anchor::registerOverrides(game.core);
   lucent::info("boot", "installed Spyro 1's verified image-scoped native overrides");
 }

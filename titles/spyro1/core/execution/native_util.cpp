@@ -5,6 +5,7 @@
 #include "core.h"
 #include "core/native_execution.h"
 #include "spyro1/core/execution/native_owners.h"
+#include "spyro1/render/inventory_band.h"
 
 namespace {
 
@@ -78,6 +79,7 @@ void dl_link_native(Core *c) {
     c->r[4] = node >> 16; // a0 is shifted BEFORE the byte store
     c->mem_w8(old + 2, (uint8_t)(node >> 16));
   }
+  spyro1::inventory_band::linked(*c, node);
 }
 
 } // namespace
