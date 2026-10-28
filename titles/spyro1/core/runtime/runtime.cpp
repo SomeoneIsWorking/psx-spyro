@@ -212,4 +212,8 @@ std::unique_ptr<spyro::Warp> Runtime::createWarp() const {
   return std::make_unique<Warp>();
 }
 
+std::unique_ptr<spyro::TitleState> Runtime::createTitleState() const {
+  return std::make_unique<shaded_line::CallSites>();
+}
+
 } // namespace spyro1

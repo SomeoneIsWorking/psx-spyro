@@ -122,4 +122,7 @@ inline constexpr std::uint32_t kPad = 0x80077378u;
 // g_DragonCutscene (dragon.h): state machine after 0x24-byte WAD header.
 inline constexpr std::uint32_t kDragonCutscene = 0x80077030u;
 
+// D_80075744: the inventory page shown; D_800757CC slides between pages and jumps by 0x380 as this changes.
+inline constexpr std::uint32_t kInventoryPage = 0x80075744u;
+
 } // namespace spyro1::guest

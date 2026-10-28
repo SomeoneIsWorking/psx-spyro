@@ -34,8 +34,11 @@ way because the read-back lives in the record path, not in a producer. Unpausing
 The judder half: the menu's border lines come from `func_8001844C`, a LINE_G2 whose endpoint greys follow
 `D_800770C8.m_specularTime` (decomp `draw.c`), so every packet moved each frame and the owner verdict held every pause
 in-between (`UnownedMoving guest fn=0x8001844C`, 299 of 299 in-betweens `composed=0` from fence 698 on HEAD). The
-producer `titles/spyro1/render/shaded_line.*` owns each call under a key made of its endpoints, saves its four packet
-words, and draws an in-between as the later packet with each endpoint's colour moved between the two saves.
+producer `titles/spyro1/render/shaded_line.*` owns each call, saves its four packet words, and draws an in-between
+with each endpoint's position and colour moved between the two saves. A call is keyed by its return address, its turn
+at that address in the logic frame (`CallSites`; the inventory draws one site once per visited level) and the
+inventory page `D_80075744`. Endpoints are no key: the inventory lines sit at `D_800757CC + x`, which slides every
+frame of a page change, and the page joins the key because `D_800757CC` jumps by 0x380 when the page flips.
 
 Shown (same report, unpaced, ires 0, fps60, sink 3840x2160, `scratch/player-bugs-6/fix1`, `fix4`): no `UnownedMoving`
 row; every in-between from fence 690 to the run end `composed=1` (501 of 501). Twelve consecutive presents of the
@@ -43,6 +46,17 @@ pause: the left border's grey steps 189, 181, 173, 164, 156, 148 a channel acros
 in-between lies between its neighbours except edge pixels of the spinning HUD gems. Paced run (`paced2`), after the
 selector's pre-roll ends (fence 901): a simulated 60.00 Hz display over 9.8 s shows 590 vblanks with 2 repeats (the
 59.94 Hz phase), 0 skips, 294 in-betweens shown, none held.
+
+Selector path (`spyro_port` with no argument, `pick spyro1` on the control channel, the report's replay in the
+picked session; unpaced, `scratch/player-bugs-6/selector/pick1`, `pick2`): present 1000 at the 3840x2160 sink is lit
+in columns 0-3838, rows 74-2074, as the report's `screen.png` (columns 0-3838, rows 74-2084), margins filled; 1101
+of 1101 in-betweens from fence 690 `composed=1`. A run that never confirms a title shows the selector's own frame,
+where panel 0 is drawn at its panel width (`picker_selected_share`) and the replay plays into that panel: that is
+the pillarboxed picture of the 2026-10-28 review (`[picker] selector ended ... with no choice` in its log).
+
+Inventory (executable, `warp 10`, `tap start`, two `tap down`, `tap cross`; paced, `scratch/player-bugs-6/inventory/r2`):
+the inventory page draws, the last 200 in-betweens are all `composed=1` and no `UnownedMoving` row. A page slide needs a
+second visited homeworld, which `warp` does not give, so the slide is not shown.
 
 ## Margin rule in the other titles
 The change also widened psxport's margin rule: a flat line, and a flat rectangle reaching past both buffer edges, now
