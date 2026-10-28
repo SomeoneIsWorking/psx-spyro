@@ -39,7 +39,7 @@ So the console's R3000 spends about twice the cycles per instruction the product
 a VBlank only on the console, and every later tick keeps the one-tick lead. The removed load plays no part (the
 console reads nothing in the span) and the frame driver delivers the fields the guest clock reaches.
 
-Not fixed. A flat cycles-per-instruction factor would be a magic constant that also moves every CD deadline and
+Not fixed; deferred with psxport 0007 (no player-visible effect). A flat cycles-per-instruction factor would be a magic constant that also moves every CD deadline and
 turn budget in all 11 titles. The proper fix is psxport 0007's next step, a cycle cost model in the one
 `EmulatedTime` owner (opcode latency, RAM/BIOS/scratchpad wait states, i-cache, GTE stalls) checked against the
 console's cycle timestamps; this span (364,988 instructions, ~724K cycles) is one of its calibration cases. Until
