@@ -13,9 +13,9 @@ Captured from the port at 16:9 with 60 fps interpolation on.
 ![Spyro the Dragon: Artisans at 16:9](docs/media/spyro1-artisans.png)
 ![Spyro the Dragon: gems under a stone arch at 16:9](docs/media/spyro1-gems.png)
 ![Spyro the Dragon: original 4:3 beside 16:9 widescreen](docs/media/spyro1-widescreen.png)
-![Spyro the Dragon: level flyby at the original 30 fps beside 60 fps interpolation](docs/media/spyro1-interpolation.webp)
+![Spyro the Dragon: title-screen flyby at the original 30 fps beside 60 fps interpolation](docs/media/spyro1-interpolation.webp)
 
-*The opening level flyby: the original 30 fps on the left, interpolated 60 fps on the right.*
+*The title-screen flyby: the original 30 fps on the left, interpolated 60 fps on the right.*
 
 ### Spyro 2
 
