@@ -22,6 +22,7 @@ Captured from the port at 16:9 with 60 fps interpolation on.
 ![Spyro 2: canyon with a bone arch at 16:9](docs/media/spyro2-bone-canyon.png)
 ![Spyro 2: Idol Springs at 16:9](docs/media/spyro2-idol-springs.png)
 ![Spyro 2: original 4:3 beside 16:9 widescreen](docs/media/spyro2-widescreen.png)
+![Spyro 2: intro at the original 30 fps beside 60 fps interpolation](docs/media/spyro2-interpolation.webp)
 
 ### Spyro: Year of the Dragon
 
