@@ -23,3 +23,7 @@ still the guest's. At 4:3 it equals retail: `PSXPORT_OVERRIDE_DIFF=spyro2-sky-dr
 ## Shown
 The same 16:9 captures after the fix: sky drawn to both screen edges on Spyro 3 `warp 42` and `warp 21`,
 Spyro 2 `warp 31` and both intros.
+
+Real time, paced, 16:9, fps60=1, ires 0, sink 3840x2160 (2026-10-29, load under 2): Spyro 2 `warp 12` 2,262 present
+intervals, 2 missed (0.09%); Spyro 3 `warp 42` 2,187 intervals, 2 missed (0.09%); the worst interval in each is the
+warp's load hold (`scratch/review-fixes/s2paced`, `s3paced`).
