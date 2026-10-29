@@ -202,13 +202,16 @@ inline constexpr std::uint32_t kFlatten = 0x8004E664u;
 inline constexpr std::array<std::uint32_t, 2> kSecondPassFlattenReturns = {0x8001EA40u,
                                                                            0x8001EB4Cu};
 
-// The loading screen, game state 5: 0x80059038 in its step 0x8006FBC8 = 0 with the fade 0x8006FBC4
-// running draws the picture FUN_80059358, four pages at brightness fade << 4 up to 0x80, then its
-// caption ("THE ADVENTURE CONTINUES", "Entering Demo Mode").
+// The game state's step word: the level load's and the loading screen's sub-state.
+inline constexpr std::uint32_t kGameSubState = 0x8006FBC8u;
+
+// The loading screen, game state 5: 0x80059038 in its step kGameSubState = 0 with the fade
+// 0x8006FBC4 running draws the picture FUN_80059358, four pages at brightness fade << 4 up to 0x80,
+// then its caption ("THE ADVENTURE CONTINUES", "Entering Demo Mode").
 inline constexpr spyro::loading_picture::Facts kLoadingPicture{
     .entry = 0x80059038u,
     .overrideName = "spyro3-loading-picture",
-    .gate = 0x8006FBC8u,
+    .gate = kGameSubState,
     .counter = 0x8006FBC4u,
     .pages = 4,
     .pageSlot = {spyro::depth_bins::kTable, 0},

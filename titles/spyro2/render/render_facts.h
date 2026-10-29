@@ -186,12 +186,15 @@ inline constexpr spyro::field_redraw::Facts kFieldFacts{
 // 80014A54, 8004D938), each once per table.
 inline constexpr std::uint32_t kFlatten = 0x8001B2A8u;
 
-// The loading screen, game state 5: FUN_800151F0 shows the storybook while 0x800698F0 is 0 and its
-// fade 0x800698EC is not, three pages at brightness fade << 4 up to 0x80, then "Auto Saving".
+// The game state's step word: the level load's and the loading screen's sub-state.
+inline constexpr std::uint32_t kGameSubState = 0x800698F0u;
+
+// The loading screen, game state 5: FUN_800151F0 shows the storybook while kGameSubState is 0 and
+// its fade 0x800698EC is not, three pages at brightness fade << 4 up to 0x80, then "Auto Saving".
 inline constexpr spyro::loading_picture::Facts kLoadingPicture{
     .entry = 0x800151F0u,
     .overrideName = "spyro2-loading-book",
-    .gate = 0x800698F0u,
+    .gate = kGameSubState,
     .counter = 0x800698ECu,
     .pages = 3,
     .pageSlot = spyro::depth_bins::kOverlaySlot,

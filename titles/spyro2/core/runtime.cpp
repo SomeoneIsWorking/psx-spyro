@@ -24,10 +24,10 @@ constexpr std::uint32_t kVSyncQueryCounter = 0x80066618u;
 // libcd CdCommand(com, parm, result).
 constexpr std::uint32_t kCdCommand = 0x80058858u;
 
-// CdControlB(com, param) is native because its CD_sync wait never completes otherwise
-// (docs/issues/0161). It has no result buffer: every CD_cw call passes a2 = 0 (0x80058A1C,
-// 0x80058A44, 0x80058A68).
-constexpr std::uint32_t kCdControlB = 0x80058994u;
+// libcd CdControlF(com, param): every CD_cw call passes a2 = 0 (0x80058A1C, 0x80058A44, 0x80058A68)
+// and the last sends async (a3 = 1 at 0x80058A70). Native because CD_cw's wait at 0x8005C900 polls
+// a status byte only libcd's interrupt raises (docs/issues/0161).
+constexpr std::uint32_t kCdControlF = 0x80058994u;
 
 // libcd CdSync, polled until it reports CS_SELF.
 constexpr std::uint32_t kCdSync = 0x80058810u;
@@ -71,7 +71,7 @@ Runtime::Runtime()
                .timeoutCheck = kGpuTimeoutCheck,
                .timeoutDeadlineWord = kGpuTimeoutDeadline,
                .timeoutFlagWord = kGpuTimeoutPollCount}),
-      libcd_({.read = kCdRead, .command = kCdCommand, .controlFire = kCdControlB, .sync = kCdSync},
+      libcd_({.read = kCdRead, .command = kCdCommand, .controlFire = kCdControlF, .sync = kCdSync},
              {},
              kCdReadyCallbackPointer,
              kCdCompletion),
