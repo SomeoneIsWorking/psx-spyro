@@ -17,13 +17,16 @@ namespace {
 // libetc VSync: a negative argument returns the field delta.
 constexpr std::uint32_t kVSync = 0x80058EDCu;
 
-// A negative VSync returns this guest vblank count (lw at 0x80058F40, ++ at 0x8005ACB0); docs/issues/0160.
+// A negative VSync returns this guest vblank count (lw at 0x80058F40, ++ at 0x8005ACB0);
+// docs/issues/0160.
 constexpr std::uint32_t kVSyncQueryCounter = 0x80066618u;
 
 // libcd CdCommand(com, parm, result).
 constexpr std::uint32_t kCdCommand = 0x80058858u;
 
-// CdControlB is native because its CD_sync wait never completes otherwise (docs/issues/0161).
+// CdControlB(com, param) is native because its CD_sync wait never completes otherwise
+// (docs/issues/0161). It has no result buffer: every CD_cw call passes a2 = 0 (0x80058A1C,
+// 0x80058A44, 0x80058A68).
 constexpr std::uint32_t kCdControlB = 0x80058994u;
 
 // libcd CdSync, polled until it reports CS_SELF.
@@ -68,11 +71,10 @@ Runtime::Runtime()
                .timeoutCheck = kGpuTimeoutCheck,
                .timeoutDeadlineWord = kGpuTimeoutDeadline,
                .timeoutFlagWord = kGpuTimeoutPollCount}),
-      libcd_(
-          {.read = kCdRead, .command = kCdCommand, .controlBlocking = kCdControlB, .sync = kCdSync},
-          {},
-          kCdReadyCallbackPointer,
-          kCdCompletion),
+      libcd_({.read = kCdRead, .command = kCdCommand, .controlFire = kCdControlB, .sync = kCdSync},
+             {},
+             kCdReadyCallbackPointer,
+             kCdCompletion),
       libgte_(kLibgte) {}
 
 void Runtime::registerOverrides(Game &game) {

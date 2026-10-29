@@ -1,10 +1,11 @@
 // Whether a sealed record is a cut, for the 60 fps in-between.
 //
 // A record is a cut when its scene is not the previous record's: another game state (the per-field
-// draw's switch operand) or another level, or, where the title names its camera machine, when the
-// camera was re-placed inside one scene. The Spyro 2/3 camera controllers (SCUS_944.25
-// FUN_8001FA58, SCUS_944.67 FUN_800144B4) place the camera only at three steps of the same mode
-// machine, each after the guest's own full-screen fade:
+// draw's switch operand, with the level-load state's fades over the field counted as the field) or
+// another level, or, where the title names its camera machine, when the camera was re-placed inside
+// one scene. The Spyro 2/3 camera controllers (SCUS_944.25 FUN_8001FA58, SCUS_944.67 FUN_800144B4)
+// place the camera only at three steps of the same mode machine, each after the guest's own
+// full-screen fade:
 //   mode 9    sub-state 0 -> 1 (bit 7 aside): the saved camera
 //   mode 0xB  sub-state 0 -> 1: the player and camera at the respawn position
 //   mode 10   sub-state 0 -> 1: the scripted camera begins, and
@@ -18,6 +19,7 @@
 // built it.
 #pragma once
 
+#include <array>
 #include <cstdint>
 #include <optional>
 
@@ -40,12 +42,23 @@ struct ScriptedCameraFacts {
   std::uint32_t angles = 0;
 };
 
+// The level-load state: it fades out over the field, loads behind black, and fades in over the
+// loaded field, which the field state then continues. Its draw draws the field scene at two of its
+// sub-states.
+struct LevelLoadFacts {
+  std::uint32_t gameState = 0;
+  std::uint32_t subState = 0;
+  std::uint32_t fieldGameState = 0;
+  std::array<std::uint32_t, 2> fieldSubStates{};
+};
+
 // The guest words a title's cut is read from. Spyro 1's camera machine is not read.
 struct FrameCutFacts {
   std::uint32_t gameState = 0;
   std::uint32_t levelId = 0;
   std::optional<CameraMachineWords> camera;
   std::optional<ScriptedCameraFacts> scriptedCamera;
+  std::optional<LevelLoadFacts> levelLoad;
 };
 
 // Owned by the title's frame driver, so a new session's first record is a cut.
@@ -75,6 +88,9 @@ private:
     std::int16_t angles[3]{};
   };
 
+  // The scene a walked game state shows: a level-load record drawing the field is the field state's
+  // scene.
+  [[nodiscard]] std::uint32_t sceneState(Core &core) const;
   // Whether the camera controller placed the camera between two samples of its mode machine.
   [[nodiscard]] static bool cameraPlaced(const CameraMachineWords &before,
                                          const CameraMachineWords &after);

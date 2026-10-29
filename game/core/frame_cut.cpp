@@ -45,16 +45,31 @@ bool FrameCut::sameShot(const ScriptedCamera &before, const ScriptedCamera &afte
     const std::int64_t step = std::int64_t{after.position[axis]} - before.position[axis];
     squared += step * step;
   }
-  auto turn = static_cast<std::int32_t>(static_cast<std::uint32_t>(after.angles[2] - before.angles[2]) & kAngleMask);
+  auto turn = static_cast<std::int32_t>(
+      static_cast<std::uint32_t>(after.angles[2] - before.angles[2]) & kAngleMask);
   if (turn > kAngleHalfTurn) {
     turn -= kAngleFullTurn;
   }
   return squared < kShotStepSquared && turn >= -kShotTurn && turn <= kShotTurn;
 }
 
+std::uint32_t FrameCut::sceneState(Core &core) const {
+  const std::uint32_t state = core.mem_r32(facts_.gameState);
+  if (!facts_.levelLoad || state != facts_.levelLoad->gameState) {
+    return state;
+  }
+  const std::uint32_t subState = core.mem_r32(facts_.levelLoad->subState);
+  for (const std::uint32_t field : facts_.levelLoad->fieldSubStates) {
+    if (subState == field) {
+      return facts_.levelLoad->fieldGameState;
+    }
+  }
+  return state;
+}
+
 void FrameCut::onFrameDrawn(Core &core) {
   walked_ = SceneIdentity{
-      .gameState = core.mem_r32(facts_.gameState),
+      .gameState = sceneState(core),
       .levelId = core.mem_r32(facts_.levelId),
   };
   if (facts_.camera) {
@@ -67,8 +82,10 @@ void FrameCut::onFrameDrawn(Core &core) {
   if (facts_.scriptedCamera && walked_->gameState == facts_.scriptedCamera->gameState) {
     ScriptedCamera shot;
     for (std::uint32_t axis = 0; axis < 3; ++axis) {
-      shot.position[axis] = static_cast<std::int32_t>(core.mem_r32(facts_.scriptedCamera->position + axis * 4));
-      shot.angles[axis] = static_cast<std::int16_t>(core.mem_r16(facts_.scriptedCamera->angles + axis * 2));
+      shot.position[axis] =
+          static_cast<std::int32_t>(core.mem_r32(facts_.scriptedCamera->position + axis * 4));
+      shot.angles[axis] =
+          static_cast<std::int16_t>(core.mem_r16(facts_.scriptedCamera->angles + axis * 2));
     }
     walkedShot_ = shot;
   }
@@ -81,7 +98,8 @@ void FrameCut::onFrameTail(Core &) {
     return;
   }
   const bool shotChanged = sealedShot_ && walkedShot_ && !sameShot(*sealedShot_, *walkedShot_);
-  cut_ = !sealed_.has_value() || *sealed_ != *walked_ || cameraPlaced(sealedCamera_, walkedCamera_) || shotChanged;
+  cut_ = !sealed_.has_value() || *sealed_ != *walked_ ||
+         cameraPlaced(sealedCamera_, walkedCamera_) || shotChanged;
   const ScriptedCamera shot = walkedShot_.value_or(ScriptedCamera{});
   lucent::debug("cut",
                 "cut={} state={} level={} camera={}/{} shot={} at=({}, {}, {}) angles=({}, {}, {})",
