@@ -19,7 +19,7 @@ inline constexpr std::uint32_t kCameraSubState = 0x8006E048u;
 // Level load: its draw FUN_8001DC5C draws the field (0x8001E460(0x3D), as state 0's FUN_8001D274)
 // at sub-states 0 and 4 and nothing at the black load steps between.
 inline constexpr spyro::LevelLoadFacts kLevelLoad{
-    .gameState = 3u, .subState = 0x8006FBC8u, .fieldGameState = 0u, .fieldSubStates = {0u, 4u}};
+    .gameState = 3u, .subState = kGameSubState, .fieldGameState = 0u, .fieldSubStates = {0u, 4u}};
 // The state whose overlay plays a cutscene's camera track (blend test at 0x80077E0C as loaded).
 inline constexpr std::uint32_t kCutsceneGameState = 6u;
 

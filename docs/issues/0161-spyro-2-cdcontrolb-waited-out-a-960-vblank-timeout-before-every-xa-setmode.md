@@ -1,6 +1,6 @@
 ---
 id: 161
-title: Spyro 2's retail CdControlB waited out libcd's 0x3C0-vblank deadline before every XA Setmode, freezing the title scene
+title: Spyro 2's retail CdControlF waited out libcd's 0x3C0-vblank deadline before every XA Setmode, freezing the title scene
 status: resolved
 symptom: guest stdout "CD timeout:" every ~570 steps and the title scene advancing one frame of animation per ~1000 steps
 tags: spyro2,cd,cdcontrol,timeout
@@ -10,7 +10,7 @@ updated: 2026-10-01
 
 ## Answer
 
-The game calls libcd CdControlB (`0x80058994`) at `0x800131B0` for Setmode `0xC8` (XA ADPCM). The retail body
+The game calls libcd CdControlF (`0x80058994`; named CdControlB here until issue 0219) at `0x800131B0` for Setmode `0xC8` (XA ADPCM). The retail body
 sends the command through `0x8005CB80` and waits in the sync routine `0x8005C900` for the guest status byte
 `0x800669DC` to reach Complete; that byte is raised by libcd's interrupt handler. With CdRead and CdCommand
 native nothing raises it, so the wait ran out its deadline (`VSync(-1) + 0x3C0`, `0x8005C95C`) and printed
