@@ -16,6 +16,10 @@ inline constexpr std::uint32_t kLevelId = 0x8006C5BCu;
 // Camera controller FUN_800144B4's mode and sub-state.
 inline constexpr std::uint32_t kCameraMode = 0x8006E044u;
 inline constexpr std::uint32_t kCameraSubState = 0x8006E048u;
+// Level load: its draw FUN_8001DC5C draws the field (0x8001E460(0x3D), as state 0's FUN_8001D274)
+// at sub-states 0 and 4 and nothing at the black load steps between.
+inline constexpr spyro::LevelLoadFacts kLevelLoad{
+    .gameState = 3u, .subState = 0x8006FBC8u, .fieldGameState = 0u, .fieldSubStates = {0u, 4u}};
 // The state whose overlay plays a cutscene's camera track (blend test at 0x80077E0C as loaded).
 inline constexpr std::uint32_t kCutsceneGameState = 6u;
 
@@ -50,6 +54,7 @@ inline constexpr spyro::BootPrefixFacts kBootPrefixFacts{
                     .position = kRenderGlobals.cameraPosition,
                     .angles = kRenderGlobals.cameraAngles,
                 },
+            .levelLoad = kLevelLoad,
         },
     .bootStepLimit = 1024,
 };

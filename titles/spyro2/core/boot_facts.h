@@ -16,6 +16,11 @@ inline constexpr std::uint32_t kCameraMode = 0x80067ED0u;
 inline constexpr std::uint32_t kCameraSubState = 0x80067ED4u;
 // The title screen's state.
 inline constexpr std::uint32_t kTitleScreenGameState = 11u;
+// Level load FUN_8001722C: sub-state 0 fades out, 1 loads behind black, 2 fades in, then state 0.
+// Its draw FUN_80014504 draws the field (0x800155A0(0x3D), as state 0's FUN_80013A14) at sub-states
+// 0 and 2.
+inline constexpr spyro::LevelLoadFacts kLevelLoad{
+    .gameState = 3u, .subState = 0x800698F0u, .fieldGameState = 0u, .fieldSubStates = {0u, 2u}};
 // The state whose overlay (0x800742F8) plays a cutscene's camera track.
 inline constexpr std::uint32_t kCutsceneGameState = 6u;
 
@@ -51,6 +56,7 @@ inline constexpr spyro::BootPrefixFacts kBootPrefixFacts{
                     .position = kRenderGlobals.cameraPosition,
                     .angles = kRenderGlobals.cameraAngles,
                 },
+            .levelLoad = kLevelLoad,
         },
 };
 
