@@ -54,6 +54,8 @@ constexpr std::uint32_t kRecord = 0x40;
 // Mesh header fields.
 constexpr std::uint32_t kMeshDetail = 0x02; // u16: centre shift (low), detail level (high)
 constexpr std::uint32_t kMeshOverlayDetail = 0x03;
+// u8 pair: the drawer counts with one or the other by the sign of its entry's first word.
+constexpr std::uint32_t kMeshVertexCounts = 0x04;
 constexpr std::uint32_t kMeshRadius = 0x07;    // u8, x16
 constexpr std::uint32_t kMeshSubSphere = 0x08; // packed i8 x, y, z and u8 radius, x8
 constexpr std::uint32_t kMeshTextures = 0x24;
@@ -476,6 +478,20 @@ MobyWalk::Step MobyWalk::finishEntry(const Candidate &candidate) {
 }
 
 } // namespace
+
+bool slotsShareLayout(Core &core,
+                      const Facts &facts,
+                      std::uint32_t meshIndex,
+                      std::uint32_t keyframes) {
+  const std::uint32_t slots = core.mem_r32(facts.meshSlotTable + meshIndex * 4);
+  if (asSigned(slots) > 0) {
+    return false;
+  }
+  const auto counts = [&](std::uint32_t slot) {
+    return core.mem_r16(core.mem_r32(slots + slot * 4 + kSlotMesh) + kMeshVertexCounts);
+  };
+  return counts(keyframes & 0xFFu) == counts((keyframes >> 8) & 0xFFu);
+}
 
 void walk(Core &core, const Facts &facts, const guest_render_globals::Globals &globals) {
   MobyWalk(core, facts, globals, presentedSlope(core)).run();

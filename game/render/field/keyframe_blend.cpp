@@ -46,10 +46,14 @@ bool samePair(const Pose &from, const Pose &to, Progress encoding) {
          step(to.progress, encoding) >= step(from.progress, encoding);
 }
 
-// The nearer end's frame byte (0 or 1) and its vertex-step byte (2 or 3): A before half way, B from it.
+// One end's bytes (0 or 1, and 2 or 3): 0 is A, 1 is B.
+std::array<std::uint32_t, 2> end(const Pose &pose, std::uint32_t which) {
+  return {(pose.keyframes >> (8 * which)) & 0xFFu, (pose.keyframes >> (16 + 8 * which)) & 0xFFu};
+}
+
+// The nearer end: A before half way, B from it.
 std::array<std::uint32_t, 2> nearer(const Pose &pose, Progress encoding) {
-  const std::uint32_t end = share(pose, encoding) < 0.5 ? 0u : 1u;
-  return {(pose.keyframes >> (8 * end)) & 0xFFu, (pose.keyframes >> (16 + 8 * end)) & 0xFFu};
+  return end(pose, share(pose, encoding) < 0.5 ? 0u : 1u);
 }
 
 } // namespace
@@ -75,11 +79,17 @@ Pose between(const Pose &from, const Pose &to, float t, Progress progress) {
 }
 
 Pose across(const Pose &from, const Pose &to, float t, Progress progress) {
-  const std::array<std::uint32_t, 2> a = nearer(from, progress);
+  const std::array<std::uint32_t, 2> a = end(from, 0);
   const std::array<std::uint32_t, 2> b = nearer(to, progress);
-  const std::uint32_t k = nearestStep(to, std::min(static_cast<double>(t), 1.0), progress);
-  return Pose{.keyframes = a[0] | (b[0] << 8) | (a[1] << 16) | (b[1] << 24),
-              .progress = static_cast<std::uint8_t>(k)};
+  // `from` already lies its share of the way off frame A, toward a frame B the switch replaced.
+  const double fromShare = share(from, progress);
+  const double shown = fromShare + (1.0 - fromShare) * static_cast<double>(t);
+  const std::uint32_t k =
+      std::min(nearestStep(to, shown, progress), steps(to.progress, progress) - 1);
+  return at(
+      Pose{.keyframes = a[0] | (b[0] << 8) | (a[1] << 16) | (b[1] << 24), .progress = to.progress},
+      k,
+      progress);
 }
 
 } // namespace spyro::keyframe_blend

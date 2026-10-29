@@ -134,15 +134,28 @@ std::uint32_t anglesBetween(std::uint32_t from, std::uint32_t to, float t) {
 
 // A record between two fields: its pose, and with both refining their angles by the flags'
 // fractions, at that precision.
-moby_record::Bytes
-recordBetween(const moby_record::Bytes &from, const moby_record::Bytes &to, float t) {
+moby_record::Bytes recordBetween(Core &core,
+                                 const guest_moby::Facts &walk,
+                                 const moby_record::Bytes &from,
+                                 const moby_record::Bytes &to,
+                                 float t) {
   moby_record::Bytes shown = moby_record::nearest(moby_record::between(from, to, t));
   const auto poseOf = [](const moby_record::Bytes &bytes) {
     return keyframe_blend::Pose{.keyframes =
                                     record_blend::load<std::uint32_t>(bytes, record::kKeyframes),
                                 .progress = bytes[record::kKeyProgress]};
   };
-  const keyframe_blend::Pose pose = keyframe_blend::between(poseOf(from), poseOf(to), t);
+  keyframe_blend::Pose pose = keyframe_blend::between(poseOf(from), poseOf(to), t);
+  if (!keyframe_blend::continues(poseOf(from), poseOf(to))) {
+    const keyframe_blend::Pose crossing =
+        keyframe_blend::across(poseOf(from), poseOf(to), t, keyframe_blend::kNibbleSteps);
+    if (guest_moby::slotsShareLayout(core,
+                                     walk,
+                                     record_blend::load<std::uint16_t>(to, moby_record::kMesh),
+                                     crossing.keyframes)) {
+      pose = crossing;
+    }
+  }
   record_blend::store(shown, record::kKeyframes, pose.keyframes);
   shown[record::kKeyProgress] = pose.progress;
   const auto flagsOf = [](const moby_record::Bytes &bytes) {
@@ -208,7 +221,8 @@ void writeInBetween(Core &core,
       if (!moby_record::sameObject(from.mobys[i], to.mobys[i])) {
         continue;
       }
-      const moby_record::Bytes shown = recordBetween(from.mobys[i], to.mobys[i], t);
+      const moby_record::Bytes shown =
+          recordBetween(core, image.moby, from.mobys[i], to.mobys[i], t);
       const std::uint32_t rec = to.mobyArray + static_cast<std::uint32_t>(i) * moby_record::kBytes;
       for (const std::uint32_t at : {moby_record::kX,
                                      moby_record::kY,
@@ -257,7 +271,8 @@ std::uint32_t topBin(Core &core, const guest_render_globals::Globals &globals) {
 // 0x80029170 links the sky one bin past the mark and advances the mark onto it; the redraw's sky
 // goes to the deeper of the two real fields' sky bins, behind the far terrain of both.
 void placeSky(History &history, std::uint32_t skyBin) {
-  // The waiting redraws are history's; the header bytes are the last save's until saveRedraws writes them.
+  // The waiting redraws are history's; the header bytes are the last save's until saveRedraws
+  // writes them.
   std::size_t at = sizeof(Header);
   for (std::uint32_t field = 1; history.redrawn && field < history.fields; ++field) {
     std::uint32_t count = 0;

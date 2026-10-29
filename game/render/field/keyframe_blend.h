@@ -29,8 +29,8 @@ inline constexpr Progress kNibbleSteps{};
 [[nodiscard]] Pose
 between(const Pose &from, const Pose &to, float t, Progress progress = kNibbleSteps);
 
-// Across an animation switch, which `to` does not continue: `from`'s nearer frame as A, `to`'s as
-// B, at the step nearest `t`. Fixed-step progress only.
+// Across an animation switch, which `to` does not continue: `from`'s frame A as A, `to`'s nearer
+// frame as B, at `from`'s share carried `t` of the rest of the way, in `to`'s step count.
 [[nodiscard]] Pose across(const Pose &from, const Pose &to, float t, Progress progress);
 
 } // namespace spyro::keyframe_blend

@@ -82,4 +82,9 @@ struct Facts {
 // Run one call of the walk against this image.
 void walk(Core &core, const Facts &facts, const guest_render_globals::Globals &globals);
 
+// The record's mesh in slots A and B of `keyframes` is resident and counts the same vertices: the
+// drawer (SCUS_944.25 80044504) walks frame B's stream with slot A's count.
+[[nodiscard]] bool
+slotsShareLayout(Core &core, const Facts &facts, std::uint32_t meshIndex, std::uint32_t keyframes);
+
 } // namespace spyro::guest_moby
