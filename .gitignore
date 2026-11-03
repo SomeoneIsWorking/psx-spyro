@@ -14,7 +14,6 @@ generated/
 # The framework submodule's own working-tree noise
 external/psxport/build/
 external/psxport/scratch/
-psxport_settings.ini
 *.log
 
 # The framework. Not tracked: either a symlink to the workspace shared clone (local) or a
