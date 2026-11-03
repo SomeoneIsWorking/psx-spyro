@@ -7,24 +7,9 @@
 
 #include <lucent/log.h>
 
-#include <cstddef>
 #include <optional>
 
 namespace spyro {
-namespace {
-
-// Too few texels means the draws were not the wordmark yet; an empty panel would be kept for its
-// whole life.
-bool holdsArtwork(const psx::host::LogoImage &image) {
-  std::size_t visible = 0;
-  for (std::size_t at = 3; at < image.rgba.size(); at += 4) {
-    visible += image.rgba[at] != 0 ? 1 : 0;
-  }
-  return visible * 50 >= static_cast<std::size_t>(image.width) * image.height;
-}
-
-} // namespace
-
 // The block's tick outlives the title screen (a demo leaves it set), so the game state comes first.
 // A null block pointer means the title has not reached its overlay, which is not a failure.
 bool titleLogoGateOpen(Core &core, const TitleLogoFacts &facts) {
@@ -54,7 +39,7 @@ std::optional<psx::host::LogoImage> extractPanelLogo(Core &core, const TitleLogo
   }
   std::optional<psx::host::LogoImage> image = psx::present::drawnLogo(
       core.game->presentation.currentRecord(), core.gpuDevice().vram(), facts.textures);
-  if (!image || !holdsArtwork(*image)) {
+  if (!image) {
     return std::nullopt;
   }
   lucent::info("picker",
