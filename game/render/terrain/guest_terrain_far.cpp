@@ -104,8 +104,12 @@ void FarPass::run() {
   bufferEnd_ = frame_.primitiveLimit();
   markBin_ = frame_.markBinFrom(memory_.mem_r32(frame_.globals.orderingTableMark));
   for (std::uint32_t i = 0; i < camera_.size(); ++i) {
-    camera_[i] = frame_.positionWord(i) >> 4;
+    camera_[i] = frame_.positionWord(i) >> guest_render_globals::kFarViewShift;
   }
+  // Its view depths are the near pass's divided by this.
+  const psx::cpu::DepthUnit unit(core_.gte(),
+                                 static_cast<float>(1u << (guest_render_globals::kFarViewShift -
+                                                           guest_render_globals::kNearViewShift)));
   std::uint32_t list = frame_.scratch + kFarList;
   for (;;) {
     const std::uint32_t word = memory_.mem_r32(list);

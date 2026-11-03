@@ -27,6 +27,13 @@ struct Globals {
   std::uint32_t visibilityGroups = 0; // one byte per terrain sector
 };
 
+// View units: the near terrain pass and the moby walk work in world units >> kNearViewShift (the camera word at
+// 80024534, each moby's offset at 800439F4), the far pass in world units >> kFarViewShift (80028B14).
+inline constexpr std::uint32_t kNearViewShift = 2;
+inline constexpr std::uint32_t kFarViewShift = 4;
+// An ordering-table bin is a polygon's mean near view depth >> kDepthBinShift (terrain polygonBin, moby depthBin).
+inline constexpr std::uint32_t kDepthBinShift = 5;
+
 // A quarter turn of 256 halfword sine entries.
 inline constexpr std::uint32_t kCosineOffset = 0x80u;
 

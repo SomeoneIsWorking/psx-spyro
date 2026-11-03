@@ -102,6 +102,8 @@ protected:
   std::uint32_t weight_ = 0;    // s4: the blend toward the partner frame
   std::uint32_t halfShift_ = 0; // s5: the halfword deltas' scale
   float depthUnit_ = 1.0f;      // terrain view depth per SZ unit of this entry's scaled translation
+  std::uint32_t sortedNearer_ =
+      0; // ordering-table bins the guest sorts this entry nearer than its centre
   // The vertex loop.
   std::uint32_t words_ = 0;         // v0
   std::uint32_t halves_ = 0;        // at

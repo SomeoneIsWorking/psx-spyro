@@ -6,6 +6,8 @@
 #include "spyro1/core/effect/flame_block.h"
 #include "spyro1/render/paired_actor_layout.h"
 
+#include <cmath>
+
 namespace spyro1::actors {
 
 using namespace paired;
@@ -30,9 +32,8 @@ Frame frameOf(const psx::present::EmitMemory &memory, std::uint32_t slot) {
 }
 
 // 80023B78..80023B98 and its part 1/2 forms: where a part's three streams start.
-std::array<std::uint32_t, 3> streamsOf(const psx::present::EmitMemory &memory,
-                                       std::uint32_t part,
-                                       const Frame &frame) {
+std::array<std::uint32_t, 3>
+streamsOf(const psx::present::EmitMemory &memory, std::uint32_t part, const Frame &frame) {
   const std::uint32_t first = frame.base + kFrameStreams;
   const std::uint32_t offsets = memory.mem_r32(frame.base + kFrameByteOffsets);
   std::uint32_t words = memory.mem_r32(frame.header + kAnimationWords);
@@ -57,13 +58,17 @@ PairedActor::PairedActor(Core &core, const psx::present::EmitMemory &memory)
     : core_(core), memory_(memory), bins_(memory) {}
 
 bool PairedActor::draw() {
-  // Spyro's centre is in world units, four times the terrain's view depth unit (its bin is depth >> 7, theirs >> 5).
-  const psx::cpu::DepthUnit unit(core_.gte(), 0.25f);
   stageParts();
   const Offsets offsets = blendOffsets();
   if (!placeCentre()) {
     return false;
   }
+  // The centre is world minus camera, in world units; the terrain views the camera word >>
+  // kNearViewShift.
+  const psx::cpu::DepthUnit unit(
+      core_.gte(),
+      std::ldexp(1.0f, -static_cast<int>(spyro::guest_render_globals::kNearViewShift)),
+      static_cast<float>(sortedNearer_ << spyro::guest_render_globals::kDepthBinShift));
   orientParts(offsets);
   projectParts();
   if (waterLevel_ != 0) {
@@ -93,7 +98,8 @@ void PairedActor::stageParts() {
   for (std::uint32_t part = 0; part < kParts; ++part) {
     const std::uint32_t entry = kPartTable + part * kPartBytes;
     const std::uint32_t blend =
-        static_cast<std::uint32_t>(memory_.mem_r8(kSpyroRecord + spyro_record::kBlends + part)) << 8;
+        static_cast<std::uint32_t>(memory_.mem_r8(kSpyroRecord + spyro_record::kBlends + part))
+        << 8;
     const Frame frame = frameOf(memory_, 2 * part);
     std::uint32_t flags =
         ((frame.word >> (9 + part)) & kPlainHalves) + blend +
@@ -184,10 +190,12 @@ bool PairedActor::placeCentre() {
       asSigned(reach - v0_) <= 0 || asSigned(reach + v0_) <= 0) {
     return false;
   }
-  std::uint32_t bias = sra(v1_, 7) - memory_.mem_r8(kSpyroRecord + spyro_record::kDepthBias);
+  const std::uint32_t bin = sra(v1_, 7);
+  std::uint32_t bias = bin - memory_.mem_r8(kSpyroRecord + spyro_record::kDepthBias);
   if (asSigned(bias) < 0) {
     bias = 0;
   }
+  sortedNearer_ = bin - bias;
   if (asSigned(partnerDepthShift_ - depthShift_) < 0) {
     partnerDepthShift_ = depthShift_;
   }
@@ -234,7 +242,7 @@ void PairedActor::orientParts(const Offsets &offsets) {
   for (std::uint32_t i = 0; i < 3; ++i) {
     memory_.mem_w32(kPartTable + kPartBytes + part_entry::kTranslation + 4 * i, translation[i]);
     memory_.mem_w32(kPartTable + 2 * kPartBytes + part_entry::kTranslation + 4 * i,
-                gte.readData(gte::kIr1 + i));
+                    gte.readData(gte::kIr1 + i));
   }
 
   const std::array<std::uint32_t, 5> body = rotation_;
@@ -290,7 +298,8 @@ void PairedActor::rotate(std::uint32_t angles) {
     return static_cast<std::uint32_t>(memory_.mem_r16(kRenderGlobals.cameraSineTable + index));
   };
   const auto cosine = [this](std::uint32_t index) {
-    return static_cast<std::uint32_t>(memory_.mem_r16(kRenderGlobals.cameraSineTable + spyro::guest_render_globals::kCosineOffset + index));
+    return static_cast<std::uint32_t>(memory_.mem_r16(
+        kRenderGlobals.cameraSineTable + spyro::guest_render_globals::kCosineOffset + index));
   };
 
   if (const std::uint32_t index = (angles >> 15) & 0x1FEu; index != 0) {

@@ -2,6 +2,7 @@
 
 #include "core.h"
 #include "gte_registers.h"
+#include "render/field/guest_render_globals.h"
 #include "render/terrain/guest_terrain_fog.h"
 #include "spyro1/render/actor_emitter_layout.h"
 
@@ -31,7 +32,10 @@ bool ActorEmitter::draw(std::uint32_t entry) {
   if (!place()) {
     return false;
   }
-  const psx::cpu::DepthUnit unit(core_.gte(), depthUnit_);
+  const psx::cpu::DepthUnit unit(
+      core_.gte(),
+      depthUnit_,
+      static_cast<float>(sortedNearer_ << spyro::guest_render_globals::kDepthBinShift));
   patchNear();
   const std::uint32_t sign = core_.gte().readControl(gte::kZsf4) >> 31;
   const std::uint32_t count = memory_.mem_r8(frame_ + frame::kVertexCounts + sign);
@@ -65,22 +69,25 @@ bool ActorEmitter::place() {
   const std::uint32_t viewZ = memory_.mem_r32(entry_ + entry::kView + 8);
   const std::uint32_t viewY = memory_.mem_r32(entry_ + entry::kView + 4);
   const std::uint32_t viewX = memory_.mem_r32(entry_ + entry::kView);
-  std::uint32_t depthBin = sra(viewZ, 5) - zStep;
+  const std::uint32_t viewBin = sra(viewZ, spyro::guest_render_globals::kDepthBinShift);
+  std::uint32_t depthBin = viewBin - zStep;
   if (asSigned(depthBin) < 0) {
     depthBin = 0;
   }
+  sortedNearer_ = viewBin - depthBin;
   const std::uint32_t positionShift = memory_.mem_r8(frame_ + frame::kPositionShift);
   if (asSigned(depthBin - 0x110u) >= 0) {
     depthBin += 0x20;
   }
   const std::uint32_t binShift = (flags_ >> 24) & 0x1Fu;
-  std::uint32_t x = sra(viewX << 2, positionShift & 31u);
-  std::uint32_t y = sra(viewY << 2, positionShift & 31u);
-  std::uint32_t z = sra(viewZ << 2, positionShift & 31u);
+  std::uint32_t x = sra(viewX << spyro::guest_render_globals::kNearViewShift, positionShift & 31u);
+  std::uint32_t y = sra(viewY << spyro::guest_render_globals::kNearViewShift, positionShift & 31u);
+  std::uint32_t z = sra(viewZ << spyro::guest_render_globals::kNearViewShift, positionShift & 31u);
   const std::uint32_t scale = flags_ & 0xFFu;
-  // TR is the view position times 4 >> positionShift, then times scale / 32 when scaled.
+  // TR is the near view back in world units >> positionShift, then times scale / 32 when scaled.
   depthUnit_ = std::ldexp(scale != 0 ? 32.0f / static_cast<float>(scale) : 1.0f,
-                          static_cast<int>(positionShift & 31u) - 2);
+                          static_cast<int>(positionShift & 31u) -
+                              static_cast<int>(spyro::guest_render_globals::kNearViewShift));
   halfShift_ = memory_.mem_r8(frame_ + frame::kHalfShift);
   if (scale != 0) {
     gte.writeData(gte::kIr0, scale);

@@ -99,9 +99,9 @@ void DetailPass::run() {
   frame_.fineSplitCursor = frame_.scratch + kFineSplitList;
   frame_.coarseSplitCursor = frame_.scratch + kCoarseSplitList;
   frame_.textures = memory_.mem_r32(frame_.facts.detail.textureTable);
-  const std::uint32_t x = frame_.positionWord(0) >> 2;
-  frame_.v0 = frame_.positionWord(1) >> 2;
-  frame_.v1 = frame_.positionWord(2) >> 2;
+  const std::uint32_t x = frame_.positionWord(0) >> guest_render_globals::kNearViewShift;
+  frame_.v0 = frame_.positionWord(1) >> guest_render_globals::kNearViewShift;
+  frame_.v1 = frame_.positionWord(2) >> guest_render_globals::kNearViewShift;
   core_.gte().writeControl(gte::kLight0, x);
   core_.gte().writeControl(gte::kLight1, frame_.v0);
   core_.gte().writeControl(gte::kLight2, frame_.v1);

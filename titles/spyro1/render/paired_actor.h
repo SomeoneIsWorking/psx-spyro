@@ -98,6 +98,8 @@ private:
   // Retail's registers that outlive one step.
   std::uint32_t v0_ = 0;
   std::uint32_t v1_ = 0;
+  // Ordering-table bins the guest sorts Spyro nearer than his centre.
+  std::uint32_t sortedNearer_ = 0;
   std::uint32_t model_ = 0;                           // fp
   std::uint32_t header_ = 0;                          // part 0's animation header, parked in HI
   std::uint32_t blend_ = 0;                           // t6: part 0's weight << 8

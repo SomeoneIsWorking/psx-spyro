@@ -41,8 +41,7 @@ FieldWindows TerrainImage::windows(Core &core) const {
 
 spyro::guest_camera::Matrices
 TerrainImage::camera(Core &core, const spyro::guest_camera::Angles &angles) const {
-  return CameraBuilder(core, kRenderGlobals.cameraSineTable)
-      .build(angles);
+  return CameraBuilder(core, kRenderGlobals.cameraSineTable).build(angles);
 }
 
 void TerrainImage::drawPasses(spyro::guest_terrain::TerrainFrame &frame) const {
@@ -77,7 +76,7 @@ void registerOverrides(Core &core) {
       drawTerrain,
       std::make_unique<spyro::guest_terrain::TerrainStateProducer>(core, kTerrainImage),
       psx::present::Arg::None);
-  core.depthTest.mark(kSharedFacts.entry);
+  core.depthTest.mark(kSharedFacts.entry, psx::present::DepthOrder::Polygon);
 }
 
 } // namespace spyro1::terrain

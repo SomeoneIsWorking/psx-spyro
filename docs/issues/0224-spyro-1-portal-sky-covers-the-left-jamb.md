@@ -11,7 +11,9 @@ jamb steady.
 `gate-teleport 0 0` in Artisans: in the record path at judgement settings (`scratch/depth/runs/toasty`) and in the device
 path (`toasty-dev`) the portal sky covers the left inner jamb when the camera is left of the portal's centre. Depth on and
 off draw it the same (`toasty-on/cmp0.png`): the portal sky is not a marked producer and the jamb is drawn before it, so
-this is not painter's order between world meshes. The jamb face is back-facing from that side, so the cover may be
+this is not painter's order between world meshes. At 4:3, ires 1, depth off, the record and device VRAM of one
+portal frame from the same run (`scratch/depth/runs/recdev`) differ in 1,252 of 122,880 pixels by more than 8 levels,
+scattered along edges, and match in the portal sky: the cover is the guest's own draw, not a record divergence. The jamb face is back-facing from that side, so the cover may be
 retail's; it is not yet compared against a frame where the report saw it whole.
 
 ## Next

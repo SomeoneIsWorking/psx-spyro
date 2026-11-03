@@ -1,6 +1,6 @@
 # 0222 — Spyro 1: world meshes overlap in painter's order at high resolution
 
-Status: open (2026-11-03): native depth landed, the report's own screen not yet shown. Owner: psxport native depth
+Status: open (2026-11-03): native depth landed, default off (issue 0223); the report's own screen not yet shown. Owner: psxport native depth
 (`docs/presentation.md` Depth); Spyro 1 marks `terrain_image.cpp`, `actor_emitter_producer.cpp` and
 `paired_actor_producer.cpp`.
 
@@ -17,13 +17,15 @@ z >> 7). A polygon that straddles the bucket of a nearer model is drawn over it 
 ## Fix
 Native depth: the GTE place keeps each projection's view depth; Spyro 1's terrain, moby and Spyro producers are marked
 opaque world 3D and depth-test against each other, everything else keeps slot order. The moby and Spyro draws name
-their depth unit (`DepthUnit`): moby translation is view z * 4 >> position shift (* scale / 32), Spyro's is world units
-(4x the terrain's, from the two bin shifts). Without the unit Spyro (z 2000-2700 against the floor's 500-900 at the
-same pixels) vanished behind the terrain.
+their depth unit (`DepthUnit`), derived from each site's transform against the terrain's (`kNearViewShift`,
+`kDepthBinShift` in `guest_render_globals.h`): a moby's is its position shift less the terrain's view shift, Spyro's
+centre is world units (2^-kNearViewShift), the far pass is 2^(kFarViewShift-kNearViewShift). Each also takes the
+guest's own sort bias (`sortedNearer_`, in bins) as a nearer offset, so what retail sorts in front stays in front.
+Every guest store forgets the vertex depth of the words it writes (`Core::bookStore`), so no draw inherits one.
 
 ## Proof so far
 `scratch/depth/runs/toasty-on` vs `toasty-off` (Artisans, `gate-teleport 0 0`, ires 8x, 16:9, depth on vs
-`PSXPORT_DEPTH=0`): Spyro, Sparx's glow and his shadow are the same, and the rock wall meets the floor along its real
+`PSXPORT_DEPTH=0`): Spyro, Sparx's glow and his shadow are the same (rerun `rtoasty-d1`/`rtoasty-d0`: zero differing pixels over Spyro), and the rock wall meets the floor along its real
 intersection instead of its slot-order overlap (`toasty-on/left_crop.png`). Stone Hill is reached with `warp 11`
 (`stone-on/grid.png`), but the ledge corner needs Spyro placed there; the report replay does not reach it (issue 0225).
 
