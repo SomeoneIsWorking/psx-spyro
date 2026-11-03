@@ -71,6 +71,30 @@ constexpr std::uint32_t kNegativeTextureBits = 0xFC000000u;
 using spyro::guest_word::asSigned;
 using spyro::guest_word::asWord;
 
+// A mesh's slot array and a record's packed selector word (slot A, slot B, frame A, frame B).
+struct MeshSlots {
+  std::uint32_t slots = 0;
+  std::uint32_t packed = 0;
+  // The array is resident: its word is a pointer, not a load request.
+  [[nodiscard]] bool resident() const {
+    return asSigned(slots) <= 0;
+  }
+  [[nodiscard]] std::uint32_t slot() const {
+    return (packed & 0xFFu) * 4 + slots;
+  }
+  [[nodiscard]] std::uint32_t slotB() const {
+    return ((packed >> 6) & 0x3FCu) + slots;
+  }
+};
+
+MeshSlots meshSlots(Core &core, const Facts &facts, std::uint32_t meshIndex, std::uint32_t packed) {
+  return MeshSlots{.slots = core.mem_r32(facts.meshSlotTable + meshIndex * 4), .packed = packed};
+}
+
+std::uint32_t slotMesh(Core &core, std::uint32_t slot) {
+  return core.mem_r32(slot + kSlotMesh);
+}
+
 class MobyWalk {
 public:
   MobyWalk(Core &core,
@@ -85,15 +109,6 @@ private:
   enum class Step : std::uint8_t {
     Next,
     End,
-  };
-
-  // The record's mesh slot array and its packed selector word.
-  struct MeshSlots {
-    std::uint32_t slots = 0;
-    std::uint32_t packed = 0;
-    [[nodiscard]] std::uint32_t slot() const {
-      return (packed & 0xFFu) * 4 + slots;
-    }
   };
 
   // One deferred-buffer slot: the record and the words retail stores after it.
@@ -120,7 +135,7 @@ private:
   };
 
   Step visit(std::uint32_t rec);
-  MeshSlots meshSlots(std::uint32_t rec);
+  MeshSlots slotsOf(std::uint32_t rec);
   void defer(const Deferred &deferred);
   Step drawCandidate(std::uint32_t rec,
                      const CameraOffset &offset,
@@ -193,7 +208,7 @@ MobyWalk::Step MobyWalk::visit(std::uint32_t rec) {
     }
     const std::uint32_t z = core_.mem_r32(rec + moby_record::kZ);
     v1_ = z;
-    const MeshSlots mesh = meshSlots(rec);
+    const MeshSlots mesh = slotsOf(rec);
     defer({.rec = rec,
            .x = core_.mem_r32(rec + moby_record::kX),
            .y = core_.mem_r32(rec + moby_record::kY),
@@ -225,8 +240,8 @@ MobyWalk::Step MobyWalk::visit(std::uint32_t rec) {
   if (group < 0xFE && core_.mem_r8(globals_.visibilityGroups + group) == 0) {
     return Step::Next;
   }
-  const MeshSlots mesh = meshSlots(rec);
-  if (asSigned(mesh.slots) > 0) {
+  const MeshSlots mesh = slotsOf(rec);
+  if (!mesh.resident()) {
     // The mesh is not resident: its slot word is not a pointer. Hand the moby on with its
     // camera-relative centre and reach instead of drawing it.
     defer({.rec = rec,
@@ -239,12 +254,9 @@ MobyWalk::Step MobyWalk::visit(std::uint32_t rec) {
   return drawCandidate(rec, {.dx = dx, .dy = dy, .dz = dz}, drawDistance, mesh);
 }
 
-MobyWalk::MeshSlots MobyWalk::meshSlots(std::uint32_t rec) {
-  const std::uint32_t index = core_.mem_r16(rec + moby_record::kMesh);
-  return MeshSlots{
-      .slots = core_.mem_r32(facts_.meshSlotTable + index * 4),
-      .packed = core_.mem_r32(rec + record::kKeyframes),
-  };
+MeshSlots MobyWalk::slotsOf(std::uint32_t rec) {
+  return meshSlots(
+      core_, facts_, core_.mem_r16(rec + moby_record::kMesh), core_.mem_r32(rec + record::kKeyframes));
 }
 
 // SCUS_944.25 8004415C..80044194. The record pointer is stored even when the buffer is full; the
@@ -269,7 +281,7 @@ MobyWalk::Step MobyWalk::drawCandidate(std::uint32_t rec,
                                        std::int32_t drawDistance,
                                        const MeshSlots &slots) {
   const Candidate candidate{
-      .rec = rec, .mesh = core_.mem_r32(slots.slot() + kSlotMesh), .slots = slots};
+      .rec = rec, .mesh = slotMesh(core_, slots.slot()), .slots = slots};
   const std::uint32_t mesh = candidate.mesh;
   core_.gte().loadRotation(camera_);
   const std::uint32_t radius = static_cast<std::uint32_t>(core_.mem_r8(mesh + kMeshRadius)) << 4;
@@ -404,8 +416,7 @@ MobyWalk::Step MobyWalk::finishEntry(const Candidate &candidate) {
   const std::uint32_t shift = detailWord & 0xFFu;
   std::uint32_t detail = detailWord >> 8;
   if (overlay != 0) {
-    const std::uint32_t overlayMesh =
-        core_.mem_r32(((slots.packed >> 6) & 0x3FCu) + slots.slots + kSlotMesh);
+    const std::uint32_t overlayMesh = slotMesh(core_, slots.slotB());
     const std::uint32_t overlayDetail = core_.mem_r8(overlayMesh + kMeshOverlayDetail);
     const std::uint32_t overlayTexture =
         core_.mem_r32(((slots.packed >> 21) & 0x7F8u) + overlayMesh + kMeshTextures);
@@ -483,14 +494,14 @@ bool slotsShareLayout(Core &core,
                       const Facts &facts,
                       std::uint32_t meshIndex,
                       std::uint32_t keyframes) {
-  const std::uint32_t slots = core.mem_r32(facts.meshSlotTable + meshIndex * 4);
-  if (asSigned(slots) > 0) {
+  const MeshSlots slots = meshSlots(core, facts, meshIndex, keyframes);
+  if (!slots.resident()) {
     return false;
   }
   const auto counts = [&](std::uint32_t slot) {
-    return core.mem_r16(core.mem_r32(slots + slot * 4 + kSlotMesh) + kMeshVertexCounts);
+    return core.mem_r16(slotMesh(core, slot) + kMeshVertexCounts);
   };
-  return counts(keyframes & 0xFFu) == counts((keyframes >> 8) & 0xFFu);
+  return counts(slots.slot()) == counts(slots.slotB());
 }
 
 void walk(Core &core, const Facts &facts, const guest_render_globals::Globals &globals) {
