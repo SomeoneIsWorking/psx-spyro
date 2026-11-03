@@ -16,5 +16,5 @@ so a load that overwrites level data inside one present interval is a candidate 
 Find which drawer reads miss the saved set (the reads overlay in `terrain_state_producer.cpp`) and record them with
 the frame, so a rebuild never reads live memory. A first try that overlaid the previous frame's reads did not cover
 them and was reverted. The warp no longer takes this load (issue 0227);
-the game's own `0x80019230(0)` from play is the credits cheat's return (`0x8001A9B0`), which reproduces it with a turn
-and preseq pending.
+the game's own `0x80019230(0)` from play is the credits cheat's return (`0x8001A9B0`), the player's route into the same load;
+not yet run with in-betweens pending.
