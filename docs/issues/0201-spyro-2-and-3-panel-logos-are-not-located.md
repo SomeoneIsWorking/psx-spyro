@@ -45,3 +45,15 @@ game state 11 with title state byte 1 (`0x8007F12C`). Spyro 1 moved to the same 
 its sprite-record snapshot was deleted. Shown in `scratch/picker2/logos2` (255x96, 191x75, 256x129) and
 `scratch/picker2/cold/open8.png`: a fresh selector draws the saved Spyro 2 and 3 logos on their never-focused
 panels (`steps=0 insns=0`).
+
+## Review fixes (2026-11-03, picker3)
+
+- Spyro 3's gate opened on the Insomniac credit: title state byte 1 also runs the credit, at step byte 0
+  (`0x8007F12E`); the logo is up at step 1. The gate reads both bytes (`kTitleStepLogoUp`); a gate on byte 1 alone
+  saved a 191x3 strip of credit art (`scratch/picker3/p3`, `p4/sheet.png`).
+- Spyro 1's gate was `m_CurrentTick >= 1170`, which also holds while sub-state 2 slides the logo in
+  (`TitlescreenDraw`); it is now `m_Mode` TSM_Init with `m_SubState` 3, the logo at rest, the same state warp's
+  `titleScreenIdle` waits for, which now asks the gate.
+- The logos are drawn by gpu.c (psxport `drawnLogo` on a scratch device). `scratch/picker3/r2`: read fresh 255x120,
+  255x94, 190x74 on their title screens; `r4/sheet.png`: the next process draws all three from its first frame at
+  one texel scale on the unfocused panels.

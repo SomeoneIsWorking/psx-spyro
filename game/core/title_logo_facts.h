@@ -10,16 +10,14 @@
 
 namespace spyro {
 
-// The title screen's own gate: the game is in its title-screen state and, per title, the overlay
-// block's tick has reached the logo (Spyro 1: `m_CurrentTick >= 1170`) or a title-screen sub-state
-// word holds a value.
+// The title screen's own gate: the game is in its title-screen state and its screen waits for input with
+// the finished wordmark up (a sub-state word, and per title the screen's mode word).
 struct TitleLogoGate {
   std::uint32_t gameStateGlobal = 0;  // the guest word holding the game state
   std::uint32_t titleScreenState = 0; // its value while the title screen runs
-  std::uint32_t pointerGlobal = 0;    // the guest word that HOLDS the block pointer (0: no block)
-  std::uint32_t tickOffset = 0;       // the tick's offset inside that block
-  std::uint32_t tickValue = 0;        // the tick at which the logo is up
-  std::uint32_t subStateGlobal = 0;   // a title-screen sub-state word (0: none)
+  std::uint32_t modeGlobal = 0;       // the title screen's mode word (0: none)
+  std::uint32_t modeValue = 0;        // its value while the screen waits for input
+  std::uint32_t subStateGlobal = 0;   // the title screen's sub-state word
   std::uint32_t subStateMask = 0xFFFFFFFFu; // the bits of that word the sub-state uses
   std::uint32_t subStateValue = 0;          // their value while the logo stands still
 };

@@ -11,6 +11,13 @@ namespace spyro3 {
 inline constexpr std::uint32_t kGameState = 0x8006E344u;
 // The title screen's state.
 inline constexpr std::uint32_t kTitleScreenGameState = 11u;
+// Title image data, resident whenever the game state is the title's: the state byte and its step
+// byte. State 1 runs the Insomniac credit at step 0 and holds the finished logo while "press start"
+// waits at step 1.
+inline constexpr std::uint32_t kTitleState = 0x8007F12Cu;
+inline constexpr std::uint32_t kTitleStep = 0x8007F12Eu;
+inline constexpr std::uint8_t kTitleWaiting = 1u;
+inline constexpr std::uint8_t kTitleStepLogoUp = 1u;
 // The level FUN_800584BC stores at 0x80058718.
 inline constexpr std::uint32_t kLevelId = 0x8006C5BCu;
 // Camera controller FUN_800144B4's mode and sub-state.

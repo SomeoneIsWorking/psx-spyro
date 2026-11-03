@@ -10,25 +10,15 @@
 #include <optional>
 
 namespace spyro {
-// The block's tick outlives the title screen (a demo leaves it set), so the game state comes first.
-// A null block pointer means the title has not reached its overlay, which is not a failure.
 bool titleLogoGateOpen(Core &core, const TitleLogoFacts &facts) {
-  if (facts.textures.empty() ||
-      core.mem_r32(facts.gate.gameStateGlobal) != facts.gate.titleScreenState) {
+  const TitleLogoGate &gate = facts.gate;
+  if (facts.textures.empty() || core.mem_r32(gate.gameStateGlobal) != gate.titleScreenState) {
     return false;
   }
-  if (facts.gate.subStateGlobal != 0 && (core.mem_r32(facts.gate.subStateGlobal) &
-                                         facts.gate.subStateMask) != facts.gate.subStateValue) {
+  if (gate.modeGlobal != 0 && core.mem_r32(gate.modeGlobal) != gate.modeValue) {
     return false;
   }
-  if (facts.gate.pointerGlobal == 0) {
-    return true;
-  }
-  const std::uint32_t block = core.mem_r32(facts.gate.pointerGlobal);
-  if (block == 0) {
-    return false;
-  }
-  return core.mem_r32(block + facts.gate.tickOffset) >= facts.gate.tickValue;
+  return (core.mem_r32(gate.subStateGlobal) & gate.subStateMask) == gate.subStateValue;
 }
 
 std::optional<psx::host::LogoImage> extractPanelLogo(Core &core, const TitleLogoFacts &facts) {

@@ -12,13 +12,17 @@ namespace spyro1 {
 inline constexpr std::array<psx::present::LogoTexture, 1> kLogoTextures{
     {{.page = {.x = 512, .y = 256}}}};
 
-// The overlay draws the logo from m_CurrentTick 1169 (titlescreen.c:100-157).
+// Sub-state 3 of mode TSM_Init draws the logo at rest and waits for input; sub-state 2 slides it in
+// (titlescreen.c TitlescreenDraw).
+inline constexpr std::uint32_t kTitlescreenWaiting = 3u;
+
 inline constexpr spyro::TitleLogoFacts kLogoFacts{
     .gate = {.gameStateGlobal = guest::kGamestate,
              .titleScreenState = guest::kGamestateTitleScreen,
-             .pointerGlobal = guest::kCutsceneLayout,
-             .tickOffset = guest::kCutsceneLayoutCurrentTick,
-             .tickValue = 1170u},
+             .modeGlobal = guest::kTitlescreenMode,
+             .modeValue = guest::kTitleModeInit,
+             .subStateGlobal = guest::kTitlescreenSubState,
+             .subStateValue = kTitlescreenWaiting},
     .textures = kLogoTextures,
 };
 
