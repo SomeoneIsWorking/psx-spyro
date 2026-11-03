@@ -39,7 +39,7 @@ def launch(prepare_only: bool) -> None:
     if prepare_only:
         launcher.say(f"built and ready; titles provisioned: {', '.join(spec.slug for spec in discs)}")
         return
-    env = player_environment(os.environ, product="spyro", settings=ROOT / "tools" / "shipping_settings.ini")
+    env = player_environment(os.environ, product="spyro")
     env.setdefault("PSXPORT_DEBUG_SERVER", "1")
     env.setdefault("PSXPORT_FULLSCREEN", "1")
     for spec, disc in discs.items():

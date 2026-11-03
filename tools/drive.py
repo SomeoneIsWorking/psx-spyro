@@ -34,7 +34,7 @@ from title_states import GAMESTATE_NAMES, GAMESTATE_PRESENTATION, GS_EXIT_LEVEL,
 
 # The agent build every driver launches unless told otherwise.
 EXECUTABLE = ROOT / "build" / "agent" / "bin" / "spyro_port"
-# Tracked, so a run never depends on an untracked psxport_settings.ini in the working directory.
+# Seed for agent runs: 16:9 (a hidden AUTO resolves to 4:3) and 60 fps.
 SHIPPING_SETTINGS = ROOT / "tools" / "shipping_settings.ini"
 # Deleted before each route that must repeat, so a previous run's save is not the next boot state.
 ROUTE_CARD = ROOT / "scratch" / "saves" / "route.mcr"
