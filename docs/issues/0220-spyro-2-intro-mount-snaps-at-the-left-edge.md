@@ -33,6 +33,8 @@ fix (same settings, `scratch/fix-0221/`) the switch's in-between measures 0.52, 
 981-1137) is rebuilt from those dumps and spans the switch and fence 1092.
 
 Spyro 1's actors take the same `across` (`titles/spyro1/render/actor_between.cpp`). In the pause report's replay
-(`20261023-181349`, same settings) the one bridged switch, mesh 1 at fence 337 (`24230505`/32 to `36350404`/0), has
-its in-between at share 0.57, among ordinary neighbours at 0.32-0.68 (`scratch/review-fix-3/s1/switch-shares.txt`,
-`switch-strip.png`).
+(`20261023-181349`, same settings) the one bridged switch, mesh 1 at fence 337 (`24230505`/32 to `36350404`/0), is
+its largest move in the clip: the horn moves 11.5 target pixels and the in-between sits 0.67 of the way, the wing
+0.65 (feature centroids, `scratch/s1-switch/track.py`, `track.txt`, `switch337.png`). Ordinary in-betweens with a
+horn move over 4 pixels sit 0.17-0.74, so the switch lies inside the motion's own spread and does not snap; the
+whole-frame share (0.57 among 0.32-0.68, `scratch/review-fix-3/s1/`) cannot separate halfway from slightly off.
