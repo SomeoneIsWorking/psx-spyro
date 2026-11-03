@@ -7,6 +7,7 @@
 #include "render/terrain/guest_terrain_polygon.h"
 
 #include <array>
+#include <cmath>
 #include <cstddef>
 
 namespace spyro::guest_terrain {
@@ -30,6 +31,9 @@ constexpr std::uint32_t kBelow = 0x2000;
 constexpr std::uint32_t kLeft = 0x4000;
 constexpr std::uint32_t kRight = 0x8000;
 
+// A grid point that fits is projected at 16x for precision.
+constexpr int kScaledShift = 4;
+
 // A grid point as RTPS takes it: 16x scale when every coordinate is within [-0x100, 0xFF].
 struct GridVertex {
   std::uint32_t z;
@@ -46,7 +50,9 @@ GridVertex loadGridVertex(const psx::present::EmitMemory &memory, std::uint32_t 
   const std::int32_t x = memory.mem_r16s(address + cell::kX);
   const std::int32_t y = memory.mem_r16s(address + cell::kY);
   if (fitsScaled(z) && fitsScaled(x) && fitsScaled(y)) {
-    return GridVertex{asWord(z) << 4, (asWord(x) << 4) + (asWord(y) << 20), true};
+    return GridVertex{asWord(z) << kScaledShift,
+                      (asWord(x) << kScaledShift) + (asWord(y) << (16 + kScaledShift)),
+                      true};
   }
   return GridVertex{asWord(z), asWord(x) + (asWord(y) << 16), false};
 }
@@ -146,14 +152,21 @@ void projectGrid(TerrainFrame &frame, std::uint32_t count, bool markBehind) {
     core.gte().execute(gte::kRtps);
     const bool scaled = next.scaled;
     next = loadGridVertex(memory, address);
-    const psx::gte::ProjectedVertex projected = core.gte().projected(2);
+    const psx::gte::ProjectedVertex projected = [&core, scaled] {
+      if (!scaled) {
+        return core.gte().projected(2);
+      }
+      // A scaled point's SZ is 16 view units per unit, as the guest's own depth code shift says.
+      const psx::cpu::DepthUnit unit(core.gte(), std::ldexp(1.0f, -kScaledShift));
+      return core.gte().projected(2);
+    }();
     const std::uint32_t sxy = projected.word();
     std::uint32_t code = core.gte().readData(gte::kSz3);
     core.gte().writeData(gte::kVz0, next.z);
     core.gte().writeData(gte::kVxy0, next.xy);
     address += kCellSize;
     if (scaled) {
-      code >>= 4;
+      code >>= kScaledShift;
     }
     if (markBehind && asSigned(code) <= 0) {
       code |= kOutcodeMask;

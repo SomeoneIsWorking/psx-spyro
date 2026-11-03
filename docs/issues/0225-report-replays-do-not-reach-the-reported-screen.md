@@ -25,5 +25,11 @@ Shown: replay to 3009, B report, load of its `state.bin` in a new process: the f
 `screen.png` (`scratch/depth/runs/state-r1c-load/sheet.png`).
 
 ## Remaining
-The first frames after a load draw a 4:3 device picture before the record path takes over (frames 1-5); not traced.
-`psx.png` is still taken later than `screen.png`.
+- The first frames after a load draw a 4:3 picture before the 16:9 record takes over (frames 1-5). Not traced to its
+  owner. A restore leaves the presentation with no record until the first frame seals; whether
+  `psxport runtime/psx/render/record_present.cpp:RenderState::presentRecord` shows the device picture then is unchecked.
+- `psx.png` is not the frame `screen.png` shows: `BugReportSession::frameSealed` takes the device's draw area at the
+  first seal after the request, and `attachCaptures` shoots the newest present a field later, which at 60 fps is an
+  in-between or the next frame.
+- A report's camera cannot yet be placed for a matching view: `spyro-at` (`titles/spyro1/core/debug/teleport.cpp`)
+  sets the position, but the camera follows Spyro's heading, which the yaw byte at +0xE does not set.

@@ -8,6 +8,7 @@
 
 #include "core.h"
 #include "gte_registers.h"
+#include "render/field/guest_render_globals.h"
 #include "render/field/guest_word.h"
 #include "render/terrain/guest_terrain_far_vertices.h"
 #include "render/terrain/guest_terrain_frame.h"
@@ -101,8 +102,15 @@ void FarPass::run() {
   lastBin_ = memory_.mem_r32(facts_.lodTable + lod::kFarDepth) >> 7;
   handover_ = (memory_.mem_r32(facts_.lodTable + lod::kNearDepth) >> 7) - kFadeBins;
   for (std::uint32_t i = 0; i < camera_.size(); ++i) {
-    camera_[i] = sra(frame_.positionWord(i), 4);
+    camera_[i] = sra(frame_.positionWord(i), spyro::guest_render_globals::kFarViewShift);
   }
+  // Its view depths are the near pass's divided by this, and it sorts kBinBase bins behind them, so near terrain
+  // covers it.
+  const psx::cpu::DepthUnit unit(
+      core_.gte(),
+      static_cast<float>(1u << (spyro::guest_render_globals::kFarViewShift -
+                                spyro::guest_render_globals::kNearViewShift)),
+      -static_cast<float>(kBinBase << spyro::guest_render_globals::kDepthBinShift));
   std::uint32_t list = frame_.scratch + kFarList;
   for (;;) {
     const std::uint32_t entry = memory_.mem_r32(list);

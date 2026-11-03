@@ -1,6 +1,7 @@
 # 0222 — Spyro 1: world meshes overlap in painter's order at high resolution
 
-Status: open (2026-11-03): native depth landed, default off (issue 0223); the report's own screen not yet shown. Owner: psxport native depth
+Status: fixed (2026-11-04): native depth on by default; shown at the report's ledge corner from Spyro's own camera, not
+the report's exact camera (below). Owner: psxport native depth
 (`docs/presentation.md` Depth); Spyro 1 marks `terrain_image.cpp`, `actor_emitter_producer.cpp` and
 `paired_actor_producer.cpp`.
 
@@ -23,12 +24,27 @@ centre is world units (2^-kNearViewShift), the far pass is 2^(kFarViewShift-kNea
 guest's own sort bias (`sortedNearer_`, in bins) as a nearer offset, so what retail sorts in front stays in front.
 Every guest store forgets the vertex depth of the words it writes (`Core::bookStore`), so no draw inherits one.
 
-## Proof so far
-`scratch/depth/runs/toasty-on` vs `toasty-off` (`warp Artisans/Toasty/portal`, ires 8x, 16:9, depth on vs
-`PSXPORT_DEPTH=0`): Spyro, Sparx's glow and his shadow are the same (rerun `rtoasty-d1`/`rtoasty-d0`: zero differing pixels over Spyro), and the rock wall meets the floor along its real
-intersection instead of its slot-order overlap (`toasty-on/left_crop.png`). Stone Hill is reached with `warp Artisans/Stone Hill/start`
-(`stone-on/grid.png`), but the ledge corner needs Spyro placed there; the report replay does not reach it (issue 0225).
+## Near-camera terrain
+With depth on, the Stone Hill tower wall next to the camera lost its pixels to the grass below the terrace. Cause:
+`game/render/terrain/guest_terrain_split.cpp:projectGrid` projects a grid point whose coordinates fit at 16x scale
+(`loadGridVertex`) and shifts that SZ back by 4 for the guest's own depth code, but the vertex's place kept the
+unshifted SZ, so the near fine and coarse grid carried 16x its depth. The scaled projection now opens a `DepthUnit` of
+1/16. A replay of that frame's depth planes (`scratch/depth2/tools/planes.py`) showed the wall at 3000-4000 view units
+over grass at 1500-2800 before, and the wall at 320-500 after.
+
+## Proof
+Stone Hill dragon 2 terrace, `warp 0/1/3`, 1600 fields, `spyro-at 196200 148000 27000`, 200 fields, ires 8x,
+16:9 4K sink, unpaced (`scratch/depth2/stone-final.png`, off above on, then the difference): the wall is whole; the only
+difference is the ledge block's corner behind the tower edge, whose triangles lie 25% farther than the wall they
+overlap and which slot order drew over the tower's edge. Spyro and the trim at his feet draw the same. The arrival walk
+(`scratch/depth2/artisans-a.png`, `artisans-b.png`, densest difference per arrival, off left, on right): a hill no
+longer notches the hub castle tower (`dragon 1`), the Dark Hollow grass no longer steps into the water wall
+(`dragon 3`), and buried plinth and log bases meet the grass along their contact line (Toasty start, Dark Hollow
+portal); every other Artisans arrival differs in under 250 of 2,073,600 pixels.
+
+The report's camera looks at Spyro from in front; `spyro-at` places him but the game's camera follows his heading,
+which a yaw byte write does not change, so that exact view is not reached.
 
 ## Remaining
-Show the report's ledge corner with depth on; add a Stone Hill placement to the warp verbs. Lit and HUD mobys from
-the sprite queue (`sprite_queue_producer.cpp`) are not marked: that producer also draws the HUD models.
+Lit and HUD mobys from the sprite queue (`sprite_queue_producer.cpp`) are not marked: that producer also draws the HUD
+models.

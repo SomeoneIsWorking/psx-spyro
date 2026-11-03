@@ -1,6 +1,6 @@
 # 0224 — Spyro 1: the Toasty portal's sky covers its left inner jamb
 
-Status: open (2026-11-03). Owner: not yet traced; candidate `titles/spyro1/render/portals.cpp` (`Portals`).
+Status: open (2026-11-04). Owner: not yet traced; candidate `titles/spyro1/render/portals.cpp` (`Portals`).
 
 ## Observed
 Player report `20261031-174318-geometry-disappering`, pad frame 3009, mark x 27-39% y 15-52%: the left side of the
@@ -16,6 +16,9 @@ portal frame from the same run (`scratch/depth/runs/recdev`) differ in 1,252 of 
 scattered along edges, and match in the portal sky: the cover is the guest's own draw, not a record divergence. The jamb face is back-facing from that side, so the cover may be
 retail's; it is not yet compared against a frame where the report saw it whole.
 
+With depth on by default, the walk's Toasty portal arrival (`warp 0/4/1`, `scratch/depth2/runs/walk-on2` against
+`walk-off`) differs from depth off in 0 of 2,073,600 pixels: native depth does not touch the portal.
+
 ## Next
-Reproduce the report's camera (replay diverges, issue 0225) and compare the device frame at the same camera before
-naming the cause.
+Reproduce the report's camera and compare the device frame there before naming the cause. `spyro-at` places Spyro,
+but the camera follows his heading and a yaw byte write does not turn it, so the camera is not yet placeable.
