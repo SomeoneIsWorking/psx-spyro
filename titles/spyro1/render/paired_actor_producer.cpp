@@ -104,6 +104,7 @@ void registerPairedActorOverrides(Core &core) {
                                  "spyro1-paired-actor",
                                  drawSpyro,
                                  std::make_unique<PairedActorProducer>(core));
+  core.depthTest.mark(PairedActorProducer::kEntry);
 }
 
 } // namespace spyro1::actors

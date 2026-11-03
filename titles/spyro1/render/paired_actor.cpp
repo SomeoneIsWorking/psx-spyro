@@ -57,6 +57,8 @@ PairedActor::PairedActor(Core &core, const psx::present::EmitMemory &memory)
     : core_(core), memory_(memory), bins_(memory) {}
 
 bool PairedActor::draw() {
+  // Spyro's centre is in world units, four times the terrain's view depth unit (its bin is depth >> 7, theirs >> 5).
+  const psx::cpu::DepthUnit unit(core_.gte(), 0.25f);
   stageParts();
   const Offsets offsets = blendOffsets();
   if (!placeCentre()) {

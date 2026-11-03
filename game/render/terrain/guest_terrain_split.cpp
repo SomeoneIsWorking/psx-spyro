@@ -335,7 +335,11 @@ void pullTowardPair(TerrainFrame &frame, const GridPull &pull) {
   const GtePlace pb = pairSecond.place();
   memory.storeVertex(point + cell::kScreen,
                      {(static_cast<std::uint32_t>(x) & 0xFFFFu) + (static_cast<std::uint32_t>(y) << 16),
-                      {blend(at.x, pa.x + pb.x), blend(at.y, pa.y + pb.y)}});
+                      {blend(at.x, pa.x + pb.x),
+                       blend(at.y, pa.y + pb.y),
+                       psx::gte::screenBlendDepth({{at.z, selfWeight / 256.0f},
+                                                   {pa.z, pairsWeight / 256.0f},
+                                                   {pb.z, pairsWeight / 256.0f}})}});
 }
 
 std::uint32_t quadNeighbourEdges(TerrainFrame &frame,

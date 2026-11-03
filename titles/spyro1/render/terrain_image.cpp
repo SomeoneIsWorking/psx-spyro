@@ -77,6 +77,7 @@ void registerOverrides(Core &core) {
       drawTerrain,
       std::make_unique<spyro::guest_terrain::TerrainStateProducer>(core, kTerrainImage),
       psx::present::Arg::None);
+  core.depthTest.mark(kSharedFacts.entry);
 }
 
 } // namespace spyro1::terrain

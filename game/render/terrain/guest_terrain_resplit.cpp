@@ -165,7 +165,9 @@ void ResplitPass::loadPoints(std::uint32_t primitive,
     const GtePlace pa = vertices[mid.first].place();
     const GtePlace pb = vertices[mid.second].place();
     memory_.storeVertex(cell + point::kScreen,
-                        {x | (static_cast<std::uint32_t>(y) << 16), {(pa.x + pb.x) * 0.5f, (pa.y + pb.y) * 0.5f}});
+                        {x | (static_cast<std::uint32_t>(y) << 16), {(pa.x + pb.x) * 0.5f,
+                         (pa.y + pb.y) * 0.5f,
+                         psx::gte::screenBlendDepth({{pa.z, 0.5f}, {pb.z, 0.5f}})}});
     memory_.mem_w32(cell + point::kColour, blend(colours[mid.first], colours[mid.second]));
     memory_.mem_w16(cell + point::kUv, uvMidpoint(uvs[mid.first], uvs[mid.second]));
   }

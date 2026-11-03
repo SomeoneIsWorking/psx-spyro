@@ -101,6 +101,7 @@ protected:
   std::uint32_t frame_ = 0;     // LO
   std::uint32_t weight_ = 0;    // s4: the blend toward the partner frame
   std::uint32_t halfShift_ = 0; // s5: the halfword deltas' scale
+  float depthUnit_ = 1.0f;      // terrain view depth per SZ unit of this entry's scaled translation
   // The vertex loop.
   std::uint32_t words_ = 0;         // v0
   std::uint32_t halves_ = 0;        // at

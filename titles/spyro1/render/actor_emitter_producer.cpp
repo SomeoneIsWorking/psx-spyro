@@ -100,6 +100,7 @@ template <const EmitterPass &Pass> void registerEmitter(Core &core) {
                                  Pass.overrideName,
                                  emitterOverride<Pass>,
                                  std::make_unique<ActorEmitterProducer>(core, Pass));
+  core.depthTest.mark(Pass.entry);
 }
 
 } // namespace

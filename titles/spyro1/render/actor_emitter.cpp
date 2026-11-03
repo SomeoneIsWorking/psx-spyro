@@ -5,6 +5,8 @@
 #include "render/terrain/guest_terrain_fog.h"
 #include "spyro1/render/actor_emitter_layout.h"
 
+#include <cmath>
+
 namespace spyro1::actors {
 
 using namespace emitter;
@@ -29,6 +31,7 @@ bool ActorEmitter::draw(std::uint32_t entry) {
   if (!place()) {
     return false;
   }
+  const psx::cpu::DepthUnit unit(core_.gte(), depthUnit_);
   patchNear();
   const std::uint32_t sign = core_.gte().readControl(gte::kZsf4) >> 31;
   const std::uint32_t count = memory_.mem_r8(frame_ + frame::kVertexCounts + sign);
@@ -75,6 +78,9 @@ bool ActorEmitter::place() {
   std::uint32_t y = sra(viewY << 2, positionShift & 31u);
   std::uint32_t z = sra(viewZ << 2, positionShift & 31u);
   const std::uint32_t scale = flags_ & 0xFFu;
+  // TR is the view position times 4 >> positionShift, then times scale / 32 when scaled.
+  depthUnit_ = std::ldexp(scale != 0 ? 32.0f / static_cast<float>(scale) : 1.0f,
+                          static_cast<int>(positionShift & 31u) - 2);
   halfShift_ = memory_.mem_r8(frame_ + frame::kHalfShift);
   if (scale != 0) {
     gte.writeData(gte::kIr0, scale);
