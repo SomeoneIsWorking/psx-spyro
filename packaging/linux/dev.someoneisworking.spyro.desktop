@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Spyro
+GenericName=Platform game
+Comment=PC-native port of Spyro the Dragon, Spyro 2: Ripto's Rage! and Spyro: Year of the Dragon
+Icon=dev.someoneisworking.spyro
+Terminal=false
+Categories=Game;ActionGame;
+Keywords=Spyro;Dragon;PlayStation;Platformer;Port;
+StartupNotify=true
