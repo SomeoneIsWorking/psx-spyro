@@ -47,6 +47,8 @@ std::vector<WarpWorld> groupByHomeworld(std::vector<HomeworldLevel> levels) {
       return level.level.id == listed.homeworld;
     });
     if (own == levels.end()) {
+      lucent::error(
+          "warp", "homeworld {} is not among its own levels; no catalogue", listed.homeworld);
       return {};
     }
     homeworlds.push_back(listed.homeworld);

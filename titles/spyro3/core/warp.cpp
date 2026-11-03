@@ -24,15 +24,18 @@ constexpr std::uint32_t kLevelHomeworlds = 0x800671A0u;
 constexpr std::uint32_t kLevelNames = 0x80069CF8u;
 // UpdateLoadingImage takes ids from 0x3C as cutscenes.
 constexpr std::uint32_t kLevelIdEnd = 0x3Cu;
-// Arriving in a homeworld from one of its levels, the loader places Spyro at that level's portal
-// spawn or, from the slot-7 boss, at the boss exit; slot 8 arrives at the homeworld's start.
+// Arriving in a homeworld from one of its levels, UpdateLoadingImage places Spyro at that level's
+// portal spawn; from the slot-7 boss at the boss exit 0x80067208, from slot 8 at the homeworld's
+// start.
 constexpr std::uint32_t kLevelsPerHomeworld = 10u;
+constexpr std::uint32_t kBossExitSlot = 7u;
 constexpr std::uint32_t kStartArrivalSlot = 8u;
 constexpr std::uint32_t kGameplayGameState = 0u;
 
 bool arrivesAtPortal(std::uint32_t level, std::uint32_t homeworld) {
-  return level > homeworld && level < homeworld + kLevelsPerHomeworld &&
-         level % kLevelsPerHomeworld != kStartArrivalSlot;
+  const std::uint32_t slot = level % kLevelsPerHomeworld;
+  return level > homeworld && level < homeworld + kLevelsPerHomeworld && slot != kBossExitSlot &&
+         slot != kStartArrivalSlot;
 }
 
 spyro::Warp::Placement portalExit(std::uint32_t level, std::uint32_t homeworld) {
@@ -70,7 +73,8 @@ std::vector<spyro::WarpWorld> Warp::worlds(Core &core) {
           .name = "portal",
           .arrive =
               [level, homeworld](Core &target) {
-                return spyro::session(target).warp->arm(target, level, portalExit(level, homeworld));
+                return spyro::session(target).warp->arm(
+                    target, level, portalExit(level, homeworld));
               },
       });
     }
@@ -96,6 +100,10 @@ bool Warp::levelChangeReady(Core &core) const {
 
 void Warp::changeLevel(Core &core, std::uint32_t level) const {
   psx::cpu::callGuestNow(core, "warp-to-level", kWarpToLevel, kWarpLevel, level);
+}
+
+bool Warp::playing(Core &core, std::uint32_t level) const {
+  return core.mem_r32(kGameState) == kGameplayGameState && core.mem_r32(kLevelId) == level;
 }
 
 } // namespace spyro3

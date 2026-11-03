@@ -43,7 +43,7 @@ struct HomeworldLevel {
 };
 
 // The levels under their homeworlds, each homeworld named as its own level and placed where it
-// first appears; empty when a homeworld's own level is not among them.
+// first appears; empty, with an error logged, when a homeworld's own level is not among them.
 std::vector<WarpWorld> groupByHomeworld(std::vector<HomeworldLevel> levels);
 
 // The title's homeworlds from its guest name tables; empty while the executable is not resident.

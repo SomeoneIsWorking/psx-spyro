@@ -7,6 +7,10 @@
 #include "core/session.h"
 #include "guest_call.h"
 
+#include <lucent/log.h>
+
+#include <optional>
+
 namespace spyro2 {
 namespace {
 
@@ -17,20 +21,25 @@ constexpr std::uint32_t kStartIndex = 0x80067E14u;
 constexpr std::uint32_t kTitleStarting = 5u;
 // Index 0 of the load starter 0x80019230 keeps the level id.
 constexpr std::uint32_t kKeepLevel = 0u;
-// The portal entry; a negative index leaves for this level's portal in its homeworld, as the pause
-// menu's Exit Level calls it at 0x80018420.
+// The portal entry: a portal index enters that portal's level; a negative index leaves for this
+// level's portal in its homeworld, as the pause menu's Exit Level calls it at 0x80018420.
 constexpr std::uint32_t kLevelExit = 0x80019928u;
 constexpr std::uint32_t kExitToHomeworld = 0xFFFFFFFFu;
 // The level game state 7 fades out of and loads, set by the portal entry.
 constexpr std::uint32_t kExitDestination = 0x8006715Cu;
+// The boss door's entry: game state 8 into the arena at the homeworld's id + 0x10.
+constexpr std::uint32_t kBossEntry = 0x8001A290u;
+constexpr std::uint32_t kBossArenaOffset = 0x10u;
 // Byte per level id: its index into the name and homeworld tables.
 constexpr std::uint32_t kLevelIndexTable = 0x80064940u;
 constexpr std::uint32_t kLevelNames = 0x800649B4u;
 constexpr std::uint32_t kLevelHomeworlds = 0x80064B84u;
 // The loader takes ids from 0x46 as cutscenes (0x80019364).
 constexpr std::uint32_t kLevelIdEnd = 0x46u;
-// The pause menu's Exit Level leaves a boss arena (id ending in 6) through its own cutscene load.
+// The pause menu (0x800176A4) takes Exit Level only where id - 6 is not a multiple of ten; a boss
+// arena leaves through its own storybook load instead.
 constexpr std::uint32_t kBossSlot = 6u;
+constexpr std::uint32_t kLevelsPerSlotRow = 10u;
 constexpr std::uint32_t kGameplayGameState = 0u;
 
 // The homeworld the guest tables put `level` under; 0 for an id that is no level.
@@ -44,14 +53,20 @@ std::uint32_t homeworldOf(Core &core, std::uint32_t level) {
   return index == 0u && level != homeworld ? 0u : homeworld;
 }
 
-// The lowest level id under `homeworld`.
-std::uint32_t firstLevelOf(Core &core, std::uint32_t homeworld) {
+// A level the pause menu leaves through Exit Level, arriving in front of its portal.
+bool leavesForPortal(Core &core, std::uint32_t level) {
+  const std::uint32_t homeworld = homeworldOf(core, level);
+  return homeworld != 0u && level != homeworld && level % kLevelsPerSlotRow != kBossSlot;
+}
+
+// The lowest level id under `homeworld` with a portal there.
+std::optional<std::uint32_t> firstPortalLevelOf(Core &core, std::uint32_t homeworld) {
   for (std::uint32_t level = homeworld + 1u; level < kLevelIdEnd; ++level) {
-    if (homeworldOf(core, level) == homeworld) {
+    if (homeworldOf(core, level) == homeworld && leavesForPortal(core, level)) {
       return level;
     }
   }
-  return homeworld;
+  return std::nullopt;
 }
 
 spyro::Warp::Placement portalExit(std::uint32_t level) {
@@ -84,7 +99,7 @@ std::vector<spyro::WarpWorld> Warp::worlds(Core &core) {
       return {};
     }
     spyro::WarpLevel listed{.id = level, .name = std::move(name)};
-    if (level != homeworld && level % 10u != kBossSlot) {
+    if (leavesForPortal(core, level)) {
       listed.arrivals.push_back({
           .name = "portal",
           .arrive =
@@ -115,17 +130,50 @@ bool Warp::levelChangeReady(Core &core) const {
 }
 
 void Warp::changeLevel(Core &core, std::uint32_t level) const {
-  const bool homeworld = homeworldOf(core, level) == level;
-  psx::cpu::callGuestNow(core, "warp-level-exit", kLevelExit, kExitToHomeworld);
-  core.mem_w32(kExitDestination, homeworld ? firstLevelOf(core, level) : level);
+  const std::uint32_t homeworld = homeworldOf(core, level);
+  if (level == homeworld) {
+    enterHomeworld(core, level);
+    return;
+  }
+  if (leavesForPortal(core, level)) {
+    psx::cpu::callGuestNow(core, "warp-level-exit", kLevelExit, kExitToHomeworld);
+    core.mem_w32(kExitDestination, level);
+    return;
+  }
+  // A boss arena loaded as an exit destination stalls in the load (0x80071BD4 phase 3); the game
+  // enters it only from its homeworld through the boss door's state 8.
+  if (core.mem_r32(kLevelId) != homeworld) {
+    enterHomeworld(core, homeworld);
+    return;
+  }
+  if (homeworld + kBossArenaOffset != level) {
+    lucent::error(
+        "warp", "level {} is not homeworld {}'s boss arena; no change entered", level, homeworld);
+    return;
+  }
+  psx::cpu::callGuestNow(core, "warp-boss-entry", kBossEntry);
 }
 
-std::optional<spyro::Warp::Placement> Warp::afterLevelChange(Core &core,
-                                                             std::uint32_t level) const {
-  if (homeworldOf(core, level) != level) {
-    return std::nullopt;
+void Warp::enterHomeworld(Core &core, std::uint32_t homeworld) const {
+  const std::uint32_t current = core.mem_r32(kLevelId);
+  // A homeworld places Spyro at the portal to the level he left (0x800729B4) and reads a record
+  // at address 0 when it has none, so it is entered only from a level of its own.
+  if (homeworldOf(core, current) == homeworld && leavesForPortal(core, current)) {
+    psx::cpu::callGuestNow(core, "warp-level-exit", kLevelExit, kExitToHomeworld);
+    return;
   }
-  return portalExit(firstLevelOf(core, level));
+  const std::optional<std::uint32_t> entry = firstPortalLevelOf(core, homeworld);
+  if (!entry) {
+    lucent::error(
+        "warp", "homeworld {} lists no level with a portal; no change entered", homeworld);
+    return;
+  }
+  psx::cpu::callGuestNow(core, "warp-level-exit", kLevelExit, kExitToHomeworld);
+  core.mem_w32(kExitDestination, *entry);
+}
+
+bool Warp::playing(Core &core, std::uint32_t level) const {
+  return core.mem_r32(kGameState) == kGameplayGameState && core.mem_r32(kLevelId) == level;
 }
 
 } // namespace spyro2

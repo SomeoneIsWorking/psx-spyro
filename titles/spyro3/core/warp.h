@@ -15,7 +15,8 @@ class Warp final : public spyro::Warp {
 public:
   // The levels of LevelIdToLevelIndex 0x80066FCC under levelIndexToHomeworldLevelId 0x800671A0,
   // named from the name table 0x80069CF8; each level whose homeworld arrival the loader places at
-  // its portal (UpdateLoadingImage 0x80058778) also arrives at that `portal`.
+  // its portal (UpdateLoadingImage 0x80058778), not a slot-7 boss or slot 8, also arrives at that
+  // `portal`.
   [[nodiscard]] static std::vector<spyro::WarpWorld> worlds(Core &core);
 
 protected:
@@ -26,6 +27,8 @@ protected:
   // Game state 0, free play in a loaded level.
   [[nodiscard]] bool levelChangeReady(Core &core) const override;
   void changeLevel(Core &core, std::uint32_t level) const override;
+  // Game state 0 in `level`.
+  [[nodiscard]] bool playing(Core &core, std::uint32_t level) const override;
 };
 
 } // namespace spyro3
