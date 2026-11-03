@@ -30,6 +30,7 @@ constexpr uint32_t kPathNodes = 0x08u;
 constexpr uint32_t kPathNodeStride = 0x10u;
 constexpr uint32_t kSpyroPosition = 0x00u;
 constexpr uint32_t kSpyroPreviousPosition = 0x8cu;
+constexpr uint32_t kSpyroRotation = 0x0cu; // m_Rotation, three angle bytes
 constexpr uint32_t kMaxPortals = 16u;
 constexpr uint32_t kMaxPathNodes = 16u;
 
@@ -154,6 +155,22 @@ std::string toPortal(Core &core, uint32_t level) {
     return lucent::format("ok: Spyro in front of the portal into level {}", level);
   }
   return lucent::format("refused: no loaded portal leads to level {}", level);
+}
+
+std::string where(Core &core) {
+  const Position at = readPosition(core, kSpyro + kSpyroPosition);
+  return lucent::format("spyro position=({}, {}, {}) rotation=({}, {}, {})",
+                        at.x,
+                        at.y,
+                        at.z,
+                        core.mem_r8(kSpyro + kSpyroRotation),
+                        core.mem_r8(kSpyro + kSpyroRotation + 1u),
+                        core.mem_r8(kSpyro + kSpyroRotation + 2u));
+}
+
+std::string toPosition(Core &core, const Position &destination) {
+  placeSpyro(core, destination);
+  return lucent::format("ok: Spyro at ({}, {}, {})", destination.x, destination.y, destination.z);
 }
 
 std::string listGates(Core &core) {

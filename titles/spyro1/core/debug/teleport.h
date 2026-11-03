@@ -13,6 +13,10 @@ namespace spyro1::teleport {
 bool inActiveField(Core &core);
 // The level's portals and each one's path nodes, one line each.
 std::string listGates(Core &core);
+// Spyro's position and rotation bytes.
+std::string where(Core &core);
+// Spyro at `destination`, through the same position words a portal arrival writes.
+std::string toPosition(Core &core, const spyro::MobyTeleport::Position &destination);
 // Spyro in front of the homeworld portal into `level`; the reply says why not when no loaded portal
 // leads there.
 std::string toPortal(Core &core, std::uint32_t level);

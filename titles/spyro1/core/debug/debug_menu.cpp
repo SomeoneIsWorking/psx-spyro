@@ -9,15 +9,21 @@
 
 #include <lucent/log.h>
 
+#include <limits>
+
 namespace spyro1 {
 namespace {
 
 using psx::game::DebugCall;
+using psx::game::DebugParam;
 using psx::game::WarpPlace;
 
 constexpr std::uint32_t kFirstWorld = 1u;
 constexpr std::uint32_t kLastWorld = 6u;
 constexpr std::uint32_t kLevelsPerWorld = 6u;
+// A world coordinate is a signed word.
+constexpr std::int64_t kMinWorld = std::numeric_limits<std::int32_t>::min();
+constexpr std::int64_t kMaxWorld = std::numeric_limits<std::int32_t>::max();
 
 std::uint32_t levelIndex(std::uint32_t level) {
   return (level / 10u - 1u) * kLevelsPerWorld + level % 10u;
@@ -51,6 +57,34 @@ DebugMenu::DebugMenu()
       .run =
           [](const DebugCall &call) {
             call.reply = teleport::listGates(call.core);
+          },
+      .inMenu = false,
+  });
+  verb({
+      .name = "where",
+      .summary = "Spyro's position and rotation",
+      .run =
+          [](const DebugCall &call) {
+            call.reply = teleport::where(call.core);
+          },
+      .inMenu = false,
+  });
+  verb({
+      .name = "spyro-at",
+      .summary = "Place Spyro at a world position",
+      .params = {DebugParam::integer("x", kMinWorld, kMaxWorld),
+                 DebugParam::integer("y", kMinWorld, kMaxWorld),
+                 DebugParam::integer("z", kMinWorld, kMaxWorld)},
+      .run =
+          [](const DebugCall &call) {
+            call.reply = teleport::toPosition(call.core,
+                                              {.x = static_cast<std::int32_t>(call.values.value(0)),
+                                               .y = static_cast<std::int32_t>(call.values.value(1)),
+                                               .z = static_cast<std::int32_t>(call.values.value(2))});
+          },
+      .refusal =
+          [](Core &core) {
+            return teleport::inActiveField(core) ? std::string() : "gameplay is not in an active field";
           },
       .inMenu = false,
   });
