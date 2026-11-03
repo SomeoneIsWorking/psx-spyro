@@ -7,6 +7,7 @@
 
 #include <lucent/log.h>
 
+#include <algorithm>
 #include <array>
 #include <utility>
 
@@ -33,6 +34,29 @@ std::string guestName(Core &core, std::uint32_t pointerWord) {
   std::array<char, kNameBytes> name{};
   core.readCString(text, name.data(), name.size());
   return {name.data()};
+}
+
+std::vector<WarpWorld> groupByHomeworld(std::vector<HomeworldLevel> levels) {
+  std::vector<WarpWorld> worlds;
+  std::vector<std::uint32_t> homeworlds;
+  for (const HomeworldLevel &listed : levels) {
+    if (std::ranges::find(homeworlds, listed.homeworld) != homeworlds.end()) {
+      continue;
+    }
+    const auto own = std::ranges::find_if(levels, [&listed](const HomeworldLevel &level) {
+      return level.level.id == listed.homeworld;
+    });
+    if (own == levels.end()) {
+      return {};
+    }
+    homeworlds.push_back(listed.homeworld);
+    worlds.push_back({.name = own->level.name});
+  }
+  for (HomeworldLevel &listed : levels) {
+    const auto world = std::ranges::find(homeworlds, listed.homeworld) - homeworlds.begin();
+    worlds[static_cast<std::size_t>(world)].levels.push_back(std::move(listed.level));
+  }
+  return worlds;
 }
 
 DebugMenu::DebugMenu(WarpWorlds worlds,

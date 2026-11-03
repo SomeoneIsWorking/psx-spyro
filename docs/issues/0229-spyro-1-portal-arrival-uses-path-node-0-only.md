@@ -10,3 +10,6 @@ of the portal's path; the catalogue has no arrival for it.
 ## Next
 Name what node 1 is from the portal moby's path data (inside the portal or behind it) and, if it is a place a player
 reaches, add it as its own arrival under the level.
+
+Not shared code: Spyro 2 and 3 take their `portal` from the game's own exit placement (issue 0227), so this stays a
+Spyro 1 item.

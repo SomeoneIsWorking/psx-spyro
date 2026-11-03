@@ -36,6 +36,16 @@ struct WarpWorld {
   std::vector<WarpLevel> levels;
 };
 
+// A level as a title's guest tables list it: under the id of the homeworld it belongs to.
+struct HomeworldLevel {
+  std::uint32_t homeworld = 0;
+  WarpLevel level;
+};
+
+// The levels under their homeworlds, each homeworld named as its own level and placed where it
+// first appears; empty when a homeworld's own level is not among them.
+std::vector<WarpWorld> groupByHomeworld(std::vector<HomeworldLevel> levels);
+
 // The title's homeworlds from its guest name tables; empty while the executable is not resident.
 using WarpWorlds = std::function<std::vector<WarpWorld>(Core &)>;
 
