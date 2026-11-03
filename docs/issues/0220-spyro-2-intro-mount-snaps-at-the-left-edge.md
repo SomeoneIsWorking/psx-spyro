@@ -26,11 +26,11 @@ condition the drawer (0x80044504) relies on when it walks frame B's stream with 
 Spyro 2 from boot, `ires=0` (8x, 5472x1920 dumps), `fps60=1`, `PSXPORT_PRESENT_SINK=3840x2160`, unpaced,
 dumps of fences 900-1200 (`scratch/filed-defects-2/0220/judge/run.sh`). The in-between at 1065 measures 44.7 against
 the previous real present and 28.5 against the next (share 0.61), the same as the ordinary in-between at 1068
-(44.1 / 28.8). The before-fix 65.3 / 4.5 was measured at 1x and was not repeated at 8x. Of the 100 in-betweens, 96
-move; 94 lie 0.38-0.63 of the way between their neighbours (`scratch/filed-defects-2/0220/clip/held.txt`). The
-other two, 1092 (0.94) and 1101 (0.73), are not this switch. In both, the real presents themselves drop or regain
-parts of Spyro in the left margin, and the in-between follows the next real present (issue 0221). The
-`docs/media/spyro2-interpolation.webp` clip (fences 981-1137, from the same 8x dumps) spans the switch.
+(44.1 / 28.8). The before-fix 65.3 / 4.5 was measured at 1x and was not repeated at 8x. After issue 0221's
+fix (same settings, `scratch/fix-0221/`) the switch's in-between measures 0.52, and 96 of the 100 in-betweens lie
+0.38-0.63 of the way between their neighbours, 1092 among them; the others are Spyro's eye blink (1095 at 0.30,
+1101 at 0.74) and two still presents (`held.txt`). The `docs/media/spyro2-interpolation.webp` clip (fences
+981-1137) is rebuilt from those dumps and spans the switch and fence 1092.
 
 Spyro 1's actors take the same `across` (`titles/spyro1/render/actor_between.cpp`). In the pause report's replay
 (`20261023-181349`, same settings) the one bridged switch, mesh 1 at fence 337 (`24230505`/32 to `36350404`/0), has

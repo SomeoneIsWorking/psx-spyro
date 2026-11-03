@@ -144,6 +144,9 @@ private:
   void listClose(const Candidate &candidate, std::int32_t depth);
   RotationWords orient(std::uint32_t rec);
   [[nodiscard]] bool subSphereRejects(std::uint32_t mesh);
+  [[nodiscard]] bool edgeTestsCullMargin(const guest_moby_frustum::ViewPoint &view,
+                                         std::uint32_t radius,
+                                         const guest_moby_frustum::SphereMargins &margins) const;
   Step finishEntry(const Candidate &candidate);
 
   Core &core_;
@@ -320,6 +323,9 @@ MobyWalk::Step MobyWalk::drawCandidate(std::uint32_t rec,
   if (mobyClass == 1 && subSphereRejects(mesh)) {
     return Step::Next;
   }
+  if (edgeTestsCullMargin(view, radius, margins)) {
+    core_.mem_w32(entry_ + entry::kClass, 2);
+  }
   return finishEntry(candidate);
 }
 
@@ -366,6 +372,16 @@ RotationWords MobyWalk::orient(std::uint32_t rec) {
   v1_ = rotation[3] & 0xFFFFu;
   guest_moby_rotation::mirror(rotation);
   return rotation;
+}
+
+// The drawers' class-1 edge tests (SCUS_944.25 80044BB0, SCUS_944.67 in 80031124) keep retail's 4:3
+// window, so in a widened view they drop a moby's polygons in the margins. A sphere clear of the eye
+// that reaches past that window is drawn untested; the GPU clips what lies off the canvas.
+bool MobyWalk::edgeTestsCullMargin(const ViewPoint &view,
+                                   std::uint32_t radius,
+                                   const guest_moby_frustum::SphereMargins &margins) const {
+  return slope_ != guest_moby_frustum::kRetailSlope && guest_moby_frustum::clearOfEye(view, radius) &&
+         !guest_moby_frustum::insideHorizontal(view, margins, guest_moby_frustum::kRetailSlope);
 }
 
 // SCUS_944.25 80043DA8..80043EE8: a class-1 moby whose mesh names a second sphere is culled on it

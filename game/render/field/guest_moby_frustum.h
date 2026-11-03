@@ -101,12 +101,22 @@ constexpr bool outsideVertical(const ViewPoint &p, const SphereMargins &m) {
   return depth - 3 * lateral <= 0;
 }
 
+// The whole sphere is in front of the eye, so none of its points projects from behind it.
+constexpr bool clearOfEye(const ViewPoint &p, std::uint32_t radius) {
+  return p.z - static_cast<std::int32_t>(radius) > 0;
+}
+
+constexpr bool
+insideHorizontal(const ViewPoint &p, const SphereMargins &m, const HorizontalSlope &slope) {
+  const std::int64_t xLateral = std::abs(static_cast<std::int64_t>(p.x)) + m.horizontalLateral;
+  const std::int64_t xDepth = static_cast<std::int64_t>(p.z) - m.horizontalDepth;
+  return slope.xWeight * xLateral - slope.zWeight * xDepth < 0;
+}
+
 // The whole sphere is inside both plane pairs, so its polygons need no edge handling.
 constexpr bool
 insideFrustum(const ViewPoint &p, const SphereMargins &m, const HorizontalSlope &slope) {
-  const std::int64_t xLateral = std::abs(static_cast<std::int64_t>(p.x)) + m.horizontalLateral;
-  const std::int64_t xDepth = static_cast<std::int64_t>(p.z) - m.horizontalDepth;
-  if (slope.xWeight * xLateral - slope.zWeight * xDepth >= 0) {
+  if (!insideHorizontal(p, m, slope)) {
     return false;
   }
   const std::int64_t yLateral = std::abs(static_cast<std::int64_t>(p.y)) + m.verticalLateral;

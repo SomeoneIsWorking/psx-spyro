@@ -1,6 +1,7 @@
 # 0221 — Spyro 2: a moby at the frustum edge loses its polygons in the 16:9 margins
 
-Status: open. Owner: the moby drawer `FUN_80044504` (SCUS_944.25), which still runs as guest code.
+Status: fixed 2026-11-03. Owner: the moby walk's class (`guest_moby_visibility.cpp:MobyWalk::edgeTestsCullMargin`);
+the edge tests themselves are the guest drawers' (`FUN_80044504` SCUS_944.25, `FUN_80031124` SCUS_944.67).
 
 ## Observed
 Spyro 2 from boot, `ires=0`, `fps60=1`, 16:9, sink 3840x2160, unpaced. In the boot intro Spyro flies past the left edge
@@ -21,6 +22,20 @@ moby draws whole until its sphere touches the widened edge. This is a horizontal
 widened (issue 0154's rule). It is unrelated to the in-between: both real presents show it.
 
 ## Fix
-Port `FUN_80044504` natively (it also needs a producer for issue 0176's keying) and take its outcode window from
-`presentedBounds`, as the terrain and sky drawers do. Patching the guest's compare constants would write guest code
-and is not done. Spyro 3's moby drawer is not yet checked for the same window.
+Both drawers' class-1 path only rejects polygons whose vertices share an outcode; it never clips. So the
+walk, which decides the class, lists a moby as inside (2) when the view is widened, its sphere is clear of the
+eye and it reaches past retail's horizontal window: the 4:3 edge tests would only drop margin polygons, and the
+GPU clips what lies off the canvas. The record's +0x4D keeps the frustum class. At 4:3 nothing changes. Spyro 3's
+drawer (`FUN_80031124`) has the same window (0x0D/0xE4/0/0x200) and takes the same walk.
+
+A moby whose sphere crosses the eye plane stays class 1 (its behind-eye polygons must still be rejected), so its
+margin polygons can still drop. Porting the drawers natively with `presentedBounds` would close that too.
+
+## Check
+Spyro 2 from boot, `ires=0` (8x), `fps60=1`, sink 3840x2160, unpaced, dumps of fences 900-1200
+(`scratch/fix-0221/`). Spyro is whole in every real present and in-between through 1089-1104
+(`strip1092.png`, `strip1101.png`, `wing-triples.png`); the in-between at 1092 now sits 0.59 of the way (was
+0.94). 96 of 100 in-betweens lie 0.38-0.63 (`held.txt`); 1095 (0.30) and 1101 (0.74) are Spyro's eye-blink
+texture swap, which has no in-between pose, with body and wings between their neighbours; 1086/1089 have no
+motion. Spyro 3 from boot at the same settings draws Spyro whole in the left margin at fence 1518
+(`keep-s3-1518.png`).

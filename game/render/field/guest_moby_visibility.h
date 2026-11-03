@@ -29,7 +29,8 @@
 // WHY IT IS OWNED. Step 4's horizontal test is the 4:3 half-angle (guest_moby_frustum.h). At 16:9
 // the canvas shows margins past the authored window and retail culls the mobys in them, so the
 // routine applies the presentation plan's slope to every horizontal plane test; at 4:3 it is
-// retail's.
+// retail's. The drawers' edge tests stay 4:3, so a widened view lists a moby that reaches past that
+// window and is clear of the eye as inside (2); its record keeps the frustum class.
 //
 // WHAT IT WRITES, all reproduced: the register save area, each visited record's classification byte
 // (+0x4D), the render list (zero-terminated), the deferred-moby buffer (zero-terminated), the close
