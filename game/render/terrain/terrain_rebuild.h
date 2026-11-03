@@ -47,11 +47,13 @@ struct CameraState {
                                                             std::span<const std::uint8_t> to,
                                                             std::span<std::uint8_t> into);
 
-// What a real field hands the in-betweens drawn from it: the sectors its visibility call named,
-// the guest words it read, the drawer's $a0 and the packet budget its far pass had.
+// What the two real fields hand the in-betweens drawn between them: the sectors their visibility
+// calls named, the guest words each read, and the later field's $a0 and far-pass packet budget.
 struct FieldInputs {
   std::span<const std::uint8_t> visibleSectors;
-  std::span<const std::byte> readWords; // packed LevelWords
+  // Packed LevelWords sorted by address; the later field's value of a word wins.
+  std::span<const std::byte> earlierReads;
+  std::span<const std::byte> laterReads;
   std::uint32_t argument = 0;
   std::int32_t packetBudget = 0;
 };
@@ -60,12 +62,20 @@ struct FieldInputs {
 // back as found when this is destroyed.
 class Rebuild {
 public:
-  Rebuild(Core &core, const TerrainImage &image, const InBetweenCamera &camera, const FieldInputs &field);
+  Rebuild(Core &core,
+          const TerrainImage &image,
+          const InBetweenCamera &camera,
+          const FieldInputs &field);
   Rebuild(const Rebuild &) = delete;
   Rebuild &operator=(const Rebuild &) = delete;
 
   [[nodiscard]] std::uint32_t visibleSectors() const {
     return visible_;
+  }
+  // Whether every level word the traversal read was one the two fields saved, or was read live
+  // between saved words that still hold their values. A load may already have replaced the rest.
+  [[nodiscard]] bool covered() const {
+    return covered_;
   }
 
   // The packets in retail's flatten order (0x8001B2A8): deepest linked bin first, each from its
@@ -83,6 +93,7 @@ private:
   // The bins the traversal linked: the table's memory still holds the guest's own chains elsewhere.
   psx::present::Kept<std::vector<std::uint8_t>>::Use linkedBins_;
   std::uint32_t visible_ = 0;
+  bool covered_ = false;
 };
 
 } // namespace spyro::guest_terrain

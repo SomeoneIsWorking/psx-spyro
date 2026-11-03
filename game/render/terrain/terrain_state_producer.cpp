@@ -42,11 +42,17 @@ void drawField(Core &core, const TerrainImage &image) {
   state.packetBudget = spyro::session(core).terrainPacketBudget;
   state.sectorCount = static_cast<std::uint32_t>(visible.size());
   std::copy(visible.begin(), visible.end(), state.visible);
-  guest_memory::saveDraw(core, state, read->words());
+  // In address order, so an in-between can tell a saved word from one it would read live.
+  const psx::present::Kept<std::vector<psx::present::LevelWord>>::Use sorted(
+      spyro::session(core).terrainSavedReads);
+  sorted->assign(read->words().begin(), read->words().end());
+  std::ranges::sort(*sorted, {}, &psx::present::LevelWord::address);
+  guest_memory::saveDraw(core, state, std::span<const psx::present::LevelWord>(*sorted));
 }
 
-void TerrainStateProducer::render(const psx::present::StateInterval &states,
-                                  psx::present::PrimitiveSink &sink) const {
+psx::present::StateProducer::Composition
+TerrainStateProducer::composition(const psx::present::StateInterval &states) const {
+  rebuild_.reset();
   const SavedField before = readField(states.from);
   const SavedField after = readField(states.to);
   const InBetweenCamera camera =
@@ -56,14 +62,32 @@ void TerrainStateProducer::render(const psx::present::StateInterval &states,
       unionVisibility(std::span(before.header.visible, before.header.sectorCount),
                       std::span(after.header.visible, after.header.sectorCount),
                       sectors);
-  Rebuild rebuild(core_,
-                  image_,
-                  camera,
-                  FieldInputs{.visibleSectors = visible,
-                              .readWords = after.reads,
-                              .argument = after.header.argument,
-                              .packetBudget = after.header.packetBudget});
-  rebuild.emit(sink);
+  rebuild_.emplace(core_,
+                   image_,
+                   camera,
+                   FieldInputs{.visibleSectors = visible,
+                               .earlierReads = before.reads,
+                               .laterReads = after.reads,
+                               .argument = after.header.argument,
+                               .packetBudget = after.header.packetBudget});
+  if (!rebuild_->covered()) {
+    rebuild_.reset();
+    return Composition::Refused;
+  }
+  rebuiltFor_ = states;
+  return Composition::Render;
+}
+
+void TerrainStateProducer::render(const psx::present::StateInterval &states,
+                                  psx::present::PrimitiveSink &sink) const {
+  if (!rebuild_ || states.from.data() != rebuiltFor_.from.data() ||
+      states.to.data() != rebuiltFor_.to.data() || states.t != rebuiltFor_.t) {
+    lucent::error(
+        "terrstate", "a terrain render at t={} that its composition did not rebuild", states.t);
+    std::abort();
+  }
+  rebuild_->emit(sink);
+  rebuild_.reset();
 }
 
 } // namespace spyro::guest_terrain

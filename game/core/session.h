@@ -44,6 +44,8 @@ public:
   psx::present::Kept<psx::present::LevelReads> drawReads;
   // The host memory a producer's in-between runs over, kept across renders.
   psx::present::Kept<psx::present::HostMemory> renderMemory;
+  // A terrain field's reads in address order, as it saves them.
+  psx::present::Kept<std::vector<psx::present::LevelWord>> terrainSavedReads;
   // The bins a terrain in-between linked, kept across renders.
   psx::present::Kept<std::vector<std::uint8_t>> terrainBins;
   // The state renders this title's producers registered, keyed by producer entry.

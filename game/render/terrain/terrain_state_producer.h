@@ -15,6 +15,7 @@
 #include "state_producer.h"
 
 #include <cstdint>
+#include <optional>
 #include <span>
 #include <type_traits>
 
@@ -41,12 +42,18 @@ class TerrainStateProducer final : public psx::present::StateProducer {
 public:
   TerrainStateProducer(Core &core, const TerrainImage &image) : core_(core), image_(image) {}
 
+  // Runs the drawer for the interval; refused when the saved fields do not cover what it read.
+  [[nodiscard]] Composition composition(const psx::present::StateInterval &states) const override;
+  // Emits the rebuild the composition just ran.
   void render(const psx::present::StateInterval &states,
               psx::present::PrimitiveSink &sink) const override;
 
 private:
   Core &core_;
   const TerrainImage &image_;
+  // The composer renders right after composing, so the drawer runs once per in-between.
+  mutable std::optional<Rebuild> rebuild_;
+  mutable psx::present::StateInterval rebuiltFor_;
 };
 
 } // namespace spyro::guest_terrain

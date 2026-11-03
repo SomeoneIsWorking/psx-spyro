@@ -9,12 +9,60 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdlib>
+#include <cstring>
 
 namespace spyro::guest_terrain {
 namespace {
 
 // One field's terrain allocates at most 55,672 bytes of packets (SCUS_944.25).
 constexpr std::uint32_t kMinArenaBytes = 0x10000u;
+
+// Packed LevelWords sorted by address.
+class SavedWords {
+public:
+  explicit SavedWords(std::span<const std::byte> packed) : packed_(packed) {}
+
+  [[nodiscard]] bool holds(std::uint32_t address) const {
+    const std::size_t at = firstFrom(address);
+    return at < count() && wordAt(at).address == address;
+  }
+  // Whether the saved words on either side of `address` still hold their saved values live: a
+  // load that replaced the level around it replaced them too.
+  [[nodiscard]] bool unchangedAround(Core &core, std::uint32_t address) const {
+    const std::size_t after = firstFrom(address);
+    if (after == 0 || after == count()) {
+      return false;
+    }
+    const psx::present::LevelWord below = wordAt(after - 1);
+    const psx::present::LevelWord above = wordAt(after);
+    return core.mem_r32(below.address) == below.value && core.mem_r32(above.address) == above.value;
+  }
+
+private:
+  [[nodiscard]] std::size_t count() const {
+    return packed_.size() / sizeof(psx::present::LevelWord);
+  }
+  [[nodiscard]] psx::present::LevelWord wordAt(std::size_t index) const {
+    psx::present::LevelWord word;
+    std::memcpy(&word, packed_.data() + index * sizeof(word), sizeof(word));
+    return word;
+  }
+  [[nodiscard]] std::size_t firstFrom(std::uint32_t address) const {
+    std::size_t low = 0;
+    std::size_t high = count();
+    while (low < high) {
+      const std::size_t middle = (low + high) / 2;
+      if (wordAt(middle).address < address) {
+        low = middle + 1;
+      } else {
+        high = middle;
+      }
+    }
+    return low;
+  }
+
+  std::span<const std::byte> packed_;
+};
 
 } // namespace
 
@@ -85,7 +133,9 @@ Rebuild::Rebuild(Core &core,
     host_->zero(range.address, range.bytes);
   }
   host_->zero(arena_.address, arena_.bytes);
-  host_->overlay(field.readWords);
+  host_->overlay(field.earlierReads);
+  host_->overlay(field.laterReads);
+  host_->keepLevelReads();
 
   for (std::size_t i = 0; i < field.visibleSectors.size(); ++i) {
     if (field.visibleSectors[i] != 0) {
@@ -104,6 +154,14 @@ Rebuild::Rebuild(Core &core,
                                   .linkedBins = &*linkedBins_});
   (void)drawer_->run();
   tableBase_ = windows.tableBase;
+  // A word neither field read (a polygon both culled) was read live.
+  const SavedWords later(field.laterReads);
+  const SavedWords earlier(field.earlierReads);
+  covered_ =
+      std::ranges::all_of(host_->levelReads().words(), [&](const psx::present::LevelWord &word) {
+        return later.holds(word.address) || earlier.holds(word.address) ||
+               later.unchangedAround(core, word.address);
+      });
 }
 
 void Rebuild::emit(psx::present::PrimitiveSink &sink) const {
