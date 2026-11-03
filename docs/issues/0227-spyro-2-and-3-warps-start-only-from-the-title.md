@@ -52,3 +52,14 @@ Dungeon through the boss door, out to Idol Springs, to Shady Oasis, to Winter Tu
 A `portal` taken from Glimmer itself before the story plays leaves Glimmer through the story and arrives at the story's
 Summer Forest start, not at Glimmer's portal.
 
+
+## Walks after the fix (hidden, unpaced, ires 0, fps60, 3840x2160)
+`scratch/spyro23/r2/walk2b` (Spyro 2) and `walk3c` (Spyro 3), each from boot with Start skips into gameplay, then five
+warps across the homeworlds: Spyro 2 Colossus `portal` from Glimmer (story route, two changes), Autumn Plains, Crush's
+Dungeon (three changes, boss door), Canyon Speedway `portal`, Zephyr; Spyro 3 Seashell Shore `portal`, Enchanted
+Towers, Fireworks Factory `portal`, Super Bonus Round, Midnight Mountain. Every arrival reached its level (log `level N
+reached`), no fault (`r2/arrivals.png`). After each, 240 steps of settle, then a held turn (Spyro 2 L1, Spyro 3 left;
+L1 does not turn Spyro 3's camera) over eight presents: every present composed, alternating `t=0.5`/`t=1` with n=2
+(`<arrival>-seq/presentseq.txt`), and the far scenery (rows 40..140 of 540) steps evenly across in-betweens and real
+presents on all ten, e.g. Spyro 2 Autumn Plains 15.5/15.5/15.5/14.5/14.5/14.25/13.75 px, Spyro 3 Seashell Shore
+13.75/13.75/14.5/15.5/16.5/16.5/17.5. Pacing not judged.
