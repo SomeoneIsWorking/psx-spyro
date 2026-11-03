@@ -44,6 +44,11 @@ protected:
   [[nodiscard]] virtual bool levelChangeReady(Core &core) const = 0;
   // Enters the game's own level transition into `level` from gameplay.
   virtual void changeLevel(Core &core, std::uint32_t level) const = 0;
+  // A placement that finishes a level change the game reaches in two steps.
+  [[nodiscard]] virtual std::optional<Placement> afterLevelChange(Core & /*core*/,
+                                                                  std::uint32_t /*level*/) const {
+    return std::nullopt;
+  }
 
 private:
   std::optional<std::uint32_t> level_;

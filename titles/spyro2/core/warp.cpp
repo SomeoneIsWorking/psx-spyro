@@ -15,15 +15,14 @@ constexpr std::uint32_t kTitleTick = 0x80067E00u;
 constexpr std::uint32_t kStartIndex = 0x80067E14u;
 // At tick 12: title teardown at 0x8007A364, then 0x80019230(start index) at 0x8007A38C.
 constexpr std::uint32_t kTitleStarting = 5u;
-// The load starter: game state 5, the storybook loader; index 0 keeps the level id.
-constexpr std::uint32_t kLoadStarter = 0x80019230u;
+// Index 0 of the load starter 0x80019230 keeps the level id.
 constexpr std::uint32_t kKeepLevel = 0u;
-// The loader's stream step, which the starter seeds and its in-game callers clear.
-constexpr std::uint32_t kStreamStep = 0x80066EECu;
 // The portal entry; a negative index leaves for this level's portal in its homeworld, as the pause
 // menu's Exit Level calls it at 0x80018420.
 constexpr std::uint32_t kLevelExit = 0x80019928u;
 constexpr std::uint32_t kExitToHomeworld = 0xFFFFFFFFu;
+// The level game state 7 fades out of and loads, set by the portal entry.
+constexpr std::uint32_t kExitDestination = 0x8006715Cu;
 // Byte per level id: its index into the name and homeworld tables.
 constexpr std::uint32_t kLevelIndexTable = 0x80064940u;
 constexpr std::uint32_t kLevelNames = 0x800649B4u;
@@ -33,6 +32,27 @@ constexpr std::uint32_t kLevelIdEnd = 0x46u;
 // The pause menu's Exit Level leaves a boss arena (id ending in 6) through its own cutscene load.
 constexpr std::uint32_t kBossSlot = 6u;
 constexpr std::uint32_t kGameplayGameState = 0u;
+
+// The homeworld the guest tables put `level` under; 0 for an id that is no level.
+std::uint32_t homeworldOf(Core &core, std::uint32_t level) {
+  if (level >= kLevelIdEnd) {
+    return 0u;
+  }
+  const std::uint32_t index = core.mem_r8(kLevelIndexTable + level);
+  const std::uint32_t homeworld = core.mem_r8(kLevelHomeworlds + index);
+  // Unlisted ids read index 0, which belongs only to its own homeworld.
+  return index == 0u && level != homeworld ? 0u : homeworld;
+}
+
+// The lowest level id under `homeworld`.
+std::uint32_t firstLevelOf(Core &core, std::uint32_t homeworld) {
+  for (std::uint32_t level = homeworld + 1u; level < kLevelIdEnd; ++level) {
+    if (homeworldOf(core, level) == homeworld) {
+      return level;
+    }
+  }
+  return homeworld;
+}
 
 spyro::Warp::Placement portalExit(std::uint32_t level) {
   return {
@@ -54,12 +74,11 @@ spyro::Warp::Placement portalExit(std::uint32_t level) {
 std::vector<spyro::WarpWorld> Warp::worlds(Core &core) {
   std::vector<spyro::HomeworldLevel> levels;
   for (std::uint32_t level = 0; level < kLevelIdEnd; ++level) {
-    const std::uint32_t index = core.mem_r8(kLevelIndexTable + level);
-    const std::uint32_t homeworld = core.mem_r8(kLevelHomeworlds + index);
-    // Unlisted ids read index 0, which belongs only to its own homeworld.
-    if (homeworld == 0u || (index == 0u && level != homeworld)) {
+    const std::uint32_t homeworld = homeworldOf(core, level);
+    if (homeworld == 0u) {
       continue;
     }
+    const std::uint32_t index = core.mem_r8(kLevelIndexTable + level);
     std::string name = spyro::guestName(core, kLevelNames + index * 4u);
     if (name.empty()) {
       return {};
@@ -96,9 +115,17 @@ bool Warp::levelChangeReady(Core &core) const {
 }
 
 void Warp::changeLevel(Core &core, std::uint32_t level) const {
-  psx::cpu::callGuestNow(core, "warp-load-starter", kLoadStarter, kKeepLevel);
-  core.mem_w32(kStreamStep, 0u);
-  core.mem_w32(kLevelId, level);
+  const bool homeworld = homeworldOf(core, level) == level;
+  psx::cpu::callGuestNow(core, "warp-level-exit", kLevelExit, kExitToHomeworld);
+  core.mem_w32(kExitDestination, homeworld ? firstLevelOf(core, level) : level);
+}
+
+std::optional<spyro::Warp::Placement> Warp::afterLevelChange(Core &core,
+                                                             std::uint32_t level) const {
+  if (homeworldOf(core, level) != level) {
+    return std::nullopt;
+  }
+  return portalExit(firstLevelOf(core, level));
 }
 
 } // namespace spyro2

@@ -28,6 +28,9 @@ void Warp::applyArmed(Core &core, std::uint32_t frame) {
     const std::uint32_t level = *level_;
     level_.reset();
     changeLevel(core, level);
+    if (std::optional<Placement> then = afterLevelChange(core, level)) {
+      placement_ = std::move(*then);
+    }
     lucent::info("warp", "level {} entered from gameplay at f{}", level, frame);
     return;
   }
