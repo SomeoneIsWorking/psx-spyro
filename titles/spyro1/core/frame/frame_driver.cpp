@@ -112,4 +112,28 @@ bool FrameDriver::pastBootPrefix() const {
   return boot_.complete();
 }
 
+bool FrameDriver::save(psx::platform::BlobWriter &out, std::string &error) const {
+  if (!boot_.complete()) {
+    error = lucent::format("{}: the boot sequence is still running; a state is taken past it",
+                           sectionName());
+    return false;
+  }
+  out.u32(gameplayFrame_);
+  return true;
+}
+
+bool FrameDriver::load(psx::platform::BlobReader &in, std::string &) {
+  stagedFrame_ = in.u32();
+  return true;
+}
+
+void FrameDriver::restored(Core &) {
+  if (!boot_.complete()) {
+    boot_.adoptCompleted();
+  }
+  transitions_.dropHeldPress();
+  gameplayFrame_ = *stagedFrame_;
+  stagedFrame_.reset();
+}
+
 } // namespace spyro1

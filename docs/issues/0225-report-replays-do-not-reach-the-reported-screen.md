@@ -1,6 +1,6 @@
 # 0225 — Bug report replays do not reach the reported screen
 
-Status: open (2026-11-03). Owner: the bug report capture and pad replay (psxport `docs/presentation.md` Bug report capture,
+Status: fixed for new reports (2026-11-03); the three 2026-10-31 reports stay unreproducible. Owner: the bug report capture and pad replay (psxport `docs/presentation.md` Bug report capture,
 `pad_recording`).
 
 ## Observed
@@ -11,6 +11,19 @@ Toasty portal; `20261031-174434` shows the fountain from the other side at 6413;
 Each report's `psx.png` is also a later frame than its `screen.png` (the camera differs), so the mark cannot be compared.
 The C-12 report `20261031-180552` replays to its screen (psx-c12 issue 0010).
 
-## Next
-Find where the replays first diverge from the recording (boot pre-roll under the picker is the first suspect) and make
-the reference capture take the same frame as the screenshot.
+## Cause
+Pad replay is deterministic on one build but not across builds: the owner-journal timeline of `20261031-174318`
+matches the recording through field 2370 (end of the Nestor rescue), then Spyro's route diverges in gameplay. The
+recording build (`089b610-dirty+bfc524e3-dirty`) cannot be rebuilt, so a pad recording alone cannot carry a report
+to its screen (`psxport runtime/psx/debug/bug_report_session.cpp:BugReportSession::attachCaptures`).
+
+## Fix
+A report also saves the machine state at the reported field (`state.bin`) and its reproduction loads it
+(`PSXPORT_LOAD_STATE`, shot at frame 30). Spyro 1's frame driver saves its native state (`spyro1.frame-driver`), and a
+state carries the active code images (`images` section), so a fresh process dispatches the loaded WAD overlays.
+Shown: replay to 3009, B report, load of its `state.bin` in a new process: the frame-30 shot matches the report's
+`screen.png` (`scratch/depth/runs/state-r1c-load/sheet.png`).
+
+## Remaining
+The first frames after a load draw a 4:3 device picture before the record path takes over (frames 1-5); not traced.
+`psx.png` is still taken later than `screen.png`.

@@ -23,6 +23,8 @@ public:
   void initialize(Core &core);
   bool step(Core &core);
   bool complete() const;
+  // A loaded state was saved past the boot: end it as finalize does, without its guest calls.
+  void adoptCompleted();
 
 private:
   enum class Phase : std::uint8_t {

@@ -34,6 +34,7 @@ public:
   // The phase pad recordings are keyed on, so a press keeps its offset into its screen (issue
   // 0116).
   std::uint64_t inputPhase(Core &core) const override;
+  psx::state::NativeStatePort *nativeState(Core &core) const override;
 
 protected:
   std::unique_ptr<spyro::Warp> createWarp() const override;

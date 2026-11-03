@@ -210,6 +210,10 @@ std::uint64_t Runtime::inputPhase(Core &core) const {
   return inputPhase_.of(core);
 }
 
+psx::state::NativeStatePort *Runtime::nativeState(Core &core) const {
+  return &core.game->frameDriverAs<FrameDriver>();
+}
+
 std::unique_ptr<spyro::Warp> Runtime::createWarp() const {
   return std::make_unique<Warp>();
 }

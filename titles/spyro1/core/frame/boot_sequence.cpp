@@ -3,8 +3,8 @@
 #include "spyro1/core/guest_globals.h"
 
 #include "core.h"
-#include "guest_call.h"
 #include "core/field_owner.h"
+#include "guest_call.h"
 #include "spyro1/core/frame/guest_update_budget.h"
 #include "spyro1/core/frame/skip_map.h"
 
@@ -51,7 +51,8 @@ void writeRect(Core &core,
 
 } // namespace
 
-BootSequence::BootSequence(spyro::FieldOwner &fields, SkipMap &skipMap) : fields_(fields), skipMap_(skipMap) {}
+BootSequence::BootSequence(spyro::FieldOwner &fields, SkipMap &skipMap)
+    : fields_(fields), skipMap_(skipMap) {}
 
 void BootSequence::initialize(Core &core) {
   if (initialized_) {
@@ -85,6 +86,12 @@ void BootSequence::initialize(Core &core) {
 
 bool BootSequence::complete() const {
   return phase_ == Phase::Complete;
+}
+
+void BootSequence::adoptCompleted() {
+  skipMap_.bootSequenceEnd();
+  fields_.armHostClock();
+  phase_ = Phase::Complete;
 }
 
 void BootSequence::deliverField(Core &core, const char *site) {
@@ -170,7 +177,8 @@ void BootSequence::finalize(Core &core) {
 }
 
 void BootSequence::leaveFirstPresentationHold(Core &core) {
-  // The natural expiry's route; the hold starts after the boot assets load, so no press skips loading.
+  // The natural expiry's route; the hold starts after the boot assets load, so no press skips
+  // loading.
   call(core, kFill, core.mem_r32(0x800785D8u), 0u, kLogoBytes);
   phase_ = Phase::FadeFirstOut;
 }

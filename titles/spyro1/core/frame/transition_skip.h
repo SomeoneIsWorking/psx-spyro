@@ -51,11 +51,16 @@ public:
   std::uint32_t cancellations() const {
     return cancellations_;
   }
+  // A press this process latched belongs to no screen of a loaded state.
+  void dropHeldPress() {
+    flybyPress_.clear();
+  }
 
 private:
   spyro::FieldOwner &fields_;
   std::uint32_t cancellations_ = 0;
-  // A press while a flyby card's load streams, held until its load gate opens; dropped with the card.
+  // A press while a flyby card's load streams, held until its load gate opens; dropped with the
+  // card.
   PressLatch flybyPress_;
 };
 
