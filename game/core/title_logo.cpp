@@ -42,11 +42,13 @@ SpriteRecord readSpriteRecord(Core &core, std::uint32_t address) {
 
 } // namespace
 
-// The guest keeps a pointer global; the overlay's state block hangs off it and its tick is what
-// retail tests to decide its logo is up. A null pointer means the title has not reached its
-// overlay, which is not a failure.
+// The block's tick outlives the title screen (a demo leaves it set), so the game state comes first.
+// A null pointer means the title has not reached its overlay, which is not a failure.
 bool titleLogoGateOpen(Core &core, const TitleLogoFacts &facts) {
   if (!facts.valid || facts.gate.pointerGlobal == 0) {
+    return false;
+  }
+  if (core.mem_r32(facts.gate.gameStateGlobal) != facts.gate.titleScreenState) {
     return false;
   }
   const std::uint32_t block = core.mem_r32(facts.gate.pointerGlobal);

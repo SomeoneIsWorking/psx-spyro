@@ -8,9 +8,12 @@
 
 namespace spyro {
 
-// The title screen's own gate: the guest keeps a pointer global, the overlay's state block hangs
-// off it, and the block's tick is what retail itself tests (Spyro 1: `m_CurrentTick >= 1170`).
+// The title screen's own gate: the game is in its title-screen state, the overlay's state block
+// hangs off a pointer global, and the block's tick is what retail itself tests (Spyro 1:
+// `m_CurrentTick >= 1170`).
 struct TitleLogoGate {
+  std::uint32_t gameStateGlobal = 0;  // the guest word holding the game state
+  std::uint32_t titleScreenState = 0; // its value while the title screen runs
   std::uint32_t pointerGlobal = 0; // the guest word that HOLDS the pointer (not the pointer itself)
   std::uint32_t tickOffset = 0;    // the tick's offset inside that block
   std::uint32_t tickValue = 0;     // the tick at which the logo is up

@@ -115,7 +115,6 @@ inline constexpr std::uint32_t kSkipLowPolyWorld = 0x8007591Cu;
 
 // g_DemoMode (gamepad.h): DEMO_MODE_NONE/PLAY/RECORD.
 inline constexpr std::uint32_t kDemoMode = 0x80075714u;
-inline constexpr std::uint32_t kDemoModePlay = 1;
 
 // g_Pad (gamepad.h): m_Down at +0, m_Released at +4, m_Held at +8.
 inline constexpr std::uint32_t kPad = 0x80077378u;
@@ -123,8 +122,7 @@ inline constexpr std::uint32_t kPad = 0x80077378u;
 // g_DragonCutscene (dragon.h): state machine after 0x24-byte WAD header.
 inline constexpr std::uint32_t kDragonCutscene = 0x80077030u;
 
-// D_80075744: the inventory page shown; D_800757CC slides between pages and jumps by 0x380 as this
-// changes.
+// D_80075744: the inventory page shown; D_800757CC slides between pages and jumps by 0x380 as this changes.
 inline constexpr std::uint32_t kInventoryPage = 0x80075744u;
 
 } // namespace spyro1::guest

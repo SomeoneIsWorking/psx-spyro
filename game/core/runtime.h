@@ -23,6 +23,8 @@ public:
   // The field owner already delivered the simulated fields, so presentation only waits.
   std::optional<double> presentDeadline(Core &core, psx::frame::FieldCadence cadence) final;
   std::optional<psx::host::LogoImage> panelLogo(Core &core) const final;
+  // The logo gate is open, so the title screen is drawing the logo itself.
+  bool showsOwnLogo(Core &core) const final;
   // The player's aspect; the canvas holds the margins and each title widens its own culls.
   const psx::present::GuestWidescreenProjection *guestWidescreenProjection() const final;
   void reportRun(Core &core) const final;

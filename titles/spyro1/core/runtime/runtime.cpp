@@ -18,7 +18,6 @@
 #include "spyro1/core/frame/frame_driver.h"
 #include "spyro1/core/frame/logo_facts.h"
 #include "spyro1/core/frame/native_draw_setup.h"
-#include "spyro1/core/guest_globals.h"
 #include "spyro1/core/hud/native_hud_collectables.h"
 #include "spyro1/core/hud/native_pause_menu.h"
 #include "spyro1/core/hud/native_pixel_fade.h"
@@ -205,10 +204,6 @@ bool Runtime::sealedFrameIsCut(Core &core) const {
 
 const spyro::TitleLogoFacts &Runtime::logoFacts() const {
   return kLogoFacts;
-}
-
-bool Runtime::playsAttractDemo(Core &core) const {
-  return core.mem_r32(guest::kDemoMode) == guest::kDemoModePlay;
 }
 
 std::uint64_t Runtime::inputPhase(Core &core) const {

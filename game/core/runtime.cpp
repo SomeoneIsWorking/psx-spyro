@@ -38,6 +38,10 @@ std::optional<psx::host::LogoImage> Runtime::panelLogo(Core &core) const {
   return extractPanelLogo(core, logoFacts());
 }
 
+bool Runtime::showsOwnLogo(Core &core) const {
+  return titleLogoGateOpen(core, logoFacts());
+}
+
 std::unique_ptr<TitleState> Runtime::createTitleState() const {
   return nullptr;
 }
