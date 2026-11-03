@@ -86,7 +86,7 @@ Statuses: ✅ re-verified · 🟡 re-partial · 🔬 in-progress · ⬜ todo · 
 ### title.demo-flag — Each title's attract-demo flag
 - status: re-partial
 - deps: dynarec.gameplay
-- evidence: Spyro 1 `0x80075714` (`spyro::guest::kDemoMode`, the stage-0 draw gate tests it at `0x8001EFF0`); Spyro 2 `0x80066D40`, confirmed causally: zero through the cards, non-zero while the attract demo plays, and clearing it during the demo returns the disc to its "SPYRO Riptor's Rage! press start" title screen. The picker no longer reads either; its panels pre-roll a fixed step count.
+- evidence: Spyro 1 `0x80075714` (`spyro::guest::kDemoMode`, the stage-0 draw gate tests it at `0x8001EFF0`); Spyro 2 `0x80066D40`, confirmed causally: zero through the cards, non-zero while the attract demo plays, and clearing it during the demo returns the disc to its "SPYRO Riptor's Rage! press start" title screen. The picker reads Spyro 1's (`spyro1::Runtime::playsAttractDemo`, `DEMO_MODE_PLAY` = 1 per the decomp's `gamepad.h`) to draw the logo over the focused panel only while the demo plays.
 - where: game/core/guest_globals.h (Spyro 1)
 - gap: Spyro 3's candidate is `0x8006C658` (0 none, 1 playback, 2 record), read from its title and demo code while tracing the warp route; not yet confirmed causally. An earlier live RAM sweep across `0x80068000-0x80070000` found 14 changed words and none removed the "Entering Demo Mode" caption.
 
