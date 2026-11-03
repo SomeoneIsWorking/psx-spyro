@@ -5,28 +5,42 @@
 #include "spyro1/core/guest_globals.h"
 
 #include "core.h"
+#include "core/session.h"
+
+#include <lucent/log.h>
 
 namespace spyro1 {
 namespace {
 
 using psx::game::DebugCall;
-using psx::game::DebugParam;
+using psx::game::WarpPlace;
 
-// A level holds at most 16 portals, each path at most 16 nodes.
-constexpr std::int64_t kMaxPortal = 15;
-constexpr std::int64_t kMaxPathNode = 15;
-// Crystal dragons per level, at most.
-constexpr std::int64_t kMaxDragon = 15;
+constexpr std::uint32_t kFirstWorld = 1u;
+constexpr std::uint32_t kLastWorld = 6u;
+constexpr std::uint32_t kLevelsPerWorld = 6u;
 
-std::string activeFieldRefusal(Core &core) {
-  return teleport::inActiveField(core) ? std::string() : "gameplay is not in an active field";
+std::uint32_t levelIndex(std::uint32_t level) {
+  return (level / 10u - 1u) * kLevelsPerWorld + level % 10u;
+}
+
+// The level is loaded and playing.
+spyro::Warp::Placement placementIn(std::uint32_t level, std::function<std::string(Core &)> apply) {
+  return {
+      .ready =
+          [level](Core &core) {
+            return teleport::inActiveField(core) && core.mem_r32(guest::kLevelId) == level;
+          },
+      .apply = std::move(apply),
+  };
 }
 
 } // namespace
 
 DebugMenu::DebugMenu()
     : spyro::DebugMenu(
-          &Warp::levelExists,
+          [this](Core &core) {
+            return worlds(core);
+          },
           &mobys_,
           kFrameCutFacts,
           {.title = guest::kGamestateTitleScreen, .pause = guest::kGamestatePauseMenu}) {
@@ -41,17 +55,6 @@ DebugMenu::DebugMenu()
       .inMenu = false,
   });
   verb({
-      .name = "gate-teleport",
-      .summary = "Place Spyro on a portal's path",
-      .params = {DebugParam::integer("portal", 0, kMaxPortal),
-                 DebugParam::integer("node", 0, kMaxPathNode)},
-      .run =
-          [](const DebugCall &call) {
-            call.reply = teleport::toGate(call.core, call.values.u32(0), call.values.u32(1));
-          },
-      .refusal = activeFieldRefusal,
-  });
-  verb({
       .name = "dragons",
       .summary = "List the level's crystal dragons",
       .run =
@@ -60,17 +63,60 @@ DebugMenu::DebugMenu()
           },
       .inMenu = false,
   });
-  verb({
-      .name = "dragon-teleport",
-      .summary = "Place Spyro on a crystal dragon to rescue it",
-      .params = {DebugParam::integer("dragon", 0, kMaxDragon)},
-      .run =
-          [this](const DebugCall &call) {
-            call.reply =
-                mobys_.teleport(call.core, guest::kMobyClassCrystalDragon, call.values.u32(0));
-          },
-      .refusal = activeFieldRefusal,
-  });
+}
+
+std::vector<spyro::WarpWorld> DebugMenu::worlds(Core &core) const {
+  std::vector<spyro::WarpWorld> worlds;
+  for (std::uint32_t world = kFirstWorld; world <= kLastWorld; ++world) {
+    std::string worldName = spyro::guestName(core, guest::kTitleCardNames + world * 4u);
+    if (worldName.empty()) {
+      return {};
+    }
+    spyro::WarpWorld entry{.name = worldName};
+    for (std::uint32_t level = world * 10u; level < world * 10u + kLevelsPerWorld; ++level) {
+      if (!Warp::levelExists(level)) {
+        continue;
+      }
+      const std::uint32_t index = levelIndex(level);
+      const bool homeworld = level % 10u == 0u;
+      spyro::WarpLevel warpLevel{
+          .id = level,
+          .name = homeworld ? worldName : spyro::guestName(core, guest::kLevelNames + index * 4u),
+      };
+      if (warpLevel.name.empty()) {
+        return {};
+      }
+      if (!homeworld) {
+        const std::uint32_t hub = world * 10u;
+        warpLevel.arrivals.push_back({
+            .name = "portal",
+            .arrive =
+                [hub, level](Core &target) {
+                  return spyro::session(target).warp->arm(
+                      target, hub, placementIn(hub, [level](Core &placed) {
+                        return teleport::toPortal(placed, level);
+                      }));
+                },
+        });
+      }
+      const std::uint32_t dragons = core.mem_r8(guest::kLevelDragonTotals + index);
+      for (std::uint32_t dragon = 0; dragon < dragons; ++dragon) {
+        warpLevel.arrivals.push_back({
+            .name = lucent::format("dragon {}", dragon + 1u),
+            .arrive =
+                [this, level, dragon](Core &target) {
+                  return spyro::session(target).warp->arm(
+                      target, level, placementIn(level, [this, dragon](Core &placed) {
+                        return mobys_.teleport(placed, guest::kMobyClassCrystalDragon, dragon);
+                      }));
+                },
+        });
+      }
+      entry.levels.push_back(std::move(warpLevel));
+    }
+    worlds.push_back(std::move(entry));
+  }
+  return worlds;
 }
 
 } // namespace spyro1

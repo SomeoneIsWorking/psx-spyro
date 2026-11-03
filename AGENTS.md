@@ -62,7 +62,7 @@ fresh process. Issue 0169.
   or the binary through `external/psxport/tools/port/launch_environment.py::agent_environment` (silent,
   `PSXPORT_SHOW_WINDOW=0`: the player's window, never mapped, presenting at real speed; check it in
   `/proc/<pid>/environ`, never set it to 1). To measure judder, drop `PSXPORT_NOPACE`, keep `fps60=1`, reach the
-  scene (`warp <level>` on the control channel) and read the run-end `[playcheck] presents:` line
+  scene (`warp <homeworld>/<level>/<arrival>` on the control channel, `warp ?` lists) and read the run-end `[playcheck] presents:` line
   (p50/p99/missed). `key`, `mouse`, `gamepad`, `touch` and `text` on the control channel inject real SDL events, so
   a fix about input is checked through them; `tap`/`press`/`release`/`hold` press PSX buttons on that same virtual
   gamepad, through HostInput's one PSX-to-SDL binding.

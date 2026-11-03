@@ -102,5 +102,5 @@ S1's motion trails `0x800189F0` have no producer (unreached: only moby type 104 
 
 | hop | title | joins | owner |
 |---|---|---|---|
-| 1 | S1 | psxport F-DEBUG.1 | `titles/spyro1/core/debug/debug_menu.cpp:spyro1::DebugMenu` — `gates`, `gate-teleport`, `dragons`, `dragon-teleport` over `titles/spyro1/core/debug/teleport.cpp` |
-| 2 | S1/S2/S3 | title | `game/core/debug/debug_menu.cpp:spyro::DebugMenu` — `warp <level-id>` (and `mobys`/`moby-teleport` in S1/S2) arms `game/core/debug/warp.cpp:spyro::Warp`; the S1 `FrameDriver` and S2/S3 `BootPrefixFrameDriver` apply it before the update once the title screen is idle, through `titles/spyro1/core/debug/warp.cpp`, `titles/spyro{2,3}/core/warp.cpp` |
+| 1 | S1 | psxport F-DEBUG.1 | `titles/spyro1/core/debug/debug_menu.cpp:spyro1::DebugMenu` — the `portal` and `dragon <n>` arrivals and the `gates`, `dragons` listings over `titles/spyro1/core/debug/teleport.cpp` |
+| 2 | S1/S2/S3 | title | `game/core/debug/debug_menu.cpp:spyro::DebugMenu` — `warp <homeworld>/<level>/<arrival>` (and `mobys`/`moby-teleport` in S1/S2) arms `game/core/debug/warp.cpp:spyro::Warp`; the S1 `FrameDriver` and S2/S3 `BootPrefixFrameDriver` apply it before the update once the title screen is idle, through `titles/spyro1/core/debug/warp.cpp`, `titles/spyro{2,3}/core/warp.cpp` |

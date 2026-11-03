@@ -5,24 +5,37 @@
 #include "core/session.h"
 #include "game.h"
 
-#include <charconv>
 #include <lucent/log.h>
+
+#include <array>
+#include <utility>
 
 namespace spyro {
 namespace {
 
 using psx::game::DebugCall;
 using psx::game::DebugParam;
+using psx::game::WarpPlace;
 
-// Every level id is a homeworld (tens) and a level in it (units).
-constexpr std::uint32_t kLevelIdEnd = 100u;
 // SCUS moby records hold the class as a 16-bit mesh index.
 constexpr std::int64_t kMaxMobyClass = 0xFFFF;
 constexpr std::int64_t kMaxMobyIndex = 255;
+// Longest level name in the three executables, with room.
+constexpr std::size_t kNameBytes = 40;
 
 } // namespace
 
-DebugMenu::DebugMenu(bool (*levelExists)(std::uint32_t),
+std::string guestName(Core &core, std::uint32_t pointerWord) {
+  const std::uint32_t text = core.mem_r32(pointerWord);
+  if (!core.isGuestStorage(text, 1u)) {
+    return {};
+  }
+  std::array<char, kNameBytes> name{};
+  core.readCString(text, name.data(), name.size());
+  return {name.data()};
+}
+
+DebugMenu::DebugMenu(WarpWorlds worlds,
                      const MobyTeleport *mobys,
                      const FrameCutFacts &scene,
                      const ScreenStates &states) {
@@ -31,50 +44,52 @@ DebugMenu::DebugMenu(bool (*levelExists)(std::uint32_t),
       [scene](Core &core) {
         return (std::uint64_t{core.mem_r32(scene.gameState)} << 32) | core.mem_r32(scene.levelId);
       },
-      [levelExists, states](Core &core, std::uint64_t key) {
+      [this, states](Core &core, std::uint64_t key) {
         const auto state = static_cast<std::uint32_t>(key >> 32);
         const auto level = static_cast<std::uint32_t>(key);
         if (state == states.title && core.game->title != nullptr) {
           return lucent::format("pick {}", core.game->title->slug);
         }
-        if (!levelExists(level)) {
+        warpPlaces(core);
+        const auto path = levelPaths_.find(level);
+        if (path == levelPaths_.end()) {
           return std::string();
         }
         if (state == states.playing) {
-          return lucent::format("warp {}", level);
+          return lucent::format("warp {}", path->second);
         }
         if (states.pause && state == *states.pause) {
-          return lucent::format("warp {}; tap start", level);
+          return lucent::format("warp {}; tap start", path->second);
         }
         return std::string();
       });
-  for (std::uint32_t level = 0; level < kLevelIdEnd; ++level) {
-    if (levelExists(level)) {
-      levels_.push_back(std::to_string(level));
-    }
-  }
-  section("Level Warp");
-  verb({
-      .name = "warp",
-      .summary = "Start that level from the title screen",
-      .params = {DebugParam::word("level",
-                                  {
-                                      [this](Core &) {
-                                        return static_cast<int>(levels_.size());
-                                      },
-                                      [this](Core &, int index) {
-                                        return index >= 0 &&
-                                                       index < static_cast<int>(levels_.size())
-                                                   ? levels_[static_cast<std::size_t>(index)]
-                                                   : std::string();
-                                      },
-                                  })},
-      .run =
-          [this](const DebugCall &call) {
-            const std::string &text = levels_[static_cast<std::size_t>(call.values.value(0))];
-            std::uint32_t level = 0;
-            std::from_chars(text.data(), text.data() + text.size(), level);
-            call.reply = session(call.core).warp->arm(level);
+  warp({
+      .levels = {"homeworld", "level", "arrival"},
+      .places =
+          [this, worlds = std::move(worlds)](Core &core) {
+            std::vector<WarpPlace> places;
+            levelPaths_.clear();
+            for (WarpWorld &world : worlds(core)) {
+              WarpPlace worldPlace{.name = std::move(world.name)};
+              for (WarpLevel &level : world.levels) {
+                levelPaths_[level.id] =
+                    lucent::format("{}/{}/0", places.size(), worldPlace.places.size());
+                WarpPlace levelPlace{.name = std::move(level.name)};
+                levelPlace.places.push_back({
+                    .name = "start",
+                    .arrive =
+                        [id = level.id](Core &target) {
+                          return session(target).warp->arm(target, id);
+                        },
+                });
+                for (WarpPlace &arrival : level.arrivals) {
+                  levelPlace.places.push_back(std::move(arrival));
+                }
+                worldPlace.places.push_back(std::move(levelPlace));
+              }
+              places.push_back(std::move(worldPlace));
+            }
+            return places;
           },
   });
   if (mobys == nullptr) {

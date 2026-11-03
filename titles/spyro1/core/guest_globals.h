@@ -95,6 +95,13 @@ inline constexpr std::uint32_t kMagnitudeTable = 0x80074B84u;
 inline constexpr std::uint32_t kLevelId = 0x8007596Cu;
 inline constexpr std::uint32_t kNextLevelId = 0x800758B4u;
 
+// external/open-spyro names: g_apTitleCardNames per homeworld (1..6), g_apLevelNameStrings at
+// (id / 10 - 1) * 6 + id % 10 ("HOME" for a homeworld), g_abLevelTotalDragonsTable at the same
+// index.
+inline constexpr std::uint32_t kTitleCardNames = 0x8006F7D0u;
+inline constexpr std::uint32_t kLevelNames = 0x8006F7F0u;
+inline constexpr std::uint32_t kLevelDragonTotals = 0x8006F414u;
+
 // g_Portals (portal.h): up to six live portal pointers.
 inline constexpr std::uint32_t kPortals = 0x80078640u;
 inline constexpr std::uint32_t kPortalCount = 0x800758BCu;
@@ -122,7 +129,8 @@ inline constexpr std::uint32_t kPad = 0x80077378u;
 // g_DragonCutscene (dragon.h): state machine after 0x24-byte WAD header.
 inline constexpr std::uint32_t kDragonCutscene = 0x80077030u;
 
-// D_80075744: the inventory page shown; D_800757CC slides between pages and jumps by 0x380 as this changes.
+// D_80075744: the inventory page shown; D_800757CC slides between pages and jumps by 0x380 as this
+// changes.
 inline constexpr std::uint32_t kInventoryPage = 0x80075744u;
 
 } // namespace spyro1::guest

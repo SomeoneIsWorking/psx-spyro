@@ -14,13 +14,27 @@ constexpr std::uint32_t kFirstWorld = 1u;
 constexpr std::uint32_t kLastWorld = 4u;
 constexpr std::uint32_t kLevelsPerWorld = 9u;
 constexpr std::uint32_t kLevelsInLastWorld = 10u;
+constexpr std::uint32_t kLevelNames = 0x80069CF8u;
 
 } // namespace
 
-bool Warp::levelExists(std::uint32_t level) {
-  const std::uint32_t world = level / 10u;
-  const std::uint32_t levels = world == kLastWorld ? kLevelsInLastWorld : kLevelsPerWorld;
-  return world >= kFirstWorld && world <= kLastWorld && level % 10u < levels;
+std::vector<spyro::WarpWorld> Warp::worlds(Core &core) {
+  std::vector<spyro::WarpWorld> worlds;
+  std::uint32_t index = 0;
+  for (std::uint32_t world = kFirstWorld; world <= kLastWorld; ++world) {
+    const std::uint32_t levels = world == kLastWorld ? kLevelsInLastWorld : kLevelsPerWorld;
+    for (std::uint32_t level = world * 10u; level < world * 10u + levels; ++level, ++index) {
+      std::string name = spyro::guestName(core, kLevelNames + index * 4u);
+      if (name.empty()) {
+        return {};
+      }
+      if (level == world * 10u) {
+        worlds.push_back({.name = name});
+      }
+      worlds.back().levels.push_back({.id = level, .name = std::move(name)});
+    }
+  }
+  return worlds;
 }
 
 bool Warp::titleScreenIdle(Core &core) const {

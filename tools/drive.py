@@ -162,9 +162,9 @@ class Port:
         """Ask the port to list this level's gates, their target levels and path nodes."""
         self._send("gates")
 
-    def gate_teleport(self, gate: int, node: int) -> None:
-        """Place Spyro on a gate's path node through the port's gate diagnostic; the walk cannot climb."""
-        self._send(f"gate-teleport {gate} {node}")
+    def warp(self, path: str) -> None:
+        """Arm an arrival of the port's warp catalogue (`homeworld/level/arrival`, names or numbers)."""
+        self._send(f"warp {path}")
 
     def shot(self, path: str) -> None:
         """Capture the presented picture to `path`, returning once the port has written it (its own
@@ -334,7 +334,7 @@ def quit_to_home(port: Port, budget: int = 4000) -> None:
         raise ToolError(
             f"--quit-home needs a sub-level: level {level} is a homeworld, where the pause menu's "
             f"Quit opens a confirm screen instead of calling the exit-level entry (func_8002C618). "
-            f"Cross a portal first (--seek-portal) or teleport onto a gate (--gate-teleport)"
+            f"Cross a portal first (--seek-portal) or warp into a level (--warp)"
         )
     port.tap("start")
     spent = 0
@@ -465,11 +465,11 @@ def main() -> int:
         help="stop the seek at this view-space distance instead of walking all the way in",
     )
     parser.add_argument(
-        "--gate-teleport",
+        "--warp",
         default="",
-        metavar="GATE:NODE",
-        help="place Spyro on that gate's path node before anything else, using the port's own "
-        "gate diagnostic; the walk cannot climb to a portal",
+        metavar="PATH",
+        help="arm that warp arrival once in gameplay, e.g. 'Artisans/Stone Hill/portal'; the walk cannot "
+        "climb to a portal",
     )
     parser.add_argument(
         "--seek-portal",
@@ -559,12 +559,8 @@ def main() -> int:
         port.mark_arrival()
         if args.settle:
             port.run(args.settle)
-        if args.gate_teleport:
-            gate, separator, node = args.gate_teleport.partition(":")
-            if not separator:
-                parser.error(f"--gate-teleport expects GATE:NODE, got {args.gate_teleport!r}")
-            port.gates()
-            port.gate_teleport(int(gate), int(node))
+        if args.warp:
+            port.warp(args.warp)
             port.run(args.settle or 1)
         if args.seek_class >= 0 and args.seek_portal:
             parser.error("--seek-class and --seek-portal name two different destinations")

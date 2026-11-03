@@ -135,25 +135,25 @@ void LevelMobys::placeSpyro(Core &core, const Position &destination) const {
   teleport::placeSpyro(core, destination);
 }
 
-std::string toGate(Core &core, uint32_t index, uint32_t node) {
-  const std::optional<GateInfo> gate = inspectGate(core, index);
-  if (!gate) {
-    return lucent::format("refused: gate {} is not a valid loaded portal", index);
+std::string toPortal(Core &core, uint32_t level) {
+  const uint32_t count = core.mem_r32(kPortalCount);
+  for (uint32_t i = 0; i < count && i < kMaxPortals; ++i) {
+    const std::optional<GateInfo> gate = inspectGate(core, i);
+    if (!gate || gate->levelId != static_cast<int32_t>(level)) {
+      continue;
+    }
+    const Position destination = gate->nodes[0];
+    placeSpyro(core, destination);
+    lucent::info("spyro-teleport",
+                 "portal gate={} targetLevel={} position=({}, {}, {})",
+                 i,
+                 level,
+                 destination.x,
+                 destination.y,
+                 destination.z);
+    return lucent::format("ok: Spyro in front of the portal into level {}", level);
   }
-  if (node >= gate->nodeCount) {
-    return lucent::format("refused: node {} is outside gate {}", node, index);
-  }
-  const Position destination = gate->nodes[node];
-  placeSpyro(core, destination);
-  lucent::info("spyro-teleport",
-               "gate-teleport gate={} node={} targetLevel={} position=({}, {}, {})",
-               index,
-               node,
-               gate->levelId,
-               destination.x,
-               destination.y,
-               destination.z);
-  return lucent::format("ok: Spyro on gate {} node {}", index, node);
+  return lucent::format("refused: no loaded portal leads to level {}", level);
 }
 
 std::string listGates(Core &core) {

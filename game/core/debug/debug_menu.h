@@ -1,11 +1,13 @@
-// debug_menu.h — the debug verbs Spyro 1/2/3 share: the level warp from the idle title screen and
-// the moby teleport. Each title's menu derives from it and adds its own.
+// debug_menu.h — the debug verbs Spyro 1/2/3 share: the warp catalogue (homeworld, level, arrival)
+// and the moby listing. Each title's menu derives from it and adds its own.
 #pragma once
 
 #include "core/frame_cut.h"
 #include "title_debug_menu.h"
 
 #include <cstdint>
+#include <functional>
+#include <map>
 #include <optional>
 #include <string>
 #include <vector>
@@ -22,19 +24,37 @@ struct ScreenStates {
   std::optional<std::uint32_t> pause;
 };
 
+// One level the warp reaches, named as the guest names it, with the arrivals after its start.
+struct WarpLevel {
+  std::uint32_t id = 0;
+  std::string name;
+  std::vector<psx::game::WarpPlace> arrivals;
+};
+
+struct WarpWorld {
+  std::string name;
+  std::vector<WarpLevel> levels;
+};
+
+// The title's homeworlds from its guest name tables; empty while the executable is not resident.
+using WarpWorlds = std::function<std::vector<WarpWorld>(Core &)>;
+
+// The name a guest pointer word points at; empty when it points nowhere readable.
+std::string guestName(Core &core, std::uint32_t pointerWord);
+
 class DebugMenu : public psx::game::TitleDebugMenu {
 public:
-  // `warp <level>` over the ids `levelExists` accepts; `mobys` and `moby-teleport` when `mobys` is
-  // given. A screen is the game state and level id `scene` names; `states` says which a route
-  // reaches.
-  DebugMenu(bool (*levelExists)(std::uint32_t),
+  // `warp <homeworld>/<level>/<arrival>` over `worlds`, each level's first arrival its start;
+  // `mobys` and `moby-teleport` when `mobys` is given. A screen is the game state and level id
+  // `scene` names; `states` says which a route reaches.
+  DebugMenu(WarpWorlds worlds,
             const MobyTeleport *mobys,
             const FrameCutFacts &scene,
             const ScreenStates &states);
 
 private:
-  // The disc's level ids as the menu and the control line spell them.
-  std::vector<std::string> levels_;
+  // "w/l/0" for each level id the catalogue holds.
+  std::map<std::uint32_t, std::string> levelPaths_;
 };
 
 } // namespace spyro

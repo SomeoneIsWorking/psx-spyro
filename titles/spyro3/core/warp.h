@@ -1,6 +1,9 @@
 #pragma once
 
+#include "core/debug/debug_menu.h"
 #include "core/debug/warp.h"
+
+#include <vector>
 
 namespace spyro3 {
 
@@ -9,9 +12,9 @@ namespace spyro3 {
 // title image.
 class Warp final : public spyro::Warp {
 public:
-  // The 37 levels of levelIndexToHomeworldLevelId 0x800671A0: homeworlds 10, 20 and 30 with nine
-  // levels each, 40 with ten.
-  [[nodiscard]] static bool levelExists(std::uint32_t level);
+  // The 37 levels of levelIndexToHomeworldLevelId 0x800671A0 (homeworlds 10, 20 and 30 with nine
+  // levels each, 40 with ten), named from the name table 0x80069CF8 in the same order.
+  [[nodiscard]] static std::vector<spyro::WarpWorld> worlds(Core &core);
 
 protected:
   // Game state 11 with the title image in state 1, the menu before the demo timeout.

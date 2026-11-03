@@ -5,7 +5,6 @@
 
 #include "core.h"
 
-#include <algorithm>
 #include <array>
 
 namespace spyro2 {
@@ -18,6 +17,12 @@ constexpr std::uint32_t kStartIndex = 0x80067E14u;
 constexpr std::uint32_t kTitleStarting = 5u;
 // Index 0 keeps the level id.
 constexpr std::uint32_t kKeepLevel = 0u;
+// Byte per level id: its index into the name table.
+constexpr std::uint32_t kLevelIndexTable = 0x80064940u;
+constexpr std::uint32_t kLevelNames = 0x800649B4u;
+// Each homeworld's levels follow its id up to the next homeworld's.
+constexpr std::uint32_t kFirstHomeworld = 10u;
+constexpr std::uint32_t kHomeworldSpan = 20u;
 
 constexpr std::array<std::uint32_t, 29> kLevels{10, 11, 12, 13, 21, 22, 23, 25, 26, 30,
                                                 31, 32, 33, 34, 35, 41, 42, 43, 44, 45,
@@ -25,8 +30,20 @@ constexpr std::array<std::uint32_t, 29> kLevels{10, 11, 12, 13, 21, 22, 23, 25, 
 
 } // namespace
 
-bool Warp::levelExists(std::uint32_t level) {
-  return std::ranges::find(kLevels, level) != kLevels.end();
+std::vector<spyro::WarpWorld> Warp::worlds(Core &core) {
+  std::vector<spyro::WarpWorld> worlds;
+  for (const std::uint32_t level : kLevels) {
+    std::string name =
+        spyro::guestName(core, kLevelNames + core.mem_r8(kLevelIndexTable + level) * 4u);
+    if (name.empty()) {
+      return {};
+    }
+    if ((level - kFirstHomeworld) % kHomeworldSpan == 0u) {
+      worlds.push_back({.name = name});
+    }
+    worlds.back().levels.push_back({.id = level, .name = std::move(name)});
+  }
+  return worlds;
 }
 
 bool Warp::titleScreenIdle(Core &core) const {

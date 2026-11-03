@@ -7,6 +7,6 @@ namespace spyro2 {
 
 DebugMenu::DebugMenu()
     : spyro::DebugMenu(
-          &Warp::levelExists, &mobys_, kBootPrefixFacts.cut, {.title = kTitleScreenGameState}) {}
+          &Warp::worlds, &mobys_, kBootPrefixFacts.cut, {.title = kTitleScreenGameState}) {}
 
 } // namespace spyro2

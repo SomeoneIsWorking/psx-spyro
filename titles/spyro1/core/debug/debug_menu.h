@@ -1,5 +1,5 @@
-// debug_menu.h — Spyro 1's debug menu: the shared level warp and moby teleport, then the portal and
-// crystal-dragon teleports.
+// debug_menu.h — Spyro 1's debug menu: the shared warp with each level's portal and crystal dragons
+// as arrivals, the moby listing, and the portal and dragon listings.
 #pragma once
 
 #include "core/debug/debug_menu.h"
@@ -12,6 +12,9 @@ public:
   DebugMenu();
 
 private:
+  // The homeworlds, levels and arrivals from the executable's name and dragon tables.
+  std::vector<spyro::WarpWorld> worlds(Core &core) const;
+
   teleport::LevelMobys mobys_;
 };
 
