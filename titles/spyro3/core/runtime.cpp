@@ -3,6 +3,7 @@
 #include "core.h"
 #include "game.h"
 #include "spyro3/core/boot_facts.h"
+#include "spyro3/core/logo_facts.h"
 #include "spyro3/core/warp.h"
 #include "spyro3/render/hud_anchor.h"
 #include "spyro3/render/render_facts.h"
@@ -77,6 +78,10 @@ std::unique_ptr<spyro::TitleState> Runtime::createTitleState() const {
 
 std::unique_ptr<spyro::Warp> Runtime::createWarp() const {
   return std::make_unique<Warp>();
+}
+
+const spyro::TitleLogoFacts &Runtime::logoFacts() const {
+  return kLogoFacts;
 }
 
 } // namespace spyro3

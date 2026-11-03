@@ -13,7 +13,7 @@ Frame loop: not owned. Spyro 1 runs update `0x8003385C` and draw `0x8001ED5C` an
 - `game/core/native_execution.h` — nested guest call return address `$ra` and lowered stack frame
 - `game/core/archive_transfer*` — WAD archive / CD file transfer with per-Core completion and refusal
 - `game/core/guest_magnitude.*` — reciprocal magnitude / vector length normalise step, GTE square sum and square root table
-- `game/core/title_logo*` — title wordmark / logo snapshotted from guest VRAM for the picker panel
+- `game/core/title_logo*` — title wordmark for the picker panel, rebuilt from the title screen's draws at its gate
 - `game/core/debug/debug_menu.*` — `spyro::DebugMenu`, the title debug menu (psxport `TitleDebugMenu`): level warp verb over each title's level ids, moby teleport verbs; S1/S2 derive their own
 - `game/core/debug/warp.*` — `warp <level>` request / level select / dev warp, applied when the title screen is idle
 - `game/core/debug/moby_teleport.*` — `mobys <class>` / `moby-teleport <class> <n>`: list a level's mobys of one class and place Spyro on one (NPC conversation, dragon rescue routes); each title names its moby array, active field and position words

@@ -3,6 +3,7 @@
 #include "core.h"
 #include "game.h"
 #include "spyro2/core/boot_facts.h"
+#include "spyro2/core/logo_facts.h"
 #include "spyro2/core/warp.h"
 #include "spyro2/render/conversation.h"
 #include "spyro2/render/hud_anchor.h"
@@ -98,6 +99,10 @@ std::optional<psx::gpu::PacketPoolExtent> Runtime::packetPool(Core &core) const 
 
 std::unique_ptr<spyro::Warp> Runtime::createWarp() const {
   return std::make_unique<Warp>();
+}
+
+const spyro::TitleLogoFacts &Runtime::logoFacts() const {
+  return kLogoFacts;
 }
 
 } // namespace spyro2

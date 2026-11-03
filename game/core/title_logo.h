@@ -1,4 +1,4 @@
-// A title's own logo, snapshotted from its live VRAM while its title screen is on it.
+// A title's own logo, rebuilt from its title screen's draws while that screen shows it.
 #pragma once
 
 #include "core/title_logo_facts.h"
@@ -10,12 +10,11 @@ class Core;
 
 namespace spyro {
 
-// Snapshots the sprite rectangles and CLUTs the named gate's emitter records point at, reading
-// the texture the game uploaded to VRAM rather than inferring art from the framebuffer.
-// Returns nullopt — never an empty image dressed as a logo — when there is nothing to read yet.
+// The wordmark as the last committed frame drew it from the named pages; nullopt while the gate is
+// shut or the draws hold no artwork yet.
 std::optional<psx::host::LogoImage> extractPanelLogo(Core &core, const TitleLogoFacts &facts);
 
-// Whether the logo gate is open right now; split out so a step can test it without a snapshot.
+// Whether the logo gate is open right now.
 bool titleLogoGateOpen(Core &core, const TitleLogoFacts &facts);
 
 } // namespace spyro

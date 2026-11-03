@@ -1,6 +1,7 @@
 #include "spyro2/core/warp.h"
 
 #include "spyro2/core/boot_facts.h"
+#include "spyro2/core/logo_facts.h"
 
 #include "core.h"
 
@@ -10,11 +11,9 @@
 namespace spyro2 {
 namespace {
 
-// The title image's state, its tick and the start index state 5 passes to 0x80019230.
-constexpr std::uint32_t kTitleState = 0x80067E0Cu;
+// The title image's tick and the start index state 5 passes to 0x80019230.
 constexpr std::uint32_t kTitleTick = 0x80067E00u;
 constexpr std::uint32_t kStartIndex = 0x80067E14u;
-constexpr std::uint32_t kTitleWaiting = 2u;
 // At tick 12: title teardown at 0x8007A364, then 0x80019230(start index) at 0x8007A38C.
 constexpr std::uint32_t kTitleStarting = 5u;
 // Index 0 keeps the level id.
@@ -32,14 +31,14 @@ bool Warp::levelExists(std::uint32_t level) {
 
 bool Warp::titleScreenIdle(Core &core) const {
   return core.mem_r32(kGameState) == kTitleScreenGameState &&
-         core.mem_r32(kTitleState) == kTitleWaiting;
+         core.mem_r32(kTitleScreenState) == kTitleScreenWaiting;
 }
 
 void Warp::startLevel(Core &core, std::uint32_t level) const {
   core.mem_w32(kLevelId, level);
   core.mem_w32(kStartIndex, kKeepLevel);
   core.mem_w32(kTitleTick, 0u);
-  core.mem_w32(kTitleState, kTitleStarting);
+  core.mem_w32(kTitleScreenState, kTitleStarting);
 }
 
 } // namespace spyro2

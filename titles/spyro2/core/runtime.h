@@ -19,6 +19,7 @@ public:
 
   void registerOverrides(Game &game) override;
   std::optional<psx::gpu::PacketPoolExtent> packetPool(Core &core) const override;
+  const spyro::TitleLogoFacts &logoFacts() const override;
   const psx::game::TitleDebugMenu &debugMenu() const override {
     return debugMenu_;
   }

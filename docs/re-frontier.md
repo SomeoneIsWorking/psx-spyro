@@ -76,12 +76,11 @@ Statuses: ✅ re-verified · 🟡 re-partial · 🔬 in-progress · ⬜ todo · 
 
 ## titles
 
-### picker.logo — Recover each title's own artwork for the picker panel
-- status: re-partial
+### picker.logo — Each title's own wordmark for the picker panel
+- status: grounded
 - deps: boot.provision
-- evidence: each panel's logo is the title's OWN decoded artwork read back from its resident VRAM at runtime, never a fetched or committed asset. All three boot wordmarks are direct-colour 15-bit (transfer mode 2) and sit on the disc's untouched black card, so the card's black surround is transparent and only the wordmark survives: Spyro 1 `SCUS_942.28` Universal/Universal Interactive Studios at VRAM `84,31 348x67`; Spyro 2 `SCUS_944.25` Insomniac Games at VRAM `7,89 481x99`; Spyro 3 `SCUS_944.67` "Created and Developed by Insomniac Games" at VRAM `13,89 486x90`. Each read is accepted only when the rectangle actually holds artwork (a card before it is drawn reads back as black and is retried on a later step), because the read itself always succeeds and cannot answer that.
-- where: game/core/title_logo_facts.h; game/core/title_logo.*; external/psxport/runtime/psx/host/panel_logo.*; titles/spyro1/core/frame/logo_facts.h; titles/spyro{2,3}/core/logo_facts.h
-- gap: none of the three BOOT paths shows a SPYRO title-screen wordmark — these are the discs' publisher/developer cards, so the panels show the boot artwork, not the game's own logo.
+- evidence: each logo is rebuilt from the title screen's own draws (psxport `drawnLogo`: the last committed frame's textured primitives on the wordmark's texture, rasterized from VRAM) at the title screen's own gate, never a committed asset. Spyro 1 `SCUS_942.28`: game state 13 and `m_CurrentTick >= 1170`, 8bpp page (512,256), 256x129. Spyro 2 `SCUS_944.25`: game state 11 (`0x800681C8`) and title state 2 (`0x80067E0C`), 8bpp page (512,256) with the "Ripto's Rage!" banner, 255x96. Spyro 3 `SCUS_944.67`: game state 11 (`0x8006E344`) and title state byte 1 (`0x8007F12C`), one semi-transparent 8bpp quad on page (512,0) through the palette at (512,0) (terrain shares the page), 191x75. Shown in `scratch/picker2/logos2`.
+- where: game/core/title_logo_facts.h; game/core/title_logo.*; titles/spyro1/core/frame/logo_facts.h; titles/spyro{2,3}/core/logo_facts.h; external/psxport/runtime/psx/present/drawn_logo.*
 
 ### title.demo-flag — Each title's attract-demo flag
 - status: re-partial

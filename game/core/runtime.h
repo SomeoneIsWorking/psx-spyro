@@ -15,7 +15,7 @@ namespace spyro {
 // The behaviour Spyro 1/2/3 share; each serial's runtime derives from it.
 class Runtime : public psx::game::GameRuntime {
 public:
-  // Where the title's own logo lands in VRAM and how it is encoded; the base has none.
+  // The title screen's logo gate and the texture pages its wordmark is drawn from; the base has none.
   virtual const TitleLogoFacts &logoFacts() const;
 
   std::unique_ptr<psx::game::TitleSessionState> createSession(Game &game) final;

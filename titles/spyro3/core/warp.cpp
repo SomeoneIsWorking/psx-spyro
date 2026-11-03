@@ -1,16 +1,13 @@
 #include "spyro3/core/warp.h"
 
 #include "spyro3/core/boot_facts.h"
+#include "spyro3/core/logo_facts.h"
 
 #include "core.h"
 
 namespace spyro3 {
 namespace {
 
-// Title image data, resident whenever the game state is the title's: the state and its step.
-constexpr std::uint32_t kTitleState = 0x8007F12Cu;
-constexpr std::uint32_t kTitleStep = 0x8007F12Eu;
-constexpr std::uint8_t kTitleWaiting = 1u;
 constexpr std::uint8_t kTitleStarting = 19u;
 
 constexpr std::uint32_t kFirstWorld = 1u;

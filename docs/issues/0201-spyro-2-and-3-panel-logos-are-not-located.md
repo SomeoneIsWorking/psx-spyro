@@ -1,6 +1,6 @@
 # 0201 — Spyro 2 and 3 panel logos are not located
 
-**Status:** open. **Owner:** `game/core/title_logo.cpp` (`spyro::Runtime::logoFacts` answers "no logo" for both).
+**Status:** fixed (2026-11-03). **Owner:** `game/core/title_logo.cpp`, `titles/spyro{2,3}/core/logo_facts.h`.
 
 The picker panel draws no name for Spyro 2 and 3 because their title wordmarks have not been found
 in guest state. Spyro 1's recipe (one record of a 64-entry sprite table drawn by the title overlay,
@@ -33,3 +33,15 @@ in guest state. Spyro 1's recipe (one record of a 64-entry sprite table drawn by
 
 Search populated texture memory for the plate as an indexed (4- or 8-bit) page with its CLUT, and
 name that page's origin, depth and CLUT in a title `logo_facts.h`.
+
+## Fixed (2026-11-03)
+
+The wordmarks are not sprite records or RAM images; they are textured primitives the title screen draws
+each frame. psxport's `drawnLogo` rebuilds the logo from the last committed frame record: the primitives
+that sample the wordmark's texture, rasterized from VRAM. Spyro 2 draws its plate and banner from the 8bpp
+page at (512,256) and is read at game state 11 with title state 2 (`0x80067E0C`); Spyro 3 draws one
+semi-transparent 8bpp quad from page (512,0) through the palette at (512,0) (terrain shares the page) at
+game state 11 with title state byte 1 (`0x8007F12C`). Spyro 1 moved to the same reader (page (512,256)) and
+its sprite-record snapshot was deleted. Shown in `scratch/picker2/logos2` (255x96, 191x75, 256x129) and
+`scratch/picker2/cold/open8.png`: a fresh selector draws the saved Spyro 2 and 3 logos on their never-focused
+panels (`steps=0 insns=0`).
