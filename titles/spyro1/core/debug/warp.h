@@ -6,7 +6,8 @@ namespace spyro1 {
 
 // SCUS_942.28's warp: from the idle title screen into GamestateCutsceneTransition's TSD_Level
 // flyby, the route New Game takes after the intro cutscene (src/gamestates/init.c), which loads
-// g_LevelId and hands over to gameplay.
+// g_LevelId and hands over to gameplay; from gameplay through the level-warp cheat's transition
+// into GS_LevelTransition (src/cheats.c CheatProcessLevelWarp).
 class Warp final : public spyro::Warp {
 public:
   // Homeworlds 10..60, six levels each, Gnasty's World five: the bounds the retail level-warp cheat
@@ -19,6 +20,10 @@ protected:
   [[nodiscard]] bool titleScreenIdle(Core &core) const override;
   // func_8001277C resets progress as New Game does, then g_LevelId and the TSD_Level handoff.
   void startLevel(Core &core, std::uint32_t level) const override;
+  // GS_Playing with no load running, where CheatsProcess takes input.
+  [[nodiscard]] bool levelChangeReady(Core &core) const override;
+  // CheatProcessLevelWarp with the level's homeworld selected and its button down for that call.
+  void changeLevel(Core &core, std::uint32_t level) const override;
 };
 
 } // namespace spyro1

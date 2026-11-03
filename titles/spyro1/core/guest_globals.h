@@ -55,6 +55,7 @@ inline constexpr std::uint32_t kTitlescreenSubState = kTitlescreenState + 0x10u;
 inline constexpr std::uint32_t kTitlescreenDemoType = kTitlescreenState + 0x1Cu; // m_DemoType
 inline constexpr std::uint32_t kGamestateTitleScreen = 13u;                      // GS_TitleScreen
 inline constexpr std::uint32_t kGamestatePauseMenu = 2u;                         // GS_PauseMenu
+inline constexpr std::uint32_t kGamestatePlaying = 0u;                           // GS_Playing
 inline constexpr std::uint32_t kTitleModeInit = 0u;                              // TSM_Init
 inline constexpr std::uint32_t kTitleModeDemo = 3u;                              // TSM_Demo
 inline constexpr std::uint32_t kTitleStageSetup = 0u;                            // TSS_Setup
@@ -125,6 +126,9 @@ inline constexpr std::uint32_t kDemoMode = 0x80075714u;
 
 // g_Pad (gamepad.h): m_Down at +0, m_Released at +4, m_Held at +8.
 inline constexpr std::uint32_t kPad = 0x80077378u;
+
+// cheat_HomeworldSelected (cheats.c): the homeworld CheatProcessLevelWarp adds the level button to.
+inline constexpr std::uint32_t kCheatHomeworldSelected = 0x800758ECu;
 
 // g_DragonCutscene (dragon.h): state machine after 0x24-byte WAD header.
 inline constexpr std::uint32_t kDragonCutscene = 0x80077030u;

@@ -20,6 +20,12 @@ protected:
   [[nodiscard]] bool titleScreenIdle(Core &core) const override;
   // The level id, then title state 5 from its first tick, as state 4 enters it.
   void startLevel(Core &core, std::uint32_t level) const override;
+  // No gameplay route into another level is traced yet (issue 0227); a level starts from the title
+  // screen.
+  [[nodiscard]] bool levelChangeReady(Core & /*core*/) const override {
+    return false;
+  }
+  void changeLevel(Core & /*core*/, std::uint32_t /*level*/) const override {}
 };
 
 } // namespace spyro2

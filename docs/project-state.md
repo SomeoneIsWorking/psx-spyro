@@ -383,7 +383,7 @@ sky's spin at t) and each moby shadow `0x80059F8C`. recordcheck
 under a producer with a render.
 
 Evidence (2026-10-21, fps60, 16:9, hidden window, `PSXPORT_PRODUCERS=1`, `warp` 10, 11, 20 and a
-`gate-teleport 0 0` beside level 10's portal): every primitive drawn in gameplay keyed and rendered
+`warp Artisans/Toasty/portal`, beside the Toasty portal in level 10): every primitive drawn in gameplay keyed and rendered
 (+646865, +606622, +372210 and +228725 primitives after reaching gameplay, keyed without render 0;
 the only unkeyed are 17 of the level-entry transition before gameplay); 40 presents while turning
 show even adjacent differences and a steady image shift with each in-between between its

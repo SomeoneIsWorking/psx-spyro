@@ -75,7 +75,7 @@ fog owner's `fadeColours`; its rotations come from the camera builder `0x80033C5
 applied (`nearSkyRotations`). `spyro1::shadows::MobyShadowProducer` keys each staged record.
 
 Proof (fps60, 16:9, hidden window, `PSXPORT_PRODUCERS=1`): on `warp` 10, 11 and 20 and beside
-level 10's portal (`gate-teleport 0 0`, near sky drawn), the census after gameplay starts adds only
+level 10's portal (`warp Artisans/Toasty/portal`, near sky drawn), the census after gameplay starts adds only
 keyed primitives with a render (the 17 unkeyed are the level-entry transition, before gameplay);
 40 presents while turning have even adjacent differences and a steady image shift; real frames are
 pixel-identical to the guest-drawn run while no shadowed moby sits in a side margin, where the
@@ -92,7 +92,7 @@ starts, adjacent differences 7.1..10.4 (`scratch/interp2/s1`).
 
 ## Dragon rescue (2026-10-22)
 Reproduction: player settings (16:9, ires auto, fps60), `PSXPORT_PRESENT_SINK=3840x2160`, hidden window,
-`warp 10`, then `dragon-teleport 0` on the control channel: Spyro is placed on the level's first crystal
+`warp Artisans/Artisans/dragon 1` on the control channel: Spyro is placed on the level's first crystal
 dragon (moby class 250) and the statue's own touch calls `func_8002C924` into gamestate 8 within a frame.
 The first proof below walked into the statue by holding a button, which steers gameplay; it was redone
 on this route (review, below).
@@ -121,7 +121,7 @@ each in-between's difference to the frame before over the one after is 0.87..1.4
 the flash start (1.04), against 66/4.3 before; at 1x the flash's vanish is 33.5/33.4 and its start 24.4/28.6.
 
 Review (2026-10-22): the stepped captures of `s1-star8xb` were deleted, so the figures above could not
-be rechecked. Redone on the `dragon-teleport` route at HEAD: `scratch/inbetween-gaps/fx-s1rescue2`
+be rechecked. Redone on the dragon-arrival route at HEAD: `scratch/inbetween-gaps/fx-s1rescue2`
 (8x, 40 presents from gamestate 8's first frame): the star grows and the additive flash ramps the mean
 grey 99 -> 208 over 14 presents with each present's difference to the one before about equal to the one
 after (16.3/15.7, 15.7/15.3, ... 5.6/3.5, against 28.9..8.6 between its neighbours), so every in-between

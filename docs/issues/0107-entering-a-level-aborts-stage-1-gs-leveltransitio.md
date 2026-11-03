@@ -16,7 +16,7 @@ into level loading and stops here:
     [render:error] NATIVE RENDER NOT IMPLEMENTED — stage selector = 1 (no producer is registered for this stage)
     [render:error]   fatal boundary: guest pc=0xDEAD0000 ra=0xDEAD0000 sp=0x801FFFF8 stage=1/3/2 load_stage=2 state_switch=0
 
-Reproduce: `tools/drive.py gameplay --gate-teleport 0:0 --seek-portal --skip-transitions --after 1200`.
+Reproduce: `tools/drive.py gameplay --warp Artisans/Toasty/portal --seek-portal --skip-transitions --after 1200`.
 
 This is the honest boundary doing its job, not a regression. Stage 1 simply has no arm in
 `SpyroRenderer::renderScene`.
@@ -103,7 +103,7 @@ caller `abort()`ed on a false, so a failing gate read as a bare crash with no di
 at error when it fails. Stage 1 arms that gate because `func_8001A050` calls `0x80023AC4`
 unconditionally.
 
-Live route `tools/drive.py gameplay --gate-teleport 0:0 --seek-portal --skip-transitions --after
+Live route `tools/drive.py gameplay --warp Artisans/Toasty/portal --seek-portal --skip-transitions --after
 1500` now crosses the portal, renders the transition and the entrance animation, and reaches
 gameplay in the destination level. The next field boundary was the Spyro shadow producer
 `0x80059A48`; its anchor `FLAG` saturation was misclassified as an invalid projection and is

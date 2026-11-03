@@ -23,7 +23,7 @@ projected values exactly as the producer does. The focused test mutates the anch
 saturating case and requires all 16 fan faces plus the expected error bits.
 
 The real route
-`tools/drive.py gameplay --gate-teleport 0:0 --seek-portal --skip-transitions --after 300`
+`tools/drive.py gameplay --warp Artisans/Toasty/portal --seek-portal --skip-transitions --after 300`
 was rebuilt with Clang/Ninja and exited 0 after reaching the destination level. It rendered 300
 post-entry fields with `fieldshadow PASS faces=16`, no native-render refusal, and zero Lightrec
 fallback blocks or instructions.

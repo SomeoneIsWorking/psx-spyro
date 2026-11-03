@@ -208,7 +208,7 @@ never have shown that the authored data is present at all.
 **2. The portal route crosses, and the level it reaches authors nothing.** `--seek-portal` walked
 360 fields and gave up **618 view-space units** from the nearest portal, having closed from 4268 to
 312 before its own detours pushed it back out to 1010 — the walk cannot climb to a portal, which is
-what `--gate-teleport`'s help text warns. `--gate-teleport 2:0` does cross, producing
+what `--warp`'s help text warns. `--warp "Artisans/Stone Hill/portal"` does cross, producing
 `level_transition=42` and `entrance_animation=7` in the run's own gamestate census, and the pointer
 tuple changes to level 11's. **Level 11 then reports authored count 0 on all four channels** — it
 carries no environment-animation run at all, consistent with the static census listing entry 11

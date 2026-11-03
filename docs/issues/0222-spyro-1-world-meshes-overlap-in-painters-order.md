@@ -24,9 +24,9 @@ guest's own sort bias (`sortedNearer_`, in bins) as a nearer offset, so what ret
 Every guest store forgets the vertex depth of the words it writes (`Core::bookStore`), so no draw inherits one.
 
 ## Proof so far
-`scratch/depth/runs/toasty-on` vs `toasty-off` (Artisans, `gate-teleport 0 0`, ires 8x, 16:9, depth on vs
+`scratch/depth/runs/toasty-on` vs `toasty-off` (`warp Artisans/Toasty/portal`, ires 8x, 16:9, depth on vs
 `PSXPORT_DEPTH=0`): Spyro, Sparx's glow and his shadow are the same (rerun `rtoasty-d1`/`rtoasty-d0`: zero differing pixels over Spyro), and the rock wall meets the floor along its real
-intersection instead of its slot-order overlap (`toasty-on/left_crop.png`). Stone Hill is reached with `warp 11`
+intersection instead of its slot-order overlap (`toasty-on/left_crop.png`). Stone Hill is reached with `warp Artisans/Stone Hill/start`
 (`stone-on/grid.png`), but the ledge corner needs Spyro placed there; the report replay does not reach it (issue 0225).
 
 ## Remaining

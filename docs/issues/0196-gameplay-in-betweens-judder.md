@@ -381,7 +381,7 @@ Same settings and captures as pass 3; `r2-*` under `scratch/judder-pass3/`, each
 - Scaled particle quads: corners carry the unrounded half size (MAC0 / 2^24 times the size bytes) around the centre
   place. No route here draws kind 3 (`r2-kindlog`: kinds 0, 1, 2 only), so the path is code only.
 - 1x: `r2-x1-head` and `r2-x1-new`, 20 presents, pixel-identical.
-- Near sky through a portal: reached with `gate-teleport 0 0` in `warp 10` (`r2tools/portal_seq.py`, HOLD=left,
+- Near sky through a portal: reached with `warp Artisans/Toasty/portal` (`r2tools/portal_seq.py`, HOLD=left,
   LEAD=6, 24 presents); every in-between composed. Open: at 8x thin seams cross the near sky (orange lines and dark
   ticks off the portal's left edge) on real and in-between presents alike, in HEAD (`r2-gate-head`) and now
   (`r2-gate-new`); none at 1x (`r2-gate-x1`). With the crossings put on the guest's words (`r2-gate-xw`, a scratch
@@ -413,7 +413,7 @@ counted as a repeat on the present before it plus a drop on the present itself; 
 - Census. psxport 0172, fixed by 99b83bb0: the store census arms only under `PSXPORT_PRODUCERS=1`. An armed run
   and an unarmed run are pixel-identical over 4 presents, and the composed in-between counts match base0
   (3618/4830 against 3606/4818).
-- Near sky through a portal (`gate-teleport 0 0` in `warp 10`). The owner was not `Portals::cutShaded`. Cause:
+- Near sky through a portal (`warp Artisans/Toasty/portal`). The owner was not `Portals::cutShaded`. Cause:
   psxport `runtime/psx/gpu/record_raster_setup.cpp:RecordPlanner::Builder::addTriangle` dropped a triangle
   whose native 1x walk was empty. These are clip slivers whose two crossings round to one guest word; their places
   still span area at 8x. Fix: psxport 7936802d draws such a sliver from its places. At 1x the walk is the native
@@ -658,7 +658,7 @@ Framework: `frame_composer.cpp:compose` takes the appearing path only when S doe
 (`holds`, not `find`), so an ambiguous id renders at t=1; `ExecutionControl::Unsuspendable`'s budget is
 documented per call. `kOverlaySlot` is one constant in `guest_depth_bins.h`.
 
-Spyro 1 rescue: `dragon-teleport 0` (title debug option `teleport`) puts Spyro on the first crystal
+Spyro 1 rescue: `warp Artisans/Artisans/dragon 1` puts Spyro on the first crystal
 dragon and the guest's own touch enters state 8 within a frame (issue 0186).
 
 Walks, per screen in boot order, composed/shown and repeats/drops:

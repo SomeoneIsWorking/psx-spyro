@@ -10,7 +10,7 @@ y 26-34%: the stepping disks in the pond below the Artisans waterfalls lose part
 report's build had no native depth.
 
 ## What was checked
-The report replay reaches a different place at 6413 (issue 0225). `dragon-teleport 3`, then 1000 frames
+The report replay reaches a different place at 6413 (issue 0225). `warp Artisans/Artisans/dragon 4`, then 1000 frames
 (`scratch/depth/disks-d1.txt`, runs `disks-d1` and `disks-d0`, ires 8x, 16:9, unpaced):
 - The pond disks draw whole and the same with depth on and off, and match the device VRAM of the same frame
   (`disks-d1/dev2.png`). At that view they are not a painter's-order or record-vs-device defect.

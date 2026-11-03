@@ -8,7 +8,7 @@ Toasty portal arch disappears. The report's `psx.png` is a later frame than `scr
 jamb steady.
 
 ## What was checked
-`gate-teleport 0 0` in Artisans: in the record path at judgement settings (`scratch/depth/runs/toasty`) and in the device
+`warp Artisans/Toasty/portal`: in the record path at judgement settings (`scratch/depth/runs/toasty`) and in the device
 path (`toasty-dev`) the portal sky covers the left inner jamb when the camera is left of the portal's centre. Depth on and
 off draw it the same (`toasty-on/cmp0.png`): the portal sky is not a marked producer and the jamb is drawn before it, so
 this is not painter's order between world meshes. At 4:3, ires 1, depth off, the record and device VRAM of one

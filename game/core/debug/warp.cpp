@@ -13,7 +13,7 @@ std::string Warp::arm(Core &core, std::uint32_t level, Placement placement) {
   if (placeNow) {
     return lucent::format("ok: armed in level {}; it applies at the next frame", level);
   }
-  return lucent::format("ok: warp armed for level {}; it starts from the title screen", level);
+  return lucent::format("ok: warp armed for level {}", level);
 }
 
 void Warp::applyArmed(Core &core, std::uint32_t frame) {
@@ -22,6 +22,13 @@ void Warp::applyArmed(Core &core, std::uint32_t frame) {
     level_.reset();
     startLevel(core, level);
     lucent::info("warp", "level {} started from the title screen at f{}", level, frame);
+    return;
+  }
+  if (level_ && levelChangeReady(core)) {
+    const std::uint32_t level = *level_;
+    level_.reset();
+    changeLevel(core, level);
+    lucent::info("warp", "level {} entered from gameplay at f{}", level, frame);
     return;
   }
   if (!level_ && placement_.apply && placement_.ready(core)) {

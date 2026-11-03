@@ -251,7 +251,7 @@ gamestates it never reached — the tally, the entrance sweep, the glide, the ga
 fairy, the balloonist and the rest — because all six legs are TITLE ROUTES that stop at arrival. So
 the three arms that sit between two levels (tally, glide) and the two that need a level loaded first
 have unit tests and **still no observation**. Their routes now exist in the driver
-(`--press-after 1:cross`, `--gate-teleport 0:0 --seek-portal --quit-home --press-after 10:cross`),
+(`--press-after 1:cross`, `--warp Artisans/Toasty/portal --seek-portal --quit-home --press-after 10:cross`),
 but no leg above used them, and nothing in this section should be read as covering them.
 
 ### RAM comparison at the hand-off
