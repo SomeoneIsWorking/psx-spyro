@@ -5,6 +5,7 @@
 #include "lucent/log.h"
 #include "render/field/guest_moby_rotation.h"
 #include "render/field/guest_packet.h"
+#include "render/field/guest_render_globals.h"
 #include "render/field/guest_view_slope.h"
 #include "render/field/guest_word.h"
 #include "render/field/moby_record.h"
@@ -126,6 +127,17 @@ std::optional<QueuedChain> SpriteQueue::draw(QueuedDraw queued) {
     return std::nullopt;
   }
   orient(*centre, record);
+  // The guest sorts the record nearer than its view depth by the bins its bias took off.
+  const psx::cpu::DepthUnit unit(
+      core_.gte(),
+      centre->depthScale,
+      static_cast<float>((centre->viewBin - asSigned(depthBin_))
+                         << spyro::guest_render_globals::kDepthBinShift));
+  lucent::debug("spritequeue",
+                "record 0x{:08X} depth scale {} nearer bins {}",
+                record,
+                centre->depthScale,
+                centre->viewBin - asSigned(depthBin_));
   if (!projectVertices()) {
     return std::nullopt;
   }
@@ -240,6 +252,7 @@ std::optional<SpriteQueue::Centre> SpriteQueue::placeInWorld(const Placement &pl
   v0_ = centre.y;
   v1_ = centre.z;
   depthBin_ = sra(centre.z, 6);
+  centre.viewBin = asSigned(depthBin_);
   if (tint != 0) {
     core_.gte().writeData(gte::kIr0, tint);
     core_.gte().writeData(gte::kIr1, centre.x);
@@ -252,6 +265,10 @@ std::optional<SpriteQueue::Centre> SpriteQueue::placeInWorld(const Placement &pl
     centre.y = v0_;
     centre.z = v1_;
   }
+  // The translation is the centre, so SZ at the centre is its z against the terrain view's.
+  centre.depthScale = asSigned(centre.z) > 0
+                          ? static_cast<float>(view.z) / static_cast<float>(asSigned(centre.z))
+                          : 0.0f;
   return centre;
 }
 
@@ -291,11 +308,10 @@ void SpriteQueue::orient(const Centre &centre, std::uint32_t record) {
   core_.gte().writeControl(gte::kTranslationX, centre.x);
   core_.gte().writeControl(gte::kTranslationY, centre.y);
   core_.gte().writeControl(gte::kTranslationZ, centre.z);
-  (void)rotation::composeTabled(
-      core_,
-      kRenderGlobals.cameraSineTable,
-      {.angles = angles_, .flags = angleFractions_},
-      rotation_);
+  (void)rotation::composeTabled(core_,
+                                kRenderGlobals.cameraSineTable,
+                                {.angles = angles_, .flags = angleFractions_},
+                                rotation_);
 }
 
 // 80022FEC..800230E8: every vertex projected; a straddling record keeps an outcode per vertex and
@@ -406,7 +422,8 @@ void SpriteQueue::drawPolygon(const PolygonWords &polygon) {
     screen_[i] = memory_.loadVertex(slots[i]);
   }
   if (asSigned(edge_) < 0) {
-    if ((screen_[0].word() & screen_[1].word() & screen_[2].word() & screen_[3].word() & 0xFu) != 0) {
+    if ((screen_[0].word() & screen_[1].word() & screen_[2].word() & screen_[3].word() & 0xFu) !=
+        0) {
       return;
     }
     for (std::size_t i = 0; i < slots.size(); ++i) {

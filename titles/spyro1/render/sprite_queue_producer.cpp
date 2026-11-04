@@ -132,6 +132,7 @@ void registerSpriteQueueOverrides(Core &core) {
                                  "spyro1-sprite-queue",
                                  drawQueue,
                                  std::make_unique<SpriteQueueProducer>(core));
+  core.depthTest.mark(SpriteQueueProducer::kEntry, psx::present::DepthOrder::Object);
 }
 
 } // namespace spyro1::actors

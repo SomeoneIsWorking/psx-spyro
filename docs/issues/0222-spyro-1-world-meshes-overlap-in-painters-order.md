@@ -1,9 +1,9 @@
 # 0222 — Spyro 1: world meshes overlap in painter's order at high resolution
 
-Status: open (2026-11-04): native depth is on by default, but the report's overlap is not reproduced, with depth on or
-off, at the report's ledge corner from a camera facing Spyro (below). Owner: psxport native depth
+Status: open (2026-11-04): native depth is on by default and every opaque world producer is marked, but the report's
+stance (Spyro on the step by the tower) is not reached, so its overlap is not judged on our build (below). Owner: psxport native depth
 (`docs/presentation.md` Depth); Spyro 1 marks `terrain_image.cpp`, `actor_emitter_producer.cpp` and
-`paired_actor_producer.cpp`.
+`paired_actor_producer.cpp` and `sprite_queue_producer.cpp`.
 
 ## Observed
 Player report `20261031-174745-depth-issues`, pad frame 15397, mark x 43-56% y 46-60%: a pale ledge-trim polygon
@@ -40,17 +40,27 @@ overlap and which slot order drew over the tower's edge. Spyro and the trim at h
 (`scratch/depth2/artisans-a.png`, `artisans-b.png`, densest difference per arrival, off left, on right): a hill no
 longer notches the hub castle tower (`dragon 1`), the Dark Hollow grass no longer steps into the water wall
 (`dragon 3`). Buried plinth and log bases first lost their skirt to the grass (Toasty start, Dark Hollow portal);
-`guest_terrain_polygon.h:sortedBack` now stores terrain vertices back by the guest's bin bias and the skirts draw as
-with depth off (`scratch/depth3/toasty-pair.png`, 95 differing pixels). That rule reverses slot order at the Peace
-Keepers fairy pad (issue 0233).
+a terrain polygon now leaves its depth moved back by one bin and the guest's bin bias, and tests at its true depth,
+so the skirts draw as with depth off (issue 0233).
 
 ## At the report's camera
-`spyro-at x y z heading` now writes Spyro's heading (`teleport.cpp`, +0xCC and +0x11C, 12 bits a turn). Placed at
-heading 1400 or 1300, settled 200 fields, then turned to face the camera for 25 fields (`scratch/depth3/stone.txt`): the
-view matches the report's, with the tower at left, the ledge block corner beside Spyro and the pit at right. Spyro lands on the
-floor beside the block, not on it. With depth off and on, no trim crosses his feet (`scratch/depth3/r0222-feet.png`:
-off, on, at two placements). Next: place him on top of the block (`spyro-at` z above the block top) and compare there.
+`spyro-at x y z heading` writes Spyro's heading (`teleport.cpp`, +0xCC and +0x11C, 12 bits a turn). Placed at heading
+1400, settled 200 fields, then turned to face the camera for 25 fields (`scratch/depth3/stone.txt`, `block2.txt`): the
+view matches the report's, with the tower at left and the pale-trimmed step beside Spyro. Spyro lands on the floor
+(z about 25530) at every placement; a placement over the step's footprint pushes him out to the floor, so the report's
+stance on the step is not reached. At six floor placements beside the step, depth off and on draw his feet and the
+trim the same (`scratch/depth3/r0222-feet.png`, `blk2-sheet.png`: off left, on right).
+
+## Sprite queue
+The sprite queue (`titles/spyro1/render/sprite_queue.cpp`, `0x80022A2C`) draws world and HUD records. A world record
+now projects through a `DepthUnit` whose scale is its centre's view z over the doubled centre it is translated by, less
+the bins its bias sorts it nearer; a HUD record keeps scale 0, so its vertices have no depth and keep slot order. The
+producer is marked `Object`. `PSXPORT_DEBUG=spritequeue` logs each record's scale and bias: at Stone Hill, Dark Hollow,
+Toasty and Peace Keepers 1/1/0, world records draw at scale 0.5 and 4 bins nearer, HUD records at 0
+(`scratch/depth3/runs/sq/run.log`). Every Artisans and Peace Keepers arrival draws the same as before the queue was marked
+(0 differing pixels against `art-on` and `pk-on`).
 
 ## Remaining
-Lit and HUD mobys from the sprite queue (`sprite_queue_producer.cpp`) are not marked: that producer also draws the HUD
-models.
+The report's own stance (Spyro on the step) is not reached through `spyro-at`; the overlap it shows is retail's sort,
+which native depth corrects for Spyro's draw (`Object`, true depth). A tree base over a grass hill at Stone Hill is
+issue 0233.

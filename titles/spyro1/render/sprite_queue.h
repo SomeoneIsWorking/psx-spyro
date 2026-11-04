@@ -73,6 +73,10 @@ private:
     std::uint32_t z = 0;
     std::uint32_t screenSpace = 0;
     bool seenAtRetail = true; // retail's slope keeps it too, so it may set +0x51
+    // A world record's SZ in the terrain's view units, and the bin its view depth lies in; a HUD
+    // record has no view depth, so its scale is 0.
+    float depthScale = 0.0f;
+    std::int32_t viewBin = 0;
   };
 
   // A record as draw() read it, before it clears the drawn byte inside the cull halfword.
