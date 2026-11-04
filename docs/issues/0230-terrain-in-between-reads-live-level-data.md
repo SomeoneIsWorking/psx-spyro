@@ -26,9 +26,9 @@ fell through to live guest memory, which by the time a present composes may alre
 
 ## Shown
 - Warp route (the old `0x80019230(0)` from play, stream step cleared, level 44 set; `scratch/spyro23b/tools/load0230.py`,
-  Zephyr with L1 held, 16 presents dumped across the load): arrives in Fracture Hills, no error, no held interval;
-  810 of 810 terrain in-betweens composed before the fix's coverage rule held 69 of them, after it 0
-  (`scratch/spyro23b/r9/load-from-play.png`: turning play, then the storybook, no stray polygons).
+  Zephyr with L1 held, 16 presents dumped across the load): arrives in Fracture Hills with no error and no held
+  interval. Requiring every read to be saved held 69 of 810 in-betweens during the turn; with the unchanged-neighbour
+  rule all 810 compose (`scratch/spyro23b/r9/load-from-play.png`: turning play, then the storybook, no stray polygons).
 - Credits cheat (pause, then the cheat at `0x80064F14` entry 1: square circle x3, left right x3), credits to their
   return `0x8001A9B0` → `0x80019230(0)`, presents dumped across the return (`credits0230.py`): the credits fade to black
   before the load, so no terrain in-between is pending at it; the return arrives in Zephyr cleanly
