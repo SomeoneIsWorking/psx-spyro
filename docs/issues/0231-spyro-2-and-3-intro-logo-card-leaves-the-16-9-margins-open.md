@@ -19,11 +19,13 @@ retail's projection, so the margins show the world past its edges.
 entry by mesh, decodes its pose (`moby_pose::entryPose`, the drawer's vertex streams and frame-B blend), and
 continues each front-face row (`titles/<t>/render/intro_card_facts.h`) outward by the share of its width the canvas
 adds, projected through the entry's rotation and translation as black F4 quads. They turn and recede with the card;
-the logo is not stretched; nothing is drawn at 4:3. The quads go in the bin before the entry's depth bin
+the logo is not stretched; nothing is drawn at 4:3. The share is full while the card's widest row spans the 4:3
+view and falls to none once it is no wider than that view on the canvas, so the receding card in the attract scene
+(Spyro 2 from f540, Spyro 3 from f600) returns to its authored shape instead of standing as a wider sign. The quads go in the bin before the entry's depth bin
 (entry `+0x18`, where the drawer starts linking the card's polygons); a bin from the corners' own depth let the
 ground under the card sort in front of the bottom rows (Spyro 2 stepped corners, Spyro 3 short wings).
 
-Shown: `scratch/spyro23c/p2w/all.png` (Spyro 2 f330..f500), `p3w/all.png` (Spyro 3 f500..f650) at 16:9 fps60=1,
+Shown: `scratch/spyro23c/q2/all.png` (Spyro 2 f330..f600), `q3/all.png` (Spyro 3 f500..f800) at 16:9 fps60=1,
 `p2n/`, `p3n/all.png` at 4:3 (retail picture).
 
 ## Remaining

@@ -35,8 +35,12 @@ struct Corner {
 
 class Extension {
 public:
-  Extension(Core &core, const Facts &facts, const guest_render_globals::Globals &globals, float share)
-      : core_(core), facts_(facts), globals_(globals), share_(share), memory_(core) {}
+  Extension(Core &core,
+            const Facts &facts,
+            const guest_render_globals::Globals &globals,
+            float share,
+            int nativeWidth)
+      : core_(core), facts_(facts), globals_(globals), share_(share), nativeWidth_(nativeWidth), memory_(core) {}
 
   void draw(std::uint32_t cardEntry) {
     std::uint32_t count = 0;
@@ -52,11 +56,25 @@ public:
     gte.loadTranslation({core_.mem_r32(cardEntry + entry::kCentre),
                          core_.mem_r32(cardEntry + entry::kCentre + 4),
                          core_.mem_r32(cardEntry + entry::kCentre + 8)});
-    std::vector<std::array<Corner, 4>> rows;
+    std::int32_t widest = 0;
     for (const Row &row : facts_.rows) {
-      const Vertex &left = pose[row.left];
-      const Vertex &right = pose[row.right];
-      rows.push_back({project(left), project(beyond(left, right)), project(right), project(beyond(right, left))});
+      widest = std::max(widest, screenX(project(pose[row.right])) - screenX(project(pose[row.left])));
+    }
+    // Full while the card spans the 4:3 view, none once it is no wider than that view on the canvas,
+    // so a receding card shrinks back to its authored shape.
+    const float spans = static_cast<float>(widest) / static_cast<float>(nativeWidth_);
+    const float smallest = 1.0f / (1.0f + 2.0f * share_);
+    const float share = share_ * std::clamp((spans - smallest) / (1.0f - smallest), 0.0f, 1.0f);
+    std::vector<std::array<Corner, 4>> rows;
+    if (share > 0.0f) {
+      for (const Row &row : facts_.rows) {
+        const Vertex &left = pose[row.left];
+        const Vertex &right = pose[row.right];
+        rows.push_back({project(left),
+                        project(beyond(left, right, share)),
+                        project(right),
+                        project(beyond(right, left, share))});
+      }
     }
     gte.restoreRaw(saved);
     // The drawer links the card's polygons from the bin before its entry's; the extension joins them.
@@ -70,10 +88,14 @@ public:
   }
 
 private:
-  // `edge` continued away from `opposite` by the share of the row's width.
-  [[nodiscard]] Vertex beyond(const Vertex &edge, const Vertex &opposite) const {
+  [[nodiscard]] static std::int32_t screenX(const Corner &corner) {
+    return guest_word::asSigned(guest_word::signedHalf(corner.vertex.word() & 0xFFFFu));
+  }
+
+  // `edge` continued away from `opposite` by `share` of the row's width.
+  [[nodiscard]] static Vertex beyond(const Vertex &edge, const Vertex &opposite, float share) {
     const auto out = [&](std::int32_t from, std::int32_t to) {
-      return from + static_cast<std::int32_t>(std::lround(static_cast<float>(from - to) * share_));
+      return from + static_cast<std::int32_t>(std::lround(static_cast<float>(from - to) * share));
     };
     return {.x = out(edge.x, opposite.x), .y = out(edge.y, opposite.y), .z = out(edge.z, opposite.z)};
   }
@@ -105,6 +127,7 @@ private:
   const Facts &facts_;
   const guest_render_globals::Globals &globals_;
   float share_;
+  int nativeWidth_;
   psx::present::EmitMemory memory_;
 };
 
@@ -126,7 +149,7 @@ void draw(Core &core, const Facts &facts, const guest_render_globals::Globals &g
   for (std::uint32_t at = list; at < list + kListBytes && core.mem_r32(at + entry::kClass) != 0;
        at += guest_moby::kEntryStride) {
     if (core.mem_r16(core.mem_r32(at + entry::kRecord) + moby_record::kMesh) == facts.mesh) {
-      Extension(core, facts, globals, share).draw(at);
+      Extension(core, facts, globals, share, plan.nativeProjectionExtent.width).draw(at);
     }
   }
 }
