@@ -230,6 +230,13 @@ Statuses: ✅ re-verified · 🟡 re-partial · 🔬 in-progress · ⬜ todo · 
 - what it is in the product: `game/render/terrain/guest_camera_builder.{h,cpp}`. An in-between interpolates the three angles, each the short way round its 4096-step turn, and re-runs the guest's own maths over host memory. The interpolation of packed control words — per element or whole — is gone, and with it the question of which was right: the words are products of those angles, truncated back into 16 bits, so they are not values that move linearly with the camera
 - what it cost, measured: with a camera that is genuinely between two of the guest's, the traversal defers the union of both endpoints' splits, and SCUS_944.67's first in-between wrote a split entry `0x30C4` above the scratch block, past its own top. The in-between's scratch window runs to the end of every range it does not own instead of to the block the guest sized for one camera, and its packets go to the image's own `inBetweenArena` (engine_terrain_image.cpp)
 
+### spyro3.story-pictures — Spyro 3's intro story pictures are authored 4:3 stills
+- status: re-grounded
+- deps: spyro3.identity
+- evidence: the story overlay (state word `0x8006C5E4`) loads each captioned shot as a 512x256 15-bit picture with LoadImage `0x8005A478` at `0x80074D28` (RECT 512,0,512,256 from `[0x800722C0]`) and `0x80074D6C` (RECT 512,256 from +0x40000), then draws it as four 128x216 sprites (tpage `E1000508..0E`) at (0..511, 12) with the caption over it; no GTE work runs while it shows. Issue 0234.
+- where: guest only (overlay at `0x80074xxx`)
+- gap: none; the pictures are kept at 4:3 by decision (issue 0234).
+
 ### spyro3.moby-drawers — Spyro 3's moby mesh drawers
 - status: re-partial
 - deps: spyro3.moby-visibility
