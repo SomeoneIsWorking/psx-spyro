@@ -1,6 +1,7 @@
 #include "core/boot_prefix_runtime.h"
 
 #include "core.h"
+#include "core/session.h"
 #include "game.h"
 #include "guest_code_module.h"
 
@@ -21,6 +22,7 @@ std::unique_ptr<psx::game::FrameDriver> BootPrefixRuntime::createFrameDriver(Gam
 }
 
 void BootPrefixRuntime::stockCdReadLanded(Core &core, const psx::cd::StockReadLanding &landing) {
+  ++session(core).discLandings;
   if (const std::optional<psx::code_module::Digest> content = psx::code_module::publishStockReadLanding(core, landing)) {
     codeLanded(core, landing, *content);
   }

@@ -84,7 +84,7 @@ The portal fill and near sky of `0x80050BD0` stay on retail's 512-wide window: t
 | hop | title | joins | owner |
 |---|---|---|---|
 | 1 | all | psxport F-FPS60.1 | `game/core/runtime.cpp:spyro::Runtime::stateProducer` — `spyro::Session::stateProducers` |
-| 2 | S2, S3 | psxport F-FPS60.1 | `game/render/terrain/terrain_state_producer.cpp:TerrainStateProducer` — the terrain drawer (`0x80023BB4`, `0x80022378`) redrawn over the field's saved words at t |
+| 2 | S2, S3 | psxport F-FPS60.1 | `game/render/terrain/terrain_state_producer.cpp:TerrainStateProducer` — the terrain drawer (`0x80023BB4`, `0x80022378`) redrawn at t over both fields' saved words, a word neither saved read live only while `Session::discLandings` is unchanged since the earlier field, else the interval is refused (issue 0230) |
 | 3 | S2, S3 | psxport F-FPS60.1 | `game/render/engine_render_overrides.h:engine_render::flatten` — every packet's bin through `depth_bins::assignBins`, from the flatten (`0x8001B2A8`, `0x8004E664`) |
 | 4 | S1 | psxport F-FPS60.1 | `titles/spyro1/render/screen_overlays.cpp:FullscreenTint`, `CinematicLetterbox` — `0x800190D4` and `0x80018F30` |
 | 5 | S1 | psxport F-FPS60.1 | `titles/spyro1/render/ordering_table.cpp:OrderingTable` — LinkOTPrimitives `0x80016784` gives each linked packet its slot |

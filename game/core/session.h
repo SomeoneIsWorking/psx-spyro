@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <memory>
 #include <vector>
 
@@ -26,6 +27,9 @@ public:
 class Session final : public psx::game::TitleSessionState {
 public:
   ArchiveTransfer archiveTransfer{};
+  // Advances with every disc read that lands in guest RAM, through the stock read or the archive
+  // transfer: level data a field read can only have been replaced by one.
+  std::uint64_t discLandings = 0;
   // The selected title's field owner, published by its frame driver. Non-owning: the driver
   // holds it and is installed before the first host turn can arrive.
   FieldOwner *fieldOwner = nullptr;

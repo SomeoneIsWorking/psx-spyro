@@ -2,8 +2,8 @@
 // guest's, and the packets it links, walked in retail's flatten order.
 //
 // The state producer (terrain_state_producer.h) turns the packets into record primitives. It never
-// writes guest memory and runs no guest code; it reads the words the field read, as it read them,
-// and the guest for anything else.
+// writes guest memory and runs no guest code; it reads the words the two fields read, as they read
+// them, and the guest for anything else.
 #pragma once
 
 #include "core.h"
@@ -19,6 +19,7 @@
 #include "render/terrain/guest_terrain_frame.h"
 
 #include <array>
+#include <cstddef>
 #include <cstdint>
 #include <optional>
 #include <span>
@@ -72,10 +73,10 @@ public:
   [[nodiscard]] std::uint32_t visibleSectors() const {
     return visible_;
   }
-  // Whether every level word the traversal read was one the two fields saved, or was read live
-  // between saved words that still hold their values. A load may already have replaced the rest.
-  [[nodiscard]] bool covered() const {
-    return covered_;
+  // The level words the traversal read live because neither field saved them: the words of
+  // polygons both fields culled.
+  [[nodiscard]] std::size_t unsavedReads() const {
+    return unsavedReads_;
   }
 
   // The packets in retail's flatten order (0x8001B2A8): deepest linked bin first, each from its
@@ -93,7 +94,7 @@ private:
   // The bins the traversal linked: the table's memory still holds the guest's own chains elsewhere.
   psx::present::Kept<std::vector<std::uint8_t>>::Use linkedBins_;
   std::uint32_t visible_ = 0;
-  bool covered_ = false;
+  std::size_t unsavedReads_ = 0;
 };
 
 } // namespace spyro::guest_terrain

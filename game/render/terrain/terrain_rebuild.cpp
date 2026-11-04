@@ -26,17 +26,6 @@ public:
     const std::size_t at = firstFrom(address);
     return at < count() && wordAt(at).address == address;
   }
-  // Whether the saved words on either side of `address` still hold their saved values live: a
-  // load that replaced the level around it replaced them too.
-  [[nodiscard]] bool unchangedAround(Core &core, std::uint32_t address) const {
-    const std::size_t after = firstFrom(address);
-    if (after == 0 || after == count()) {
-      return false;
-    }
-    const psx::present::LevelWord below = wordAt(after - 1);
-    const psx::present::LevelWord above = wordAt(after);
-    return core.mem_r32(below.address) == below.value && core.mem_r32(above.address) == above.value;
-  }
 
 private:
   [[nodiscard]] std::size_t count() const {
@@ -154,14 +143,12 @@ Rebuild::Rebuild(Core &core,
                                   .linkedBins = &*linkedBins_});
   (void)drawer_->run();
   tableBase_ = windows.tableBase;
-  // A word neither field read (a polygon both culled) was read live.
   const SavedWords later(field.laterReads);
   const SavedWords earlier(field.earlierReads);
-  covered_ =
-      std::ranges::all_of(host_->levelReads().words(), [&](const psx::present::LevelWord &word) {
-        return later.holds(word.address) || earlier.holds(word.address) ||
-               later.unchangedAround(core, word.address);
-      });
+  unsavedReads_ = static_cast<std::size_t>(
+      std::ranges::count_if(host_->levelReads().words(), [&](const psx::present::LevelWord &word) {
+        return !later.holds(word.address) && !earlier.holds(word.address);
+      }));
 }
 
 void Rebuild::emit(psx::present::PrimitiveSink &sink) const {

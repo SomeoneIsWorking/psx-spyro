@@ -41,6 +41,7 @@ void drawField(Core &core, const TerrainImage &image) {
   }
   state.packetBudget = spyro::session(core).terrainPacketBudget;
   state.sectorCount = static_cast<std::uint32_t>(visible.size());
+  state.discLandings = spyro::session(core).discLandings;
   std::copy(visible.begin(), visible.end(), state.visible);
   // In address order, so an in-between can tell a saved word from one it would read live.
   const psx::present::Kept<std::vector<psx::present::LevelWord>>::Use sorted(
@@ -70,7 +71,14 @@ TerrainStateProducer::composition(const psx::present::StateInterval &states) con
                                .laterReads = after.reads,
                                .argument = after.header.argument,
                                .packetBudget = after.header.packetBudget});
-  if (!rebuild_->covered()) {
+  const std::uint64_t landings = spyro::session(core_).discLandings;
+  if (rebuild_->unsavedReads() != 0 && landings != before.header.discLandings) {
+    lucent::debug("terrstate",
+                  "held a terrain in-between at t={}: {} level words neither field saved, read "
+                  "after {} disc read(s) landed",
+                  states.t,
+                  rebuild_->unsavedReads(),
+                  landings - before.header.discLandings);
     rebuild_.reset();
     return Composition::Refused;
   }

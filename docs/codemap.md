@@ -6,7 +6,7 @@ Frame loop: not owned. Spyro 1 runs update `0x8003385C` and draw `0x8001ED5C` an
 
 - `game/core/title_runtime_registry.*` — product catalog / title picker entries: the three runtimes and their generated identities
 - `game/core/runtime.*` — Spyro runtime base: session, state producers, presentation pacing, widescreen projection policy, panel logo, run report
-- `game/core/session.*` — per-Core title state: archive transfer, field owner, HUD draw context, terrain visibility, state producers
+- `game/core/session.*` — per-Core title state: archive transfer, disc landing count, field owner, HUD draw context, terrain visibility, state producers
 - `game/core/field_owner.*` — display field / VSync delivery sequence: pad, clock, VBlank root counter, observers, snapshot, presentation fence, audio, host turn
 - `game/core/boot_prefix_runtime.*`, `boot_prefix_frame_driver.*` — S2/S3 boot: crt0, stock libraries, the retail boot prefix as a resumable call, then update and draw one field per step, each logic frame presented when its draw returns, each field of the fade-before-load loop presented on its own
 - `game/core/frame_cut.*` — cut detection for 60 fps in-betweens: gamestate, level, camera placement, a cutscene camera track's shot change
@@ -38,7 +38,7 @@ Frame loop: not owned. Spyro 1 runs update `0x8003385C` and draw `0x8001ED5C` an
 - `game/render/terrain/guest_terrain_*` (classify, sphere, animation, mesh, cull, screen, far, far_vertices, detail, translucent, polygon, coarse, fine, split, grid, resplit, fog) — terrain passes: sector classification and bounding sphere, sector animation, vertex projection (RTPS), outcode and NCLIP culls, far LOD and its far bin limit / deepest ordering-table mark, near detail and translucent, subdivision grids, split pieces and edge cracks, re-split of oversized polygons, distance fog
 - `game/render/terrain/guest_camera_builder.*` — guest camera builder re-run for an in-between camera
 - `game/render/terrain/guest_depth_bins.*` — depth bins and overlay pair / ordering-table slot of each packet before the flatten (the overlay slot constant), the field's claim of unkeyed packets
-- `game/render/terrain/terrain_rebuild.*`, `terrain_state_producer.*` — terrain interpolation: drawer re-run over saved words at an in-between camera, terrain state producer
+- `game/render/terrain/terrain_rebuild.*`, `terrain_state_producer.*` — terrain interpolation: drawer re-run over both fields' saved words at an in-between camera, terrain state producer and its refusal after a disc landing
 - `titles/spyro1/core/runtime/` — S1 runtime: crt0, stock bindings, native leaves, pad delivery, Record capabilities, cut, title command
 - `titles/spyro1/core/guest_globals.h`, `guest_gp.h`, `guest_functions.h` — S1 guest globals, gp, callee entries, names from the spyro-1 decomp
 - `titles/spyro1/core/execution/` — S1 native leaves: vector math, GTE geometry, angles, rand and random range, utilities, level initialisation, cooperative CD loader queue

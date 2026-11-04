@@ -63,7 +63,9 @@ All three titles present on the Record path, with 60 fps as psxport F-FPS60 (`do
 Spyro 2 and Spyro 3 interpolate their terrain through the shared
 `guest_terrain::TerrainStateProducer` (S028, S029); a saved field carries every guest word the
 drawer read, as first read, because the guest rewrites level words between a field's draw and its
-present. Spyro 1 composes its screen overlays, terrain, sprite queue, Spyro, sky, drop shadow, glows,
+present. An in-between runs the drawer over both fields' saved words; a word neither saved (a polygon
+both culled) is read live only while no disc read has landed since the earlier field, otherwise the
+interval is shown whole (issue 0230). Spyro 1 composes its screen overlays, terrain, sprite queue, Spyro, sky, drop shadow, glows,
 particles, portals and moby shadows (S020). Spyro 2 and 3 compose everything else in a field through the guest redraw of their draw
 dispatcher (`spyro::field_redraw`, S028, S029). Open: Spyro 1's trails and demo overlay (issue 0186); the aspect-dependent walk (issue 0178, proper fix is a margin-only side list).
 
