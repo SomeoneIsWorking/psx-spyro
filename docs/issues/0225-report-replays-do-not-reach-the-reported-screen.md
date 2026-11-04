@@ -30,9 +30,12 @@ Shown: replay to 3009, B report, load of its `state.bin` in a new process: the f
   `scratch/depth3/load43.png`): frames 1-2 are 4:3, frame 3 on is 16:9. The state carries VRAM but no frame record. The
   first record after the restore (seq 1) has no entries and is resynced from VRAM, so
   `record_present.cpp:RenderState::presentRecord` shows the restored device picture at its 4:3 width until the
-  first guest frame seals (seq 2). Fix: save the last sealed record with the state, or hold the restored present
-  until the first record seals. Seq 3's 4:3 check also reports 83,196 pixels where record and device differ, which is
-  not traced.
+  first guest frame seals (seq 2). Fix (not done, 2026-11-04): a `record` state section holding the last sealed
+  `present::FrameRecord` (entries, CLUT and upload pools, slot starts, table exits) and the VRAM it drew over, written
+  beside `gpu` by the state command and read before the first present, so `RenderState::presentRecord` rasterizes it
+  at 16:9 instead of resyncing from VRAM. Not started: it serializes every `DrawPrimitive` field (keys, owners, slots)
+  and seeds the rasterizer's VRAM-before image, which is the presentation lane's state and larger than this pass. Seq
+  3's 4:3 check also reports 83,196 pixels where record and device differ, which is not traced.
 
 ## Fixed since
 - `psx.png` and `screen.png` are one frame: `BugReportSession::presented` shoots the first whole present of the sequence

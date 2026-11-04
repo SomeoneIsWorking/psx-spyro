@@ -1,6 +1,7 @@
 # 0224 — Spyro 1: the Toasty portal's sky covers its left inner jamb
 
-Status: open (2026-11-04). Owner: not yet traced; candidate `titles/spyro1/render/portals.cpp` (`Portals`).
+Status: closed (2026-11-04): the original guest portal code draws the same cover. Owner: `titles/spyro1/render/portals.cpp`
+(`Portals`, `0x80050BD0`).
 
 ## Observed
 Player report `20261031-174318-geometry-disappering`, pad frame 3009, mark x 27-39% y 15-52%: the left side of the
@@ -26,5 +27,11 @@ original guest portal code (`PSXPORT_OVERRIDE_DIFF`, runs `pseq-orig` and `pseq-
 and both jambs draw (`scratch/depth3/pseq.png`). In the `r0224b` frame, sky covers the right inner jamb in both record
 and device; that frame was not run against the original.
 
-## Next
-Run the `r0224b` state against the original portal code. If they match, the cover is retail's and this closes.
+## Against the original
+The `r0224b` report's `state.bin` (`scratch/depth3/runs/r0224b/reports/20261104-002950.draft`) loaded in a fresh process,
+30 fields, once with the native portal and once with the original guest code (`PSXPORT_OVERRIDE_DIFF=spyro1-portals`,
+`PSXPORT_OVERRIDE_DIFF_FIRST=100000`: the original runs live and the run continues from its state): the two pictures are
+equal in every pixel, and both show the sky over the right inner jamb as the report does (`scratch/depth3/s0224-sheet.png`:
+report, original). The cover is the guest's own draw. The differential itself reports every sampled call mismatched
+(first: `v0`, 21 registers and 21,597 bytes in 2,439 ranges, `scratch/depth3/runs/s0224-orig/diff.json`) with equal
+pictures; that is the portal override's state contract, not this picture, and is not traced here.
