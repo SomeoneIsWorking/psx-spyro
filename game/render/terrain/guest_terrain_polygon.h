@@ -205,13 +205,11 @@ inline std::uint32_t polygonBin(std::uint32_t depthSum, std::uint32_t bias) {
   return (depthSum >> 7) + bias;
 }
 
-// A polygon's vertex with native depth moved back the `bias` bins polygonBin sorts the polygon by.
+// A polygon's vertex sorted back the `bias` bins polygonBin sorts the polygon by (GtePlace::back).
 [[nodiscard]] inline psx::gte::ProjectedVertex sortedBack(const psx::gte::ProjectedVertex &vertex,
                                                           std::uint32_t bias) {
   GtePlace place = vertex.place();
-  if (place.z > 0.0f) {
-    place.z += static_cast<float>(bias << guest_render_globals::kDepthBinShift);
-  }
+  place.back = static_cast<float>(bias << guest_render_globals::kDepthBinShift);
   return {vertex.word(), place};
 }
 

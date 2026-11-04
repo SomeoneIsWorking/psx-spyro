@@ -4,6 +4,7 @@
 #include "core/session.h"
 #include "gte_registers.h"
 #include "native_dispatch.h"
+#include "render/field/guest_render_globals.h"
 #include "render/state_producer_override.h"
 #include "render/terrain/guest_terrain_passes.h"
 #include "render/terrain/terrain_state_producer.h"
@@ -76,7 +77,9 @@ void registerOverrides(Core &core) {
       drawTerrain,
       std::make_unique<spyro::guest_terrain::TerrainStateProducer>(core, kTerrainImage),
       psx::present::Arg::None);
-  core.depthTest.mark(kSharedFacts.entry, psx::present::DepthOrder::Polygon);
+  core.depthTest.mark(kSharedFacts.entry,
+                      psx::present::DepthOrder::Polygon,
+                      spyro::guest_render_globals::kDepthBinViewUnits);
 }
 
 } // namespace spyro1::terrain

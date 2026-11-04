@@ -11,9 +11,9 @@
 // too large goes back on the queue, which this pass walks until it is empty.
 
 #include "core.h"
-#include "render/field/guest_word.h"
 #include "gte_registers.h"
 #include "render/field/guest_render_globals.h"
+#include "render/field/guest_word.h"
 #include "render/terrain/guest_terrain_frame.h"
 #include "render/terrain/guest_terrain_passes.h"
 #include "render/terrain/guest_terrain_polygon.h"
@@ -28,8 +28,8 @@ namespace spyro::guest_terrain {
 namespace {
 
 using spyro::guest_word::asSigned;
-using spyro::guest_word::sra;
 using spyro::guest_word::signedHalf;
+using spyro::guest_word::sra;
 
 namespace gte = psx::gte;
 
@@ -160,14 +160,17 @@ void ResplitPass::loadPoints(std::uint32_t primitive,
     const std::uint32_t cell = kScratchpad + mid.cell;
     const std::uint32_t a = vertices[mid.first].word();
     const std::uint32_t b = vertices[mid.second].word();
-    const auto x = static_cast<std::uint16_t>((asSigned(signedHalf(a)) + asSigned(signedHalf(b))) >> 1);
+    const auto x =
+        static_cast<std::uint16_t>((asSigned(signedHalf(a)) + asSigned(signedHalf(b))) >> 1);
     const auto y = static_cast<std::uint16_t>((asSigned(sra(a, 16)) + asSigned(sra(b, 16))) >> 1);
     const GtePlace pa = vertices[mid.first].place();
     const GtePlace pb = vertices[mid.second].place();
     memory_.storeVertex(cell + point::kScreen,
-                        {x | (static_cast<std::uint32_t>(y) << 16), {(pa.x + pb.x) * 0.5f,
-                         (pa.y + pb.y) * 0.5f,
-                         psx::gte::screenBlendDepth({{pa.z, 0.5f}, {pb.z, 0.5f}})}});
+                        {x | (static_cast<std::uint32_t>(y) << 16),
+                         {(pa.x + pb.x) * 0.5f,
+                          (pa.y + pb.y) * 0.5f,
+                          psx::gte::screenBlendDepth({{pa.z, 0.5f}, {pb.z, 0.5f}}),
+                          pa.back}});
     memory_.mem_w32(cell + point::kColour, blend(colours[mid.first], colours[mid.second]));
     memory_.mem_w16(cell + point::kUv, uvMidpoint(uvs[mid.first], uvs[mid.second]));
   }

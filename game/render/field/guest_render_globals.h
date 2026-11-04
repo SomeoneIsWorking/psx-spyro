@@ -33,6 +33,8 @@ inline constexpr std::uint32_t kNearViewShift = 2;
 inline constexpr std::uint32_t kFarViewShift = 4;
 // An ordering-table bin is a polygon's mean near view depth >> kDepthBinShift (terrain polygonBin, moby depthBin).
 inline constexpr std::uint32_t kDepthBinShift = 5;
+// One bin in near view units: how far one slot of the guest's sort spans.
+inline constexpr float kDepthBinViewUnits = 1u << kDepthBinShift;
 
 // A quarter turn of 256 halfword sine entries.
 inline constexpr std::uint32_t kCosineOffset = 0x80u;
