@@ -27,9 +27,10 @@ shots are real-time 3D through the widened projection, so the framing changes at
 
 ## Decision
 The pictures stay at their authored 4:3, centred, caption where the game draws it. Stretching them distorts the
-art; zooming to fill 16:9 crops a quarter of the picture and pushes the caption (rows 182..221 of 216) off screen;
-there is nothing to fill the margins with that the game drew. Same rule as an FMV: authored 4:3 frames are not
-widened.
+art. Zooming 4/3 to fill 16:9 keeps 180 of the 240 screen rows and so cuts 36 of the picture's 216 rows of
+authored art (screen rows 30..209 keep picture rows 18..197; the caption box, screen rows 190..204 with the picture
+at y=12, survives a zoom about the screen centre). There is nothing to fill the margins with that the game drew.
+Same rule as an FMV: authored 4:3 frames are not widened.
 
 ## Evidence
 Repro route: `scratch/spyro23d/tools/cut.py` (Start/Cross taps every 100 steps from title step 1600).

@@ -237,6 +237,13 @@ Statuses: ✅ re-verified · 🟡 re-partial · 🔬 in-progress · ⬜ todo · 
 - where: guest only (overlay at `0x80074xxx`)
 - gap: none; the pictures are kept at 4:3 by decision (issue 0234).
 
+### spyro2.pause-menu — Spyro 2's pause menu takes the pad only once it has slid in
+- status: re-grounded
+- deps: spyro2.identity
+- evidence: the pause menu `0x800176A4` (game state 4 at `0x800681C8`) steps phase `0x800698F0` with counter `0x800698EC` per guest frame: phase 0 slides the panels in for 0x20 frames and reads no pad; phase 1 reads the pressed edges `0x800683A4` only after 6 more frames (Start `0x0800` or Cross `0x0040` on Continue to phase 2, Triangle `0x0010`, Left/Right `0x8000`/`0x2000`); phase 2 slides out for 0x10 frames, then game state 0. Shown in a hidden run (`scratch/spyro23d/p2.txt`, Summer Forest and Skelos Badlands): a Start tap at phase 0 reaches `0x800683A4` as `0x0800` and is ignored; one at phase 1 count 6 closes the menu 48 steps later; `p2_sheet.png` has the slide-in (panel top above the frame) and the settled menu.
+- where: guest only
+- gap: none.
+
 ### spyro3.moby-drawers — Spyro 3's moby mesh drawers
 - status: re-partial
 - deps: spyro3.moby-visibility
