@@ -25,6 +25,8 @@ Frame loop: not owned. Spyro 1 runs update `0x8003385C` and draw `0x8001ED5C` an
 - `game/render/field/keyframe_blend.*` — moby / Spyro animation keyframe pair and progress (S2/S3 nibbles, S1 64ths and 16ths), pose between two fields and across an animation switch
 - `game/render/field/moby_record.*`, `record_blend.h` — moby record layout and identity, record lerp, little-endian field load/store and angle lerp shared by S1 and S2
 - `game/render/field/guest_moby_*` — moby / object visibility walk: sphere frustum cull, GTE use, orientation onto camera rotation; whether a record's two animation slots share a vertex layout
+- `game/render/field/moby_pose.*` — S2/S3 model-space vertices of one moby render-list entry: the drawer's vertex streams decoded and blended toward frame B
+- `game/render/field/intro_card.*` — S2/S3 title intro card at 16:9: the moby drawer, then the card's front-face rows continued into the margins in its own model space
 - `game/render/field/guest_sky_drawer.*` — S2/S3 sky drawer: visible sky sectors projected and outcoded against the presented window, triangle strips chained one bin past the mark
 - `game/render/field/guest_view_slope.*` — horizontal frustum slope, screen margin and outcode window at 4:3 or widened 16:9
 - `game/render/field/guest_render_globals.h` — camera, ordering-table, overlay-pair and packet-cursor guest words per image

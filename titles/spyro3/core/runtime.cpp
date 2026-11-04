@@ -6,6 +6,7 @@
 #include "spyro3/core/logo_facts.h"
 #include "spyro3/core/warp.h"
 #include "spyro3/render/hud_anchor.h"
+#include "spyro3/render/intro_card_facts.h"
 #include "spyro3/render/render_facts.h"
 
 #include <lucent/log.h>
@@ -60,6 +61,10 @@ void Runtime::registerOverrides(Game &game) {
   spyro3::hud_anchor::registerOverrides(game.core);
   libgte_.bind(game);
   spyro::registerEngineRenderOverrides<kRenderFacts>(game.core);
+  psx::cpu::installNativeOverride(game.core,
+                                  kIntroCard.drawer,
+                                  kIntroCard.overrideName,
+                                  spyro::intro_card::drawOverride<kIntroCard, kRenderGlobals>);
   lucent::info(
       "boot",
       "installed Spyro 3's stock libraries and natives for the projection offset leaf, the "

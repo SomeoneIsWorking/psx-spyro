@@ -66,6 +66,34 @@ inline constexpr std::uint32_t kInterpolatedAngles = 1u << 30;
 inline constexpr std::uint32_t kMirrored = 1u << 28;
 } // namespace record
 
+// The render list the walk writes for the drawer that runs next (SCUS_944.25 80044504,
+// SCUS_944.67 80031124): 0x44-byte entries from kRenderListAboveScratch past the drawer scratch the
+// walk parks in VXY1, ended by a zero class word.
+inline constexpr std::uint32_t kDrawerScratchBelow = 0x3000; // below the frame's scratch block end
+inline constexpr std::uint32_t kRenderListAboveScratch = 0x2000;
+inline constexpr std::uint32_t kEntryStride = 0x44;
+namespace entry {
+inline constexpr std::uint32_t kClass = 0x00; // word: class byte, frame B share, depth bias
+inline constexpr std::uint32_t kOverlay = 0x01;
+inline constexpr std::uint32_t kDepthBias = 0x02;
+inline constexpr std::uint32_t kMesh = 0x04;
+inline constexpr std::uint32_t kOverlayMesh = 0x08;
+inline constexpr std::uint32_t kTexture = 0x0C;        // frame A's vertex streams
+inline constexpr std::uint32_t kOverlayTexture = 0x10; // frame B's
+inline constexpr std::uint32_t kAnimation = 0x14;
+inline constexpr std::uint32_t kDepthBin = 0x18; // u16: the bin its polygons sort back from
+inline constexpr std::uint32_t kDetail = 0x1A;
+inline constexpr std::uint32_t kDetailLimit = 0x1B;
+inline constexpr std::uint32_t kCentre = 0x1C; // x, y, z words: the drawer's translation
+inline constexpr std::uint32_t kRotation = 0x28;
+inline constexpr std::uint32_t kDetailDepth = 0x3A;
+inline constexpr std::uint32_t kFlags = 0x3C;
+inline constexpr std::uint32_t kRecord = 0x40;
+} // namespace entry
+
+// u8 pair: the drawer counts with one or the other by the sign of its entry's first word.
+inline constexpr std::uint32_t kMeshVertexCounts = 0x04;
+
 struct Facts {
   // The walk's own entry, the address the native override is installed at.
   std::uint32_t entry = 0;

@@ -23,39 +23,16 @@ using psx::gte::RotationWords;
 
 // The scratch block's regions, as offsets below [globals_.scratchBaseWord]
 // (SCUS_944.25 800438B4..800438E0; SCUS_944.67 800304D4..80030500).
-constexpr std::uint32_t kDrawerScratchBelow = 0x3000; // VXY1
 constexpr std::uint32_t kCloseListBelow = 0x1C00;     // LO
 constexpr std::uint32_t kDeferredBelow = 0x1400;      // CR8
 constexpr std::uint32_t kDeferredEndBelow = 0x1010;   // CR9
-constexpr std::uint32_t kRenderListBelow = 0x1000;    // fp
+constexpr std::uint32_t kRenderListBelow = kDrawerScratchBelow - kRenderListAboveScratch; // fp
 constexpr std::uint32_t kRenderListEndBelow = 0x10;   // HI
 
-// ── Render-list entry (0x44 bytes) ───────────────────────────────────────────────────────────────
-constexpr std::uint32_t kEntryStride = 0x44;
-namespace entry {
-constexpr std::uint32_t kClass = 0x00;
-constexpr std::uint32_t kOverlay = 0x01;
-constexpr std::uint32_t kDepthBias = 0x02;
-constexpr std::uint32_t kMesh = 0x04;
-constexpr std::uint32_t kOverlayMesh = 0x08;
-constexpr std::uint32_t kTexture = 0x0C;
-constexpr std::uint32_t kOverlayTexture = 0x10;
-constexpr std::uint32_t kAnimation = 0x14;
-constexpr std::uint32_t kShade = 0x18;
-constexpr std::uint32_t kDetail = 0x1A;
-constexpr std::uint32_t kDetailLimit = 0x1B;
-constexpr std::uint32_t kCentre = 0x1C; // x, y, z words
-constexpr std::uint32_t kRotation = 0x28;
-constexpr std::uint32_t kDetailDepth = 0x3A;
-constexpr std::uint32_t kFlags = 0x3C;
-constexpr std::uint32_t kRecord = 0x40;
-} // namespace entry
 
 // Mesh header fields.
 constexpr std::uint32_t kMeshDetail = 0x02; // u16: centre shift (low), detail level (high)
 constexpr std::uint32_t kMeshOverlayDetail = 0x03;
-// u8 pair: the drawer counts with one or the other by the sign of its entry's first word.
-constexpr std::uint32_t kMeshVertexCounts = 0x04;
 constexpr std::uint32_t kMeshRadius = 0x07;    // u8, x16
 constexpr std::uint32_t kMeshSubSphere = 0x08; // packed i8 x, y, z and u8 radius, x8
 constexpr std::uint32_t kMeshTextures = 0x24;
@@ -450,15 +427,15 @@ MobyWalk::Step MobyWalk::finishEntry(const Candidate &candidate) {
   const std::int32_t x4 = asSigned(asWord(cx) << 2);
   const std::int32_t y4 = asSigned(asWord(cy) << 2);
   const std::int32_t z4 = asSigned(asWord(cz) << 2);
-  std::int32_t shade = (z4 >> 7) - (angles >> 24);
+  std::int32_t bin = (z4 >> 7) - (angles >> 24);
   core_.mem_w16(entry_ + entry::kDepthBias, static_cast<std::uint16_t>(depthBias));
-  if (shade < 0) {
-    shade = 0;
+  if (bin < 0) {
+    bin = 0;
   }
-  if (shade - 0x110 >= 0) {
-    shade += 0x20;
-    if (shade - 0x1C0 >= 0) {
-      const std::uint32_t mark = core_.mem_r32(globals_.orderingTable) + asWord(shade << 3) + 0x200;
+  if (bin - 0x110 >= 0) {
+    bin += 0x20;
+    if (bin - 0x1C0 >= 0) {
+      const std::uint32_t mark = core_.mem_r32(globals_.orderingTable) + asWord(bin << 3) + 0x200;
       if (asSigned(core_.mem_r32(globals_.orderingTableMark) - mark) < 0) {
         core_.mem_w32(globals_.orderingTableMark, mark);
       }
@@ -469,7 +446,7 @@ MobyWalk::Step MobyWalk::finishEntry(const Candidate &candidate) {
     texture |= kNegativeTextureBits;
   }
   core_.mem_w32(entry_ + entry::kTexture, texture);
-  core_.mem_w16(entry_ + entry::kShade, static_cast<std::uint16_t>(shade));
+  core_.mem_w16(entry_ + entry::kDepthBin, static_cast<std::uint16_t>(bin));
 
   const std::uint32_t amount = shift & 31u;
   std::int32_t x = x4 >> amount;
