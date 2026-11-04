@@ -244,6 +244,13 @@ Statuses: ✅ re-verified · 🟡 re-partial · 🔬 in-progress · ⬜ todo · 
 - where: guest only
 - gap: none.
 
+### spyro2.game-over-picture — Spyro 2's GAME OVER backdrop is an authored 4:3 still
+- status: re-grounded
+- deps: spyro2.identity
+- evidence: game state 9 (`0x800681C8`) runs the death fall (full-width clear, rain, Spyro) and then GAME OVER: four 128x216 sprites (`0x64`) at (0..511, 12) carry the sky, mountains and the GAME OVER lettering; the only other draws are Spyro's flying model (140-165 gouraud polygons, x 417..493), so the margins show the guest's clear (16,24,24). Same pattern and same decision as Spyro 3's story pictures (issue 0234). Route: `warp 0/4/0`, hold Left from arrival until Spyro walks off the start ledge (state 9 at fence ~2678, picture by 2800); `scratch/spyro23d/go/ot*.txt`, `go_sheet.png`, `fall_sheet.png`.
+- where: guest only
+- gap: none; kept at 4:3.
+
 ### spyro3.moby-drawers — Spyro 3's moby mesh drawers
 - status: re-partial
 - deps: spyro3.moby-visibility
