@@ -3,12 +3,15 @@
 #include "core.h"
 #include "gte_registers.h"
 #include "render/field/guest_render_globals.h"
+#include "render/field/guest_word.h"
 #include "spyro1/core/effect/flame_block.h"
 #include "spyro1/render/paired_actor_layout.h"
 
 #include <cmath>
 
 namespace spyro1::actors {
+
+using spyro::guest_word::packedFields;
 
 using namespace paired;
 
@@ -46,10 +49,6 @@ streamsOf(const psx::present::EmitMemory &memory, std::uint32_t part, const Fram
     return {words, ((offsets >> 10) & 0x3FFu) + first, (halves >> 16) + first};
   }
   return {words, (offsets & 0x3FFu) + first, (halves & 0xFFFFu) + first};
-}
-
-std::array<std::uint32_t, 3> unpackOffset(std::uint32_t word) {
-  return {sra(word, 21), sra(word << 11, 21), sra(word << 22, 21)};
 }
 
 } // namespace
@@ -136,13 +135,13 @@ void PairedActor::stageParts() {
 // 80023E08..80023EDC: parts 1 and 2's offsets from part 0, blended when part 0 is.
 PairedActor::Offsets PairedActor::blendOffsets() {
   if (blend_ == 0) {
-    return {unpackOffset(offsetWords_[0]), unpackOffset(offsetWords_[1])};
+    return {packedFields(offsetWords_[0]), packedFields(offsetWords_[1])};
   }
   auto &gte = core_.gte();
   gte.writeData(gte::kIr0, blend_);
   const auto load = [&gte](std::uint32_t from, std::uint32_t to) {
-    const std::array<std::uint32_t, 3> a = unpackOffset(from);
-    const std::array<std::uint32_t, 3> b = unpackOffset(to);
+    const std::array<std::uint32_t, 3> a = packedFields(from);
+    const std::array<std::uint32_t, 3> b = packedFields(to);
     for (std::uint32_t i = 0; i < 3; ++i) {
       gte.writeData(gte::kIr1 + i, a[i]);
     }

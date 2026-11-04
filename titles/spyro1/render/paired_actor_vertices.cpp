@@ -7,6 +7,7 @@
 
 namespace spyro1::actors {
 
+using spyro::guest_word::packedFields;
 using spyro::guest_word::signedHalf;
 
 using namespace paired;
@@ -17,9 +18,10 @@ using Position = std::array<std::uint32_t, 3>;
 
 // A packed delta word: x from bit 21 added, y from bit 10 and z from bit 0 (doubled) taken away.
 void addWord(Position &position, std::uint32_t word) {
-  position[0] += sra(word, 21);
-  position[1] -= sra(word << 11, 21);
-  position[2] -= sra(word << 22, 21);
+  const std::array<std::uint32_t, 3> delta = packedFields(word);
+  position[0] += delta[0];
+  position[1] -= delta[1];
+  position[2] -= delta[2];
 }
 
 // A positive halfword delta: three 7-bit fields from bits 7, 2 and 0 (times 8).
