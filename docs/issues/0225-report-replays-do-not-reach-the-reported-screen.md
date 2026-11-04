@@ -25,11 +25,18 @@ Shown: replay to 3009, B report, load of its `state.bin` in a new process: the f
 `screen.png` (`scratch/depth/runs/state-r1c-load/sheet.png`).
 
 ## Remaining
-- The first frames after a load draw a 4:3 picture before the 16:9 record takes over (frames 1-5). Not traced to its
-  owner. A restore leaves the presentation with no record until the first frame seals; whether
-  `psxport runtime/psx/render/record_present.cpp:RenderState::presentRecord` shows the device picture then is unchecked.
-- `psx.png` is not the frame `screen.png` shows: `BugReportSession::frameSealed` takes the device's draw area at the
-  first seal after the request, and `attachCaptures` shoots the newest present a field later, which at 60 fps is an
-  in-between or the next frame.
-- A report's camera cannot yet be placed for a matching view: `spyro-at` (`titles/spyro1/core/debug/teleport.cpp`)
-  sets the position, but the camera follows Spyro's heading, which the yaw byte at +0xE does not set.
+- The first frames after a load show the 4:3 device picture before the 16:9 record takes over. Traced on the
+  `r0224` state (`scratch/depth3/runs/load43`, `load43b` with `PSXPORT_DEBUG=recordcheck`, sheet
+  `scratch/depth3/load43.png`): frames 1-2 are 4:3, frame 3 on is 16:9. The state carries VRAM but no frame record. The
+  first record after the restore (seq 1) has no entries and is resynced from VRAM, so
+  `record_present.cpp:RenderState::presentRecord` shows the restored device picture at its 4:3 width until the
+  first guest frame seals (seq 2). Fix: save the last sealed record with the state, or hold the restored present
+  until the first record seals. Seq 3's 4:3 check also reports 83,196 pixels where record and device differ, which is
+  not traced.
+
+## Fixed since
+- `psx.png` and `screen.png` are one frame: `BugReportSession::presented` shoots the first whole present of the sequence
+  `frameSealed` captured (from `DisplayPresenter::showScheduled`), and a report with none in 4 fields says so instead of
+  attaching a mismatched `psx.png` (`scratch/depth3/r0224-sheet.png`).
+- `spyro-at x y z heading` sets Spyro's heading (target and current words at +0xCC and +0x11C), and `where` prints the
+  position and heading. The +0x0C bytes it printed before are his body rotation, which the camera does not follow.

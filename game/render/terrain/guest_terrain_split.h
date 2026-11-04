@@ -135,12 +135,16 @@ struct CrackEdges {
 };
 inline constexpr std::uint32_t kCrackEntrySize = 12;
 
-// A pass's entries per edge; the last `drawnWholeOnly` are drawn only toward a neighbour drawn whole.
+// A pass's entries per edge; the last `drawnWholeOnly` are drawn only toward a neighbour drawn
+// whole.
 struct CrackRun {
   std::uint32_t perEdge = 1;
   std::uint32_t drawnWholeOnly = 0;
 };
-void drawEdgeCracks(TerrainFrame &frame, CrackEdges edges, const CrackPolygon &polygon, CrackRun run);
+void drawEdgeCracks(TerrainFrame &frame,
+                    CrackEdges edges,
+                    const CrackPolygon &polygon,
+                    CrackRun run);
 
 // A GT4 (four cells) or GT3 (three) piece of the grid: its cells and their depth and screen words.
 // A piece's cells and the screen words read from them, in packet order.
@@ -179,7 +183,8 @@ using QuadPiece = Piece<4>;
 using TrianglePiece = Piece<3>;
 
 template <std::size_t N>
-[[nodiscard]] Piece<N> readPieceDepths(const psx::present::EmitMemory &memory, const std::array<std::uint32_t, N> &cells) {
+[[nodiscard]] Piece<N> readPieceDepths(const psx::present::EmitMemory &memory,
+                                       const std::array<std::uint32_t, N> &cells) {
   Piece<N> piece{.cells = cells};
   for (std::size_t i = 0; i < N; ++i) {
     piece.depths[i] = memory.mem_r32(cells[i] + cell::kDepth);
@@ -187,7 +192,8 @@ template <std::size_t N>
   return piece;
 }
 
-template <std::size_t N> void readPieceScreens(const psx::present::EmitMemory &memory, Piece<N> &piece) {
+template <std::size_t N>
+void readPieceScreens(const psx::present::EmitMemory &memory, Piece<N> &piece) {
   for (std::size_t i = 0; i < N; ++i) {
     piece.screens[i] = memory.mem_r32(piece.cells[i] + cell::kScreen);
   }
@@ -202,10 +208,12 @@ template <std::size_t N> void readPieceScreens(const psx::present::EmitMemory &m
                                     bool overflow,
                                     Sidedness sides,
                                     SecondTriangle second);
-[[nodiscard]] bool pieceFacesCamera(TerrainFrame &frame, const TrianglePiece &piece, bool overflow, Sidedness sides);
+[[nodiscard]] bool
+pieceFacesCamera(TerrainFrame &frame, const TrianglePiece &piece, bool overflow, Sidedness sides);
 
-// The piece's XYs, with its cells' places, and cell colours into the packet at `frame.primitive`.
-void storePieceScreens(TerrainFrame &frame, PieceCorners corners);
+// The piece's XYs, with its cells' places moved back `bias` bins, and cell colours into the packet
+// at `frame.primitive`.
+void storePieceScreens(TerrainFrame &frame, PieceCorners corners, std::uint32_t bias);
 void storePieceColours(TerrainFrame &frame, std::span<const std::uint32_t> cells);
 
 // The packet at `frame.primitive` tagged a GT4 or GT3 and linked into `bin`.

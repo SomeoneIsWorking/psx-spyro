@@ -16,7 +16,9 @@
 // once-per-sector header word the subdivision passes use to find the sector again.
 #pragma once
 
+#include "projected_vertex.h"
 #include "render/field/guest_packet.h"
+#include "render/field/guest_render_globals.h"
 #include "render/field/guest_word.h"
 #include "render/terrain/guest_terrain_cull.h"
 #include "render/terrain/guest_terrain_frame.h"
@@ -52,7 +54,8 @@ inline constexpr std::uint32_t kUv3 = 0x30;
 } // namespace packet
 
 // Added to a GT4 colour word, it names the GT3 a crack triangle is drawn as.
-inline constexpr std::uint32_t kGt4ToGt3 = psx::gpu::Gp0Command::opcodeWord(psx::gpu::Gp0Command::kFlagQuadOrPolyLine);
+inline constexpr std::uint32_t kGt4ToGt3 =
+    psx::gpu::Gp0Command::opcodeWord(psx::gpu::Gp0Command::kFlagQuadOrPolyLine);
 
 // The draw word's fields.
 inline constexpr std::uint32_t kTextureRecordMask = 0x7Fu;
@@ -182,7 +185,8 @@ inline void writePieceTriangleUvs(const psx::present::EmitMemory &memory,
   const auto third = static_cast<std::int16_t>(memory.mem_r16(deltas + 4));
   memory.mem_w32(primitive + packet::kUv0, (delta & 0xFFFFu) + pair.uv);
   memory.mem_w32(primitive + packet::kUv1, guest_word::sra(delta, 16) + pair.page);
-  memory.mem_w32(primitive + packet::kUv2, static_cast<std::uint32_t>(std::int32_t{third}) + pair.uv);
+  memory.mem_w32(primitive + packet::kUv2,
+                 static_cast<std::uint32_t>(std::int32_t{third}) + pair.uv);
 }
 
 // The draw word's sides, as the subdivision passes' backface tests take them.
@@ -195,9 +199,20 @@ inline std::uint32_t binBias(std::uint32_t draw) {
   return (draw & kBinBiasMask) >> 5;
 }
 
-// The ordering-table bin of a polygon whose vertex depths sum to `depthSum`, moved back `bias` bins.
+// The ordering-table bin of a polygon whose vertex depths sum to `depthSum`, moved back `bias`
+// bins.
 inline std::uint32_t polygonBin(std::uint32_t depthSum, std::uint32_t bias) {
   return (depthSum >> 7) + bias;
+}
+
+// A polygon's vertex with native depth moved back the `bias` bins polygonBin sorts the polygon by.
+[[nodiscard]] inline psx::gte::ProjectedVertex sortedBack(const psx::gte::ProjectedVertex &vertex,
+                                                          std::uint32_t bias) {
+  GtePlace place = vertex.place();
+  if (place.z > 0.0f) {
+    place.z += static_cast<float>(bias << guest_render_globals::kDepthBinShift);
+  }
+  return {vertex.word(), place};
 }
 
 } // namespace spyro::guest_terrain

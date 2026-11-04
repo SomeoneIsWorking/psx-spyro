@@ -13,10 +13,14 @@ namespace spyro1::teleport {
 bool inActiveField(Core &core);
 // The level's portals and each one's path nodes, one line each.
 std::string listGates(Core &core);
-// Spyro's position and rotation bytes.
+// A heading's units per turn.
+inline constexpr std::uint32_t kHeadingTurn = 0x1000u;
+// Spyro's position and heading.
 std::string where(Core &core);
-// Spyro at `destination`, through the same position words a portal arrival writes.
-std::string toPosition(Core &core, const spyro::MobyTeleport::Position &destination);
+// Spyro at `destination` facing `heading` (12 bits a turn), through the position words a portal
+// arrival writes and the heading a level spawn sets; the camera settles behind him.
+std::string
+toPosition(Core &core, const spyro::MobyTeleport::Position &destination, std::uint32_t heading);
 // Spyro in front of the homeworld portal into `level`; the reply says why not when no loaded portal
 // leads there.
 std::string toPortal(Core &core, std::uint32_t level);

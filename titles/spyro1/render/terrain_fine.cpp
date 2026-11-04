@@ -41,7 +41,8 @@ using spyro::guest_terrain::trianglePieceCells;
 using spyro::guest_word::signedHalf;
 
 constexpr std::uint32_t kNeighbourCoarser = 3; // drawn whole or deferred coarse
-// 80028ED8: two crack triangles per edge whose neighbour is coarser, and a third where it was drawn whole.
+// 80028ED8: two crack triangles per edge whose neighbour is coarser, and a third where it was drawn
+// whole.
 constexpr spyro::guest_terrain::CrackRun kCracks{.perEdge = 3, .drawnWholeOnly = 1};
 constexpr std::uint32_t kTriangleCrackCorner = 0x6C;
 constexpr std::uint32_t kPieceUvSpan = 0xF;
@@ -118,8 +119,8 @@ void FinePass::drawQuadPieces(const SplitRecord &record) {
   for (std::uint32_t k = 0; k < kPieces; ++k) {
     const std::uint32_t first = memory.mem_r32(facts_.fineQuadPieces + 4 * k);
     frame_.v1 = first;
-    QuadPiece piece =
-        readPieceDepths<4>(memory, {first, first + kCellSize, first + kRowStride, first + kRowStride + kCellSize});
+    QuadPiece piece = readPieceDepths<4>(
+        memory, {first, first + kCellSize, first + kRowStride, first + kRowStride + kCellSize});
     if (piece.outside()) {
       continue;
     }
@@ -127,10 +128,11 @@ void FinePass::drawQuadPieces(const SplitRecord &record) {
     storePieceColours(frame_, piece.cells);
     writePieceUvs({.pair = record.texture + kFinePairs + 8 * k, .span = kPieceUvSpan});
     readPieceScreens(memory, piece);
-    if (!pieceFacesCamera(frame_, piece, record.overflow, sidedness(record.draw), SecondTriangle::Reversed)) {
+    if (!pieceFacesCamera(
+            frame_, piece, record.overflow, sidedness(record.draw), SecondTriangle::Reversed)) {
       continue;
     }
-    storePieceScreens(frame_, piece.corners());
+    storePieceScreens(frame_, piece.corners(), binBias(record.draw));
     const GpuSpan span = gpuSpan(piece.screens);
     if (span == GpuSpan::Within) {
       frame_.v1 = sum >> 7;
@@ -187,7 +189,7 @@ void FinePass::drawTrianglePieces(const SplitRecord &record) {
     if (!pieceFacesCamera(frame_, piece, record.overflow, sidedness(record.draw))) {
       continue;
     }
-    storePieceScreens(frame_, piece.corners());
+    storePieceScreens(frame_, piece.corners(), binBias(record.draw));
     const GpuSpan span = gpuSpan(piece.screens);
     // The span test leaves the halves it compared last in v0 and v1.
     frame_.v0 = half(piece.screens[1], span);

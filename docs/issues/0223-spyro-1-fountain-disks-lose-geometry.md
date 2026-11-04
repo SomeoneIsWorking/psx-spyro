@@ -1,7 +1,7 @@
 # 0223 — Spyro 1: the Artisans fountain disks lose geometry
 
-Status: open (2026-11-04). The depth defects at the fountain are fixed and depth defaults on; the report's view is still
-not reproduced. Owner: psxport native depth (`docs/presentation.md` Depth) for the pedestal; unknown for the report.
+Status: open (2026-11-04). The depth defects at the fountain are fixed and depth defaults on. Near the report's view,
+depth on cuts the disks at the waterline; the report's exact camera is not reached. Owner: psxport native depth (`docs/presentation.md` Depth) for the pedestal; unknown for the report.
 
 ## Observed
 Player report `20261031-174434-these-circular-disks-have-geometry-that-disappea`, pad frame 6413, mark x 47-58%
@@ -33,6 +33,14 @@ Shown at `warp 0/0/4` (`scratch/depth2/fountain-right.png`: before, depth on at 
 pedestal keeps its rim and the margin shows grass, as with depth off. The arrival walk's `dragon 4` shot differs from
 depth off in 74 of 2,073,600 pixels, none on the disks or the pedestal.
 
+## Near the report's view
+`warp 0/0/4`, 1500 fields, `spyro-at 72100 43766 6500 2048` and `72100 45000 6500 2048`, 300 fields
+(`scratch/depth3/fprobe2.txt`, runs `fprobe3` and `fprobe3-off`): the pond, both waterfalls and the stepping disks face
+the camera, as in the report but from further right. With depth off the disks' stone sides draw down to the rim over the
+water. With depth on the water covers each side below the waterline (`scratch/depth3/r0223-disks.png`: off, on, at two
+placements). That is the waterline, so the slot order was wrong there. The report (no depth) shows the water cutting the
+disks' sides from its own camera. Retail's polygon sort puts the water over or under a whole disk side depending on the
+view, which is the reported disappearing.
+
 ## Next
-Place Spyro on the pond's near rim facing the waterfalls (the report's view): `spyro-at` places him, but the camera
-follows his heading and a yaw byte write does not turn it. Name the producer that draws the disks.
+Reach the report's camera (further left, the crystal dragon statue in view) and compare depth on there.

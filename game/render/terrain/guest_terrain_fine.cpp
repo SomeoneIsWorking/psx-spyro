@@ -82,11 +82,13 @@ void FineSplitPass::quad(const SplitSector &sector, const SplitPolygon &polygon)
   const PackedIndices colourIndices(memory_.mem_r32(polygon.record + polygon::kColours));
   const std::uint32_t texture = textureRecord(frame_, draw);
   const std::uint32_t page = memory_.mem_r32(texture + 4);
-  const std::uint32_t code = asSigned(page) > 0 ? guest_packet::kGt4Code : guest_packet::kSemiGt4Code;
-  std::array<std::uint32_t, 4> colours = {memory_.mem_r32(sector.colours + colourIndices.first) + code,
-                                          memory_.mem_r32(sector.colours + colourIndices.second) + code,
-                                          memory_.mem_r32(sector.colours + colourIndices.fourth) + code,
-                                          memory_.mem_r32(sector.colours + colourIndices.third) + code};
+  const std::uint32_t code =
+      asSigned(page) > 0 ? guest_packet::kGt4Code : guest_packet::kSemiGt4Code;
+  std::array<std::uint32_t, 4> colours = {
+      memory_.mem_r32(sector.colours + colourIndices.first) + code,
+      memory_.mem_r32(sector.colours + colourIndices.second) + code,
+      memory_.mem_r32(sector.colours + colourIndices.fourth) + code,
+      memory_.mem_r32(sector.colours + colourIndices.third) + code};
   loadCornerColours(frame_, colours.data(), 4);
   grid::storeFineQuad(frame_, {a, b, c, d}, colours);
 
@@ -155,14 +157,15 @@ void FineSplitPass::drawQuadPieces(const SplitPolygon &polygon, std::uint32_t dr
         packet::kUv0, packet::kUv1, packet::kUv2, packet::kUv3};
     for (std::size_t i = 0; i < 4; ++i) {
       memory_.mem_w16(prim + slots[i],
-                  static_cast<std::uint16_t>(((corners[i] & kUvAverageMask) + own) >> 1));
+                      static_cast<std::uint16_t>(((corners[i] & kUvAverageMask) + own) >> 1));
     }
 
     readPieceScreens(memory_, piece);
-    if (!pieceFacesCamera(frame_, piece, polygon.overflow, sidedness(draw), SecondTriangle::FourthFirst)) {
+    if (!pieceFacesCamera(
+            frame_, piece, polygon.overflow, sidedness(draw), SecondTriangle::FourthFirst)) {
       continue;
     }
-    storePieceScreens(frame_, piece.corners());
+    storePieceScreens(frame_, piece.corners(), binBias(draw));
     queueTooLarge(gpuSpan(piece.screens));
     frame_.v1 = linkQuadPiece(frame_, polygonBin(sum, binBias(draw))).head;
   }
@@ -184,21 +187,24 @@ void FineSplitPass::triangle(const SplitSector &sector, const SplitPolygon &poly
   const PackedIndices colourIndices(colourWord);
   const std::uint32_t texture = textureRecord(frame_, draw);
   const std::uint32_t page = memory_.mem_r32(texture + 4);
-  const std::uint32_t code = asSigned(page) > 0 ? guest_packet::kGt3Code : guest_packet::kSemiGt3Code;
-  std::array<std::uint32_t, 3> colours = {memory_.mem_r32(sector.colours + colourIndices.first) + code,
-                                          memory_.mem_r32(sector.colours + colourIndices.second) + code,
-                                          memory_.mem_r32(sector.colours + colourIndices.third) + code};
+  const std::uint32_t code =
+      asSigned(page) > 0 ? guest_packet::kGt3Code : guest_packet::kSemiGt3Code;
+  std::array<std::uint32_t, 3> colours = {
+      memory_.mem_r32(sector.colours + colourIndices.first) + code,
+      memory_.mem_r32(sector.colours + colourIndices.second) + code,
+      memory_.mem_r32(sector.colours + colourIndices.third) + code};
   loadCornerColours(frame_, colours.data(), 3);
   grid::storeFineTriangle(frame_, {a, b, c}, colours);
 
   projectGrid(frame_, grid::kFineTriangleCells, true);
   const std::uint32_t uv = memory_.mem_r32(texture);
   const std::uint32_t corner = draw & kTriangleCornerMask;
-  drawEdgeCracks(frame_,
-                 {.edges = triangleNeighbourEdges(frame_, links, colourWord, kNeighbourDeferredCoarse),
-                  .table = frame_.facts.fine.triangleCracks + (corner >> 6) + (corner >> 9)},
-                 {.colourAdjust = 0, .uv = uv, .page = page, .binBias = binBias(draw)},
-                 kCracks);
+  drawEdgeCracks(
+      frame_,
+      {.edges = triangleNeighbourEdges(frame_, links, colourWord, kNeighbourDeferredCoarse),
+       .table = frame_.facts.fine.triangleCracks + (corner >> 6) + (corner >> 9)},
+      {.colourAdjust = 0, .uv = uv, .page = page, .binBias = binBias(draw)},
+      kCracks);
   drawTrianglePieces(polygon, draw);
 }
 
@@ -215,8 +221,8 @@ void FineSplitPass::drawTrianglePieces(const SplitPolygon &polygon, std::uint32_
             memory_.mem_r8(frame_.facts.fine.pieceTexture + corner + (layout & 0x3Cu)))));
     const std::uint32_t pair = (select & 0x18u) + subTextures;
     std::uint32_t page = memory_.mem_r32(pair + 4);
-    const std::uint32_t shift =
-        memory_.mem_r32(frame_.facts.fine.pieceShift + ((select & 6u) << 1) + ((page >> 24) & 0x70u));
+    const std::uint32_t shift = memory_.mem_r32(frame_.facts.fine.pieceShift +
+                                                ((select & 6u) << 1) + ((page >> 24) & 0x70u));
     std::uint32_t uv = memory_.mem_r32(pair);
     page += static_cast<std::uint32_t>(asSigned(shift) >> 16);
     uv += shift & 0xFFFFu;
@@ -246,7 +252,7 @@ void FineSplitPass::drawTrianglePieces(const SplitPolygon &polygon, std::uint32_
     if (!pieceFacesCamera(frame_, piece, polygon.overflow, sidedness(draw))) {
       continue;
     }
-    storePieceScreens(frame_, piece.corners());
+    storePieceScreens(frame_, piece.corners(), binBias(draw));
     queueTooLarge(gpuSpan(piece.screens));
     const Linked linked = linkTrianglePiece(frame_, polygonBin(sum, binBias(draw)));
     frame_.v0 = linked.head;

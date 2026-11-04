@@ -25,14 +25,14 @@ namespace polygon = spyro::guest_terrain::polygon;
 namespace packet = spyro::guest_terrain::packet;
 using spyro::guest_terrain::fadeColour;
 namespace near_sector = spyro::guest_terrain::near_sector;
-using psx::present::EmitMemory;
-using spyro::guest_terrain::deferToSplitList;
-using spyro::guest_terrain::kCoarseHeaderWritten;
-using spyro::guest_terrain::kFineHeaderWritten;
 using guest_packet::kG3Bytes;
 using guest_packet::kG3Tag;
 using guest_packet::kG4Bytes;
 using guest_packet::kG4Tag;
+using psx::present::EmitMemory;
+using spyro::guest_terrain::deferToSplitList;
+using spyro::guest_terrain::kCoarseHeaderWritten;
+using spyro::guest_terrain::kFineHeaderWritten;
 using spyro::guest_terrain::kScratchpad;
 using spyro::guest_terrain::kSectorClassMask;
 using spyro::guest_terrain::kSplitTriangle;
@@ -41,6 +41,7 @@ using spyro::guest_terrain::PackedIndices;
 using spyro::guest_terrain::PacketSize;
 using spyro::guest_terrain::ProjectedSector;
 using spyro::guest_terrain::SectorProjector;
+using spyro::guest_terrain::sortedBack;
 using spyro::guest_terrain::unclipCorners;
 
 using spyro::guest_word::asSigned;
@@ -91,7 +92,6 @@ constexpr std::uint8_t kDeferredFine = 4;
 
 constexpr std::uint32_t kUntextured = 0xFFFFFFFFu; // the texture byte, sign-extended
 constexpr std::uint32_t kSemiTextured = 0x80;
-
 
 // 80026F70: the texture record and how many CLUT rows its UV word is darkened by, from how far the
 // polygon's mean depth is into the fade; an undarkened polygon reads the record's second pair.
@@ -308,29 +308,37 @@ void DetailPass::drawQuad(const PackedIndices &vertices) {
   const std::uint32_t bin = spyro::guest_terrain::polygonBin(sum, binBias(draw));
   memory_.storeVertex(
       prim + packet::kXy0,
-      memory_.loadVertex(kScratchpad + vertices.first, psx::gte::VertexWord{xy[0]}));
+      sortedBack(memory_.loadVertex(kScratchpad + vertices.first, psx::gte::VertexWord{xy[0]}),
+                 binBias(draw)));
   memory_.storeVertex(
       prim + packet::kXy1,
-      memory_.loadVertex(kScratchpad + vertices.second, psx::gte::VertexWord{xy[1]}));
+      sortedBack(memory_.loadVertex(kScratchpad + vertices.second, psx::gte::VertexWord{xy[1]}),
+                 binBias(draw)));
   memory_.storeVertex(
       prim + packet::kXy2,
-      memory_.loadVertex(kScratchpad + vertices.fourth, psx::gte::VertexWord{xy[3]}));
+      sortedBack(memory_.loadVertex(kScratchpad + vertices.fourth, psx::gte::VertexWord{xy[3]}),
+                 binBias(draw)));
   memory_.storeVertex(
       prim + packet::kXy3,
-      memory_.loadVertex(kScratchpad + vertices.third, psx::gte::VertexWord{xy[2]}));
+      sortedBack(memory_.loadVertex(kScratchpad + vertices.third, psx::gte::VertexWord{xy[2]}),
+                 binBias(draw)));
   fadeBase_ = (depthLimit_ >> 2) + ((draw & kFarFade) != 0 ? kFarFadeShift : 0u);
   const PackedIndices colours(memory_.mem_r32(record_ + polygon::kColours));
   memory_.mem_w32(prim + packet::kColour0,
-              shade({.colourIndex = colours.first, .depth = depths[0]}) |
-                  guest_packet::kGt4Code);
-  memory_.mem_w32(prim + packet::kColour1, shade({.colourIndex = colours.second, .depth = depths[1]}));
-  memory_.mem_w32(prim + packet::kColour3, shade({.colourIndex = colours.third, .depth = depths[2]}));
-  memory_.mem_w32(prim + packet::kColour2, shade({.colourIndex = colours.fourth, .depth = depths[3]}));
+                  shade({.colourIndex = colours.first, .depth = depths[0]}) |
+                      guest_packet::kGt4Code);
+  memory_.mem_w32(prim + packet::kColour1,
+                  shade({.colourIndex = colours.second, .depth = depths[1]}));
+  memory_.mem_w32(prim + packet::kColour3,
+                  shade({.colourIndex = colours.third, .depth = depths[2]}));
+  memory_.mem_w32(prim + packet::kColour2,
+                  shade({.colourIndex = colours.fourth, .depth = depths[3]}));
   memory_.mem_w8(flagCursor_ - 1, kDrawnWhole);
 
   const std::uint32_t texture = textureIndex(memory_.mem_r8(record_ + polygon::kLinks));
   if ((texture & kSemiTextured) != 0) {
-    memory_.mem_w8(prim + packet::kCode, psx::gpu::Gp0Command(guest_packet::kSemiGt4Code).opcodeByte());
+    memory_.mem_w8(prim + packet::kCode,
+                   psx::gpu::Gp0Command(guest_packet::kSemiGt4Code).opcodeByte());
   }
   if (texture == kUntextured) {
     // 800270F8: the GT4's colour and xy words packed down into a G4.
@@ -400,26 +408,32 @@ void DetailPass::drawTriangle(const PackedIndices &vertices) {
   const std::uint32_t bin = spyro::guest_terrain::polygonBin(sum, binBias(draw));
   memory_.storeVertex(
       prim + packet::kXy0,
-      memory_.loadVertex(kScratchpad + vertices.first, psx::gte::VertexWord{xy[0]}));
+      sortedBack(memory_.loadVertex(kScratchpad + vertices.first, psx::gte::VertexWord{xy[0]}),
+                 binBias(draw)));
   memory_.storeVertex(
       prim + packet::kXy1,
-      memory_.loadVertex(kScratchpad + vertices.second, psx::gte::VertexWord{xy[1]}));
+      sortedBack(memory_.loadVertex(kScratchpad + vertices.second, psx::gte::VertexWord{xy[1]}),
+                 binBias(draw)));
   memory_.storeVertex(
       prim + packet::kXy2,
-      memory_.loadVertex(kScratchpad + vertices.third, psx::gte::VertexWord{xy[2]}));
+      sortedBack(memory_.loadVertex(kScratchpad + vertices.third, psx::gte::VertexWord{xy[2]}),
+                 binBias(draw)));
   fadeBase_ = (depthLimit_ >> 2) + ((draw & kFarFade) != 0 ? kFarFadeShift : 0u);
   const PackedIndices colours(memory_.mem_r32(record_ + polygon::kColours));
   memory_.mem_w32(prim + packet::kColour0,
-              shade({.colourIndex = colours.first, .depth = depths[0]}) |
-                  guest_packet::kGt3Code);
-  memory_.mem_w32(prim + packet::kColour1, shade({.colourIndex = colours.second, .depth = depths[1]}));
-  memory_.mem_w32(prim + packet::kColour2, shade({.colourIndex = colours.third, .depth = depths[2]}));
+                  shade({.colourIndex = colours.first, .depth = depths[0]}) |
+                      guest_packet::kGt3Code);
+  memory_.mem_w32(prim + packet::kColour1,
+                  shade({.colourIndex = colours.second, .depth = depths[1]}));
+  memory_.mem_w32(prim + packet::kColour2,
+                  shade({.colourIndex = colours.third, .depth = depths[2]}));
   memory_.mem_w8(flagCursor_ - 1, kDrawnWhole);
 
   const std::uint32_t textureWord = memory_.mem_r32(record_ + polygon::kLinks);
   const std::uint32_t texture = textureIndex(textureWord & 0xFFu);
   if ((texture & kSemiTextured) != 0) {
-    memory_.mem_w8(prim + packet::kCode, psx::gpu::Gp0Command(guest_packet::kSemiGt3Code).opcodeByte());
+    memory_.mem_w8(prim + packet::kCode,
+                   psx::gpu::Gp0Command(guest_packet::kSemiGt3Code).opcodeByte());
   }
   if (texture == kUntextured) {
     // 80027628: packed down into a G3.

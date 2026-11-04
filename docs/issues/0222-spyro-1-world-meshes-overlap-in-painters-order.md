@@ -1,7 +1,7 @@
 # 0222 — Spyro 1: world meshes overlap in painter's order at high resolution
 
-Status: fixed (2026-11-04): native depth on by default; shown at the report's ledge corner from Spyro's own camera, not
-the report's exact camera (below). Owner: psxport native depth
+Status: open (2026-11-04): native depth is on by default, but the report's overlap is not reproduced, with depth on or
+off, at the report's ledge corner from a camera facing Spyro (below). Owner: psxport native depth
 (`docs/presentation.md` Depth); Spyro 1 marks `terrain_image.cpp`, `actor_emitter_producer.cpp` and
 `paired_actor_producer.cpp`.
 
@@ -39,11 +39,17 @@ difference is the ledge block's corner behind the tower edge, whose triangles li
 overlap and which slot order drew over the tower's edge. Spyro and the trim at his feet draw the same. The arrival walk
 (`scratch/depth2/artisans-a.png`, `artisans-b.png`, densest difference per arrival, off left, on right): a hill no
 longer notches the hub castle tower (`dragon 1`), the Dark Hollow grass no longer steps into the water wall
-(`dragon 3`), and buried plinth and log bases meet the grass along their contact line (Toasty start, Dark Hollow
-portal); every other Artisans arrival differs in under 250 of 2,073,600 pixels.
+(`dragon 3`). Buried plinth and log bases first lost their skirt to the grass (Toasty start, Dark Hollow portal);
+`guest_terrain_polygon.h:sortedBack` now stores terrain vertices back by the guest's bin bias and the skirts draw as
+with depth off (`scratch/depth3/toasty-pair.png`, 95 differing pixels). That rule reverses slot order at the Peace
+Keepers fairy pad (issue 0233).
 
-The report's camera looks at Spyro from in front; `spyro-at` places him but the game's camera follows his heading,
-which a yaw byte write does not change, so that exact view is not reached.
+## At the report's camera
+`spyro-at x y z heading` now writes Spyro's heading (`teleport.cpp`, +0xCC and +0x11C, 12 bits a turn). Placed at
+heading 1400 or 1300, settled 200 fields, then turned to face the camera for 25 fields (`scratch/depth3/stone.txt`): the
+view matches the report's, with the tower at left, the ledge block corner beside Spyro and the pit at right. Spyro lands on the
+floor beside the block, not on it. With depth off and on, no trim crosses his feet (`scratch/depth3/r0222-feet.png`:
+off, on, at two placements). Next: place him on top of the block (`spyro-at` z above the block top) and compare there.
 
 ## Remaining
 Lit and HUD mobys from the sprite queue (`sprite_queue_producer.cpp`) are not marked: that producer also draws the HUD

@@ -62,7 +62,7 @@ DebugMenu::DebugMenu()
   });
   verb({
       .name = "where",
-      .summary = "Spyro's position and rotation",
+      .summary = "Spyro's position and heading",
       .run =
           [](const DebugCall &call) {
             call.reply = teleport::where(call.core);
@@ -71,20 +71,24 @@ DebugMenu::DebugMenu()
   });
   verb({
       .name = "spyro-at",
-      .summary = "Place Spyro at a world position",
+      .summary = "Place Spyro at a world position and heading",
       .params = {DebugParam::integer("x", kMinWorld, kMaxWorld),
                  DebugParam::integer("y", kMinWorld, kMaxWorld),
-                 DebugParam::integer("z", kMinWorld, kMaxWorld)},
+                 DebugParam::integer("z", kMinWorld, kMaxWorld),
+                 DebugParam::integer("heading", 0, teleport::kHeadingTurn - 1)},
       .run =
           [](const DebugCall &call) {
-            call.reply = teleport::toPosition(call.core,
-                                              {.x = static_cast<std::int32_t>(call.values.value(0)),
-                                               .y = static_cast<std::int32_t>(call.values.value(1)),
-                                               .z = static_cast<std::int32_t>(call.values.value(2))});
+            call.reply =
+                teleport::toPosition(call.core,
+                                     {.x = static_cast<std::int32_t>(call.values.value(0)),
+                                      .y = static_cast<std::int32_t>(call.values.value(1)),
+                                      .z = static_cast<std::int32_t>(call.values.value(2))},
+                                     static_cast<std::uint32_t>(call.values.value(3)));
           },
       .refusal =
           [](Core &core) {
-            return teleport::inActiveField(core) ? std::string() : "gameplay is not in an active field";
+            return teleport::inActiveField(core) ? std::string()
+                                                 : "gameplay is not in an active field";
           },
       .inMenu = false,
   });

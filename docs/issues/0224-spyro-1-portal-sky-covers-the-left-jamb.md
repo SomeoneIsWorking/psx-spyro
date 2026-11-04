@@ -19,6 +19,12 @@ retail's; it is not yet compared against a frame where the report saw it whole.
 With depth on by default, the walk's Toasty portal arrival (`warp 0/4/1`, `scratch/depth2/runs/walk-on2` against
 `walk-off`) differs from depth off in 0 of 2,073,600 pixels: native depth does not touch the portal.
 
+## At the report's camera
+New reports from the same scene (`scratch/depth3/r0224-sheet.png`, `r0224b-sheet.png`: report screen, our screen,
+our device picture) put `screen.png` and `psx.png` on one frame. Over 8 frames at that camera, the native portal and the
+original guest portal code (`PSXPORT_OVERRIDE_DIFF`, runs `pseq-orig` and `pseq-nat`) give identical device pictures,
+and both jambs draw (`scratch/depth3/pseq.png`). In the `r0224b` frame, sky covers the right inner jamb in both record
+and device; that frame was not run against the original.
+
 ## Next
-Reproduce the report's camera and compare the device frame there before naming the cause. `spyro-at` places Spyro,
-but the camera follows his heading and a yaw byte write does not turn it, so the camera is not yet placeable.
+Run the `r0224b` state against the original portal code. If they match, the cover is retail's and this closes.

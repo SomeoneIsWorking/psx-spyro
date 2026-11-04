@@ -95,11 +95,13 @@ void CoarseSplitPass::quad(const SplitSector &sector, const SplitPolygon &polygo
   const PackedIndices colourIndices(memory_.mem_r32(polygon.record + polygon::kColours));
   const std::uint32_t texture = textureRecord(frame_, draw);
   const std::uint32_t page = memory_.mem_r32(texture + 4);
-  const std::uint32_t code = asSigned(page) > 0 ? guest_packet::kGt4Code : guest_packet::kSemiGt4Code;
-  std::array<std::uint32_t, 4> colours = {memory_.mem_r32(sector.colours + colourIndices.first) + code,
-                                          memory_.mem_r32(sector.colours + colourIndices.second) + code,
-                                          memory_.mem_r32(sector.colours + colourIndices.fourth) + code,
-                                          memory_.mem_r32(sector.colours + colourIndices.third) + code};
+  const std::uint32_t code =
+      asSigned(page) > 0 ? guest_packet::kGt4Code : guest_packet::kSemiGt4Code;
+  std::array<std::uint32_t, 4> colours = {
+      memory_.mem_r32(sector.colours + colourIndices.first) + code,
+      memory_.mem_r32(sector.colours + colourIndices.second) + code,
+      memory_.mem_r32(sector.colours + colourIndices.fourth) + code,
+      memory_.mem_r32(sector.colours + colourIndices.third) + code};
   loadCornerColours(frame_, colours.data(), 4);
   grid::storeCoarseQuad(frame_, {p0, p1, p3, p2}, colours);
 
@@ -107,7 +109,8 @@ void CoarseSplitPass::quad(const SplitSector &sector, const SplitPolygon &polygo
   grid::refineCoarseCentre(frame_);
   const std::uint32_t uv = memory_.mem_r32(texture);
   drawEdgeCracks(frame_,
-                 {.edges = quadNeighbourEdges(frame_, links, draw, 1), .table = frame_.facts.coarse.quadCracks},
+                 {.edges = quadNeighbourEdges(frame_, links, draw, 1),
+                  .table = frame_.facts.coarse.quadCracks},
                  {.colourAdjust = kGt4ToGt3, .uv = uv, .page = page, .binBias = binBias(draw)},
                  {});
   drawSubQuads(polygon, draw);
@@ -128,12 +131,14 @@ void CoarseSplitPass::drawSubQuads(const SplitPolygon &polygon, std::uint32_t dr
     }
     const std::uint32_t page = memory_.mem_r32(pair + 4);
     readPieceScreens(memory_, piece);
-    if (!pieceFacesCamera(frame_, piece, polygon.overflow, sidedness(draw), SecondTriangle::FourthFirst)) {
+    if (!pieceFacesCamera(
+            frame_, piece, polygon.overflow, sidedness(draw), SecondTriangle::FourthFirst)) {
       continue;
     }
-    storePieceScreens(frame_, piece.corners());
+    storePieceScreens(frame_, piece.corners(), binBias(draw));
     storePieceColours(frame_, piece.cells);
-    writeQuadUvs(memory_, frame_.primitive, {.uv = uv, .page = page}, frame_.facts.coarse.pageRemaps);
+    writeQuadUvs(
+        memory_, frame_.primitive, {.uv = uv, .page = page}, frame_.facts.coarse.pageRemaps);
     frame_.v1 = linkQuadPiece(frame_, polygonBin(piece.depthSum(), binBias(draw))).head;
   }
   frame_.v0 = frame_.facts.coarse.quadCells + 0x10;
@@ -169,7 +174,7 @@ void CoarseSplitPass::drawSubTriangles(const SplitPolygon &polygon, std::uint32_
     if (!pieceFacesCamera(frame_, piece, polygon.overflow, sidedness(draw))) {
       continue;
     }
-    storePieceScreens(frame_, piece.corners());
+    storePieceScreens(frame_, piece.corners(), binBias(draw));
     storePieceColours(frame_, piece.cells);
     frame_.v0 = linkTrianglePiece(frame_, polygonBin(piece.depthSum(), binBias(draw))).head;
     frame_.v1 = prim >> 16;
@@ -189,10 +194,12 @@ void CoarseSplitPass::triangle(const SplitSector &sector, const SplitPolygon &po
   const PackedIndices colourIndices(colourWord);
   const std::uint32_t texture = textureRecord(frame_, draw);
   const std::uint32_t page = memory_.mem_r32(texture + 4);
-  const std::uint32_t code = asSigned(page) > 0 ? guest_packet::kGt3Code : guest_packet::kSemiGt3Code;
-  std::array<std::uint32_t, 3> colours = {memory_.mem_r32(sector.colours + colourIndices.first) + code,
-                                          memory_.mem_r32(sector.colours + colourIndices.second) + code,
-                                          memory_.mem_r32(sector.colours + colourIndices.third) + code};
+  const std::uint32_t code =
+      asSigned(page) > 0 ? guest_packet::kGt3Code : guest_packet::kSemiGt3Code;
+  std::array<std::uint32_t, 3> colours = {
+      memory_.mem_r32(sector.colours + colourIndices.first) + code,
+      memory_.mem_r32(sector.colours + colourIndices.second) + code,
+      memory_.mem_r32(sector.colours + colourIndices.third) + code};
   loadCornerColours(frame_, colours.data(), 3);
   grid::storeCoarseTriangle(frame_, {p0, p1, p2}, colours);
 

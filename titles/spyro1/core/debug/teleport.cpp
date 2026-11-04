@@ -30,7 +30,11 @@ constexpr uint32_t kPathNodes = 0x08u;
 constexpr uint32_t kPathNodeStride = 0x10u;
 constexpr uint32_t kSpyroPosition = 0x00u;
 constexpr uint32_t kSpyroPreviousPosition = 0x8cu;
-constexpr uint32_t kSpyroRotation = 0x0cu; // m_Rotation, three angle bytes
+// m_Physics.m_TargetSpeedAngle.m_RotZ and m_SpeedAngle.m_RotZ: the heading the body and camera
+// follow.
+constexpr uint32_t kSpyroTargetHeading = 0xccu;
+constexpr uint32_t kSpyroHeading = 0x11cu;
+constexpr uint32_t kHeadingMask = kHeadingTurn - 1u;
 constexpr uint32_t kMaxPortals = 16u;
 constexpr uint32_t kMaxPathNodes = 16u;
 
@@ -159,18 +163,22 @@ std::string toPortal(Core &core, uint32_t level) {
 
 std::string where(Core &core) {
   const Position at = readPosition(core, kSpyro + kSpyroPosition);
-  return lucent::format("spyro position=({}, {}, {}) rotation=({}, {}, {})",
+  return lucent::format("spyro position=({}, {}, {}) heading={}",
                         at.x,
                         at.y,
                         at.z,
-                        core.mem_r8(kSpyro + kSpyroRotation),
-                        core.mem_r8(kSpyro + kSpyroRotation + 1u),
-                        core.mem_r8(kSpyro + kSpyroRotation + 2u));
+                        core.mem_r32(kSpyro + kSpyroHeading) & kHeadingMask);
 }
 
-std::string toPosition(Core &core, const Position &destination) {
+std::string toPosition(Core &core, const Position &destination, std::uint32_t heading) {
   placeSpyro(core, destination);
-  return lucent::format("ok: Spyro at ({}, {}, {})", destination.x, destination.y, destination.z);
+  core.mem_w32(kSpyro + kSpyroTargetHeading, heading & kHeadingMask);
+  core.mem_w32(kSpyro + kSpyroHeading, heading & kHeadingMask);
+  return lucent::format("ok: Spyro at ({}, {}, {}) heading {}",
+                        destination.x,
+                        destination.y,
+                        destination.z,
+                        heading & kHeadingMask);
 }
 
 std::string listGates(Core &core) {

@@ -14,8 +14,8 @@ namespace spyro1::terrain {
 namespace {
 
 namespace grid = spyro::guest_terrain::grid;
-using spyro::guest_terrain::GridPoint;
 using spyro::guest_terrain::drawEdgeCracks;
+using spyro::guest_terrain::GridPoint;
 using spyro::guest_terrain::kCellSize;
 using spyro::guest_terrain::kGt4ToGt3;
 using spyro::guest_terrain::kSplitPrimitiveCursor;
@@ -68,26 +68,28 @@ void CoarsePass::quad(const SplitSector &sector, const SplitRecord &record) {
   grid::storeCoarseQuad(frame_, corners, quadColours(sector, record));
   projectGrid(frame_, grid::kCoarseQuadCells, false);
   grid::refineCoarseCentre(frame_);
-  drawEdgeCracks(frame_,
-                 {.edges = quadEdges(record, kNeighbourDrawnWhole), .table = facts_.coarseQuadCracks},
-                 crack(record, kGt4ToGt3),
-                 {});
+  drawEdgeCracks(
+      frame_,
+      {.edges = quadEdges(record, kNeighbourDrawnWhole), .table = facts_.coarseQuadCracks},
+      crack(record, kGt4ToGt3),
+      {});
 
   // 80027D7C: the four GT4s.
   const psx::present::EmitMemory &memory = frame_.memory;
   for (std::uint32_t k = 0; k < kQuadPieces; ++k) {
     const std::uint32_t first = memory.mem_r32(facts_.coarseQuadCells + 4 * k);
     frame_.v1 = first;
-    QuadPiece piece =
-        readPieceDepths<4>(memory, {first, first + kCellSize, first + 3 * kCellSize, first + 4 * kCellSize});
+    QuadPiece piece = readPieceDepths<4>(
+        memory, {first, first + kCellSize, first + 3 * kCellSize, first + 4 * kCellSize});
     if (piece.outside()) {
       continue;
     }
     readPieceScreens(memory, piece);
-    if (!pieceFacesCamera(frame_, piece, record.overflow, sidedness(record.draw), SecondTriangle::Reversed)) {
+    if (!pieceFacesCamera(
+            frame_, piece, record.overflow, sidedness(record.draw), SecondTriangle::Reversed)) {
       continue;
     }
-    storePieceScreens(frame_, piece.corners());
+    storePieceScreens(frame_, piece.corners(), binBias(record.draw));
     storePieceColours(frame_, piece.cells);
     writePieceUvs({.pair = record.texture + kCoarsePairs + 8 * k, .span = kPieceUvSpan});
     frame_.v1 = linkQuadPiece(frame_, polygonBin(piece.depthSum(), binBias(record.draw))).head;
@@ -131,7 +133,7 @@ void CoarsePass::triangle(const SplitSector &sector, const SplitRecord &record) 
     if (!pieceFacesCamera(frame_, piece, record.overflow, sidedness(record.draw))) {
       continue;
     }
-    storePieceScreens(frame_, piece.corners());
+    storePieceScreens(frame_, piece.corners(), binBias(record.draw));
     storePieceColours(frame_, piece.cells);
     frame_.v0 = linkTrianglePiece(frame_, polygonBin(piece.depthSum(), binBias(record.draw))).head;
     frame_.v1 = prim >> 16;

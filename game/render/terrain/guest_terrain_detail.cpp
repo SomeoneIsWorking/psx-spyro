@@ -293,16 +293,20 @@ void DetailPass::drawQuad(const PackedIndices &vertices) {
   const std::uint32_t bin = polygonBin(sum, binBias(draw));
   memory_.storeVertex(
       prim + packet::kXy0,
-      memory_.loadVertex(kScratchpad + vertices.first, psx::gte::VertexWord{xy[0]}));
+      sortedBack(memory_.loadVertex(kScratchpad + vertices.first, psx::gte::VertexWord{xy[0]}),
+                 binBias(draw)));
   memory_.storeVertex(
       prim + packet::kXy1,
-      memory_.loadVertex(kScratchpad + vertices.second, psx::gte::VertexWord{xy[1]}));
+      sortedBack(memory_.loadVertex(kScratchpad + vertices.second, psx::gte::VertexWord{xy[1]}),
+                 binBias(draw)));
   memory_.storeVertex(
       prim + packet::kXy2,
-      memory_.loadVertex(kScratchpad + vertices.fourth, psx::gte::VertexWord{xy[3]}));
+      sortedBack(memory_.loadVertex(kScratchpad + vertices.fourth, psx::gte::VertexWord{xy[3]}),
+                 binBias(draw)));
   memory_.storeVertex(
       prim + packet::kXy3,
-      memory_.loadVertex(kScratchpad + vertices.third, psx::gte::VertexWord{xy[2]}));
+      sortedBack(memory_.loadVertex(kScratchpad + vertices.third, psx::gte::VertexWord{xy[2]}),
+                 binBias(draw)));
   std::uint32_t record = (draw & kTextureRecordMask) * kTextureRecordSize;
 
   const ShadedVertex first = shadeVertex({colours.first, depths[0]});
@@ -324,7 +328,8 @@ void DetailPass::drawQuad(const PackedIndices &vertices) {
   memory_.mem_w32(prim, guest_packet::kGt4Tag);
   memory_.mem_w32(prim + packet::kUv0, uv);
   if (asSigned(page) < 0) {
-    memory_.mem_w8(prim + packet::kCode, static_cast<std::uint8_t>(guest_packet::kSemiGt4Code >> 24));
+    memory_.mem_w8(prim + packet::kCode,
+                   static_cast<std::uint8_t>(guest_packet::kSemiGt4Code >> 24));
   }
   memory_.mem_w32(prim + packet::kUv1, page - 0x1F00u);
   memory_.mem_w32(prim + packet::kUv2, uv + 0x1F00u);
@@ -376,13 +381,16 @@ void DetailPass::drawTriangle(const PackedIndices &vertices) {
   const std::uint32_t bin = polygonBin(sum, binBias(draw));
   memory_.storeVertex(
       prim + packet::kXy0,
-      memory_.loadVertex(kScratchpad + vertices.first, psx::gte::VertexWord{xy[0]}));
+      sortedBack(memory_.loadVertex(kScratchpad + vertices.first, psx::gte::VertexWord{xy[0]}),
+                 binBias(draw)));
   memory_.storeVertex(
       prim + packet::kXy1,
-      memory_.loadVertex(kScratchpad + vertices.second, psx::gte::VertexWord{xy[1]}));
+      sortedBack(memory_.loadVertex(kScratchpad + vertices.second, psx::gte::VertexWord{xy[1]}),
+                 binBias(draw)));
   memory_.storeVertex(
       prim + packet::kXy2,
-      memory_.loadVertex(kScratchpad + vertices.third, psx::gte::VertexWord{xy[2]}));
+      sortedBack(memory_.loadVertex(kScratchpad + vertices.third, psx::gte::VertexWord{xy[2]}),
+                 binBias(draw)));
   std::uint32_t record = (draw & kTextureRecordMask) * kTextureRecordSize;
 
   const ShadedVertex first = shadeVertex({colours.first, depths[0]});
@@ -400,7 +408,8 @@ void DetailPass::drawTriangle(const PackedIndices &vertices) {
   const std::uint32_t page = memory_.mem_r32(record + 4);
   memory_.mem_w32(prim, guest_packet::kGt3Tag);
   if (asSigned(page) < 0) {
-    memory_.mem_w8(prim + packet::kCode, static_cast<std::uint8_t>(guest_packet::kSemiGt3Code >> 24));
+    memory_.mem_w8(prim + packet::kCode,
+                   static_cast<std::uint8_t>(guest_packet::kSemiGt3Code >> 24));
   }
   frame_.v1 = writeTriangleUvs(memory_, prim, {.uv = uv, .page = page}, draw & kTriangleCornerMask);
   frame_.v0 = prim >> 16;

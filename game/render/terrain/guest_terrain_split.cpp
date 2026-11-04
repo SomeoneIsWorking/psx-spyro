@@ -16,9 +16,9 @@ namespace {
 namespace gte = psx::gte;
 
 using spyro::guest_word::asSigned;
-using spyro::guest_word::sra;
-using spyro::guest_word::signedHalf;
 using spyro::guest_word::asWord;
+using spyro::guest_word::signedHalf;
+using spyro::guest_word::sra;
 
 // The two height packings (80025D28): the detail pass's (w << 3) & 0x1FFC and the translucent
 // pass's w & 0x3FF, told apart by the header's top bit.
@@ -195,8 +195,10 @@ void emitCrackTriangle(TerrainFrame &frame, std::uint32_t entry, const CrackPoly
   const std::uint32_t cells = memory.mem_r32(entry);
   const std::uint32_t uvFirst = memory.mem_r32(entry + 4);
   const std::uint32_t uvRest = memory.mem_r32(entry + 8);
-  TrianglePiece piece = readPieceDepths<3>(
-      memory, {kScratchpad + (cells >> 16), kScratchpad + (cells & 0xFFFFu), kScratchpad + (uvFirst >> 16)});
+  TrianglePiece piece = readPieceDepths<3>(memory,
+                                           {kScratchpad + (cells >> 16),
+                                            kScratchpad + (cells & 0xFFFFu),
+                                            kScratchpad + (uvFirst >> 16)});
   frame.v0 = piece.cells[0];
   frame.v1 = piece.cells[1];
   if (piece.outside()) {
@@ -204,9 +206,10 @@ void emitCrackTriangle(TerrainFrame &frame, std::uint32_t entry, const CrackPoly
   }
   const std::uint32_t prim = frame.primitive;
   readPieceScreens(memory, piece);
-  storePieceScreens(frame, piece.corners());
+  storePieceScreens(frame, piece.corners(), bias);
   storePieceColours(frame, piece.cells);
-  memory.mem_w32(prim + packet::kColour0, memory.mem_r32(piece.cells[0] + cell::kColour) - colourAdjust);
+  memory.mem_w32(prim + packet::kColour0,
+                 memory.mem_r32(piece.cells[0] + cell::kColour) - colourAdjust);
   memory.mem_w32(prim + packet::kUv0, (uvFirst & 0xFFFFu) + uv);
   memory.mem_w32(prim + packet::kUv1, static_cast<std::uint32_t>(asSigned(uvRest) >> 16) + page);
   memory.mem_w32(prim + packet::kUv2, (uvRest & 0xFFFFu) + uv);
@@ -214,7 +217,10 @@ void emitCrackTriangle(TerrainFrame &frame, std::uint32_t entry, const CrackPoly
   frame.v1 = linkTrianglePiece(frame, polygonBin(piece.depthSum(), bias)).head;
 }
 
-void drawEdgeCracks(TerrainFrame &frame, CrackEdges edges, const CrackPolygon &polygon, CrackRun run) {
+void drawEdgeCracks(TerrainFrame &frame,
+                    CrackEdges edges,
+                    const CrackPolygon &polygon,
+                    CrackRun run) {
   std::uint32_t entry = edges.table;
   std::uint32_t remaining = edges.edges;
   while (remaining != 0) {
@@ -233,7 +239,9 @@ void drawEdgeCracks(TerrainFrame &frame, CrackEdges edges, const CrackPolygon &p
 }
 
 std::array<std::uint32_t, 3> trianglePieceCells(std::uint32_t layout) {
-  return {kScratchpad + ((layout >> 20) & 0xFF0u), kScratchpad + ((layout >> 12) & 0xFF0u), kScratchpad + ((layout >> 4) & 0xFF0u)};
+  return {kScratchpad + ((layout >> 20) & 0xFF0u),
+          kScratchpad + ((layout >> 12) & 0xFF0u),
+          kScratchpad + ((layout >> 4) & 0xFF0u)};
 }
 
 bool pieceFacesCamera(TerrainFrame &frame,
@@ -248,7 +256,10 @@ bool pieceFacesCamera(TerrainFrame &frame,
   return false;
 }
 
-bool pieceFacesCamera(TerrainFrame &frame, const TrianglePiece &piece, bool overflow, Sidedness sides) {
+bool pieceFacesCamera(TerrainFrame &frame,
+                      const TrianglePiece &piece,
+                      bool overflow,
+                      Sidedness sides) {
   if (!overflow || triangleFacesCamera(frame, piece.screens, sides)) {
     return true;
   }
@@ -256,12 +267,15 @@ bool pieceFacesCamera(TerrainFrame &frame, const TrianglePiece &piece, bool over
   return false;
 }
 
-void storePieceScreens(TerrainFrame &frame, PieceCorners corners) {
-  constexpr std::array<std::uint32_t, 4> kSlots = {packet::kXy0, packet::kXy1, packet::kXy2, packet::kXy3};
+void storePieceScreens(TerrainFrame &frame, PieceCorners corners, std::uint32_t bias) {
+  constexpr std::array<std::uint32_t, 4> kSlots = {
+      packet::kXy0, packet::kXy1, packet::kXy2, packet::kXy3};
   for (std::size_t i = 0; i < corners.screens.size(); ++i) {
-    frame.memory.storeVertex(frame.primitive + kSlots[i],
-                             frame.memory.loadVertex(corners.cells[i] + cell::kScreen,
-                                                     psx::gte::VertexWord{corners.screens[i]}));
+    frame.memory.storeVertex(
+        frame.primitive + kSlots[i],
+        sortedBack(frame.memory.loadVertex(corners.cells[i] + cell::kScreen,
+                                           psx::gte::VertexWord{corners.screens[i]}),
+                   bias));
   }
 }
 
@@ -269,7 +283,8 @@ void storePieceColours(TerrainFrame &frame, std::span<const std::uint32_t> cells
   constexpr std::array<std::uint32_t, 4> kSlots = {
       packet::kColour0, packet::kColour1, packet::kColour2, packet::kColour3};
   for (std::size_t i = 0; i < cells.size(); ++i) {
-    frame.memory.mem_w32(frame.primitive + kSlots[i], frame.memory.mem_r32(cells[i] + cell::kColour));
+    frame.memory.mem_w32(frame.primitive + kSlots[i],
+                         frame.memory.mem_r32(cells[i] + cell::kColour));
   }
 }
 
@@ -346,13 +361,14 @@ void pullTowardPair(TerrainFrame &frame, const GridPull &pull) {
   const GtePlace at = self.place();
   const GtePlace pa = pairFirst.place();
   const GtePlace pb = pairSecond.place();
-  memory.storeVertex(point + cell::kScreen,
-                     {(static_cast<std::uint32_t>(x) & 0xFFFFu) + (static_cast<std::uint32_t>(y) << 16),
-                      {blend(at.x, pa.x + pb.x),
-                       blend(at.y, pa.y + pb.y),
-                       psx::gte::screenBlendDepth({{at.z, selfWeight / 256.0f},
-                                                   {pa.z, pairsWeight / 256.0f},
-                                                   {pb.z, pairsWeight / 256.0f}})}});
+  memory.storeVertex(
+      point + cell::kScreen,
+      {(static_cast<std::uint32_t>(x) & 0xFFFFu) + (static_cast<std::uint32_t>(y) << 16),
+       {blend(at.x, pa.x + pb.x),
+        blend(at.y, pa.y + pb.y),
+        psx::gte::screenBlendDepth({{at.z, selfWeight / 256.0f},
+                                    {pa.z, pairsWeight / 256.0f},
+                                    {pb.z, pairsWeight / 256.0f}})}});
 }
 
 std::uint32_t quadNeighbourEdges(TerrainFrame &frame,
@@ -363,7 +379,8 @@ std::uint32_t quadNeighbourEdges(TerrainFrame &frame,
   const std::uint32_t flags = frame.scratch;
   const std::uint32_t first = memory.mem_r8(flags + (links >> 19)) & bit;
   const std::uint32_t second = memory.mem_r8(flags + ((links >> 6) & 0x1FFFu)) & bit;
-  const std::uint32_t third = memory.mem_r8(flags + (links & 0x3Fu) + ((draw >> 6) & 0x1FC0u)) & bit;
+  const std::uint32_t third =
+      memory.mem_r8(flags + (links & 0x3Fu) + ((draw >> 6) & 0x1FC0u)) & bit;
   const std::uint32_t fourth = memory.mem_r8(flags + (draw >> 19)) & bit;
   return first + (second << 8) + (third << 16) + (fourth << 24);
 }
