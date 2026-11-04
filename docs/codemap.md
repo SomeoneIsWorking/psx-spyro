@@ -31,7 +31,7 @@ Frame loop: not owned. Spyro 1 runs update `0x8003385C` and draw `0x8001ED5C` an
 - `game/render/field/guest_view_slope.*` — horizontal frustum slope, screen margin and outcode window at 4:3 or widened 16:9
 - `game/render/field/guest_render_globals.h` — camera, ordering-table, overlay-pair and packet-cursor guest words per image
 - `game/render/field/guest_working_memory.h` — in-between packet arena window, packet tag link, rotation words, saved draws
-- `game/render/field/guest_word.h` — MIPS word arithmetic: signed view, `sra`, absolute value, sign-extended halfword
+- `game/render/field/guest_word.h` — MIPS word arithmetic: signed view, `sra`, absolute value, sign-extended halfword, packed 11/11/10 delta fields
 - `game/render/field/guest_packet.h` — GP0 packet tags, packet sizes and command words the emitters write
 - `game/render/state_producer_override.h` — native draw override installed with the state producer that renders its saved draw
 - `game/render/hud/ui_anchor.*` — HUD / screen-space UI horizontal anchoring on a widened canvas

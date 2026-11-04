@@ -1,6 +1,6 @@
 # 0231 — Spyro 2 and 3's intro logo card leaves the 16:9 margins open
 
-Status: margins filled (2026-11-04, spyro23c); open for the Spyro 2 seam hairline below.
+Status: fixed (2026-11-04, spyro23c).
 Owner: `game/render/field/intro_card.cpp` (wraps the moby drawer).
 
 ## Observed
@@ -19,16 +19,22 @@ retail's projection, so the margins show the world past its edges.
 entry by mesh, decodes its pose (`moby_pose::entryPose`, the drawer's vertex streams and frame-B blend), and
 continues each front-face row (`titles/<t>/render/intro_card_facts.h`) outward by the share of its width the canvas
 adds, projected through the entry's rotation and translation as black F4 quads. They turn and recede with the card;
-the logo is not stretched; nothing is drawn at 4:3. The share is full while the card's widest row spans the 4:3
-view and falls to none once it is no wider than that view on the canvas, so the receding card in the attract scene
-(Spyro 2 from f540, Spyro 3 from f600) returns to its authored shape instead of standing as a wider sign. The quads go in the bin before the entry's depth bin
-(entry `+0x18`, where the drawer starts linking the card's polygons); a bin from the corners' own depth let the
-ground under the card sort in front of the bottom rows (Spyro 2 stepped corners, Spyro 3 short wings).
+the logo is not stretched; nothing is drawn at 4:3. A side's quad between two rows is drawn only while both rows'
+edge vertices reach that edge of the 4:3 view, so the margin shows the world exactly when the 4:3 picture shows it at
+that edge (Spyro 3's card wobbles past the edges from f506, Spyro 2's swings off the right edge from f362); a card
+narrower than the view that still reaches an edge gets quads long enough to reach the canvas edge. The quads go in
+the bin before the entry's depth bin (entry `+0x18`): SCUS_944.25 `800453A4`..`800453D4` links the drawer's local
+depth buckets into the ordering table from that bin less its unused far buckets, nearer buckets into lower bins. A bin from the corners' own depth let the ground under the card sort in
+front of the bottom rows (Spyro 2 stepped corners, Spyro 3 short wings).
 
-Shown: `scratch/spyro23c/q2/all.png` (Spyro 2 f330..f600), `q3/all.png` (Spyro 3 f500..f800) at 16:9 fps60=1,
-`p2n/`, `p3n/all.png` at 4:3 (retail picture).
+The extension projects each vertex as the drawer loads it: `VXY0 = x + (y << 16)` (SCUS_944.25 `800447F8`,
+`80044B8C`), so a negative model x borrows one from y. Packing the halves separately put some row vertices one pixel
+off the card's own corners, the Spyro 2 hairline along the left seam from f380.
+
+Shown (16:9, fps60=1, eight presents each, in-betweens included): `scratch/spyro23c/f2w/sheet.png` (Spyro 2
+f350, f380, f420, f560), `f2w/f420left.png` and `f380left.png` (left seam, no hairline), `scratch/spyro23c/f3w/sheet.png`
+(Spyro 3 f506, f512, f524); 4:3 (retail picture): `p2n/`, `p3n/all.png`.
 
 ## Remaining
-- Spyro 2, from f380 as the card turns: a one-pixel hairline of the world shows along the seam between the card's
-  left edge and its extension's lower rows (`scratch/spyro23c/p2w/f420left.png`). The card's silhouette there is
-  not the straight line between the row vertices; the row table likely misses an edge vertex between rows 19 and 15.
+- While only some rows of a card edge reach the 4:3 edge, the margin beside it is part black, part world, stepped at
+  the rows (Spyro 2 f560, Spyro 3 f512 in-betweens); the 4:3 picture shows a sliver of world there at the same time.

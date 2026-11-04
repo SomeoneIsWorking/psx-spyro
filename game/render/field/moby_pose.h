@@ -1,11 +1,5 @@
-// moby_pose.h — the model-space vertices a moby drawer projects for one render-list entry: frame A's
-// vertex streams decoded and, when the entry names a frame B share, blended toward frame B's.
-//
-// The drawer (SCUS_944.25 80044504, SCUS_944.67 80031124, one body) reads each frame as a byte
-// stream of indices into a delta table, a halfword stream of short deltas and absolute vertices, and
-// the mesh's per-vertex base deltas; bit 0 of each code picks the stream the next vertex comes from.
-// It blends with INTPL by the share in the entry's class word and projects (z, x, y) of the blend as
-// VZ0, VXY0.
+// moby_pose.h — the model-space vertices a moby drawer (SCUS_944.25 80044504, SCUS_944.67 80031124)
+// projects for one render-list entry: frame A decoded and blended toward frame B by INTPL.
 #pragma once
 
 #include "core.h"

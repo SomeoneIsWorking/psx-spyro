@@ -12,6 +12,7 @@ namespace {
 
 using guest_word::asSigned;
 using guest_word::asWord;
+using guest_word::packedFields;
 using guest_word::signedHalf;
 using guest_word::sra;
 
@@ -23,8 +24,11 @@ constexpr std::uint32_t kMeshShortStreams = 0x20;
 using Running = std::array<std::int32_t, 3>;
 
 // SCUS_944.25 80044714..80044890: one frame's streams, vertex by vertex.
-std::vector<Running>
-decodeFrame(Core &core, std::uint32_t deltaTable, std::uint32_t mesh, std::uint32_t streams, std::uint32_t count) {
+std::vector<Running> decodeFrame(Core &core,
+                                 std::uint32_t deltaTable,
+                                 std::uint32_t mesh,
+                                 std::uint32_t streams,
+                                 std::uint32_t count) {
   std::uint32_t halves = (streams & 0xFFFFu) * 2 + core.mem_r32(mesh + kMeshShortStreams);
   std::uint32_t bytes = ((streams >> 15) & 0x3FEu) + halves;
   std::uint32_t fromHalves = (streams >> 25) & 1u;
@@ -36,10 +40,11 @@ decodeFrame(Core &core, std::uint32_t deltaTable, std::uint32_t mesh, std::uint3
     if (fromHalves == 0) {
       const std::uint32_t code = core.mem_r8(bytes++);
       fromHalves = code & 1u;
-      const std::uint32_t delta = core.mem_r32(deltaTable + (code & 0xFEu) * 2) + core.mem_r32(base);
-      at[0] += asSigned(sra(delta, 21));
-      at[1] -= asSigned(sra(delta << 11, 21));
-      at[2] -= asSigned(sra(delta << 22, 21));
+      const auto delta =
+          packedFields(core.mem_r32(deltaTable + (code & 0xFEu) * 2) + core.mem_r32(base));
+      at[0] += asSigned(delta[0]);
+      at[1] -= asSigned(delta[1]);
+      at[2] -= asSigned(delta[2]);
     } else {
       const std::uint32_t code = signedHalf(core.mem_r16(halves));
       halves += 2;
@@ -51,10 +56,10 @@ decodeFrame(Core &core, std::uint32_t deltaTable, std::uint32_t mesh, std::uint3
         at[1] = asSigned(sra(second << 26, 21) | ((code & 0xF000u) >> 11));
         at[2] = asSigned(sra((code & 0xFFCu) << 20, 20));
       } else {
-        const std::uint32_t delta = core.mem_r32(base);
-        at[0] += asSigned(sra(code, 9)) + asSigned(sra(delta, 21));
-        at[1] -= asSigned(sra(code << 21, 25)) + asSigned(sra(delta << 11, 21));
-        at[2] -= asSigned(sra(code << 26, 27)) * 4 + asSigned(sra(delta << 22, 21));
+        const auto delta = packedFields(core.mem_r32(base));
+        at[0] += asSigned(sra(code, 9)) + asSigned(delta[0]);
+        at[1] -= asSigned(sra(code << 21, 25)) + asSigned(delta[1]);
+        at[2] -= asSigned(sra(code << 26, 27)) * 4 + asSigned(delta[2]);
       }
     }
     frame.push_back(at);
@@ -72,8 +77,8 @@ std::vector<Vertex>
 entryPose(Core &core, std::uint32_t deltaTable, std::uint32_t entry, std::uint32_t count) {
   namespace e = guest_moby::entry;
   const std::uint32_t classWord = core.mem_r32(entry + e::kClass);
-  const std::vector<Running> frameA =
-      decodeFrame(core, deltaTable, core.mem_r32(entry + e::kMesh), core.mem_r32(entry + e::kTexture), count);
+  const std::vector<Running> frameA = decodeFrame(
+      core, deltaTable, core.mem_r32(entry + e::kMesh), core.mem_r32(entry + e::kTexture), count);
   std::vector<Vertex> pose;
   pose.reserve(count);
   // 80044588: frame B's share, 0 drawing frame A alone.
