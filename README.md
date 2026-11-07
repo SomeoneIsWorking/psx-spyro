@@ -128,3 +128,5 @@ feature chains, and
 
 psxport's vendored beetle-psx backend is GPL-2.0. Spyro is a trademark of its respective rights
 holders. This project is not affiliated with or endorsed by them.
+
+Built with AI assistance (Claude and other LLMs).
