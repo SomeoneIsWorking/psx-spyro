@@ -21,7 +21,7 @@ camera bytes are identical, so that capture cannot locate a camera-update diverg
 The full-console arm used the USA Spyro CHD SHA-256
 `8fe0a6e735ee399a8251f2173cf61c6e20fa565611b934fa3d90788beab9d6cb`, admitted
 SCPH-1001 v2.2 BIOS SHA-1 `10155d8d6e6e832d6ea66db9bc098321fb5e8ebf`, pinned
-Beetle fork `5791d27a41e7ffd759f68e88114b50a1c6a168c0`, empty saves, and the
+Beetle fork `d508cb3ec0f3f8dad2d1e1b8743ed335f91984b1`, empty saves, and the
 40-command recorded title-to-Artisans input route from the framework's console observer
 qualification. The route was accepted only after reading stage 0, level tick 300, and
 player `(84992, 47173, 9556)` from live RAM at console field 6738.
