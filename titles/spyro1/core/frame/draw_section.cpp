@@ -44,22 +44,10 @@ constexpr std::array<std::uint32_t, 4> kDrawers{0x80019698u, 0x8002B9CCu, 0x8005
 constexpr std::uint32_t kDrawFade = 0x800190D4u;
 constexpr std::uint32_t kDrawBorder = 0x80018F30u;
 constexpr std::uint32_t kDrawHud = 0x800189F0u;
-// TitlescreenDraw's TSM_Init steps (titlescreen.c): TitlescreenDrawSprite (x, y, sprite, colour),
-// Memset, the actor list and emitter, the terrain and the cyclorama.
-constexpr std::uint32_t kTitlescreenDrawSprite = 0x8007CD38u;
-constexpr std::uint32_t kListActors = 0x8001F158u;
-constexpr std::uint32_t kEmitActors = 0x8001F798u;
-constexpr std::uint32_t kMemset = 0x80016914u;
-constexpr std::uint32_t kSonyImage = 0x8006FCF4u;
-constexpr std::uint32_t kSonyMobyQueueBytes = 0x900u;
-constexpr std::uint32_t kSonyBufferBytes = 0x1C00u;
-constexpr std::uint32_t kCullingDistance = 0x800785D0u; // g_Environment.m_CullingDistance
-constexpr std::uint32_t kTitleCulling = 0x1C000u;
-constexpr std::uint32_t kDrawTerrain = 0x800258F0u;
-constexpr std::uint32_t kDrawCyclorama = 0x8004EBA8u;
-constexpr std::uint32_t kViewMatrix = 0x80076DE4u;
-constexpr std::uint32_t kProjectionMatrix = 0x80076DD0u;
-constexpr std::uint32_t kAllSectors = 0xFFFFFFFFu;
+// TitlescreenDraw (overlay, 0x8007CEE4) up to its device tail: 0x8007DD0C is the `jal DrawSync`
+// both the fade's return and the no-fade branch at 0x8007DCF4 reach.
+constexpr std::uint32_t kTitlescreenDraw = 0x8007CEE4u;
+constexpr std::uint32_t kTitlescreenDrawTail = 0x8007DD0Cu;
 
 // func_80016784(0x800): links the bins into one chain and returns its head, DrawOTag's argument.
 constexpr std::uint32_t kFlattenBins = 0x80016784u;
@@ -130,58 +118,14 @@ bool DrawSection::drawPlaying(Core &core, psx::present::GuestRedraw &redraw) {
   return step(redraw, kDrawHud);
 }
 
-bool DrawSection::drawTitle(Core &core, psx::present::GuestRedraw &redraw) {
-  const auto sprite =
-      [&redraw](std::int32_t x, std::int32_t y, std::int32_t id, std::uint32_t colour) {
-        const std::array<std::uint32_t, 4> args{static_cast<std::uint32_t>(x),
-                                                static_cast<std::uint32_t>(y),
-                                                static_cast<std::uint32_t>(id),
-                                                colour};
-        return step(redraw, kTitlescreenDrawSprite, args);
-      };
-  const auto slide = [&core](std::uint32_t table, std::uint32_t index) {
-    return static_cast<std::int32_t>(core.mem_r8(table + index));
-  };
-  const std::uint32_t subState = core.mem_r32(guest::kTitlescreenSubState);
-  const std::uint32_t subTick = core.mem_r32(guest::kTitlescreenSubTick);
-  bool drawn = true;
-  // TitlescreenDraw's TSM_Init sprites: the logo (0), PRESS START (11) blinking, the borders (1,
-  // -1).
-  if (subState == guest::kTitleLogoIn) {
-    const std::uint32_t layout = core.mem_r32(guest::kCutsceneLayout);
-    if (static_cast<std::int32_t>(core.mem_r32(layout + guest::kCutsceneLayoutCurrentTick)) >=
-        guest::kTitleLogoInTick) {
-      drawn = sprite(128, slide(guest::kTitlescreenAnimIn, subTick) - 128, 0, 0);
-    }
-  } else if (subState == guest::kTitleWaiting) {
-    drawn = sprite(128, 0, 0, 0) && sprite(192, 210, 11, (subTick & 0xFu) < 8 ? 2u : 0u);
-  } else if (subState == guest::kTitleLogoOut) {
-    if (subTick < guest::kTitlescreenAnimSteps) {
-      drawn = sprite(128, slide(guest::kTitlescreenAnimOut, subTick) - 128, 0, 0);
-    } else {
-      const std::int32_t y =
-          slide(guest::kTitlescreenAnimIn, subTick - guest::kTitlescreenAnimSteps) - 119;
-      drawn = sprite(108, y, 1, 0) && sprite(255, y, -1, 0);
-    }
-  }
-  const std::array<std::uint32_t, 3> mobyQueue{kSonyImage, 0, kSonyMobyQueueBytes};
-  const std::array<std::uint32_t, 3> sonyBuffer{kSonyImage, 0, kSonyBufferBytes};
-  if (!drawn || !step(redraw, kQueueMobys) || !step(redraw, kListActors) ||
-      !step(redraw, kMemset, mobyQueue) || !step(redraw, kEmitActors) ||
-      !step(redraw, kMemset, sonyBuffer)) {
-    return false;
-  }
-  redraw.writeWord(kCullingDistance, kTitleCulling);
-  const std::array<std::uint32_t, 1> sectors{kAllSectors};
-  const std::array<std::uint32_t, 3> cyclorama{kAllSectors, kViewMatrix, kProjectionMatrix};
-  if (!step(redraw, kDrawTerrain, sectors) || !step(redraw, kDrawCyclorama, cyclorama)) {
-    return false;
-  }
-  if (const std::uint32_t fade = core.mem_r32(kFade); fade != 0) {
-    const std::array<std::uint32_t, 4> args{2u, fade << 4, fade << 4, fade << 4};
-    return step(redraw, kDrawFade, args);
-  }
-  return true;
+bool DrawSection::drawTitle(psx::present::GuestRedraw &redraw) {
+  const bool reached = redraw.dispatchTo(kTitlescreenDraw, kTitlescreenDrawTail, {});
+  lucent::debug("replay",
+                "spyro1 section step 0x{:08X} to 0x{:08X}: {}",
+                kTitlescreenDraw,
+                kTitlescreenDrawTail,
+                reached ? "reached" : "refused");
+  return reached;
 }
 
 std::optional<std::uint32_t> DrawSection::draw(Core &core,
@@ -202,7 +146,7 @@ std::optional<std::uint32_t> DrawSection::draw(Core &core,
   }
   const bool drawn = core.mem_r32(guest::kGamestate) == guest::kGamestatePlaying
                          ? drawPlaying(core, redraw)
-                         : drawTitle(core, redraw);
+                         : drawTitle(redraw);
   const std::array<std::uint32_t, 1> bins{kBinCount};
   if (!drawn || !step(redraw, kFlattenBins, bins)) {
     return std::nullopt;

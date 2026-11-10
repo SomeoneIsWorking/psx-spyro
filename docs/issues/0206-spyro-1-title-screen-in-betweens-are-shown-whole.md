@@ -14,10 +14,10 @@ the device tail (DrawSync, VSync, PutDispEnv/DrawEnv, DrawOTag), so it cannot be
 else drew the title as a section.
 
 ## Fix
-`DrawSection::drawTitle` replays TitlescreenDraw's TSM_Init body (spyro-1 decomp
-`src/overlays/titlescreen.c`): the substate's TitlescreenDrawSprite 0x8007CD38 calls, 0x800521C0,
-0x8001F158, the two Memsets of 0x8006FCF4, 0x8001F798, the 0x800785D0 store, 0x800258F0, 0x8004EBA8 and the
-fade 0x800190D4. `replays()` runs it only in TSM_Init; the camera's yaw (+16 per tick) is the camera track.
+`DrawSection::drawTitle` runs the guest's TitlescreenDraw 0x8007CEE4 itself through
+`GuestRedraw::dispatchTo`, from its entry up to 0x8007DD0C, the `jal DrawSync` that both the fade's return
+(0x8007DD04) and the no-fade branch at 0x8007DCF4 reach; the device tail after it is the real frame's. The
+section's `declines` keeps it to TSM_Init; the camera's yaw (+16 per tick) is the camera track.
 `TitleSlide` is the logo slides' motion source: the draw places them at `g_TitlescreenAnimIn/Out[m_SubTick]`
 (u8[16] at 0x8006FA74/0x8006FA84), so an in-between writes the entry the later tick reads `t` of the way from
 the earlier tick's entry. The slide values are whole native pixels, so a half step of an odd step rounds.
@@ -32,3 +32,10 @@ judgement settings):
 - t = 1 (local probe, not shipped): every in-between equals its real frame, full frame, 12 of 12 (`t1`).
 - t = 0.5: the logo's lowest edge, reals 119 / 199 / 279 / 367 / 455 / 551 / 655, in-betweens 159 / 239 /
   327 / 407 / 503 / 599 (`ta`, `title/logo5.png`); 596 in-betweens composed, no replay refusal.
+
+Re-proved with the guest's own TitlescreenDraw (2026-11-11, `scratch/review5/`, `attract.py`, `nullcase.py`,
+`edges.py`, `border.py`): at t = 1 every in-between of the logo slide in (20), the waiting screen (12) and
+logo-out with the border slide (36) is byte-identical to the real present after it; at t = 0.5 the logo's
+lowest edge (reals 119 / 199 / 279 / 367 / 455 / 551 / 655 / 759 / 871, in-betweens 159 / 239 / 327 / 407 /
+503 / 599 / 711 / 815) and the border's bottom through its bounce sit halfway, and the waiting screen's Spyro
+idles smoothly (`half_waiting_spyro.png`). Run-end: 0 intervals refused.

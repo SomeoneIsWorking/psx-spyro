@@ -1,6 +1,6 @@
 // draw_section.h — GamestateDraw 0x8001ED5C as a replay for GS_Playing and the title screen's
-// TSM_Init: the buffer flip it opens with, CameraUpdateMatrices, the state's drawers in order, and
-// the bin flatten whose chain DrawOTag submits.
+// TSM_Init: the buffer flip it opens with, CameraUpdateMatrices, GS_Playing's drawers in order or
+// the guest's TitlescreenDraw to its device tail, and the bin flatten whose chain DrawOTag submits.
 #pragma once
 
 #include "replay_frame.h"
@@ -22,8 +22,8 @@ public:
 private:
   // GS_Playing's drawers, from QueueMobys to the HUD.
   [[nodiscard]] static bool drawPlaying(Core &core, psx::present::GuestRedraw &redraw);
-  // TitlescreenDraw 0x8007CEE4's TSM_Init body up to its device tail.
-  [[nodiscard]] static bool drawTitle(Core &core, psx::present::GuestRedraw &redraw);
+  // TitlescreenDraw 0x8007CEE4 itself, up to its device tail.
+  [[nodiscard]] static bool drawTitle(psx::present::GuestRedraw &redraw);
 };
 
 } // namespace spyro1
