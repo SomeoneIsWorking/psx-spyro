@@ -15,8 +15,8 @@ using spyro1::guest::kEnvironment;
 
 using spyro::guest_word::sra;
 
-constexpr std::uint32_t kNodeLists = 0x80078560u;
 using scroll::kNarrowRecords;
+using scroll::kNodeLists;
 using scroll::kWideRecords;
 using scroll::kWideRecordSize;
 // g_Environment + 0x2C, the TerrainCollision pointer, and the vertex block its +0x10 holds. BOTH
@@ -566,7 +566,7 @@ void propagateEnvironmentLight(Core *c) {
   forEachNode(c, 0x00u, [&](std::uint32_t node, std::uint32_t) {
     copyNodeRecords(c, {node, charge}, tail);
   });
-  forEachNode(c, 0x08u, [&](std::uint32_t node, std::uint32_t) {
+  forEachNode(c, scroll::kNodeList - kNodeLists, [&](std::uint32_t node, std::uint32_t) {
     scrollNodeTexture(c, {node, charge}, tail);
   });
   forEachNode(c, 0x10u, [&](std::uint32_t node, std::uint32_t index) {

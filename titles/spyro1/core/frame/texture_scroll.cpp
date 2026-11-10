@@ -2,10 +2,14 @@
 
 #include "blend.h"
 #include "core.h"
+#include "guest_memory_map.h"
 #include "guest_redraw.h"
+
+#include <lucent/log.h>
 
 #include <algorithm>
 #include <cstddef>
+#include <cstdlib>
 
 namespace spyro1 {
 namespace {
@@ -35,8 +39,16 @@ void TextureScroll::sample(Core &core) {
   const std::uint32_t list = core.mem_r32(scroll::kNodeList + 4u);
   const std::uint32_t narrowTable = core.mem_r32(scroll::kNarrowRecords);
   const std::uint32_t wideTable = core.mem_r32(scroll::kWideRecords);
-  if (!core.isGuestStorage(list, count * 4u)) {
+  if (count == 0) {
     return;
+  }
+  if (count > psx::kMainRamBytes / 4u || !core.isGuestStorage(list, count * 4u)) {
+    lucent::error("texture-scroll",
+                  "scroll list 0x{:08X} counts {} nodes from 0x{:08X}, past guest storage",
+                  scroll::kNodeList,
+                  count,
+                  list);
+    std::abort();
   }
   for (std::uint32_t i = 0; i < count; ++i) {
     Node node{.address = core.mem_r32(list + i * 4u)};

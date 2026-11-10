@@ -7,8 +7,10 @@
 
 namespace spyro1::scroll {
 
-// Count, then the node pointer array.
-inline constexpr std::uint32_t kNodeList = 0x80078568u;
+// 0x8002A6FC's node lists, each a count then the node pointer array; the scroll list is the second.
+inline constexpr std::uint32_t kNodeLists = 0x80078560u;
+inline constexpr std::uint32_t kNodeListBytes = 8u;
+inline constexpr std::uint32_t kNodeList = kNodeLists + kNodeListBytes;
 inline constexpr std::uint32_t kNodeIndex = 0x04u;
 inline constexpr std::uint32_t kNodePosition = 0x06u;
 inline constexpr std::uint32_t kPositionBits = 7u;
