@@ -1,6 +1,7 @@
 #include "render/terrain/guest_terrain_drawer.h"
 
 #include "core.h"
+#include "core/session.h"
 #include "lucent/log.h"
 #include "render/field/guest_view_slope.h"
 
@@ -74,6 +75,11 @@ void draw(Core &core, const TerrainImage &image, psx::present::LevelReads &reads
   working.back() = GuestSpan{cursor, cursor < arenaEnd ? arenaEnd - cursor : 0u};
   const psx::present::EmitMemory memory(core, reads, working);
   Drawer(core, image, memory, FrameMode::RealField).run();
+}
+
+void drawField(Core &core, const TerrainImage &image) {
+  const psx::present::Kept<psx::present::LevelReads>::Use reads(spyro::session(core).drawReads);
+  draw(core, image, *reads);
 }
 
 } // namespace spyro::guest_terrain

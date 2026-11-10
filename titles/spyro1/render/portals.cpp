@@ -14,7 +14,6 @@
 #include "render/terrain/guest_depth_bins.h"
 #include "render/terrain/guest_terrain_fog.h"
 #include "render/terrain/guest_terrain_screen.h"
-#include "render/terrain/terrain_rebuild.h"
 #include "spyro1/core/guest_globals.h"
 #include "spyro1/render/sky.h"
 #include "spyro1/render/terrain_facts.h"
@@ -818,10 +817,11 @@ constexpr psx::cpu::GuestCallSite kLevelSky =
 void drawPortals(Core *core) {
   Core &guest = *core;
   const spyro::PreservedReturnAddress returnAddress(guest);
-  const spyro::guest_terrain::CameraState camera =
-      spyro::guest_terrain::readCamera(guest, terrain::kRenderGlobals);
+  const std::uint32_t angles = terrain::kRenderGlobals.cameraAngles;
   const sky::Rotations rotations = nearSkyRotations(
-      guest, {camera.angles[0], camera.angles[1], camera.angles[2]}, advanceSkySpin(guest));
+      guest,
+      {guest.mem_r16s(angles), guest.mem_r16s(angles + 2), guest.mem_r16s(angles + 4)},
+      advanceSkySpin(guest));
   {
     const psx::present::EmitMemory emit(guest);
     Portals portals(guest, emit, spyro::presentedBounds(guest, terrain::kSharedFacts));

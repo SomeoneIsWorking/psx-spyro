@@ -1,7 +1,6 @@
 #include "spyro1/render/terrain_image.h"
 
 #include "core.h"
-#include "core/session.h"
 #include "gte_registers.h"
 #include "native_dispatch.h"
 #include "render/field/guest_render_globals.h"
@@ -61,8 +60,7 @@ void TerrainImage::drawPasses(spyro::guest_terrain::TerrainFrame &frame) const {
 namespace {
 
 void drawTerrain(Core *core) {
-  const psx::present::Kept<psx::present::LevelReads>::Use reads(spyro::session(*core).drawReads);
-  spyro::guest_terrain::draw(*core, kTerrainImage, *reads);
+  spyro::guest_terrain::drawField(*core, kTerrainImage);
 }
 
 } // namespace

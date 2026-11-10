@@ -8,7 +8,6 @@
 #include "ordering_table.h"
 
 #include <algorithm>
-#include <optional>
 
 namespace spyro::depth_bins {
 namespace {
@@ -16,7 +15,7 @@ namespace {
 constexpr std::uint32_t kMarkSlack = kBinStride;
 
 // Assigns `slot` to the chain of the (head, first) pair at `pair`, first-linked packet to head.
-void assignPair(Core &core, std::uint32_t pair, psx::present::OtSlot slot, Claim claim) {
+void assignPair(Core &core, std::uint32_t pair, psx::present::OtSlot slot) {
   const std::uint32_t head = core.mem_r32(pair);
   std::uint32_t packet = core.mem_r32(pair + kBinFirstOffset);
   psx::gpu::LinkCycleCheck cycle;
@@ -33,12 +32,6 @@ void assignPair(Core &core, std::uint32_t pair, psx::present::OtSlot slot, Claim
       return;
     }
     core.otTables.assign(packet, slot);
-    if (packet < claim.below) {
-      const std::optional<psx::present::RecordKey> key = core.emission.keyFor(packet);
-      if (!key || key->producer == core.emission.current().producer) {
-        core.emission.bindPacket(packet);
-      }
-    }
     // Until the flatten links them, a bin's chain runs from its first packet to the head and ends
     // in a zero link.
     const psx::gpu::OtNode tag(psx::gpu::mainRamOffsetOf(packet),
@@ -65,15 +58,15 @@ Bins overlayBins(Core &core, const guest_render_globals::Globals &globals) {
       .table = kOverlayTable, .base = core.mem_r32(globals.overlayPair), .named = 1, .linked = 1};
 }
 
-void assignBins(Core &core, const Bins &bins, Claim claim) {
+void assignBins(Core &core, const Bins &bins) {
   core.otTables.name(bins.table, bins.base, bins.named, kBinStride, psx::gpu::OtWalk::HighToLow);
   for (std::uint32_t bin = 0; bin < bins.linked; ++bin) {
-    assignPair(core, bins.base + bin * kBinStride, psx::present::OtSlot{bins.table, bin}, claim);
+    assignPair(core, bins.base + bin * kBinStride, psx::present::OtSlot{bins.table, bin});
   }
 }
 
-void assignOverlay(Core &core, const Bins &published, const Bins &overlay, Claim claim) {
-  assignBins(core, overlay, claim);
+void assignOverlay(Core &core, const Bins &published, const Bins &overlay) {
+  assignBins(core, overlay);
   if (core.mem_r32(overlay.base + kBinFirstOffset) != 0) {
     return;
   }

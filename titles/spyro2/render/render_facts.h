@@ -2,6 +2,7 @@
 // (game/render/), each read at the instruction its comment names, and the overrides that bind them.
 #pragma once
 
+#include "core/draw_motion.h"
 #include "render/engine_render_overrides.h"
 
 #include <array>
@@ -141,33 +142,21 @@ inline constexpr spyro::guest_moby::Facts kMobyFacts{
     .exitV0 = 0x8006820Cu,
 };
 
-// The field's draw dispatcher, FUN_800155A0, called by the per-field body FUN_800156FC through
-// FUN_80013A14 with $a0 = 0x3D in gameplay.
+// What the draw body's replay moves (core/draw_motion.h).
 //
-//   800155D4  a0 bit 4 calls FUN_8004C4FC, the terrain drawer's caller
-//   80015788  FUN_8001BDB0 copies the camera position to 0x80067EB8 before the dispatcher runs
 //   80041E04  the Spyro drawer's base 0x80069FF0, its position words; 800421B0 hands FUN_8001B6C8
 //             the angle bytes at +0xC and 8004228C the head's at +0x10; 80041E34 and 80041E30
 //             read the body's keyframes at +0x14 and progress at +0x1C, 80041F40 and 80041F3C the
 //             head's at +0x18 and +0x1D
+//   800495E8  the shadow drawer reads its position at 0x800698D4 and angles at 0x800698E0
 //   8001C68C  the level start clears the effects pass's pools and names the particle pool at
 //             0x80066F18; each drawer walks its pool from the address below
-// The title screen and its menus, game state 11: FUN_80015560 calls the title overlay's draw
-// (0x8007BFC4), which calls the dispatcher with 0xD, then links its logo, text and menu sprites.
-inline constexpr std::array<spyro::field_redraw::ScreenDraw, 1> kScreenDraws{{
-    {.entry = 0x80015560u, .overrideName = "spyro2-title-screen-draw"},
-}};
-
-inline constexpr spyro::field_redraw::Facts kFieldFacts{
-    .entry = 0x800155A0u,
-    .overrideName = "spyro2-field-dispatcher",
-    .terrainFlag = 0x4u,
-    .drawCameraPosition = 0x80067EB8u,
-    .spyroPosition = 0x80069FF0u,
-    .spyroAngles = 0x80069FFCu,
-    .spyroHeadAngles = 0x8006A000u,
-    .spyroKeyframes = 0x8006A004u,
-    .spyroKeyProgress = 0x8006A00Cu,
+inline constexpr spyro::DrawMotionFacts kDrawMotion{
+    .cameraAngles = kRenderGlobals.cameraAngles,
+    .cameraPosition = kRenderGlobals.cameraPosition,
+    .spyro = 0x80069FF0u,
+    .shadow = 0x800698D4u,
+    .moby = &kMobyFacts,
     .effects =
         {
             .sprites = 0x80068078u,   // 8004A8F8
@@ -179,7 +168,6 @@ inline constexpr spyro::field_redraw::Facts kFieldFacts{
             .meshes = 0x80069F30u,    // 80015618
             .particles = 0x80066F18u, // 800481DC
         },
-    .screenDraws = kScreenDraws,
 };
 
 // The flatten, FUN_8001B2A8, called by the draw at 800159A4 and by three other draws (800146AC,
@@ -188,17 +176,6 @@ inline constexpr std::uint32_t kFlatten = 0x8001B2A8u;
 
 // The game state's step word: the level load's and the loading screen's sub-state.
 inline constexpr std::uint32_t kGameSubState = 0x800698F0u;
-
-// The loading screen, game state 5: FUN_800151F0 shows the storybook while kGameSubState is 0 and
-// its fade 0x800698EC is not, three pages at brightness fade << 4 up to 0x80, then "Auto Saving".
-inline constexpr spyro::loading_picture::Facts kLoadingPicture{
-    .entry = 0x800151F0u,
-    .overrideName = "spyro2-loading-book",
-    .gate = kGameSubState,
-    .counter = 0x800698ECu,
-    .pages = 3,
-    .pageSlot = spyro::depth_bins::kOverlaySlot,
-};
 
 // The dispatcher's fades: FUN_8004D748(blend, r, g, b), called at 800156AC with the subtractive
 // 0x80066F68 and at 800156CC with the additive 0x80067150, and by the fade before a load
@@ -236,10 +213,8 @@ inline constexpr spyro::EngineRenderFacts kRenderFacts{
     .terrain = kTerrainFacts,
     .moby = kMobyFacts,
     .sky = kSkyFacts,
-    .field = kFieldFacts,
     .flatten = kFlatten,
     .flattenName = "spyro2-depth-bins",
-    .loadingPicture = kLoadingPicture,
     .tint = kFullscreenTint,
     .letterbox = kCinematicLetterbox,
 };

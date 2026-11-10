@@ -15,9 +15,9 @@ bool MobyTeleport::inActiveField(Core &core) const {
 }
 
 void MobyTeleport::placeSpyro(Core &core, const Position &destination) const {
-  core.mem_w32(kFieldFacts.spyroPosition, static_cast<std::uint32_t>(destination.x));
-  core.mem_w32(kFieldFacts.spyroPosition + 4u, static_cast<std::uint32_t>(destination.y));
-  core.mem_w32(kFieldFacts.spyroPosition + 8u, static_cast<std::uint32_t>(destination.z));
+  core.mem_w32(kDrawMotion.spyro, static_cast<std::uint32_t>(destination.x));
+  core.mem_w32(kDrawMotion.spyro + 4u, static_cast<std::uint32_t>(destination.y));
+  core.mem_w32(kDrawMotion.spyro + 8u, static_cast<std::uint32_t>(destination.z));
 }
 
 } // namespace spyro2

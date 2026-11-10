@@ -22,8 +22,6 @@ inline constexpr std::uint16_t kTable = 0;
 // The overlay pair's: one slot, drawn after every bin.
 inline constexpr std::uint16_t kOverlayTable = 1;
 inline constexpr psx::present::OtSlot kOverlaySlot{kOverlayTable, 0};
-// A second pass's table: the same bins refilled after the first flatten, drawn after its chain.
-inline constexpr std::uint16_t kSecondPassTable = 2;
 // 0x580 (head, first) word pairs, the count both draws clear and ask the flatten for; a bin's chain
 // starts at its first-linked packet.
 inline constexpr std::uint32_t kBins = 0x580;
@@ -45,18 +43,12 @@ struct Bins {
 // The overlay pair the guest published.
 [[nodiscard]] Bins overlayBins(Core &core, const guest_render_globals::Globals &globals);
 
-// The packets below `below` that no other producer keyed, which the walk keys to the open producer
-// scope.
-struct Claim {
-  std::uint32_t below = 0;
-};
-
 // Names the table in `core.otTables` and gives every packet linked into a bin that bin's slot.
-void assignBins(Core &core, const Bins &bins, Claim claim = {});
+void assignBins(Core &core, const Bins &bins);
 
 // assignBins for the overlay pair, which the flatten chains after `published`'s bins. When it holds
 // no packet, its slot is placed after the last of them, where its packets would have been drawn.
-void assignOverlay(Core &core, const Bins &published, const Bins &overlay, Claim claim = {});
+void assignOverlay(Core &core, const Bins &published, const Bins &overlay);
 
 // Links the packets `first`..`last` as the new head of the (head, first) pair at `slot`; returns
 // the old head.

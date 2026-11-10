@@ -84,15 +84,14 @@ The portal fill and near sky of `0x80050BD0` stay on retail's 512-wide window: t
 | hop | title | joins | owner |
 |---|---|---|---|
 | 1 | all | psxport F-FPS60.1 | `game/core/runtime.cpp:spyro::Runtime::stateProducer` — `spyro::Session::stateProducers` |
-| 2 | S2, S3 | psxport F-FPS60.1 | `game/render/terrain/terrain_state_producer.cpp:TerrainStateProducer` — the terrain drawer (`0x80023BB4`, `0x80022378`) redrawn at t over both fields' saved words, a word neither saved read live only while `Session::discLandings` is unchanged since the earlier field, else the interval is refused (issue 0230) |
+| 2 | S2, S3 | psxport F-FPS60.1 | `game/core/draw_section.cpp:spyro::DrawSection`, `titles/spyro2|3/core/draw_section.cpp`, `game/core/draw_motion.cpp:DrawMotion` — the per-field draw body (`0x800156FC`, `0x8001E638`) replayed for each in-between, its state switch whole and its device tail skipped, with the camera, Spyro, his poses and shadow, every moby slot and the effects pools written k/n of the way; the loading screen (state 5) is held (issue 0237) |
 | 3 | S2, S3 | psxport F-FPS60.1 | `game/render/engine_render_overrides.h:engine_render::flatten` — every packet's bin through `depth_bins::assignBins`, from the flatten (`0x8001B2A8`, `0x8004E664`) |
 | 4 | S1 | psxport F-FPS60.1 | `titles/spyro1/render/screen_overlays.cpp:FullscreenTint`, `CinematicLetterbox` — `0x800190D4` and `0x80018F30` |
 | 5 | S1 | psxport F-FPS60.1 | `titles/spyro1/render/ordering_table.cpp:OrderingTable` — LinkOTPrimitives `0x80016784` gives each linked packet its slot |
 | 7 | S1 | psxport F-FPS60.1 | `titles/spyro1/core/frame/draw_section.cpp:DrawSection`, `draw_motion.cpp:DrawMotion` — GamestateDraw's GS_Playing section (`0x8001ED5C`) replayed for each in-between with its motion tracks written k/n of the way (camera, Spyro, mobys, HUD, particles, sparkles, flame); other states are held |
-| 12 | S2 | psxport F-FPS60.1 | `game/render/field/field_redraw.cpp:redrawField`, `FieldRedrawProducer` — the draw dispatcher `0x800155A0` re-run less the terrain at the in-between camera, mobys and Spyro; the flatten `0x8001B2A8` claims every unkeyed packet linked before the letterbox `0x8004D604` returns and saves the redraw |
 | 6 | all | psxport F-FPS60.2 | `game/core/frame_cut.cpp:FrameCut::isCut` — game state, level, or (S2, S3) a camera placement inside a scene, or (S2) a cutscene track's shot change by the track player's own blend test |
 
-S1's motion trails `0x800189F0` have no producer (unreached: only moby type 104 in levels 50 and 63 pushes them; issue 0186). S2 and S3 redraw a state's whole draw where it links 2D after the dispatcher (title screens, S3's gameplay draw with the demo text) and give the loading picture a producer; the fade before a load, S3's pause menu and Atlas still show whole (issue 0207). The redraw puts the sky past the far pass's deepest bin, so it stays behind the far terrain; the dispatcher's fades and S2's letterbox are drawn at the next frame's level and step at 30 fps (issue 0196). The field redraw runs once per in-between of a frame as long as the last; a frame of another length shows whole.
+S1's motion trails `0x800189F0` have no producer (unreached: only moby type 104 in levels 50 and 63 pushes them; issue 0186). S2 and S3 have no producers left but the shared fullscreen tint and letterbox, whose renders only run at t = 1; their fades, letterbox and conversation slide step at 30 fps until they are tracks (issue 0237).
 
 ## F-DEBUG
 

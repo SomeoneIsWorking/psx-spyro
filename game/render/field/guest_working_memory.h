@@ -49,40 +49,4 @@ linkAfter(const psx::present::EmitMemory &memory, std::uint32_t packet, std::uin
   return words;
 }
 
-// A saved draw: a trivially copyable header, then the level words the draw read, packed LevelWords
-// viewed in the saved state.
-template <typename Header> struct SavedDraw {
-  Header header;
-  std::span<const std::byte> reads;
-};
-
-// The draw saved under the open emission scope: the header, then `reads` and `moreReads`.
-template <typename Header>
-void saveDraw(Core &core,
-              const Header &header,
-              std::span<const psx::present::LevelWord> reads,
-              std::span<const psx::present::LevelWord> moreReads = {}) {
-  static_assert(std::is_trivially_copyable_v<Header>);
-  const std::array<std::span<const std::byte>, 3> parts{
-      std::as_bytes(std::span<const Header, 1>(&header, 1)),
-      std::as_bytes(reads),
-      std::as_bytes(moreReads)};
-  core.frameStates.save(core.emission.current(), parts);
-}
-
-// Aborts naming `what` when `bytes` is not a header and whole words.
-template <typename Header>
-[[nodiscard]] SavedDraw<Header> unpackDraw(std::span<const std::byte> bytes, const char *what) {
-  static_assert(std::is_trivially_copyable_v<Header>);
-  constexpr std::size_t kWordBytes = sizeof(psx::present::LevelWord);
-  if (bytes.size() < sizeof(Header) || (bytes.size() - sizeof(Header)) % kWordBytes != 0) {
-    lucent::error("guestmem", "a saved {} of {} bytes is not one", what, bytes.size());
-    std::abort();
-  }
-  SavedDraw<Header> saved;
-  std::memcpy(&saved.header, bytes.data(), sizeof(Header));
-  saved.reads = bytes.subspan(sizeof(Header));
-  return saved;
-}
-
 } // namespace spyro::guest_memory

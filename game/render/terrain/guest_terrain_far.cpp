@@ -269,10 +269,4 @@ std::uint32_t farBinLimit(std::uint32_t farDepth) {
   return (farDepth >> 7) - 1;
 }
 
-std::uint32_t
-deepestFarMark(Core &core, const Facts &facts, const guest_render_globals::Globals &globals) {
-  const std::uint32_t deepest = farBinLimit(core.mem_r32(facts.far.farDepth)) - 1;
-  return core.mem_r32(globals.orderingTable) + deepest * depth_bins::kBinStride;
-}
-
 } // namespace spyro::guest_terrain

@@ -2,7 +2,6 @@
 
 #include "blend.h"
 #include "core.h"
-#include "core/session.h"
 #include "frame_state.h"
 #include "gp0_command.h"
 #include "gp0_primitive_decode.h"
@@ -39,16 +38,9 @@ psx::present::DrawPrimitive quad(const Quad &words) {
   return *primitive;
 }
 
-bool redrawing(Core &core) {
-  return session(core).fieldRedraw.redrawing;
-}
-
 } // namespace
 
 void drawTint(Core &core, const TintFacts &facts) {
-  if (redrawing(core)) {
-    return;
-  }
   const FullscreenTint::State state{.blend = core.r[4],
                                     .r = static_cast<std::uint8_t>(core.r[5]),
                                     .g = static_cast<std::uint8_t>(core.r[6]),
@@ -59,9 +51,6 @@ void drawTint(Core &core, const TintFacts &facts) {
 }
 
 bool drawLetterbox(Core &core, const LetterboxFacts &facts) {
-  if (redrawing(core)) {
-    return true;
-  }
   const std::uint32_t first = core.mem_r32(facts.primitiveCursor);
   const auto site = core.emission.instance(core.r[31]);
   if (!psx::cpu::callOriginalOrPropagate(core, facts.entry)) {

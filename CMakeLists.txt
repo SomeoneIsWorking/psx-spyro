@@ -58,6 +58,8 @@ set(SPYRO_RUNTIME_SOURCES
   game/core/archive_transfer.cpp
   game/core/boot_prefix_frame_driver.cpp
   game/core/boot_prefix_runtime.cpp
+  game/core/draw_motion.cpp
+  game/core/draw_section.cpp
   game/core/field_owner.cpp
   game/core/frame_cut.cpp
   game/core/guest_magnitude.cpp
@@ -70,8 +72,6 @@ set(SPYRO_RUNTIME_SOURCES
   game/core/title_logo.cpp
   game/render/terrain/guest_camera_builder.cpp
   game/render/terrain/guest_depth_bins.cpp
-  game/render/terrain/terrain_rebuild.cpp
-  game/render/terrain/terrain_state_producer.cpp
   game/render/hud/ui_anchor.cpp
   titles/spyro1/core/frame/boot_sequence.cpp
   titles/spyro1/core/frame/skip_map.cpp
@@ -133,8 +133,6 @@ set(SPYRO_RUNTIME_SOURCES
   titles/spyro1/core/audio/native_spu_common_attr.cpp
   game/render/field/guest_moby_rotation.cpp
   game/render/field/moby_record.cpp
-  game/render/field/field_redraw.cpp
-  game/render/field/loading_picture.cpp
   game/render/screen_overlays.cpp
   game/render/field/effect_pools.cpp
   game/render/field/keyframe_blend.cpp
@@ -190,11 +188,12 @@ set(SPYRO_RUNTIME_SOURCES
   titles/spyro1/render/terrain_sectors.cpp
   titles/spyro1/render/terrain_split.cpp
   titles/spyro2/core/debug_menu.cpp
+  titles/spyro2/core/draw_section.cpp
   titles/spyro2/core/moby_teleport.cpp
   titles/spyro2/core/runtime.cpp
   titles/spyro2/core/warp.cpp
-  titles/spyro2/render/conversation.cpp
   titles/spyro2/render/hud_anchor.cpp
+  titles/spyro3/core/draw_section.cpp
   titles/spyro3/core/runtime.cpp
   titles/spyro3/core/warp.cpp
   titles/spyro3/render/hud_anchor.cpp)

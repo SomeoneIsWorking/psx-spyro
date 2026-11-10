@@ -10,7 +10,6 @@
 #include "emit_memory.h"
 #include "game_runtime.h"
 #include "image_identity.h"
-#include "render/field/field_redraw.h"
 #include "state_producer.h"
 
 class Core;
@@ -27,9 +26,6 @@ public:
 class Session final : public psx::game::TitleSessionState {
 public:
   ArchiveTransfer archiveTransfer{};
-  // Advances with every disc read that lands in guest RAM, through the stock read or the archive
-  // transfer: level data a field read can only have been replaced by one.
-  std::uint64_t discLandings = 0;
   // The selected title's field owner, published by its frame driver. Non-owning: the driver
   // holds it and is installed before the first host turn can arrive.
   FieldOwner *fieldOwner = nullptr;
@@ -40,22 +36,10 @@ public:
   // How far the real field's packets could grow before its far pass stopped: the pool's top minus
   // the cursor the drawer started at. An in-between draws within the same budget.
   std::int32_t terrainPacketBudget = 0;
-  // The field dispatcher's last inputs, for the redraw of the next in-between.
-  field_redraw::History fieldRedraw;
-  // The second pass's, kept apart from the field's.
-  field_redraw::History secondPass;
   // The level words a producer's draw reads, kept across saves.
   psx::present::Kept<psx::present::LevelReads> drawReads;
-  // The host memory a producer's in-between runs over, kept across renders.
-  psx::present::Kept<psx::present::HostMemory> renderMemory;
-  // A terrain field's reads in address order, as it saves them.
-  psx::present::Kept<std::vector<psx::present::LevelWord>> terrainSavedReads;
-  // The bins a terrain in-between linked, kept across renders.
-  psx::present::Kept<std::vector<std::uint8_t>> terrainBins;
   // The state renders this title's producers registered, keyed by producer entry.
   psx::present::StateProducerTable stateProducers;
-  // The screen draws installed in overlays, keyed to the image each landed as.
-  std::vector<psx::cpu::NativeKey> screenDrawOverrides;
   // The title's `warp` request, applied by its frame driver.
   std::unique_ptr<Warp> warp;
   std::unique_ptr<TitleState> titleState;

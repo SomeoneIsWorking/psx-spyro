@@ -120,10 +120,4 @@ private:
   }
 };
 
-// Two guest angle triples to the fine angles at `t`. At t == 0 and t == 1 the result is the operand's
-// angles bit for bit, so an in-between at either end of its interval is the guest's own camera.
-Angles interpolate(const Angles &from, const Angles &to, float t);
-// A fine angle rounded to the guest's unit.
-[[nodiscard]] std::int32_t wholeAngle(std::int32_t fine);
-
 } // namespace spyro::guest_camera

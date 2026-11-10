@@ -26,8 +26,13 @@ constexpr int kMaxLoopCallsPerStep = 4;
 
 } // namespace
 
-BootPrefixFrameDriver::BootPrefixFrameDriver(Game &game, const BootPrefixFacts &facts)
-    : core_(game.core), facts_(facts), fields_(game, facts.field), cut_(facts.cut) {}
+BootPrefixFrameDriver::BootPrefixFrameDriver(Game &game,
+                                             const BootPrefixFacts &facts,
+                                             const DrawSection &section,
+                                             const DrawMotionFacts &motion)
+    : core_(game.core), facts_(facts), fields_(game, facts.field), cut_(facts.cut),
+      section_(section), motion_(game.core, motion),
+      replay_(section_, motion_.tracks(), motion_.sources()) {}
 
 void BootPrefixFrameDriver::initialize() {
   if (initialized_) {
@@ -210,6 +215,9 @@ BootPrefixFrameDriver::LoopStop BootPrefixFrameDriver::stepMainLoop(Core &core) 
       fields_.beginLogicFrame();
       session(core).warp->applyArmed(core, static_cast<std::uint32_t>(steps_));
     }
+    if (!call_.pending() && loopCall_ == LoopCall::Draw) {
+      beforeDraw(core);
+    }
     if (!call_.pending() && !enterCall(entryOf(loopCall_))) {
       return LoopStop::Field;
     }
@@ -229,6 +237,20 @@ BootPrefixFrameDriver::LoopStop BootPrefixFrameDriver::stepMainLoop(Core &core) 
     loopCall_ = LoopCall::Draw;
   }
   return LoopStop::Field;
+}
+
+void BootPrefixFrameDriver::beforeDraw(Core &core) {
+  const std::uint32_t state = section_.gameState(core);
+  if (!section_.replays(core)) {
+    replay_.forget();
+    sampledState_.reset();
+    return;
+  }
+  if (sampledState_ != state) {
+    replay_.forget();
+  }
+  sampledState_ = state;
+  replay_.beforeDraw(core);
 }
 
 void BootPrefixFrameDriver::presentField(Core &core, std::uint32_t frame, const char *site) {
@@ -274,12 +296,18 @@ bool BootPrefixFrameDriver::load(psx::platform::BlobReader &in, std::string &err
 }
 
 void BootPrefixFrameDriver::restored(Core &) {
+  if (!staged_) {
+    lucent::error("frameloop", "{}: restored without a loaded driver state", sectionName());
+    std::abort();
+  }
   phase_ = staged_->phase;
   loopCall_ = staged_->loopCall;
   bootStalled_ = staged_->bootStalled;
   bootSteps_ = staged_->bootSteps;
   call_ = std::move(staged_->call);
   staged_.reset();
+  replay_.forget();
+  sampledState_.reset();
 }
 
 void BootPrefixFrameDriver::stepFrame(Core &core, std::uint32_t frame) {

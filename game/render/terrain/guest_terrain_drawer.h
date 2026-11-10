@@ -52,8 +52,8 @@ public:
   virtual void drawPasses(TerrainFrame &frame) const = 0;
 };
 
-// What an in-between field draws with instead of the guest's own: its camera, the drawer's $a0 the field was called with, its packet arena (0 = the guest's cursor) and
-// that arena's budget.
+// What an in-between field draws with instead of the guest's own: its camera, the drawer's $a0 the
+// field was called with, its packet arena (0 = the guest's cursor) and that arena's budget.
 struct InBetweenWindow {
   const InBetweenCamera *camera = nullptr;
   std::uint32_t argument = 0;
@@ -88,5 +88,7 @@ private:
 
 // The override entry: one real field over the guest, noting every level word it reads in `reads`.
 void draw(Core &core, const TerrainImage &image, psx::present::LevelReads &reads);
+// draw with the session's kept read buffer.
+void drawField(Core &core, const TerrainImage &image);
 
 } // namespace spyro::guest_terrain

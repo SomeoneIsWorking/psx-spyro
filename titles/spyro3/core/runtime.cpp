@@ -71,14 +71,12 @@ void Runtime::registerOverrides(Game &game) {
       "moby visibility walk, the terrain drawer, the flatten and the HUD anchor");
 }
 
-void Runtime::codeLanded(Core &core,
-                         const psx::cd::StockReadLanding &landing,
-                         const psx::code_module::Digest &content) {
-  spyro::engine_render::screenDrawsLanded<kRenderFacts>(core, landing, content.identity);
-}
-
 std::unique_ptr<spyro::TitleState> Runtime::createTitleState() const {
   return std::make_unique<hud_anchor::DrawState>();
+}
+
+const spyro::DrawMotionFacts &Runtime::drawMotion() const {
+  return kDrawMotion;
 }
 
 std::unique_ptr<spyro::Warp> Runtime::createWarp() const {

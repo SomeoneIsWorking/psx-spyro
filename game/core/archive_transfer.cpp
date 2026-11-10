@@ -1,7 +1,6 @@
 #include "core/archive_transfer.h"
 
 #include "core.h"
-#include "core/session.h"
 #include "disc.h"
 #include "execution_control.h"
 #include "game.h"
@@ -73,7 +72,6 @@ archive_transfer::Decision ArchiveTransfer::read(Core &core,
   if (!bytes.empty()) {
     const auto content = psx::code_module::digest(bytes);
     core.mem_write(request.destination, bytes, psx::cpu::ExecutableWriteSource::ModuleLoad);
-    ++session(core).discLandings;
     psx::code_module::activate(core, "WAD", {destination, destination + request.length}, content);
   }
   const auto decision = archive_transfer::decide(request.length, request.length);

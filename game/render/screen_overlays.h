@@ -4,8 +4,7 @@
 //
 // Each override keys the packets its guest body writes by the call site, saves what the body draws
 // from and runs the body. Both bodies link into the overlay pair, so their renders emit into that
-// one slot. Inside a field redraw neither draws: their own renders stand for them at the
-// in-between.
+// one slot.
 #pragma once
 
 #include "native_dispatch.h"

@@ -1,9 +1,12 @@
 #pragma once
 
+#include "core/draw_motion.h"
+#include "core/draw_section.h"
 #include "core/field_owner.h"
 #include "core/frame_cut.h"
 #include "game_runtime.h"
 #include "machine_state.h"
+#include "replay_frame.h"
 #include "resumable_guest_call.h"
 
 #include <cstdint>
@@ -41,11 +44,15 @@ struct BootPrefixFacts {
 // A boot step presents its last field. A main-loop step ends at a field or at the return of the
 // frame's draw, which presents the frame over its fields. The host-turn clock stays unarmed because
 // the guest's own VSync is the only field source the boot uses. The call in flight is machine
-// state: a save taken while it is suspended resumes it, not the live one.
+// state: a save taken while it is suspended resumes it, not the live one. Before each draw the
+// replay samples what moves and replays the in-betweens of the frame it ends.
 class BootPrefixFrameDriver final : public psx::game::FrameDriver,
                                     public psx::state::NativeStatePort {
 public:
-  BootPrefixFrameDriver(Game &game, const BootPrefixFacts &facts);
+  BootPrefixFrameDriver(Game &game,
+                        const BootPrefixFacts &facts,
+                        const DrawSection &section,
+                        const DrawMotionFacts &motion);
 
   void initialize();
   void stepFrame(Core &core, std::uint32_t frame) override;
@@ -57,6 +64,10 @@ public:
 
   [[nodiscard]] const FrameCut &cut() const {
     return cut_;
+  }
+  // The draw body's in-betweens, replayed from its section.
+  [[nodiscard]] psx::present::ReplayFrame &replay() {
+    return replay_;
   }
 
   [[nodiscard]] const char *sectionName() const override {
@@ -105,6 +116,9 @@ private:
   void deliverField(const char *site, bool present, bool pace);
   void stepBoot(Core &core);
   [[nodiscard]] LoopStop stepMainLoop(Core &core);
+  // The draw is about to run: the replay samples, or forgets when the body cannot be replayed or
+  // the game state changed since the last sample.
+  void beforeDraw(Core &core);
   // The step's field shows the frame drawn so far.
   void presentField(Core &core, std::uint32_t frame, const char *site);
   // The step's field passes unpresented; the step still crosses its presentation fence.
@@ -119,6 +133,10 @@ private:
   BootPrefixFacts facts_;
   FieldOwner fields_;
   FrameCut cut_;
+  const DrawSection &section_;
+  DrawMotion motion_;
+  psx::present::ReplayFrame replay_;
+  std::optional<std::uint32_t> sampledState_;
   psx::cpu::ResumableGuestCall call_;
   Phase phase_ = Phase::Boot;
   // Which retail call `call_` is, once the main loop runs: a call suspended at a display wait is

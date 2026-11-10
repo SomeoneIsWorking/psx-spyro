@@ -18,24 +18,23 @@ void BootPrefixRuntime::startProgram(Core &core) {
 }
 
 std::unique_ptr<psx::game::FrameDriver> BootPrefixRuntime::createFrameDriver(Game &game) {
-  return std::make_unique<BootPrefixFrameDriver>(game, facts_);
+  return std::make_unique<BootPrefixFrameDriver>(game, facts_, drawSection(), drawMotion());
 }
 
 void BootPrefixRuntime::stockCdReadLanded(Core &core, const psx::cd::StockReadLanding &landing) {
-  ++session(core).discLandings;
-  if (const std::optional<psx::code_module::Digest> content = psx::code_module::publishStockReadLanding(core, landing)) {
-    codeLanded(core, landing, *content);
-  }
+  (void)psx::code_module::publishStockReadLanding(core, landing);
 }
-
-void BootPrefixRuntime::codeLanded(Core & /*core*/,
-                                   const psx::cd::StockReadLanding & /*landing*/,
-                                   const psx::code_module::Digest & /*content*/) {}
 
 bool BootPrefixRuntime::sealedFrameIsCut(Core &core) const {
   // A session's first record, sealed before its driver exists, is a cut.
   return core.game->frameDriver == nullptr ||
          core.game->frameDriverAs<BootPrefixFrameDriver>().cut().isCut();
+}
+
+psx::present::ReplayFrame *BootPrefixRuntime::replayFrame(Core &core) {
+  return core.game->frameDriver == nullptr
+             ? nullptr
+             : &core.game->frameDriverAs<BootPrefixFrameDriver>().replay();
 }
 
 psx::state::NativeStatePort *BootPrefixRuntime::nativeState(Core &core) const {

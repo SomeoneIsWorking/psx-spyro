@@ -18,13 +18,13 @@ public:
   void stockCdReadLanded(Core &core, const psx::cd::StockReadLanding &landing) final;
   bool sealedFrameIsCut(Core &core) const final;
   psx::state::NativeStatePort *nativeState(Core &core) const final;
+  psx::present::ReplayFrame *replayFrame(Core &core) final;
 
 protected:
   BootPrefixRuntime(const psx::game::Crt0Image &crt0, const BootPrefixFacts &facts);
-  // A published stock read and the content that names it: the title's overrides in the code it
-  // loaded.
-  virtual void
-  codeLanded(Core &core, const psx::cd::StockReadLanding &landing, const psx::code_module::Digest &content);
+  // The image's per-field draw body as a replay section, and what moves under it.
+  [[nodiscard]] virtual const DrawSection &drawSection() const = 0;
+  [[nodiscard]] virtual const DrawMotionFacts &drawMotion() const = 0;
 
 private:
   psx::game::Crt0Image crt0_;

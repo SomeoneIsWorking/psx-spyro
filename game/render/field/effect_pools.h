@@ -1,5 +1,5 @@
 // effect_pools.h — the records the dispatcher's effects pass (flag 0x10) draws from, read once per
-// field and moved between two fields for the in-between redraw. Each pool is a fixed array the
+// field and moved between two fields for the replay. Each pool is a fixed array the
 // level start clears; a slot is one effect while it stays live with the same kind. Drawer addresses
 // below are SCUS_944.25's.
 #pragma once

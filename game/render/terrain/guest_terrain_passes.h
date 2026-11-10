@@ -27,8 +27,5 @@ void drawFarSectors(TerrainFrame &frame);             // 80028B14: guest_terrain
 
 // The far pass links only bins below this one, the level's far bin (80028B1C).
 [[nodiscard]] std::uint32_t farBinLimit(std::uint32_t farDepth);
-// The mark the far pass leaves when it reaches its deepest bin.
-[[nodiscard]] std::uint32_t
-deepestFarMark(Core &core, const Facts &facts, const guest_render_globals::Globals &globals);
 
 } // namespace spyro::guest_terrain

@@ -3,6 +3,7 @@
 #include "core/boot_prefix_runtime.h"
 #include "core/debug/debug_menu.h"
 #include "spyro3/core/boot_facts.h"
+#include "spyro3/core/draw_section.h"
 #include "spyro3/core/warp.h"
 #include "stock_libcd.h"
 #include "stock_libgte.h"
@@ -23,13 +24,15 @@ public:
   }
 
 protected:
-  void codeLanded(Core &core,
-                  const psx::cd::StockReadLanding &landing,
-                  const psx::code_module::Digest &content) override;
+  const spyro::DrawSection &drawSection() const override {
+    return section_;
+  }
+  const spyro::DrawMotionFacts &drawMotion() const override;
   std::unique_ptr<spyro::Warp> createWarp() const override;
   std::unique_ptr<spyro::TitleState> createTitleState() const override;
 
 private:
+  DrawSection section_;
   psx::hle::StockVSync vsync_;
   psx::cd::GuestInterruptLibcd libcd_;
   psx::hle::StockLibgte libgte_;

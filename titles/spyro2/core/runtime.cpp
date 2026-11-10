@@ -5,7 +5,6 @@
 #include "spyro2/core/boot_facts.h"
 #include "spyro2/core/logo_facts.h"
 #include "spyro2/core/warp.h"
-#include "spyro2/render/conversation.h"
 #include "spyro2/render/hud_anchor.h"
 #include "spyro2/render/intro_card_facts.h"
 #include "spyro2/render/render_facts.h"
@@ -91,15 +90,18 @@ void Runtime::registerOverrides(Game &game) {
                                   kIntroCard.overrideName,
                                   spyro::intro_card::drawOverride<kIntroCard, kRenderGlobals>);
   hud_anchor::registerOverrides(game.core);
-  installConversation(game.core);
   lucent::info(
       "boot",
       "installed Spyro 2's stock libraries and natives for the projection leaves, the moby "
-      "visibility walk, the terrain drawer, the flatten, the HUD anchor and the conversation");
+      "visibility walk, the terrain drawer, the flatten and the HUD anchor");
 }
 
 std::optional<psx::gpu::PacketPoolExtent> Runtime::packetPool(Core &core) const {
   return kPacketPool.extent(core);
+}
+
+const spyro::DrawMotionFacts &Runtime::drawMotion() const {
+  return kDrawMotion;
 }
 
 std::unique_ptr<spyro::Warp> Runtime::createWarp() const {

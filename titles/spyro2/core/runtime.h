@@ -2,6 +2,7 @@
 
 #include "core/boot_prefix_runtime.h"
 #include "spyro2/core/debug_menu.h"
+#include "spyro2/core/draw_section.h"
 #include "stock_libcd.h"
 #include "stock_libgpu.h"
 #include "stock_libgte.h"
@@ -25,9 +26,14 @@ public:
   }
 
 protected:
+  const spyro::DrawSection &drawSection() const override {
+    return section_;
+  }
+  const spyro::DrawMotionFacts &drawMotion() const override;
   std::unique_ptr<spyro::Warp> createWarp() const override;
 
 private:
+  DrawSection section_;
   psx::hle::StockVSync vsync_;
   psx::hle::StockLibgpu libgpu_;
   psx::cd::GuestInterruptLibcd libcd_;
