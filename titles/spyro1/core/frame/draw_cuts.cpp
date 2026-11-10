@@ -1,8 +1,10 @@
 #include "spyro1/core/frame/draw_cuts.h"
 
+#include "spyro1/core/frame/frame_driver.h"
+
 #include "core.h"
+#include "game.h"
 #include "native_dispatch.h"
-#include "replay_frame.h"
 
 #include <cstdint>
 
@@ -25,8 +27,8 @@ void resetSpyro(Core *core) {
 } // namespace
 
 void markDrawCut(Core &core) {
-  if (psx::present::ReplayFrame *replay = core.runtime.replayFrame(core)) {
-    replay->forget();
+  if (core.game->frameDriver != nullptr) {
+    core.game->frameDriverAs<FrameDriver>().declareCut();
   }
 }
 

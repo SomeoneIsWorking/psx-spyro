@@ -2,18 +2,18 @@
 #include "spyro1/core/frame/draw_cuts.h"
 #include "spyro1/core/guest_functions.h"
 
-#include "core/native_execution.h"
 #include "spyro1/core/guest_globals.h"
 #include "spyro1/core/guest_gp.h"
+#include "core/native_execution.h"
 
 #include <cstdint>
 
 namespace spyro1::native {
 namespace {
 
+using spyro1::guest::kGp;
 using spyro1::guest::kAtan2;
 using spyro1::guest::kCopy3;
-using spyro1::guest::kGp;
 using spyro1::guest::kVadd;
 using spyro1::guest::kVecLen;
 using spyro1::guest::kVsub;
@@ -384,8 +384,7 @@ struct CameraScratch {
   std::uint32_t snapshot; // m_Simulation as it stood before the spherical passes
 };
 
-// The callees spill $s0-$s6 and $ra to RAM the differential sees, so the body aliases the real
-// registers and restores them on exit.
+// The callees spill $s0-$s6 and $ra to RAM the differential sees, so the body aliases the real registers and restores them on exit.
 class SpilledRegisters {
 public:
   SpilledRegisters(Core *core, std::uint32_t entrySp)
@@ -451,24 +450,22 @@ bool testSphericalRow(Core *c,
   c->r[3] = c->mem_r32(row.offsets + 8u) << shift;
   c->r[2] = c->mem_r32(row.address + 0x20u) + c->r[3];
   c->mem_w32(row.address + 8u, c->r[2]);
-  psx::cpu::callGuestNow(
-      *c,
-      kCameraCollisionUpdate,
-      psx::cpu::GuestCallSite::fromJal(sites.sphericalToCartesian, kSphericalToCartesian),
-      kCameraDestination);
   psx::cpu::callGuestNow(*c,
-                         kCameraCollisionUpdate,
-                         psx::cpu::GuestCallSite::fromJal(sites.vecAdd, kVadd),
-                         kCameraDestination,
-                         kCameraDestination,
-                         c->mem_r32(row.address + 0x58u));
-  psx::cpu::callGuestNow(
-      *c,
-      kCameraCollisionUpdate,
-      psx::cpu::GuestCallSite::fromJal(sites.sphereCollision, kSphereCollisionCheck),
-      kCameraDestination,
-      kSphereProbeRadius,
-      kSphereProbeRadius);
+                             kCameraCollisionUpdate,
+                             psx::cpu::GuestCallSite::fromJal(sites.sphericalToCartesian, kSphericalToCartesian),
+                             kCameraDestination);
+  psx::cpu::callGuestNow(*c,
+                             kCameraCollisionUpdate,
+                             psx::cpu::GuestCallSite::fromJal(sites.vecAdd, kVadd),
+                             kCameraDestination,
+                             kCameraDestination,
+                             c->mem_r32(row.address + 0x58u));
+  psx::cpu::callGuestNow(*c,
+                             kCameraCollisionUpdate,
+                             psx::cpu::GuestCallSite::fromJal(sites.sphereCollision, kSphereCollisionCheck),
+                             kCameraDestination,
+                             kSphereProbeRadius,
+                             kSphereProbeRadius);
   if (c->r[2] != 0u) {
     return false;
   }
@@ -501,9 +498,9 @@ void acceptSphericalRow(Core *c, const SphericalRow &row, const CameraScratch &w
   c->r[2] = kAcceptedRowMarker;
   c->mem_w32(row.address + 0x4Cu, kAcceptedRowMarker);
   psx::cpu::callGuestNow(*c,
-                         kCameraCollisionUpdate,
-                         psx::cpu::GuestCallSite::fromJal(0x80034BE8u, kUpdateSphericalCoords),
-                         kCameraDestination);
+                             kCameraCollisionUpdate,
+                             psx::cpu::GuestCallSite::fromJal(0x80034BE8u, kUpdateSphericalCoords),
+                             kCameraDestination);
   c->r[2] = c->mem_r32(row.address + 0x18u);
   c->r[3] = c->mem_r32(row.address + 0x1Cu);
   c->r[4] = c->mem_r32(row.address + 0x20u);
@@ -551,10 +548,10 @@ void settleOffCenterFrame(Core *c, std::uint32_t far, const CameraScratch &work)
   bool centred = static_cast<std::int32_t>(c->r[2]) < 0;
   if (!centred) {
     psx::cpu::callGuestNow(*c,
-                           kCameraCollisionUpdate,
-                           psx::cpu::GuestCallSite::fromJal(0x80034B94u, kRotateVectorByCamera),
-                           work.walk,
-                           kSpyro);
+                               kCameraCollisionUpdate,
+                               psx::cpu::GuestCallSite::fromJal(0x80034B94u, kRotateVectorByCamera),
+                               work.walk,
+                               kSpyro);
     c->r[2] = c->mem_r32(work.walk) - kOnScreenXBase;
     c->r[2] = c->r[2] < kOnScreenXSpan ? 1u : 0u;
     if (c->r[2] != 0u) {
@@ -616,7 +613,8 @@ void rayBetweenPointsIsClear(Core *c) {
   for (std::uint32_t step = 0; static_cast<std::int32_t>(step) < steps; ++step) {
     c->r[18] = rayEnd;
     c->r[31] = kAfterVecAdd;
-    psx::cpu::callGuestNow(*c, kRayBetweenPointsIsClearOwner, kVadd, rayEnd, rayStart, stepVector);
+    psx::cpu::callGuestNow(
+        *c, kRayBetweenPointsIsClearOwner, kVadd, rayEnd, rayStart, stepVector);
     c->r[16] = step;
     c->r[29] = frame;
     c->r[31] = kAfterSegmentTest;
@@ -668,35 +666,29 @@ void resolveCameraCollision(Core *c) {
   s4 = 0u;
   s5 = kCameraPosition;
   psx::cpu::callGuestNow(*c,
-                         kCameraCollisionUpdate,
-                         psx::cpu::GuestCallSite::fromJal(0x800344C0u, kVsub),
-                         walkVector,
-                         kCameraDestination,
-                         kSpyro);
-  psx::cpu::callGuestNow(*c,
-                         kCameraCollisionUpdate,
-                         psx::cpu::GuestCallSite::fromJal(0x800344CCu, kVecLen),
-                         walkVector,
-                         1u);
+                             kCameraCollisionUpdate,
+                             psx::cpu::GuestCallSite::fromJal(0x800344C0u, kVsub),
+                             walkVector,
+                             kCameraDestination,
+                             kSpyro);
+  psx::cpu::callGuestNow(
+      *c, kCameraCollisionUpdate, psx::cpu::GuestCallSite::fromJal(0x800344CCu, kVecLen), walkVector, 1u);
   s6 = static_cast<std::int32_t>(c->r[2]) >= kWalkStartsBelowLength
            ? 1u
            : 0u; // the "camera is far" flag
   psx::cpu::callGuestNow(*c,
-                         kCameraCollisionUpdate,
-                         psx::cpu::GuestCallSite::fromJal(0x800344E0u, kCopy3),
-                         stepVector,
-                         kCameraDestination);
+                             kCameraCollisionUpdate,
+                             psx::cpu::GuestCallSite::fromJal(0x800344E0u, kCopy3),
+                             stepVector,
+                             kCameraDestination);
   psx::cpu::callGuestNow(*c,
-                         kCameraCollisionUpdate,
-                         psx::cpu::GuestCallSite::fromJal(0x800344F4u, kVsub),
-                         walkVector,
-                         kCameraDestination,
-                         kCameraPosition);
-  psx::cpu::callGuestNow(*c,
-                         kCameraCollisionUpdate,
-                         psx::cpu::GuestCallSite::fromJal(0x80034500u, kVecLen),
-                         walkVector,
-                         1u);
+                             kCameraCollisionUpdate,
+                             psx::cpu::GuestCallSite::fromJal(0x800344F4u, kVsub),
+                             walkVector,
+                             kCameraDestination,
+                             kCameraPosition);
+  psx::cpu::callGuestNow(
+      *c, kCameraCollisionUpdate, psx::cpu::GuestCallSite::fromJal(0x80034500u, kVecLen), walkVector, 1u);
   std::int32_t length = static_cast<std::int32_t>(c->r[2]);
   if (length < 0) {
     length += 0xFF;
@@ -714,35 +706,35 @@ void resolveCameraCollision(Core *c) {
     c->mem_w32(walkVector + 8u, c->r[2]);
   }
   psx::cpu::callGuestNow(*c,
-                         kCameraCollisionUpdate,
-                         psx::cpu::GuestCallSite::fromJal(0x800345D4u, kCopy3),
-                         kCameraDestination,
-                         kCameraPosition);
+                             kCameraCollisionUpdate,
+                             psx::cpu::GuestCallSite::fromJal(0x800345D4u, kCopy3),
+                             kCameraDestination,
+                             kCameraPosition);
 
   s0 = 0u;
   while (static_cast<std::int32_t>(s0) < steps) {
     psx::cpu::callGuestNow(*c,
-                           kCameraCollisionUpdate,
-                           psx::cpu::GuestCallSite::fromJal(0x800345F0u, kVadd),
-                           kCameraDestination,
-                           kCameraDestination,
-                           walkVector);
+                               kCameraCollisionUpdate,
+                               psx::cpu::GuestCallSite::fromJal(0x800345F0u, kVadd),
+                               kCameraDestination,
+                               kCameraDestination,
+                               walkVector);
     s1 = 0u;
     for (;;) {
       psx::cpu::callGuestNow(*c,
-                             kCameraCollisionUpdate,
-                             psx::cpu::GuestCallSite::fromJal(0x80034604u, kSphereCollisionCheck),
-                             kCameraDestination,
-                             kSphereProbeRadius,
-                             kSphereProbeRadius);
+                                 kCameraCollisionUpdate,
+                                 psx::cpu::GuestCallSite::fromJal(0x80034604u, kSphereCollisionCheck),
+                                 kCameraDestination,
+                                 kSphereProbeRadius,
+                                 kSphereProbeRadius);
       if (c->r[2] == 0u) {
         break;
       }
       psx::cpu::callGuestNow(*c,
-                             kCameraCollisionUpdate,
-                             psx::cpu::GuestCallSite::fromJal(0x8003461Cu, kCopy3),
-                             kCameraDestination,
-                             kCollisionPoint);
+                                 kCameraCollisionUpdate,
+                                 psx::cpu::GuestCallSite::fromJal(0x8003461Cu, kCopy3),
+                                 kCameraDestination,
+                                 kCollisionPoint);
       s1 += 1u;
       s4 = 1u; // the delay slot of the row test, so it runs on both arms
       if (static_cast<std::int32_t>(s1) >= kWalkProbeLimit) {
@@ -752,10 +744,10 @@ void resolveCameraCollision(Core *c) {
     s0 += 1u;
     if (static_cast<std::int32_t>(s1) == kWalkProbeLimit) {
       psx::cpu::callGuestNow(*c,
-                             kCameraCollisionUpdate,
-                             psx::cpu::GuestCallSite::fromJal(0x80034644u, kCopy3),
-                             kCameraDestination,
-                             stepVector);
+                                 kCameraCollisionUpdate,
+                                 psx::cpu::GuestCallSite::fromJal(0x80034644u, kCopy3),
+                                 kCameraDestination,
+                                 stepVector);
       s0 = static_cast<std::uint32_t>(steps + 1);
     }
   }
@@ -766,19 +758,19 @@ void resolveCameraCollision(Core *c) {
   if (c->r[2] != 0u) {
     if (s4 == 0u) {
       psx::cpu::callGuestNow(*c,
-                             kCameraCollisionUpdate,
-                             psx::cpu::GuestCallSite::fromJal(0x80034710u, kCopy3),
-                             kCameraPosition,
-                             kCameraDestination);
+                                 kCameraCollisionUpdate,
+                                 psx::cpu::GuestCallSite::fromJal(0x80034710u, kCopy3),
+                                 kCameraPosition,
+                                 kCameraDestination);
       c->r[2] = kForcedToDestination;
       c->mem_w32(s0, kForcedToDestination);
     } else {
       psx::cpu::callGuestNow(*c,
-                             kCameraCollisionUpdate,
-                             psx::cpu::GuestCallSite::fromJal(0x80034684u, kVsub),
-                             stepVector,
-                             kCameraDestination,
-                             kCameraPosition);
+                                 kCameraCollisionUpdate,
+                                 psx::cpu::GuestCallSite::fromJal(0x80034684u, kVsub),
+                                 stepVector,
+                                 kCameraDestination,
+                                 kCameraPosition);
       for (std::uint32_t component = 0; component < 3u; ++component) {
         const std::uint32_t address = stepVector + component * 4u;
         std::uint32_t value = c->mem_r32(address);
@@ -791,37 +783,34 @@ void resolveCameraCollision(Core *c) {
         }
       }
       psx::cpu::callGuestNow(*c,
-                             kCameraCollisionUpdate,
-                             psx::cpu::GuestCallSite::fromJal(0x800346FCu, kVadd),
-                             kCameraPosition,
-                             kCameraPosition,
-                             stepVector);
+                                 kCameraCollisionUpdate,
+                                 psx::cpu::GuestCallSite::fromJal(0x800346FCu, kVadd),
+                                 kCameraPosition,
+                                 kCameraPosition,
+                                 stepVector);
     }
   }
 
   s2 = kCameraPosition;
   psx::cpu::callGuestNow(*c,
-                         kCameraCollisionUpdate,
-                         psx::cpu::GuestCallSite::fromJal(0x80034728u, kUpdateSphericalCoords),
-                         kCameraPosition);
+                             kCameraCollisionUpdate,
+                             psx::cpu::GuestCallSite::fromJal(0x80034728u, kUpdateSphericalCoords),
+                             kCameraPosition);
   c->mem_w32(kCameraAzimuthChanged, c->r[2]);
-  psx::cpu::callGuestNow(*c,
-                         kCameraCollisionUpdate,
-                         psx::cpu::GuestCallSite::fromJal(0x80034744u, kCopy3),
-                         walkVector,
-                         kSpyro);
+  psx::cpu::callGuestNow(
+      *c, kCameraCollisionUpdate, psx::cpu::GuestCallSite::fromJal(0x80034744u, kCopy3), walkVector, kSpyro);
   c->mem_w32(walkVector + 8u, c->mem_r32(walkVector + 8u) - kSpyroProbeDepth);
   psx::cpu::callGuestNow(*c,
-                         kCameraCollisionUpdate,
-                         psx::cpu::GuestCallSite::fromJal(0x8003475Cu, kRayBetweenPointsIsClear),
-                         kCameraPosition,
-                         walkVector);
+                             kCameraCollisionUpdate,
+                             psx::cpu::GuestCallSite::fromJal(0x8003475Cu, kRayBetweenPointsIsClear),
+                             kCameraPosition,
+                             walkVector);
   if (c->r[2] != 0u) {
     psx::cpu::callGuestNow(*c,
-                           kCameraCollisionUpdate,
-                           psx::cpu::GuestCallSite::fromJal(0x8003476Cu, kRayBetweenPointsIsClear),
-                           walkVector,
-                           kCameraPosition);
+                               kCameraCollisionUpdate,
+                               psx::cpu::GuestCallSite::fromJal(0x8003476Cu, kRayBetweenPointsIsClear),
+                               walkVector,
+                               kCameraPosition);
     const bool blocked = c->r[2] != 0u;
     c->r[2] = kForcedToDestination; // the delay slot, so the taken path always carries 1
     if (blocked) {
@@ -852,31 +841,28 @@ void resolveCameraCollision(Core *c) {
     for (std::uint32_t preset = 0; preset < kRowCount; ++preset) {
       const std::uint32_t presetAddress = kSphericalPresets + s0;
       c->mem_w32(s4, presetAddress); // the reset's own delay slot
-      psx::cpu::callGuestNow(
-          *c,
-          kCameraCollisionUpdate,
-          psx::cpu::GuestCallSite::fromJal(0x800347E4u, kResetCameraToSphericalPreset),
-          presetAddress);
       psx::cpu::callGuestNow(*c,
-                             kCameraCollisionUpdate,
-                             psx::cpu::GuestCallSite::fromJal(0x800347F4u, kSphereCollisionCheck),
-                             s3,
-                             kSphereProbeRadius,
-                             kSphereProbeRadius);
+                                 kCameraCollisionUpdate,
+                                 psx::cpu::GuestCallSite::fromJal(0x800347E4u, kResetCameraToSphericalPreset),
+                                 presetAddress);
+      psx::cpu::callGuestNow(*c,
+                                 kCameraCollisionUpdate,
+                                 psx::cpu::GuestCallSite::fromJal(0x800347F4u, kSphereCollisionCheck),
+                                 s3,
+                                 kSphereProbeRadius,
+                                 kSphereProbeRadius);
       if (c->r[2] == 0u) {
-        psx::cpu::callGuestNow(
-            *c,
-            kCameraCollisionUpdate,
-            psx::cpu::GuestCallSite::fromJal(0x80034804u, kRayBetweenPointsIsClear),
-            s3,
-            s2);
+        psx::cpu::callGuestNow(*c,
+                                   kCameraCollisionUpdate,
+                                   psx::cpu::GuestCallSite::fromJal(0x80034804u, kRayBetweenPointsIsClear),
+                                   s3,
+                                   s2);
         if (c->r[2] != 0u) {
-          psx::cpu::callGuestNow(
-              *c,
-              kCameraCollisionUpdate,
-              psx::cpu::GuestCallSite::fromJal(0x80034814u, kRayBetweenPointsIsClear),
-              s2,
-              s3);
+          psx::cpu::callGuestNow(*c,
+                                     kCameraCollisionUpdate,
+                                     psx::cpu::GuestCallSite::fromJal(0x80034814u, kRayBetweenPointsIsClear),
+                                     s2,
+                                     s3);
           if (c->r[2] != 0u) {
             return;
           }

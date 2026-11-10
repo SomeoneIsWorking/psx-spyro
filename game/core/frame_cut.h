@@ -52,7 +52,8 @@ struct LevelLoadFacts {
   std::array<std::uint32_t, 2> fieldSubStates{};
 };
 
-// The guest words a title's cut is read from. Spyro 1's camera machine is not read.
+// The guest words a title's cut is read from. Spyro 1's camera machine is not read; it declares its
+// cuts.
 struct FrameCutFacts {
   std::uint32_t gameState = 0;
   std::uint32_t levelId = 0;
@@ -70,6 +71,10 @@ public:
   void onFrameDrawn(Core &core);
   // The step's guest work is done and its record is about to be sealed.
   void onFrameTail(Core &core);
+  // The title saw the guest re-place the camera or the player; the next walked record is a cut.
+  void declare() {
+    declared_ = true;
+  }
   // Whether the record sealed after the latest frame tail is a cut from the one before it.
   [[nodiscard]] bool isCut() const {
     return cut_;
@@ -105,6 +110,7 @@ private:
   CameraMachineWords sealedCamera_;
   std::optional<ScriptedCamera> walkedShot_; // set while the walked scene is the cutscene state
   std::optional<ScriptedCamera> sealedShot_;
+  bool declared_ = false;
   bool cut_ = true;
 };
 

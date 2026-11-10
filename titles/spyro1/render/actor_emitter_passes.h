@@ -1,5 +1,4 @@
-// actor_emitter_passes.h — the moby emitters 0x8001F798 and 0x80020F34: each draws every
-// draw-list entry its list builder wrote.
+// actor_emitter_passes.h — the moby emitters 0x8001F798 and 0x80020F34 over their builders' lists.
 #pragma once
 
 #include "spyro1/render/actor_list.h"

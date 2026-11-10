@@ -98,8 +98,9 @@ void FrameCut::onFrameTail(Core &) {
     return;
   }
   const bool shotChanged = sealedShot_ && walkedShot_ && !sameShot(*sealedShot_, *walkedShot_);
-  cut_ = !sealed_.has_value() || *sealed_ != *walked_ ||
+  cut_ = declared_ || !sealed_.has_value() || *sealed_ != *walked_ ||
          cameraPlaced(sealedCamera_, walkedCamera_) || shotChanged;
+  declared_ = false;
   const ScriptedCamera shot = walkedShot_.value_or(ScriptedCamera{});
   lucent::debug("cut",
                 "cut={} state={} level={} camera={}/{} shot={} at=({}, {}, {}) angles=({}, {}, {})",

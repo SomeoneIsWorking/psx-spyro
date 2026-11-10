@@ -20,7 +20,7 @@ class Game;
 
 namespace spyro1 {
 
-// GamestateDraw switches on g_Gamestate; Spyro 1's camera machine is not read.
+// GamestateDraw switches on g_Gamestate; the re-placements are declared (draw_cuts.h).
 inline constexpr spyro::FrameCutFacts kFrameCutFacts{.gameState = guest::kGamestate,
                                                      .levelId = guest::kLevelId};
 
@@ -34,6 +34,11 @@ public:
 
   [[nodiscard]] const spyro::FrameCut &cut() const {
     return cut_;
+  }
+  // The guest re-placed the camera or Spyro: this record is a cut and no sample pairs across it.
+  void declareCut() {
+    cut_.declare();
+    replay_.forget();
   }
   // GS_Playing's in-betweens, replayed from its draw section.
   [[nodiscard]] psx::present::ReplayFrame &replay() {

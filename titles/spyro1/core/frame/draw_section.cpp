@@ -4,6 +4,7 @@
 #include "guest_redraw.h"
 #include "ordering_table.h"
 #include "spyro1/core/native_state.h"
+#include "spyro1/render/terrain_facts.h"
 
 #include <lucent/log.h>
 
@@ -27,7 +28,6 @@ constexpr std::uint32_t kHudOt = 0x8007581Cu;
 constexpr std::uint32_t kPolyCursor = 0x800757B0u;
 constexpr std::uint32_t kUnread = 0x800758B0u;
 constexpr std::array<std::uint32_t, 3> kPolyEnds{0x800756FCu, 0x80075710u, 0x80075780u};
-constexpr std::uint32_t kPolyEndOffset = 0x1C000u;
 
 constexpr std::uint32_t kIsFlightLevel = 0x80075690u;
 constexpr std::uint32_t kDemoMode = 0x80075714u;
@@ -47,20 +47,23 @@ constexpr std::uint32_t kDrawHud = 0x800189F0u;
 constexpr std::uint32_t kFlattenBins = 0x80016784u;
 constexpr std::uint32_t kBinCount = 0x800u;
 
-// The motion set noted the replay's angle fractions before the section; none outlive it.
-class AnglesNoted {
+// What a replay leaves is undone when it returns: the angle fractions the motion set noted for it,
+// and the shaded lines' call-site turns, so the real draw counts from where the replays began.
+class ReplayScope {
 public:
-  explicit AnglesNoted(actors::ReplayAngles &angles) : angles_(angles) {}
-  ~AnglesNoted() {
-    angles_.clear();
+  explicit ReplayScope(NativeState &state) : state_(state), callSites_(state.callSites) {}
+  ~ReplayScope() {
+    state_.replayAngles.clear();
+    state_.callSites = callSites_;
   }
-  AnglesNoted(const AnglesNoted &) = delete;
-  AnglesNoted &operator=(const AnglesNoted &) = delete;
-  AnglesNoted(AnglesNoted &&) = delete;
-  AnglesNoted &operator=(AnglesNoted &&) = delete;
+  ReplayScope(const ReplayScope &) = delete;
+  ReplayScope &operator=(const ReplayScope &) = delete;
+  ReplayScope(ReplayScope &&) = delete;
+  ReplayScope &operator=(ReplayScope &&) = delete;
 
 private:
-  actors::ReplayAngles &angles_;
+  NativeState &state_;
+  shaded_line::CallSites callSites_;
 };
 
 bool step(psx::present::GuestRedraw &redraw,
@@ -76,7 +79,7 @@ bool step(psx::present::GuestRedraw &redraw,
 
 std::optional<std::uint32_t> DrawSection::draw(Core &core,
                                                psx::present::GuestRedraw &redraw) const {
-  const AnglesNoted noted(nativeState(core).replayAngles);
+  const ReplayScope scope(nativeState(core));
   const std::uint32_t db = core.mem_r32(kCurDb) == kDb0 ? kDb1 : kDb0;
   const std::uint32_t poly = core.mem_r32(db + kDbPolyBuffer);
   redraw.writeWord(kCurDb, db);
@@ -85,7 +88,7 @@ std::optional<std::uint32_t> DrawSection::draw(Core &core,
   redraw.writeWord(kHudOt, core.mem_r32(db + kDbHudOt));
   redraw.writeWord(kPolyCursor, poly);
   for (const std::uint32_t end : kPolyEnds) {
-    redraw.writeWord(end, poly + kPolyEndOffset);
+    redraw.writeWord(end, poly + terrain::kPacketPoolBytes);
   }
   if (!step(redraw, kCameraUpdateMatrices) || !step(redraw, kQueueMobys)) {
     return std::nullopt;
