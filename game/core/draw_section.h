@@ -1,8 +1,4 @@
-// draw_section.h — the Spyro 2 / Spyro 3 per-field draw body (SCUS_944.25 0x800156FC, SCUS_944.67
-// 0x8001E638, one routine) as a replay section: the buffer flip it opens with, the camera builder
-// and position copy, the game state's handler, and the bin flatten whose chain DrawOTag submits.
-// The device tail between the handler and the flatten (DrawSync, the VSync limiter, PutDispEnv,
-// PutDrawEnv) is skipped. Each image names its state switch; docs/plans/spyro23-replay.md.
+// draw_section.h — the Spyro 2/3 per-field draw body less its device tail, as a replay section.
 #pragma once
 
 #include "replay_frame.h"
@@ -57,7 +53,7 @@ public:
   [[nodiscard]] bool linked(std::uint32_t head) const final;
 
 protected:
-  // Whether `state`'s handler stays off the devices; one that waits on them is never replayed.
+  // Whether `state` has a handler that stays off the devices; any other state is never replayed.
   [[nodiscard]] virtual bool replaysState(std::uint32_t state) const = 0;
   // The state's handler, as the body's switch calls it; false when a step was refused.
   [[nodiscard]] virtual bool

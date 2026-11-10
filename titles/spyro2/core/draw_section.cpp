@@ -4,6 +4,7 @@
 
 #include <array>
 #include <cstdint>
+#include <optional>
 #include <utility>
 
 namespace spyro2 {
@@ -15,12 +16,13 @@ constexpr std::uint32_t kCameraSubState = 0x80067ED4u;
 constexpr std::uint32_t kStateHook = 0x80066F88u;
 constexpr std::uint32_t kHookFlags = 0xCu;
 constexpr std::uint32_t kPlay = 0x80013A14u;
-constexpr std::array<std::pair<std::uint32_t, std::uint32_t>, 12> kHandlers{{
+// The switch's other cases but state 5, the loading screen: 0x800151F0 polls 0x800577A0 until its
+// storybook pages load, so it is never replayed.
+constexpr std::array<std::pair<std::uint32_t, std::uint32_t>, 11> kHandlers{{
     {0u, kPlay},
     {1u, 0x80013BC4u},
     {3u, 0x80014504u},
     {4u, 0x800145ACu},
-    {5u, 0x800151F0u},
     {6u, 0x800153F8u},
     {7u, 0x80015430u},
     {8u, 0x80015494u},
@@ -30,7 +32,20 @@ constexpr std::array<std::pair<std::uint32_t, std::uint32_t>, 12> kHandlers{{
     {12u, 0x80015580u},
 }};
 
+std::optional<std::uint32_t> handlerOf(std::uint32_t state) {
+  for (const auto &[handled, entry] : kHandlers) {
+    if (handled == state) {
+      return entry;
+    }
+  }
+  return std::nullopt;
+}
+
 } // namespace
+
+bool DrawSection::replaysState(std::uint32_t state) const {
+  return state == 2u || handlerOf(state).has_value();
+}
 
 bool DrawSection::drawState(Core &core,
                             psx::present::GuestRedraw &redraw,
@@ -41,12 +56,8 @@ bool DrawSection::drawState(Core &core,
     }
     return step(redraw, kPlay);
   }
-  for (const auto &[handled, entry] : kHandlers) {
-    if (handled == state) {
-      return step(redraw, entry);
-    }
-  }
-  return true;
+  const std::optional<std::uint32_t> entry = handlerOf(state);
+  return entry && step(redraw, *entry);
 }
 
 } // namespace spyro2

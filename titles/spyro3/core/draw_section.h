@@ -1,5 +1,4 @@
-// draw_section.h — SCUS_944.67's per-field draw body 0x8001E638 as a replay section: its state
-// switch over 0x8006E344, and the second pass states 4 and 0xD flatten and chain after the first.
+// draw_section.h — SCUS_944.67's draw body 0x8001E638, its switch over 0x8006E344 and second pass.
 #pragma once
 
 #include "core/draw_section.h"
@@ -33,10 +32,7 @@ public:
   DrawSection() : spyro::DrawSection(kDrawSectionFacts) {}
 
 private:
-  // The loading screen, state 5: 0x80059038 waits in VSync at 0x8005927C (UpdateLoadingImage).
-  [[nodiscard]] bool replaysState(std::uint32_t state) const override {
-    return state != 5u;
-  }
+  [[nodiscard]] bool replaysState(std::uint32_t state) const override;
   [[nodiscard]] bool
   drawState(Core &core, psx::present::GuestRedraw &redraw, std::uint32_t state) const override;
   [[nodiscard]] std::optional<std::uint32_t>

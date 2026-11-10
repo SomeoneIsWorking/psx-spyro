@@ -6,6 +6,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <utility>
 
 namespace spyro3 {
@@ -20,13 +21,14 @@ constexpr std::uint32_t kHookFlags = 0xCu;
 constexpr std::uint32_t kSceneHook = 0x80074488u;
 constexpr std::uint32_t kSceneFlags = 0x3Du;
 constexpr std::uint32_t kPlay = 0x8001D274u;
-constexpr std::array<std::pair<std::uint32_t, std::uint32_t>, 15> kHandlers{{
+// The switch's other cases but state 5, the loading screen: 0x80059038 waits in VSync at 0x8005927C
+// (UpdateLoadingImage), so it is never replayed. States 8 and 0x11 have no case.
+constexpr std::array<std::pair<std::uint32_t, std::uint32_t>, 14> kHandlers{{
     {0u, kPlay},
     {0xEu, kPlay},
     {1u, 0x8001D424u},
     {3u, 0x8001DC5Cu},
     {4u, 0x8001DD1Cu},
-    {5u, 0x80059038u},
     {6u, 0x8001E2A8u},
     {7u, 0x8001E2C8u},
     {9u, 0x8001E32Cu},
@@ -65,7 +67,20 @@ void writeByte(psx::present::GuestRedraw &redraw,
                        (std::to_integer<std::uint32_t>(value) << shift));
 }
 
+std::optional<std::uint32_t> handlerOf(std::uint32_t state) {
+  for (const auto &[handled, entry] : kHandlers) {
+    if (handled == state) {
+      return entry;
+    }
+  }
+  return std::nullopt;
+}
+
 } // namespace
+
+bool DrawSection::replaysState(std::uint32_t state) const {
+  return state == 2u || state == 0x12u || handlerOf(state).has_value();
+}
 
 bool DrawSection::drawState(Core &core,
                             psx::present::GuestRedraw &redraw,
@@ -79,12 +94,8 @@ bool DrawSection::drawState(Core &core,
   if (state == 0x12u) {
     return step(redraw, core.mem_r32(kSceneHook)) && dispatch(redraw, kSceneFlags);
   }
-  for (const auto &[handled, entry] : kHandlers) {
-    if (handled == state) {
-      return step(redraw, entry);
-    }
-  }
-  return true;
+  const std::optional<std::uint32_t> entry = handlerOf(state);
+  return entry && step(redraw, *entry);
 }
 
 bool DrawSection::secondPass(Core &core,

@@ -1,5 +1,4 @@
-// draw_section.h — SCUS_944.25's per-field draw body 0x800156FC as a replay section: its state
-// switch over 0x800681C8.
+// draw_section.h — SCUS_944.25's draw body 0x800156FC and its state switch over 0x800681C8.
 #pragma once
 
 #include "core/draw_section.h"
@@ -33,10 +32,7 @@ public:
   DrawSection() : spyro::DrawSection(kDrawSectionFacts) {}
 
 private:
-  // The loading screen, state 5: 0x800151F0 polls 0x800577A0 until its storybook pages load.
-  [[nodiscard]] bool replaysState(std::uint32_t state) const override {
-    return state != 5u;
-  }
+  [[nodiscard]] bool replaysState(std::uint32_t state) const override;
   [[nodiscard]] bool
   drawState(Core &core, psx::present::GuestRedraw &redraw, std::uint32_t state) const override;
 };
