@@ -1,11 +1,11 @@
-// draw_motion.h — what the Spyro 2 / Spyro 3 draw body reads that moves between logic frames
-// (docs/plans/spyro23-replay.md), as motion tracks for its replay: the camera, Spyro, his poses
-// and shadow, every moby slot, and the effects pass's pools.
+// draw_motion.h — the Spyro 2/3 draw body's moving inputs as motion tracks
+// (docs/plans/spyro23-replay.md).
 #pragma once
 
 #include "motion_set.h"
 #include "render/field/effect_pools.h"
 #include "render/field/guest_moby_visibility.h"
+#include "render/field/moby_motion.h"
 
 #include <array>
 #include <cstdint>
@@ -33,28 +33,25 @@ public:
   void blend(const Samples &samples, float t, std::span<std::uint32_t> out) const override;
 };
 
-// The moby slot words MobyMotion blends, in its order: position, keyframes, progress, angle
-// bytes, flags (angle fractions), and the mesh halfword it pairs by.
-inline constexpr std::array<psx::present::MotionField, 8> kMobyFields{{
-    {0x0Cu, psx::present::Motion::Step},
-    {0x10u, psx::present::Motion::Step},
-    {0x14u, psx::present::Motion::Step},
-    {0x3Cu, psx::present::Motion::Step},
-    {0x40u, psx::present::Motion::Step},
-    {0x44u, psx::present::Motion::Step},
-    {0x54u, psx::present::Motion::Step},
-    {0x34u, psx::present::Motion::Step},
-}};
-
-// A moby slot: position, pose (across an animation switch when both frames share the mesh's
-// vertex layout) and angle bytes, refined by the flag word's fractions when both samples carry
-// them.
-class MobyMotion final : public psx::present::MotionRule {
+// A moby slot. Spyro 2/3's walk reads the sixteenths an angle byte drops from the flag word's
+// nibbles (bit 30 set), so an in-between refines them there when both samples carry them.
+class MobyMotion final : public MobyRecordMotion {
 public:
-  MobyMotion(Core &core, const guest_moby::Facts &walk) : core_(core), walk_(walk) {}
-  void blend(const Samples &samples, float t, std::span<std::uint32_t> out) const override;
+  static constexpr auto kFields = mobyFieldsWith<0>({});
+
+  MobyMotion(Core &core, const guest_moby::Facts &walk)
+      : MobyRecordMotion(kFields, keyframe_blend::kNibbleSteps), core_(core), walk_(walk) {}
 
 private:
+  [[nodiscard]] bool sharesLayout(std::uint32_t mesh,
+                                  const keyframe_blend::Pose &pose) const override;
+  void finish(const Samples &samples,
+              const moby_record::Bytes &from,
+              const moby_record::Bytes &to,
+              const moby_record::Between &moved,
+              float t,
+              moby_record::Bytes &shown) const override;
+
   Core &core_;
   const guest_moby::Facts &walk_;
 };
@@ -118,15 +115,8 @@ private:
       {0x08u, kLinear},
       {0x0Cu, kAngle8},
   }};
-  // [moby array]: 0x58-byte slots up to the first whose flag (+0x48) is 0xFF; a negative flag
-  // skips. One object while the mesh (+0x36) holds.
+  // One moby while the mesh (+0x36) holds.
   static constexpr std::array<psx::present::MotionKey, 1> kMobyKeys{{{0x34u, 0xFFFF0000u}}};
-  static constexpr psx::present::MotionRecords kMobyRecords{
-      .throughPointer = true,
-      .stride = 0x58u,
-      .count = 0x800u,
-      .end = psx::present::RecordByte{0x48u, 0xFFu, 0xFFu},
-      .live = psx::present::RecordByte{0x48u, 0x00u, 0x7Fu}};
 
   SpyroPoses poses_;
   MobyMotion moby_;

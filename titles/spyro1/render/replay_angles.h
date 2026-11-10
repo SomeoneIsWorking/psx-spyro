@@ -1,7 +1,5 @@
-// replay_angles.h — the sixteenths of a step each moby angle byte lies past, by record, while a
-// replay draws an in-between: a byte cannot hold half a step, and the list builders and the sprite
-// queue turn a record by its bytes refined with these (guest_moby_rotation::MobyAngles::flags).
-// Empty outside a replay, so a real draw turns by its bytes alone.
+// replay_angles.h — per record, the sixteenths an angle byte drops while a replay draws
+// (MobyAngles::flags).
 #pragma once
 
 #include <algorithm>

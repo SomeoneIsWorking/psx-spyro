@@ -1,10 +1,10 @@
-// draw_motion.h — what GamestateDraw's GS_Playing section reads that moves between logic frames
-// (docs/plans/spyro1-motion-tracks.md), as motion tracks for its replay, and the rules for the
-// records that move as a unit.
+// draw_motion.h — the GS_Playing section's moving inputs as motion tracks
+// (docs/plans/spyro1-motion-tracks.md).
 #pragma once
 
 #include "motion_set.h"
 #include "render/field/keyframe_blend.h"
+#include "render/field/moby_motion.h"
 #include "spyro1/core/effect/flame_block.h"
 #include "spyro1/core/effect/shadow_block.h"
 #include "spyro1/core/guest_globals.h"
@@ -25,19 +25,29 @@ public:
   void blend(const Samples &samples, float t, std::span<std::uint32_t> out) const override;
 };
 
-// A moby slot: position, shadow word, pose (64 steps), angle bytes and scale override. The angle
-// bytes are written at the step each lies past, and the sixteenths past it noted for the list
-// builders. An animation switch blends across when both frames share a vertex layout in the
-// class's mesh (the emitter reads both with frame A's counts and shifts).
-class MobyMotion final : public psx::present::MotionRule {
+// A moby slot, with its shadow word and scale override. Spyro 1's record keeps no sixteenths of an
+// angle byte, so the angle bytes are written at the step each lies past and the sixteenths noted
+// aside for the list builders.
+class MobyMotion final : public spyro::MobyRecordMotion {
 public:
-  MobyMotion(Core &core, actors::ReplayAngles &angles) : core_(core), angles_(angles) {}
-  void blend(const Samples &samples, float t, std::span<std::uint32_t> out) const override;
+  // +0x1C: the shadow word.
+  static constexpr auto kFields = spyro::mobyFieldsWith<1>({0x1Cu});
+
+  // A moby's progress byte counts 64 steps (weight k << 6, 0x8001F158).
+  MobyMotion(Core &core, actors::ReplayAngles &angles)
+      : MobyRecordMotion(kFields, spyro::keyframe_blend::Progress{64}), core_(core),
+        angles_(angles) {}
 
 private:
-  // `pose`'s two frames in mesh `mesh`.
+  // The class's mesh (the emitter reads both frames with frame A's counts and shifts).
   [[nodiscard]] bool sharesLayout(std::uint32_t mesh,
-                                  const spyro::keyframe_blend::Pose &pose) const;
+                                  const spyro::keyframe_blend::Pose &pose) const override;
+  void finish(const Samples &samples,
+              const spyro::moby_record::Bytes &from,
+              const spyro::moby_record::Bytes &to,
+              const spyro::moby_record::Between &moved,
+              float t,
+              spyro::moby_record::Bytes &shown) const override;
 
   Core &core_;
   actors::ReplayAngles &angles_;
@@ -108,30 +118,12 @@ private:
       {0x08u, kLinear},
   }};
 
-  // [g_LevelMobys]: 0x58-byte slots up to the first whose state (+0x48) is 0xFF; bit 7 set is
-  // dead. One object while the props pointer (+0x00), class (+0x36) and screen-space flag (+0x50
-  // bit 7) hold.
+  // [g_LevelMobys]: bit 7 of the state set is dead. One object while the props pointer (+0x00),
+  // class (+0x36) and screen-space flag (+0x50 bit 7) hold.
   static constexpr std::array<Key, 3> kMobyKeys{{
       {0x00u},
       {0x34u, 0xFFFF0000u},
       {0x50u, 0x80u},
-  }};
-  static constexpr Records kMobyRecords{.throughPointer = true,
-                                        .stride = 0x58u,
-                                        .count = 0x800u,
-                                        .end = RecordByte{0x48u, 0xFFu, 0xFFu},
-                                        .live = RecordByte{0x48u, 0x00u, 0x7Fu}};
-  // MobyMotion's words, in its order.
-  static constexpr std::array<Field, 9> kMoby{{
-      {0x0Cu, kStep},
-      {0x10u, kStep},
-      {0x14u, kStep},
-      {0x1Cu, kStep},
-      {0x3Cu, kStep},
-      {0x40u, kStep},
-      {0x44u, kStep},
-      {0x54u, kStep},
-      {0x34u, kStep},
   }};
 
   // g_Hud.m_Mobys[12]: the count and icon mobys slide in y and spin in z; a digit, substate or
@@ -225,10 +217,10 @@ private:
       {.name = "spyro shadow", .address = shadow_block::kAnchor, .fields = kVector},
       {.name = "mobys",
        .address = guest::kLevelMobys,
-       .fields = kMoby,
+       .fields = MobyMotion::kFields,
        .rule = &moby_,
        .keys = kMobyKeys,
-       .records = kMobyRecords},
+       .records = spyro::kMobyRecords},
       {.name = "hud mobys",
        .address = kHudMobys,
        .fields = kHudMoby,

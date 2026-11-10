@@ -25,8 +25,6 @@ constexpr std::size_t kPoseParts = 3;
 constexpr std::size_t kFrameBytes = 6;
 constexpr std::size_t kProgressBytes = 12;
 constexpr spyro::keyframe_blend::Progress kPartSteps{16};
-// A moby's progress byte counts 64 steps (weight k << 6, 0x8001F158).
-constexpr spyro::keyframe_blend::Progress kMobySteps{64};
 
 template <std::size_t N> std::array<std::uint8_t, N> bytesOf(std::span<const std::uint32_t> words) {
   std::array<std::uint8_t, N> bytes{};
@@ -69,8 +67,8 @@ spyro::keyframe_blend::Pose partOf(const std::array<std::uint8_t, kPoseBytes> &b
           .progress = bytes[kProgressBytes + part]};
 }
 
-// MobyMotion's words.
-enum MobyWord : std::uint8_t { kX, kY, kZ, kShadow, kFrames, kProgress, kAngles, kScale, kClass };
+constexpr std::uint32_t kMobyShadow = 0x1Cu;
+constexpr std::uint32_t kMobyScale = 0x57u;
 
 // +0x1C: ground distance in the low halfword (0 when there is no ground below), two 64-step tilts
 // at bits 16 and 22; the sign bit stages the shadow (0x8001F158, 0x80059F8C).
@@ -114,38 +112,23 @@ void SpyroPoses::blend(const Samples &samples, float t, std::span<std::uint32_t>
   store(shown, out);
 }
 
-void MobyMotion::blend(const Samples &samples, float t, std::span<std::uint32_t> out) const {
-  const std::span<const std::uint32_t> from = samples.from;
-  const std::span<const std::uint32_t> to = samples.to;
-  for (const std::size_t word : {kX, kY, kZ}) {
-    out[word] = blend::lerpWord(from[word], to[word], t);
-  }
-  out[kShadow] = shadowBetween(from[kShadow], to[kShadow], t);
-  out[kClass] = to[kClass];
-  const spyro::keyframe_blend::Pose before{.keyframes = from[kFrames],
-                                           .progress = byteOf(from[kProgress], 0)};
-  const spyro::keyframe_blend::Pose after{.keyframes = to[kFrames],
-                                          .progress = byteOf(to[kProgress], 0)};
-  spyro::keyframe_blend::Pose pose = spyro::keyframe_blend::between(before, after, t, kMobySteps);
-  if (!spyro::keyframe_blend::continues(before, after, kMobySteps)) {
-    const spyro::keyframe_blend::Pose crossing =
-        spyro::keyframe_blend::across(before, after, t, kMobySteps);
-    if (sharesLayout(to[kClass] >> 16, crossing)) {
-      pose = crossing;
-    }
-  }
-  out[kFrames] = pose.keyframes;
-  out[kProgress] = withByte(to[kProgress], Lane{0}, pose.progress);
-  const spyro::moby_record::AnglesBetween angles =
-      spyro::moby_record::anglesBetween(from[kAngles], to[kAngles], t);
-  out[kAngles] = (to[kAngles] & 0xFF000000u) | angles.bytes;
-  angles_.note(samples.address, angles.fractions);
+void MobyMotion::finish(const Samples &samples,
+                        const spyro::moby_record::Bytes &from,
+                        const spyro::moby_record::Bytes &to,
+                        const spyro::moby_record::Between &moved,
+                        float t,
+                        spyro::moby_record::Bytes &shown) const {
+  using spyro::record_blend::load;
+  using spyro::record_blend::store;
+  store(shown,
+        kMobyShadow,
+        shadowBetween(
+            load<std::uint32_t>(from, kMobyShadow), load<std::uint32_t>(to, kMobyShadow), t));
+  angles_.note(samples.address, moved.angleFractions);
   // +0x57 m_ScaleOverride: 0 draws the regular size, so only two overrides blend.
-  const std::uint8_t scaleFrom = byteOf(from[kScale], 3);
-  const std::uint8_t scaleTo = byteOf(to[kScale], 3);
-  out[kScale] = scaleFrom != 0 && scaleTo != 0
-                    ? withByte(to[kScale], Lane{3}, byteBetween(scaleFrom, scaleTo, t))
-                    : to[kScale];
+  if (from[kMobyScale] != 0 && to[kMobyScale] != 0) {
+    shown[kMobyScale] = byteBetween(from[kMobyScale], to[kMobyScale], t);
+  }
 }
 
 bool MobyMotion::sharesLayout(std::uint32_t mesh, const spyro::keyframe_blend::Pose &pose) const {

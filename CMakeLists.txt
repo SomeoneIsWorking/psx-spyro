@@ -132,6 +132,7 @@ set(SPYRO_RUNTIME_SOURCES
   titles/spyro1/core/audio/native_spu_transfer_mode.cpp
   titles/spyro1/core/audio/native_spu_common_attr.cpp
   game/render/field/guest_moby_rotation.cpp
+  game/render/field/moby_motion.cpp
   game/render/field/moby_record.cpp
   game/render/screen_overlays.cpp
   game/render/field/effect_pools.cpp
