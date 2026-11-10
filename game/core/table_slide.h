@@ -13,7 +13,7 @@ namespace spyro {
 class TableSlide : public psx::present::MotionSource {
 public:
   void sample(Core &core) final;
-  void write(psx::present::GuestRedraw &redraw, float t) const final;
+  psx::present::MotionCount write(psx::present::GuestRedraw &redraw, float t) const final;
 
 protected:
   enum class Width : std::uint8_t { Byte, SignedHalf };

@@ -123,8 +123,8 @@ void EffectMotion::sample(Core &core) {
   effect_pools::read(core, facts_, records_[later_]);
 }
 
-void EffectMotion::write(psx::present::GuestRedraw &redraw, float t) const {
-  effect_pools::writeBetween(redraw, facts_, records_[later_ ^ 1u], records_[later_], t);
+psx::present::MotionCount EffectMotion::write(psx::present::GuestRedraw &redraw, float t) const {
+  return effect_pools::writeBetween(redraw, facts_, records_[later_ ^ 1u], records_[later_], t);
 }
 
 DrawMotion::DrawMotion(Core &core, const DrawMotionFacts &facts)

@@ -24,18 +24,25 @@ void TableSlide::sample(Core &core) {
   to_ = Read{.entry = *entry, .value = value};
 }
 
-void TableSlide::write(psx::present::GuestRedraw &redraw, float t) const {
-  if (!from_ || !to_ || from_->entry.phase != to_->entry.phase ||
-      from_->entry.table != to_->entry.table || to_->entry.index <= from_->entry.index) {
-    return;
+psx::present::MotionCount TableSlide::write(psx::present::GuestRedraw &redraw, float t) const {
+  if (!to_) {
+    return {};
+  }
+  if (!from_ || from_->entry.phase != to_->entry.phase || from_->entry.table != to_->entry.table ||
+      to_->entry.index < from_->entry.index) {
+    return {.drawn = 1, .unpaired = 1};
+  }
+  if (to_->entry.index == from_->entry.index) {
+    return {.drawn = 1};
   }
   const std::uint32_t address = addressOf(to_->entry);
   const std::int32_t value = psx::present::lerpInt(from_->value, to_->value, t);
   if (to_->entry.width == Width::Byte) {
     redraw.writeByte(address, static_cast<std::uint8_t>(value));
-    return;
+  } else {
+    redraw.writeHalf(address, static_cast<std::uint16_t>(value));
   }
-  redraw.writeHalf(address, static_cast<std::uint16_t>(value));
+  return {.drawn = 1};
 }
 
 } // namespace spyro

@@ -57,12 +57,17 @@ void TextureScroll::sample(Core &core) {
   }
 }
 
-void TextureScroll::write(psx::present::GuestRedraw &redraw, float t) const {
+psx::present::MotionCount TextureScroll::write(psx::present::GuestRedraw &redraw, float t) const {
+  psx::present::MotionCount count{.drawn = to_.size()};
   for (const Node &later : to_) {
     const auto earlier = std::find_if(from_.begin(), from_.end(), [&later](const Node &node) {
       return node.address == later.address && node.index == later.index && node.wide == later.wide;
     });
-    if (earlier == from_.end() || earlier->position == later.position) {
+    if (earlier == from_.end()) {
+      ++count.unpaired;
+      continue;
+    }
+    if (earlier->position == later.position) {
       continue;
     }
     const std::uint32_t position =
@@ -77,6 +82,7 @@ void TextureScroll::write(psx::present::GuestRedraw &redraw, float t) const {
       redraw.writeWord(later.wide + static_cast<std::uint32_t>(4 * i), wide[i]);
     }
   }
+  return count;
 }
 
 } // namespace spyro1

@@ -7,6 +7,11 @@
 namespace spyro1 {
 
 class TitleSlide final : public spyro::TableSlide {
+public:
+  [[nodiscard]] const char *name() const override {
+    return "title slide";
+  }
+
 private:
   [[nodiscard]] std::optional<Entry> entryOf(Core &core) const override;
 };

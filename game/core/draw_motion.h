@@ -71,6 +71,9 @@ public:
 class ConversationSlide final : public TableSlide {
 public:
   explicit ConversationSlide(const ConversationFacts *facts) : facts_(facts) {}
+  [[nodiscard]] const char *name() const override {
+    return "conversation slide";
+  }
 
 private:
   [[nodiscard]] std::optional<Entry> entryOf(Core &core) const override;
@@ -111,8 +114,11 @@ private:
 class EffectMotion final : public psx::present::MotionSource {
 public:
   explicit EffectMotion(const effect_pools::Facts &facts) : facts_(facts) {}
+  [[nodiscard]] const char *name() const override {
+    return "effects";
+  }
   void sample(Core &core) override;
-  void write(psx::present::GuestRedraw &redraw, float t) const override;
+  psx::present::MotionCount write(psx::present::GuestRedraw &redraw, float t) const override;
 
 private:
   const effect_pools::Facts &facts_;

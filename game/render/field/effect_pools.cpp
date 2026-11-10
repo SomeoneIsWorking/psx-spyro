@@ -94,17 +94,25 @@ void pointBetween(std::array<std::uint8_t, N> &shown,
   }
 }
 
-// Each slot that `same` pairs, moved by `move`, written over `to`'s; slots are `stride` apart.
-template <std::size_t Bytes, std::size_t Count, typename Same, typename Move>
+// Each `live` slot of `to` that `same` pairs, moved by `move`, written over `to`'s; slots are
+// `stride` apart.
+template <std::size_t Bytes, std::size_t Count, typename Live, typename Same, typename Move>
 void poolBetween(psx::present::GuestRedraw &run,
+                 psx::present::MotionCount &count,
                  std::uint32_t address,
                  std::uint32_t stride,
                  const Pool<Bytes, Count> &from,
                  const Pool<Bytes, Count> &to,
+                 Live live,
                  Same same,
                  Move move) {
   for (std::size_t i = 0; i < Count; ++i) {
+    if (!live(to[i])) {
+      continue;
+    }
+    ++count.drawn;
     if (!same(from[i], to[i])) {
+      ++count.unpaired;
       continue;
     }
     std::array<std::uint8_t, Bytes> shown = to[i];
@@ -114,6 +122,7 @@ void poolBetween(psx::present::GuestRedraw &run,
 }
 
 void meshesBetween(psx::present::GuestRedraw &run,
+                   psx::present::MotionCount &count,
                    const Records &from,
                    const Records &to,
                    float t) {
@@ -121,8 +130,12 @@ void meshesBetween(psx::present::GuestRedraw &run,
     const auto list = load<std::uint32_t>(to.meshes[i], 0);
     const std::vector<std::uint32_t> &before = from.meshVertices[i];
     const std::vector<std::uint32_t> &after = to.meshVertices[i];
-    if (list == 0 || list != load<std::uint32_t>(from.meshes[i], 0) ||
-        before.size() != after.size()) {
+    if (list == 0) {
+      continue;
+    }
+    ++count.drawn;
+    if (list != load<std::uint32_t>(from.meshes[i], 0) || before.size() != after.size()) {
+      ++count.unpaired;
       continue;
     }
     for (std::size_t w = 0; w < after.size(); ++w) {
@@ -135,21 +148,24 @@ void meshesBetween(psx::present::GuestRedraw &run,
 }
 
 void particlesBetween(psx::present::GuestRedraw &run,
+                      psx::present::MotionCount &count,
                       const Records &from,
                       const Records &to,
                       float t) {
-  if (from.particlePool != to.particlePool) {
-    return;
-  }
   for (std::size_t i = 0; i < to.particles.size(); ++i) {
     const auto &before = from.particles[i];
     const auto &after = to.particles[i];
     if (after[particle::kKind] == particle::kEnd) {
       return;
     }
-    if (before[0] != after[0] || before[particle::kKind] != after[particle::kKind] ||
-        static_cast<std::int8_t>(after[particle::kKind]) < 0 ||
+    if (static_cast<std::int8_t>(after[particle::kKind]) < 0) {
+      continue;
+    }
+    ++count.drawn;
+    if (from.particlePool != to.particlePool || before[0] != after[0] ||
+        before[particle::kKind] != after[particle::kKind] ||
         after[particle::kAge] < before[particle::kAge]) {
+      ++count.unpaired;
       continue;
     }
     std::array<std::uint8_t, kParticleBytes> shown = after;
@@ -202,19 +218,24 @@ void read(Core &core, const Facts &facts, Records &records) {
   }
 }
 
-void writeBetween(psx::present::GuestRedraw &run,
-                  const Facts &facts,
-                  const Records &from,
-                  const Records &to,
-                  float t) {
+psx::present::MotionCount writeBetween(psx::present::GuestRedraw &run,
+                                       const Facts &facts,
+                                       const Records &from,
+                                       const Records &to,
+                                       float t) {
+  psx::present::MotionCount count;
   poolBetween(
       run,
+      count,
       facts.sprites,
       kSpriteBytes,
       from.sprites,
       to.sprites,
+      [](const auto &b) {
+        return b[sprite::kKind] != 0;
+      },
       [](const auto &a, const auto &b) {
-        return b[sprite::kKind] != 0 && a[sprite::kKind] == b[sprite::kKind] &&
+        return a[sprite::kKind] == b[sprite::kKind] &&
                load<std::uint32_t>(a, sprite::kColour) == load<std::uint32_t>(b, sprite::kColour);
       },
       [t](auto &shown, const auto &a, const auto &b) {
@@ -223,13 +244,16 @@ void writeBetween(psx::present::GuestRedraw &run,
       });
   poolBetween(
       run,
+      count,
       facts.glows,
       kGlowBytes,
       from.glows,
       to.glows,
+      [](const auto &b) {
+        return b[glow::kLife] != 0;
+      },
       [](const auto &a, const auto &b) {
-        return b[glow::kLife] != 0 && b[glow::kLife] <= a[glow::kLife] &&
-               a[glow::kKind] == b[glow::kKind];
+        return b[glow::kLife] <= a[glow::kLife] && a[glow::kKind] == b[glow::kKind];
       },
       [t](auto &shown, const auto &a, const auto &b) {
         positionBetween(shown, a, b, 0, t);
@@ -237,12 +261,16 @@ void writeBetween(psx::present::GuestRedraw &run,
       });
   poolBetween(
       run,
+      count,
       facts.beams,
       kBeamBytes,
       from.beams,
       to.beams,
+      [](const auto &b) {
+        return b[beam::kSegments] != 0;
+      },
       [](const auto &a, const auto &b) {
-        return b[beam::kSegments] != 0 && a[beam::kSegments] == b[beam::kSegments] &&
+        return a[beam::kSegments] == b[beam::kSegments] &&
                load<std::uint32_t>(a, beam::kColour) == load<std::uint32_t>(b, beam::kColour);
       },
       [t](auto &shown, const auto &a, const auto &b) {
@@ -253,14 +281,17 @@ void writeBetween(psx::present::GuestRedraw &run,
   const std::uint32_t countAt = head + 1;
   poolBetween(
       run,
+      count,
       facts.trails,
       facts.trailBytes,
       from.trails,
       to.trails,
+      [](const auto &b) {
+        return load<std::uint32_t>(b, trail::kOwner) != 0;
+      },
       [head, countAt](const auto &a, const auto &b) {
         const std::uint32_t points = b[countAt];
-        return load<std::uint32_t>(b, trail::kOwner) != 0 &&
-               load<std::uint32_t>(a, trail::kOwner) == load<std::uint32_t>(b, trail::kOwner) &&
+        return load<std::uint32_t>(a, trail::kOwner) == load<std::uint32_t>(b, trail::kOwner) &&
                a[countAt] == points && points >= 2 &&
                trail::kPoints + points * trail::kPointBytes <= head;
       },
@@ -283,8 +314,9 @@ void writeBetween(psx::present::GuestRedraw &run,
           }
         }
       });
-  meshesBetween(run, from, to, t);
-  particlesBetween(run, from, to, t);
+  meshesBetween(run, count, from, to, t);
+  particlesBetween(run, count, from, to, t);
+  return count;
 }
 
 } // namespace spyro::effect_pools

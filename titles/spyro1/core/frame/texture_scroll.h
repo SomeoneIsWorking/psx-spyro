@@ -15,8 +15,11 @@ namespace spyro1 {
 
 class TextureScroll final : public psx::present::MotionSource {
 public:
+  [[nodiscard]] const char *name() const override {
+    return "texture scroll";
+  }
   void sample(Core &core) override;
-  void write(psx::present::GuestRedraw &redraw, float t) const override;
+  psx::present::MotionCount write(psx::present::GuestRedraw &redraw, float t) const override;
 
 private:
   using NarrowWords = std::array<std::uint32_t, scroll::kNarrowRecordSize / 4>;

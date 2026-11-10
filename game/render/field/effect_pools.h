@@ -5,6 +5,7 @@
 #pragma once
 
 #include "guest_redraw.h"
+#include "motion_set.h"
 
 #include <array>
 #include <cstddef>
@@ -50,11 +51,12 @@ struct Records {
 
 void read(Core &core, const Facts &facts, Records &records);
 
-// `to`'s effects with each one that is the same effect in `from` moved `t` of the way from there.
-void writeBetween(psx::present::GuestRedraw &run,
-                  const Facts &facts,
-                  const Records &from,
-                  const Records &to,
-                  float t);
+// `to`'s effects with each one that is the same effect in `from` moved `t` of the way from there;
+// `to`'s live effects and how many of them had none.
+psx::present::MotionCount writeBetween(psx::present::GuestRedraw &run,
+                                       const Facts &facts,
+                                       const Records &from,
+                                       const Records &to,
+                                       float t);
 
 } // namespace spyro::effect_pools
