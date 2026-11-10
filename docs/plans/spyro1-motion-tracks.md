@@ -46,6 +46,8 @@ the draw adds one step before reading).
 | flame view rotation | `0x80078780..0x80078790` | written by Spyro's draw when `0x80078762` is set, read by `0x80058D64` | G:80023AC4 (`_DAT_80078780 = DAT_80071604 ...`) |
 | shadow list end, pool flag | `0x80075F00`, `0x800758B0` | cursors | G:8001F158, G:800573C8 |
 
+Nothing leaks (2026-11-10): boot through the title, warp `0/1/0`, Up held 600 steps, run with fps60 on (1284 in-betweens replayed) and off; the `fielddigest` main-RAM hash, I_STAT, I_MASK and pad match on all 3394 fields.
+
 ## Camera
 
 `g_Camera` = `0x80076DD0` (ext `camera.h`).
