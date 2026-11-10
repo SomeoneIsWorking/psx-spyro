@@ -202,6 +202,7 @@ A cut keeps the newer value for every track (no blend) in the frame it appears.
 | moby slot freed/reused | state byte +0x48 of a dynamic slot goes 0xFE/0xFD/0xFF and back; level mobys killed go bit 7 set | `port: native_moby_allocator.cpp` (`allocateDynamicMoby`, `releaseMoby`) |
 | particle slot reuse | kind byte (+1) 0xFE released, 0xFF free, new kind stamped by `0x80053570` | `port: native_particle_alloc.cpp` |
 | warps / teleports | a title warp or `mobys` debug teleport moves records between logic frames with no marker beyond the above; use a per-track move limit as the backstop | `port: core/debug/teleport.cpp`, `warp.cpp` |
+| title logo slides | `g_TitlescreenAnimIn/Out` u8[16] `0x8006FA74`/`0x8006FA84` indexed by `m_SubTick` `0x80078D84`, substate `0x80078D88` | Scalar on the table entry the draw reads (`title_slide.*`) | TitlescreenDrawSprite `0x8007CD38` | decomp `titlescreen.c` TSM_Init; menu/loading modes not a section (0206) |
 | respawn spiral, game over | `GS_Respawn`/`GS_GameOver` draw `0x8001CA38`, not the playing section | G:8001ED5C:74 |
 
 ## Open

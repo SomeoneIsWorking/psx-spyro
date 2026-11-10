@@ -51,6 +51,7 @@ inline constexpr std::uint32_t kLevelTransHudActive = 0x800756B0u;
 inline constexpr std::uint32_t kTitlescreenState = 0x80078D78u;
 inline constexpr std::uint32_t kTitlescreenMode = kTitlescreenState + 0x00u;     // m_Mode
 inline constexpr std::uint32_t kTitlescreenStage = kTitlescreenState + 0x04u;    // m_State
+inline constexpr std::uint32_t kTitlescreenSubTick = kTitlescreenState + 0x0Cu;  // m_SubTick
 inline constexpr std::uint32_t kTitlescreenSubState = kTitlescreenState + 0x10u; // m_SubState
 inline constexpr std::uint32_t kTitlescreenDemoType = kTitlescreenState + 0x1Cu; // m_DemoType
 inline constexpr std::uint32_t kGamestateTitleScreen = 13u;                      // GS_TitleScreen
@@ -62,6 +63,16 @@ inline constexpr std::uint32_t kTitleStageSetup = 0u;                           
 inline constexpr std::uint32_t kTitleStageActive = 2u;                           // TSS_Active
 inline constexpr std::uint32_t kDemoTypeCutscene = 0u;                           // TSD_Cutscene
 inline constexpr std::uint32_t kDemoTypeLevel = 1u;                              // TSD_Level
+// TSM_Init sub-state 2 slides the logo in from cutscene tick 1170; 3 draws it at rest and waits
+// for input; 4 slides it out, then the borders in. Each slide is a 16-byte table indexed by
+// m_SubTick.
+inline constexpr std::uint32_t kTitleLogoIn = 2u;
+inline constexpr std::uint32_t kTitleWaiting = 3u;
+inline constexpr std::uint32_t kTitleLogoOut = 4u;
+inline constexpr std::int32_t kTitleLogoInTick = 1170;
+inline constexpr std::uint32_t kTitlescreenAnimIn = 0x8006FA74u;  // g_TitlescreenAnimIn
+inline constexpr std::uint32_t kTitlescreenAnimOut = 0x8006FA84u; // g_TitlescreenAnimOut
+inline constexpr std::uint32_t kTitlescreenAnimSteps = 16u;
 
 // g_CutsceneLayout (loaders.c), written once at 0x80014A38; m_CurrentTick is its first word.
 inline constexpr std::uint32_t kCutsceneLayout = 0x80075680u;

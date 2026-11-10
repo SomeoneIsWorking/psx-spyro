@@ -1,34 +1,34 @@
 # 0206: Spyro 1 title screen in-betweens are shown whole
 
-Status: open again (2026-11-10). Spyro 1 draws its in-betweens by replay (`titles/spyro1/core/frame/draw_section.*`),
-which covers only GamestateDraw's GS_Playing section, so the composer and this producer no longer ran and
-`title_sprites.*` was deleted; the title screen's in-betweens are held (`not-replayed`) until the title state's
-draw is a replay section with the sprite positions as motion tracks.
+Status: open (2026-11-10) for the title's menu and loading modes only; the attract screen (TSM_Init) is
+replayed. Owner: `titles/spyro1/core/frame/draw_section.cpp:drawTitle`, `title_slide.*`.
 
 ## Observed
-Spyro 1, fps60, 16:9, real speed, unmapped window, boot with no input, `PSXPORT_DEBUG=compose`: from
-the title screen's first frame after the logo intro (logic about 586), every in-between logs
-`in-between shown whole: entry N unkeyed, packet 0x80187bb4` (or `0x801a3bb4`, the other packet
-buffer), 211 in one boot-to-title run. Each in-between there repeats its real frame, so the
-incoming logo and the PRESS START screen move at 30 fps.
+Spyro 1, fps60, boot with no input: from the title screen's first frame every in-between was held
+(`not-replayed`), so the incoming logo and the PRESS START screen moved at 30 fps. The replay covered only
+GamestateDraw's GS_Playing section.
 
 ## Cause
-The title overlay's logo sprite drawer (spyro-1 decomp `src/overlays/titlescreen.c`
-`TitlescreenDrawSprite`, called under GamestateDraw `0x8001ED5C`) writes a POLY_FT4 per frame that no
-producer keys, so `psxport present/frame_composer.cpp:composeFrame` refuses the in-between.
+GamestateDraw 0x8001ED5C calls TitlescreenDraw 0x8007CEE4 when `g_Gamestate` is 13; that function ends in
+the device tail (DrawSync, VSync, PutDispEnv/DrawEnv, DrawOTag), so it cannot be replayed whole, and nothing
+else drew the title as a section.
 
 ## Fix
-`titles/spyro1/render/title_sprites.*`: `TitleSprite` is the state producer for TitlescreenDrawSprite
-0x8007CD38 (disassembled from the running title overlay: a0 x, a1 y, a2 sprite, a3 colour; one POLY_FT4 at
-the cursor 0x800757B0 linked through AddPrimToOT 0x800168DC). Its override keys the packet by call site and
-the sprite's column, saves x, y and the packet, and runs the body; the render moves a sprite whose
-texture words match by the blended x/y and draws anything else as it is now. The drawer lives in the
-title overlay (id 48 at 0x8007AA38, 14336 bytes from WAD offset 0x5B800), whose range level overlays reuse,
-so `titleOverlayLanded`, called from the CD queue's transfer, installs the override against each landing of
-that image.
+`DrawSection::drawTitle` replays TitlescreenDraw's TSM_Init body (spyro-1 decomp
+`src/overlays/titlescreen.c`): the substate's TitlescreenDrawSprite 0x8007CD38 calls, 0x800521C0,
+0x8001F158, the two Memsets of 0x8006FCF4, 0x8001F798, the 0x800785D0 store, 0x800258F0, 0x8004EBA8 and the
+fade 0x800190D4. `replays()` runs it only in TSM_Init; the camera's yaw (+16 per tick) is the camera track.
+`TitleSlide` is the logo slides' motion source: the draw places them at `g_TitlescreenAnimIn/Out[m_SubTick]`
+(u8[16] at 0x8006FA74/0x8006FA84), so an in-between writes the entry the later tick reads `t` of the way from
+the earlier tick's entry. The slide values are whole native pixels, so a half step of an odd step rounds.
+
+## Still held
+TitlescreenDraw's menu and loading modes (`m_Mode` 1, 2) are not a replay section; their in-betweens are
+held. Demo mode (3) is GamestateDraw's 0x8001E6B8 branch, also not covered.
 
 ## Proof
-Boot to the title at real speed, 40 s: 1008 of 1008 in-betweens composed, no `compose` refusal (before:
-421 shown whole). New-game route: none shown whole through the title, save picker and cutscene. Stepped
-capture of the logo sliding in (`scratch/judder-fix/logoseq/s1018`): the logo's lowest edge moves
-4..7 rows on every present.
+Boot with no input to logic 1016 (logo slide in, `scratch/ram0236/`, `run.py`, `logo.py`, hidden, unpaced,
+judgement settings):
+- t = 1 (local probe, not shipped): every in-between equals its real frame, full frame, 12 of 12 (`t1`).
+- t = 0.5: the logo's lowest edge, reals 119 / 199 / 279 / 367 / 455 / 551 / 655, in-betweens 159 / 239 /
+  327 / 407 / 503 / 599 (`ta`, `title/logo5.png`); 596 in-betweens composed, no replay refusal.

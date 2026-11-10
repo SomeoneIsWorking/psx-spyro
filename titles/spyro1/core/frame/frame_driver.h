@@ -40,7 +40,7 @@ public:
     cut_.declare();
     replay_.forget();
   }
-  // GS_Playing's in-betweens, replayed from its draw section.
+  // GS_Playing's and the title screen's in-betweens, replayed from the draw section.
   [[nodiscard]] psx::present::ReplayFrame &replay() {
     return replay_;
   }
@@ -68,7 +68,7 @@ private:
   FrameDraw draw_;
   DrawSection section_;
   DrawMotion motion_;
-  psx::present::ReplayFrame replay_{section_, motion_.tracks()};
+  psx::present::ReplayFrame replay_{section_, motion_.tracks(), motion_.sources()};
   spyro::FrameCut cut_;
   std::uint32_t gameplayFrame_ = 0;
   std::optional<std::uint32_t>

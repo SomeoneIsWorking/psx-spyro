@@ -78,6 +78,7 @@ set(SPYRO_RUNTIME_SOURCES
   titles/spyro1/core/frame/frame_draw.cpp
   titles/spyro1/core/frame/draw_section.cpp
   titles/spyro1/core/frame/draw_motion.cpp
+  titles/spyro1/core/frame/title_slide.cpp
   titles/spyro1/core/frame/draw_cuts.cpp
   titles/spyro1/core/frame/frame_driver.cpp
   titles/spyro1/render/ordering_table.cpp
