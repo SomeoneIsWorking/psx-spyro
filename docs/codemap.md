@@ -6,7 +6,7 @@ Frame loop: not owned. Spyro 1 runs update `0x8003385C` and draw `0x8001ED5C` an
 
 - `game/core/title_runtime_registry.*` — product catalog / title picker entries: the three runtimes and their generated identities
 - `game/core/runtime.*` — Spyro runtime base: session, state producers, presentation pacing, widescreen projection policy, panel logo, run report
-- `game/core/session.*` — per-Core title state: archive transfer, disc landing count, field owner, HUD draw context, terrain visibility, state producers
+- `game/core/session.*` — per-Core title state: archive transfer, disc landing count, field owner, HUD draw context, state producers
 - `game/core/field_owner.*` — display field / VSync delivery sequence: pad, clock, VBlank root counter, observers, snapshot, presentation fence, audio, host turn
 - `game/core/boot_prefix_runtime.*`, `boot_prefix_frame_driver.*` — S2/S3 boot: crt0, stock libraries, the retail boot prefix as a resumable call, then update and draw one field per step, the replay sampled before each draw, each logic frame presented when its draw returns, each field of the fade-before-load loop presented on its own
 - `game/core/draw_section.*` — S2/S3 per-field draw body as a replay section: buffer flip, camera builder and position copy, the image's state switch (subclasses in `titles/spyro2|3/core/draw_section.*`), flatten; the device tail skipped
@@ -23,6 +23,7 @@ Frame loop: not owned. Spyro 1 runs update `0x8003385C` and draw `0x8001ED5C` an
 - `game/render/screen_overlays.*` — fullscreen tint / fade and cinematic letterbox producers shared by all three images
 - `game/render/field/effect_pools.*` — S2/S3 effects pass pools (sprites, glows, beams, trails, vertex meshes, particles): one field's records read, paired by slot and moved for the replay
 - `game/render/field/keyframe_blend.*` — moby / Spyro animation keyframe pair and progress (S2/S3 nibbles, S1 64ths and 16ths), pose between two fields and across an animation switch
+- `game/render/field/moby_motion.*` — a moby slot between two samples for all three replays: the moby array's records, position, angles, pose across an animation switch; titles subclass for layout test and own words
 - `game/render/field/moby_record.*`, `record_blend.h` — moby record layout and identity, record lerp, little-endian field load/store and angle lerp shared by S1 and S2
 - `game/render/field/guest_moby_*` — moby / object visibility walk: sphere frustum cull, GTE use, orientation onto camera rotation; whether a record's two animation slots share a vertex layout
 - `game/render/field/moby_pose.*` — S2/S3 model-space vertices of one moby render-list entry: the drawer's vertex streams decoded and blended toward frame B
@@ -30,7 +31,7 @@ Frame loop: not owned. Spyro 1 runs update `0x8003385C` and draw `0x8001ED5C` an
 - `game/render/field/guest_sky_drawer.*` — S2/S3 sky drawer: visible sky sectors projected and outcoded against the presented window, triangle strips chained one bin past the mark
 - `game/render/field/guest_view_slope.*` — horizontal frustum slope, screen margin and outcode window at 4:3 or widened 16:9
 - `game/render/field/guest_render_globals.h` — camera, ordering-table, overlay-pair and packet-cursor guest words per image
-- `game/render/field/guest_working_memory.h` — in-between packet arena window, packet tag link, rotation words, saved draws
+- `game/render/field/guest_working_memory.h` — packet tag link, rotation words
 - `game/render/field/guest_word.h` — MIPS word arithmetic: signed view, `sra`, absolute value, sign-extended halfword, packed 11/11/10 delta fields
 - `game/render/field/guest_packet.h` — GP0 packet tags, packet sizes and command words the emitters write
 - `game/render/state_producer_override.h` — native draw override installed with the state producer that renders its saved draw
@@ -44,7 +45,7 @@ Frame loop: not owned. Spyro 1 runs update `0x8003385C` and draw `0x8001ED5C` an
 - `titles/spyro1/core/guest_globals.h`, `guest_gp.h`, `guest_functions.h` — S1 guest globals, gp, callee entries, names from the spyro-1 decomp
 - `titles/spyro1/core/native_state.h` — S1 title state: shaded-line call sites, replay angle fractions
 - `titles/spyro1/core/execution/` — S1 native leaves: vector math, GTE geometry, angles, rand and random range, utilities, level initialisation, cooperative CD loader queue
-- `titles/spyro1/core/frame/` — S1 main loop: frame driver, GamestateDraw and its VSync tail, boot sequence and logos, Start press latch, transition skip, skip map, draw setup, update budget, logo facts; `draw_section.*` the GS_Playing draw as a replay section, `draw_motion.*` its motion tracks and record rules (camera, Spyro, mobys, HUD, particles, sparkles, flame, counters), `draw_cuts.*` the camera snap and Spyro reset that forget the earlier sample
+- `titles/spyro1/core/frame/` — S1 main loop: frame driver, GamestateDraw and its VSync tail, boot sequence and logos, Start press latch, transition skip, skip map, draw setup, update budget, logo facts; `draw_section.*` the GS_Playing draw as a replay section, `draw_motion.*` its motion tracks and record rules (camera, Spyro, mobys, HUD, particles, sparkles, flame, counters), `draw_cuts.*` the camera snap, preset reset and Spyro reset that declare a cut
 - `titles/spyro1/core/audio/` — S1 sound: libspu natives, SPU registers, voices, pitch, key status, positional moby sound
 - `titles/spyro1/core/moby/` — S1 mobys / game objects: allocator, lists, transform, animation, collision, collision shade, environment light, shaded queue, shared models (PETE.WAD), level globals table
 - `titles/spyro1/core/player/` — S1 player: Spyro physics, body / head / tail animation, cutscene playback

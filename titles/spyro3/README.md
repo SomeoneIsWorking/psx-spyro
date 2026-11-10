@@ -16,16 +16,16 @@ stock seam at its measured leaves (`CdRead 0x8005D96C`, `CdSync 0x8005E074`, `Cd
 | address | owner | what |
 |---|---|---|
 | `0x8005D35C` | `psx::hle::StockLibgte` | SetGeomOffset; the one SetGeomScreen write stays guest code |
-| `0x80022378` | `game/render/terrain/guest_terrain_*` | the terrain drawer, every pass; a Record producer |
+| `0x80022378` | `game/render/terrain/guest_terrain_*` | the terrain drawer, every pass |
 | `0x8004E664` | `game/render/engine_render_overrides.h`, `game/render/terrain/guest_depth_bins.*` | the ordering-table flatten: assigns each packet its bin, then runs the original; the second-pass flattens of states 4 and 0xD (returns `0x8001EA40`, `0x8001EB4C`) assign none |
 | `0x80030478` | `game/render/field/guest_moby_*` | the moby visibility walk |
 | `0x80029904`, `0x80029BB0`, `0x800289C8`, `0x800291B8` | `render/hud_anchor.*` | HUD counters, lives and their icons and values anchored at the widened edges |
 
 ## Presentation
 
-Record path; 60 fps is psxport F-FPS60 (`docs/features.md`). The terrain drawer saves its field's
-camera, sector visibility and the guest words it read, and `guest_terrain::TerrainStateProducer`
-redraws the terrain from them at any t. `spyro::FrameCut` declares a cut on a new game state
+Record path; 60 fps is psxport F-FPS60 (`docs/features.md`). Each in-between is a replay of the
+draw body 0x8001E638 with its inputs blended (`titles/spyro3/core/draw_section.*`,
+`docs/plans/spyro23-replay.md`). `spyro::FrameCut` declares a cut on a new game state
 (`0x8006E344`), level (`0x8006C5BC`) or a camera placement by the controller `0x800144B4`
 (`0x8006E044`/`0x8006E048`). Widescreen keeps the guest's projection and draw area and widens the
 canvas.

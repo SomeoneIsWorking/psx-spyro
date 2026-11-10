@@ -10,7 +10,8 @@ draw body 0x800156FC / 0x8001E638. Gameplay moves halfway (Glimmer `warp 0/1/0`,
 
 1. **Loading screen, state 5** (S2 0x800151F0, S3 0x80059038): never replayed, held at 30 Hz. S2's handler polls
    until it runs out of budget at 0x800577A0; S3's waits in VSync at 0x8005927C (`scratch/replay23/s3a.log`, 216
-   refusals before `replaysState` named the state).
+   refusals before `replaysState` named the state). A state the switch has no case for (S3 8, 0x11) is not
+   replayed either.
 2. **S3 level load, state 3** (0x8001DC5C): one refusal per warp, budget exhausted at 0x8005C224, during the load's
    fade (`s3c.log`). Not traced.
 3. **Untracked inputs step at 30 Hz**: the dispatcher's fades (S2 0x80066F68 / 0x80067150; S3 0x8006C598 /
@@ -20,11 +21,7 @@ draw body 0x800156FC / 0x8001E638. Gameplay moves halfway (Glimmer `warp 0/1/0`,
 4. **Not shown since the change**: the title screen (state 11), cutscenes (6, 0x12), conversations (1), the pause
    menu and S3's Sparx second pass (state 4, `DrawSection::flattenFrame`), the boss and scene states. The switch
    replays them; none has been judged in frames.
-5. **Dead terrain in-between mode**: the terrain drawer's `FrameMode::InBetween`, `InBetweenWindow`, its
-   in-between camera and arena, `TerrainImage::camera`, `Session::terrainVisibility` and `terrainPacketBudget`
-   (`game/render/terrain/guest_terrain_drawer.*`, `guest_terrain_frame.h`, `engine_terrain_image.cpp`) have no
-   caller now that `Rebuild` is gone. They thread through every pass, so they go in a restructure of their own.
-6. **Pacing**: the paced Glimmer run (`scratch/replay23/pace2.log`) was taken at host load 20+ (other agents'
+5. **Pacing**: the paced Glimmer run (`scratch/replay23/pace2.log`) was taken at host load 20+ (other agents'
    Godot): every present alternates t=0.5 composed / t=1, but the simulated display shows 292 of 946 vblanks at 0.0
    from host stalls. Needs a quiet host; no paced Spyro 3 run.
 

@@ -189,7 +189,8 @@ redrew the HUD at the later field's values, so stepping is no regression.
 `spyro::FrameCut` already decides them for these titles (`game/core/frame_cut.*`, through
 `BootPrefixRuntime::sealedFrameIsCut`): game state (level-load fades counted as the field), level id, the camera
 controller's three placement steps (`0x80067ED0`/`0x80067ED4`, `0x8006E044`/`0x8006E048`) and a cutscene key
-track's shot change. The presenter tests the cut before `covers`, so the replay needs only `forget()` where its
+track's shot change. An interval with a cut sealed in it is held as drawn even when a replay is present
+(`FramePresenter::presentRecords` tests `cutBetween` before `covers`), so the replay needs only `forget()` where its
 sample breaks: a frame whose draw gate is set or whose state the section does not replay, and a state load.
 Warps (`titles/spyro2|3/core/warp.*`) go through the guest's own load, so the level id cuts them.
 
@@ -226,8 +227,8 @@ record, the one that walks, as wanted.
    `passOverKeyed`, `fieldClaim`/`saveField`/`ownSecondPass`, `FieldRedrawProducer`, `Session::fieldRedraw` and
    `secondPass`, the screen-draw and second-pass facts and Spyro 3's `codeLanded` install of them. The flatten
    override keeps naming the bins in `core.otTables` (the replay ends the walk it starts).
-   `TerrainStateProducer`, `terrain_rebuild` and `guest_camera_builder::cameraBetween` are still Spyro 1's
-   (`titles/spyro1/render/terrain_image.cpp`), so they stay until Spyro 1 drops its producers.
+   `TerrainStateProducer`, `terrain_rebuild`, `cameraBetween` and the terrain drawer's in-between mode went with
+   them.
 4. All field-drawing states at once: the presenter holds every interval a replay title does not cover
    (`frame_presenter.cpp`, `HeldCause::NotReplayed`), so replaying gameplay alone would freeze the title screen,
    cutscenes, conversations, level-load fades and the pause menu at 30 Hz where field_redraw moves them today. The
