@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <optional>
 
 namespace spyro::keyframe_blend {
 namespace {
@@ -34,10 +35,36 @@ double share(const Pose &pose, Progress encoding) {
   return static_cast<double>(step(pose.progress, encoding)) / steps(pose.progress, encoding);
 }
 
-// `to`'s frame A is `from`'s frame B.
-bool advanced(const Pose &from, const Pose &to) {
-  return (to.keyframes & 0xFFu) == ((from.keyframes >> 8) & 0xFFu) &&
-         ((to.keyframes >> 16) & 0xFFu) == (from.keyframes >> 24);
+// A progress byte steps a moby under four frames a tick.
+constexpr std::uint32_t kMostFramesPast = 3;
+
+std::uint32_t slotA(const Pose &pose) {
+  return pose.keyframes & 0xFFu;
+}
+std::uint32_t slotB(const Pose &pose) {
+  return (pose.keyframes >> 8) & 0xFFu;
+}
+std::uint32_t frameA(const Pose &pose) {
+  return (pose.keyframes >> 16) & 0xFFu;
+}
+std::uint32_t frameB(const Pose &pose) {
+  return pose.keyframes >> 24;
+}
+
+// The whole frames of `from`'s animation between its frame B and `to`'s frame A: 0 when `to`
+// starts at `from`'s frame B, more when the animation stepped past it within the tick.
+std::optional<std::uint32_t> framesPast(const Pose &from, const Pose &to) {
+  if (slotA(to) != slotB(from)) {
+    return std::nullopt;
+  }
+  if (frameA(to) == frameB(from)) {
+    return 0u;
+  }
+  if (slotA(from) != slotB(from) || frameB(from) != frameA(from) + 1 || frameA(to) < frameB(from) ||
+      frameA(to) - frameB(from) > kMostFramesPast) {
+    return std::nullopt;
+  }
+  return frameA(to) - frameB(from);
 }
 
 bool samePair(const Pose &from, const Pose &to, Progress encoding) {
@@ -59,23 +86,40 @@ std::array<std::uint32_t, 2> nearer(const Pose &pose, Progress encoding) {
 } // namespace
 
 bool continues(const Pose &from, const Pose &to, Progress progress) {
-  return samePair(from, to, progress) || advanced(from, to);
+  return samePair(from, to, progress) || framesPast(from, to).has_value();
 }
 
 Pose between(const Pose &from, const Pose &to, float t, Progress progress) {
-  if (!continues(from, to, progress)) {
+  const bool inPair = samePair(from, to, progress);
+  const std::optional<std::uint32_t> past = framesPast(from, to);
+  if (!inPair && !past) {
     return to;
   }
-  const bool inPair = samePair(from, to, progress);
-  const double shown = share(from, progress) +
-                       ((inPair ? 0.0 : 1.0) + share(to, progress) - share(from, progress)) * t;
-  const std::uint32_t inFrom = nearestStep(from, shown, progress);
-  if (inFrom < steps(from.progress, progress)) {
-    return at(from, inFrom, progress);
+  // The frames the tick stepped past `from`'s frame B before `to`'s frame A; -1 inside one pair.
+  const double skipped = inPair ? -1.0 : static_cast<double>(past.value_or(0));
+  const double shown =
+      share(from, progress) + (1.0 + skipped + share(to, progress) - share(from, progress)) * t;
+  // The pair starting `frames` frames past `from`'s frame A: a pair of `from`'s animation the tick
+  // stepped through, at `to`'s step count, until `to`'s own.
+  const auto starting = [&](std::uint32_t frames) {
+    const std::uint32_t first = frameA(from) + frames;
+    if (static_cast<double>(frames) > skipped) {
+      return to;
+    }
+    return Pose{.keyframes = slotA(from) | (slotA(from) << 8) | (first << 16) | ((first + 1) << 24),
+                .progress = to.progress};
+  };
+  const auto whole = static_cast<std::uint32_t>(std::max(0.0, shown));
+  const Pose pair = whole == 0 ? from : starting(whole);
+  const std::uint32_t k = nearestStep(pair, shown - whole, progress);
+  if (k < steps(pair.progress, progress)) {
+    return at(pair, k, progress);
   }
-  return at(to,
-            std::min(nearestStep(to, shown - 1.0, progress), steps(to.progress, progress) - 1),
-            progress);
+  if (whole == 0 || static_cast<double>(whole) <= skipped) {
+    // Rounded onto the pair's frame B, the next pair's frame A.
+    return at(starting(whole + 1), 0, progress);
+  }
+  return at(to, steps(to.progress, progress) - 1, progress);
 }
 
 Pose across(const Pose &from, const Pose &to, float t, Progress progress) {

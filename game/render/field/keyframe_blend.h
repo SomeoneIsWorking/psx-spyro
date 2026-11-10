@@ -21,7 +21,8 @@ struct Progress {
 
 inline constexpr Progress kNibbleSteps{};
 
-// `to` is `from`'s pair further on, or the pair after it.
+// `to` is `from`'s pair further on, the pair after it, or a pair of `from`'s animation a few
+// frames on (the tick stepped through whole frames).
 [[nodiscard]] bool continues(const Pose &from, const Pose &to, Progress progress = kNibbleSteps);
 
 // The pose at `t`: in `from`'s pair or, when `to`'s frame A is `from`'s frame B, in `to`'s, at the
