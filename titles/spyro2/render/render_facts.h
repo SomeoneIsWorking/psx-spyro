@@ -142,6 +142,14 @@ inline constexpr spyro::guest_moby::Facts kMobyFacts{
     .exitV0 = 0x8006820Cu,
 };
 
+// Spyro's drawer, 0x80041DBC. It projects his vertices with RTPS and keeps each SZ3 (800423CC),
+// then sorts every face into its own bucket table by the sum of its four depths less the face's
+// bias, 64 of that sum to a bucket (80042C48), and links the buckets into the ordering table
+// (800437F4): a per-face sort, so his faces test each other.
+inline constexpr std::uint32_t kSpyroDrawer = 0x80041DBCu;
+// One of those buckets in SZ units.
+inline constexpr float kSpyroDrawerBin = 16.0f;
+
 // What the draw body's replay moves (core/draw_motion.h).
 //
 //   80041E04  the Spyro drawer's base 0x80069FF0, its position words; 800421B0 hands FUN_8001B6C8

@@ -90,6 +90,7 @@ void Runtime::registerOverrides(Game &game) {
                                   kIntroCard.overrideName,
                                   spyro::intro_card::drawOverride<kIntroCard, kRenderGlobals>);
   hud_anchor::registerOverrides(game.core);
+  game.core.depthTest.mark(kSpyroDrawer, psx::present::DepthOrder::Polygon, kSpyroDrawerBin);
   lucent::info(
       "boot",
       "installed Spyro 2's stock libraries and natives for the projection leaves, the moby "

@@ -313,3 +313,10 @@ lines are byte-identical, 2914 and 2813 fields.
     ClearImage `0x8005A3E8`), so `spyro3::DrawSection::replaysState` declines that frame; the screen is black there.
 11. Cost: each replay runs the whole field, terrain included, once per in-between; not measured against
     field_redraw's dispatcher redraw plus terrain rebuild.
+13. Native depth (psxport route D step 1, vertex places): Spyro 2 marks only Spyro's drawer `0x80041DBC`, `Polygon`
+    with its 16-SZ bucket as the bin (`titles/spyro2/render/render_facts.h`). It buckets each face by its summed SZ, so
+    a far face can paint over a near one: the horn fold at Glimmer and a far face over his hip. Both are gone on real
+    presents and in-betweens (`scratch/depth/h5_tip7.png`; `h4_seq.png` without depth, `h5_seq.png` with). Not yet
+    marked: the terrain drawer, the moby draws (`0x80044504` and the other guest sites) and all of Spyro 3, because
+    their depths are not yet in one view unit. Each needs its `DepthUnit` derived from its transform before it is
+    marked.

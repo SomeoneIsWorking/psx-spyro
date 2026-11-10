@@ -44,6 +44,9 @@ void drawTerrain(Core *core) {
 
 void registerOverrides(Core &core) {
   psx::cpu::installNativeOverride(core, kSharedFacts.entry, kSharedFacts.overrideName, drawTerrain);
+  core.depthTest.mark(kSharedFacts.entry,
+                      psx::present::DepthOrder::Polygon,
+                      spyro::guest_render_globals::kDepthBinViewUnits);
 }
 
 } // namespace spyro1::terrain

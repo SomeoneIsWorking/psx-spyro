@@ -849,6 +849,9 @@ void drawPortals(Core *core) {
 
 void registerOverrides(Core &core) {
   psx::cpu::installNativeOverride(core, kEntry, "spyro1-portals", drawPortals);
+  // The fill and the sky through the opening test at the outline's plane (Portals::onOutlinePlane).
+  core.depthTest.mark(
+      kEntry, psx::present::DepthOrder::Polygon, spyro::guest_render_globals::kDepthBinViewUnits);
 }
 
 } // namespace spyro1::portals

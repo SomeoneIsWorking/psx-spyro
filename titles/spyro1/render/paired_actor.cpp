@@ -354,6 +354,7 @@ void drawSpyro(Core *core) {
 
 void registerPairedActorOverrides(Core &core) {
   psx::cpu::installNativeOverride(core, kPairedActorEntry, "spyro1-paired-actor", drawSpyro);
+  core.depthTest.mark(kPairedActorEntry, psx::present::DepthOrder::Object);
 }
 
 } // namespace spyro1::actors

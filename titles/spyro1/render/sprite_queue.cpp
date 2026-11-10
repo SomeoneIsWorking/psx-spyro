@@ -757,6 +757,7 @@ void drawQueue(Core *core) {
 
 void registerSpriteQueueOverrides(Core &core) {
   psx::cpu::installNativeOverride(core, kSpriteQueueEntry, "spyro1-sprite-queue", drawQueue);
+  core.depthTest.mark(kSpriteQueueEntry, psx::present::DepthOrder::Object);
 }
 
 } // namespace spyro1::actors

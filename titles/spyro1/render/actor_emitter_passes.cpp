@@ -62,6 +62,8 @@ void registerEmitterOverrides(Core &core) {
       core, kRegularEmitter.entry, kRegularEmitter.overrideName, emitterOverride<kRegularEmitter>);
   psx::cpu::installNativeOverride(
       core, kLitEmitter.entry, kLitEmitter.overrideName, emitterOverride<kLitEmitter>);
+  core.depthTest.mark(kRegularEmitter.entry, psx::present::DepthOrder::Object);
+  core.depthTest.mark(kLitEmitter.entry, psx::present::DepthOrder::Object);
 }
 
 } // namespace spyro1::actors

@@ -1,9 +1,12 @@
 # 0222 — Spyro 1: world meshes overlap in painter's order at high resolution
 
-Status: open (2026-11-04): native depth is on by default and every opaque world producer is marked, but the report's
+Status: open (2026-11-11): native depth is on by default and every opaque world draw is marked, but the report's
 stance (Spyro on the step by the tower) is not reached, so its overlap is not judged on our build (below). Owner: psxport native depth
-(`docs/presentation.md` Depth); Spyro 1 marks `terrain_image.cpp`, `actor_emitter_producer.cpp` and
-`paired_actor_producer.cpp` and `sprite_queue_producer.cpp`.
+(`docs/presentation.md` Depth); Spyro 1 marks its native draws by entry in `terrain_image.cpp`, `actor_emitter_passes.cpp`,
+`paired_actor.cpp`, `sprite_queue.cpp` and `portals.cpp`. The producers' deletion had dropped every mark; they came back with
+psxport's vertex places, which name the override that placed each vertex. Artisans `warp 0/1/0`, depth off against on, the
+same present: 656 pixels differ, at the tower corner and a ledge end beside the wall, on the real present and its
+in-between alike (`scratch/depth/s1_tower.png`, `s1_mid.png`).
 
 ## Observed
 Player report `20261031-174745-depth-issues`, pad frame 15397, mark x 43-56% y 46-60%: a pale ledge-trim polygon
