@@ -2,15 +2,16 @@
 
 #include "core.h"
 #include "gte_registers.h"
+#include "native_dispatch.h"
 #include "render/field/guest_moby_rotation.h"
 #include "render/field/guest_packet.h"
+#include "render/field/guest_view_slope.h"
 #include "render/field/guest_word.h"
 #include "render/field/moby_record.h"
 #include "render/terrain/guest_depth_bins.h"
 #include "spyro1/core/guest_globals.h"
 #include "spyro1/render/actor_facts.h"
 #include "spyro1/render/terrain_facts.h"
-#include "state_producer.h"
 
 #include <array>
 
@@ -183,6 +184,26 @@ void MobyShadows::draw(std::uint32_t record, std::uint32_t radius) {
     cursor += spyro::guest_packet::kFt3Bytes;
   }
   memory_.mem_w32(kCursor, cursor);
+}
+
+namespace {
+
+void drawShadows(Core *core) {
+  Core &guest = *core;
+  const psx::present::EmitMemory memory(guest);
+  MobyShadows shadows(guest, memory, spyro::presentedBounds(guest, terrain::kSharedFacts));
+  shadows.begin();
+  const std::uint32_t end = guest.mem_r32(actors::kShadowListEnd);
+  for (std::uint32_t entry = actors::kShadowList; entry != end; entry += 8) {
+    shadows.draw(guest.mem_r32(entry), guest.mem_r32(entry + 4));
+  }
+  shadows.end();
+}
+
+} // namespace
+
+void registerOverrides(Core &core) {
+  psx::cpu::installNativeOverride(core, kEntry, "spyro1-moby-shadows", drawShadows);
 }
 
 } // namespace spyro1::shadows

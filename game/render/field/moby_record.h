@@ -27,6 +27,14 @@ struct Between {
   std::uint32_t angleFractions = 0;
 };
 
+// Three angle bytes (the low bytes of `from` and `to`) `t` of the way the short way round: the
+// bytes each lies at or past, and the sixteenths past them in Between::angleFractions form.
+struct AnglesBetween {
+  std::uint32_t bytes = 0;
+  std::uint32_t fractions = 0;
+};
+[[nodiscard]] AnglesBetween anglesBetween(std::uint32_t from, std::uint32_t to, float t);
+
 // `to` with its position and angles `t` of the way from `from`'s, the angles the short way round.
 [[nodiscard]] Between between(const Bytes &from, const Bytes &to, float t);
 

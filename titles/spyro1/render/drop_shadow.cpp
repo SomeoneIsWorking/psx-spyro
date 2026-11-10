@@ -2,12 +2,12 @@
 
 #include "core.h"
 #include "gte_registers.h"
+#include "native_dispatch.h"
 #include "render/field/guest_packet.h"
 #include "render/field/guest_render_globals.h"
 #include "render/field/guest_word.h"
 #include "render/terrain/guest_depth_bins.h"
 #include "spyro1/render/actor_facts.h"
-#include "state_producer.h"
 
 namespace spyro1::shadow {
 namespace {
@@ -43,7 +43,8 @@ std::uint32_t frameData(std::uint32_t word) {
 
 } // namespace
 
-DropShadow::DropShadow(Core &core, const psx::present::EmitMemory &memory) : core_(core), memory_(memory) {}
+DropShadow::DropShadow(Core &core, const psx::present::EmitMemory &memory)
+    : core_(core), memory_(memory) {}
 
 bool DropShadow::draw() {
   if (asSigned(memory_.mem_r32(shadow_block::kSuppress)) > 0) {
@@ -68,9 +69,12 @@ void DropShadow::placeCentre() {
   auto &gte = core_.gte();
   const std::uint32_t position = kRenderGlobals.cameraPosition;
   const std::uint32_t x = memory_.mem_r32(shadow_block::kAnchor) - memory_.mem_r32(position);
-  const std::uint32_t y = memory_.mem_r32(position + 4) - memory_.mem_r32(shadow_block::kAnchor + 4);
-  const std::uint32_t z = memory_.mem_r32(position + 8) - memory_.mem_r32(shadow_block::kAnchor + 8);
-  const psx::gte::RotationWords camera = spyro::guest_memory::rotationAt(memory_, kRenderGlobals.cameraRotation);
+  const std::uint32_t y =
+      memory_.mem_r32(position + 4) - memory_.mem_r32(shadow_block::kAnchor + 4);
+  const std::uint32_t z =
+      memory_.mem_r32(position + 8) - memory_.mem_r32(shadow_block::kAnchor + 8);
+  const psx::gte::RotationWords camera =
+      spyro::guest_memory::rotationAt(memory_, kRenderGlobals.cameraRotation);
   gte.loadRotation(camera);
   gte.loadTranslation({});
   gte.writeData(gte::kVz0, x);
@@ -82,7 +86,8 @@ void DropShadow::placeCentre() {
   gte.writeControl(gte::kTranslationZ, gte.readData(gte::kMac3));
   gte.writeControl(gte::kTranslationY, gte.readData(gte::kMac2));
   gte.writeControl(gte::kTranslationX, gte.readData(gte::kMac1));
-  const std::uint32_t cosine = memory_.mem_r16(kRenderGlobals.cameraSineTable + spyro::guest_render_globals::kCosineOffset + heading);
+  const std::uint32_t cosine = memory_.mem_r16(
+      kRenderGlobals.cameraSineTable + spyro::guest_render_globals::kCosineOffset + heading);
   const std::uint32_t sine = memory_.mem_r16(kRenderGlobals.cameraSineTable + heading);
   gte.writeData(gte::kVxy0, cosine);
   gte.writeData(gte::kVz0, sine);
@@ -109,11 +114,13 @@ void DropShadow::stageRadii() {
   if (blend == 0) {
     const std::uint32_t animation = memory_.mem_r8(kSpyro + kAnimation);
     const std::uint32_t header = memory_.mem_r32(model + (animation << 2) + kAnimationTable);
-    frame = frameData(memory_.mem_r32(header + (memory_.mem_r8(kSpyro + kFrame) << 2) + kFrameTable));
+    frame =
+        frameData(memory_.mem_r32(header + (memory_.mem_r8(kSpyro + kFrame) << 2) + kFrameTable));
   } else {
     const std::uint32_t animations = memory_.mem_r16(kSpyro + kAnimation);
     const std::uint32_t frames = memory_.mem_r16(kSpyro + kFrame);
-    const std::uint32_t header = memory_.mem_r32(model + ((animations & 0xFFu) << 2) + kAnimationTable);
+    const std::uint32_t header =
+        memory_.mem_r32(model + ((animations & 0xFFu) << 2) + kAnimationTable);
     const std::uint32_t partnerHeader =
         memory_.mem_r32(model + ((animations >> 8) << 2) + kAnimationTable);
     const std::uint32_t first =
@@ -151,8 +158,8 @@ void DropShadow::stageRadii() {
 
 void DropShadow::stageRing() {
   const std::uint32_t heights = memory_.mem_r32(shadow_block::kHeights);
-  const bool airborne =
-      (memory_.mem_r32(shadow_block::kSlotFlags) | memory_.mem_r32(shadow_block::kSlotFlags + 4)) != 0;
+  const bool airborne = (memory_.mem_r32(shadow_block::kSlotFlags) |
+                         memory_.mem_r32(shadow_block::kSlotFlags + 4)) != 0;
   memory_.mem_w32(kStaging + 0x10, memory_.mem_r32(shadow_block::kHeights + 4));
   memory_.mem_w32(kStaging + 0x0C, heights);
   memory_.mem_w32(kStaging + 0x14, heights);
@@ -162,12 +169,13 @@ void DropShadow::stageRing() {
   for (std::uint32_t i = 0; i < 8; ++i) {
     const std::int32_t radius = shrink(memory_.mem_r8(kStaging + i));
     const std::int32_t next = shrink(memory_.mem_r8(kStaging + i + 1));
-    const std::int32_t height = shrink(static_cast<std::int8_t>(memory_.mem_r8(kStaging + 0xC + i)));
+    const std::int32_t height =
+        shrink(static_cast<std::int8_t>(memory_.mem_r8(kStaging + 0xC + i)));
     const std::int32_t nextHeight =
         shrink(static_cast<std::int8_t>(memory_.mem_r8(kStaging + 0xD + i)));
     memory_.mem_w8(kRadii + 2 * i, static_cast<std::uint8_t>(radius));
     memory_.mem_w8(kRadii + 2 * i + 1,
-               static_cast<std::uint8_t>(static_cast<std::uint32_t>(radius + next) >> 1));
+                   static_cast<std::uint8_t>(static_cast<std::uint32_t>(radius + next) >> 1));
     memory_.mem_w8(kHeights + 2 * i, static_cast<std::uint8_t>(height));
     memory_.mem_w8(kHeights + 2 * i + 1, static_cast<std::uint8_t>((height + nextHeight) >> 1));
   }
@@ -221,6 +229,21 @@ void DropShadow::drawSegments() {
   memory_.mem_w32(kRenderGlobals.primitiveCursor, cursor);
   v0_ = kRadii;
   v1_ = centreScreen_.word();
+}
+
+namespace {
+
+void drawShadow(Core *core) {
+  const psx::present::EmitMemory memory(*core);
+  DropShadow shadow(*core, memory);
+  shadow.draw();
+  shadow.end();
+}
+
+} // namespace
+
+void registerOverrides(Core &core) {
+  psx::cpu::installNativeOverride(core, kEntry, "spyro1-drop-shadow", drawShadow);
 }
 
 } // namespace spyro1::shadow

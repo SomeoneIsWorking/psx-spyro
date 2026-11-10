@@ -1,8 +1,7 @@
 // paired_actor.h — SCUS_942.28's RasterizePairedActor 0x80023AC4, which draws Spyro: three
 // parts, each a frame blended toward a partner frame and turned by its own angles, decoded from
 // delta streams, projected into the scratchpad, drawn into the local bins (cut at the water surface
-// while he is in water) and merged into the ordering table. Runs over guest memory for the real
-// field and over host memory for an in-between.
+// while he is in water) and merged into the ordering table.
 #pragma once
 
 #include "projected_vertex.h"
@@ -130,5 +129,10 @@ private:
   std::uint32_t polygonEnd_ = 0; // fp
   std::uint32_t written_ = 0;    // s0 in a cut polygon
 };
+
+inline constexpr std::uint32_t kPairedActorEntry = 0x80023AC4u;
+
+// The draw override.
+void registerPairedActorOverrides(Core &core);
 
 } // namespace spyro1::actors

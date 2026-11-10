@@ -1,7 +1,6 @@
 // moby_shadows.h — SCUS_942.28's moby shadows 0x80059F8C: each (record, radius) pair the list
 // builders staged is a disc of four semi-transparent textured triangles around the moby's ground
-// point, tilted by the record's two ground slopes and linked into the depth bin of its rim. Runs
-// over guest memory for the real field and over host memory for an in-between.
+// point, tilted by the record's two ground slopes and linked into the depth bin of its rim.
 #pragma once
 
 #include "guest_memory_map.h"
@@ -43,5 +42,10 @@ private:
   const psx::present::EmitMemory &memory_;
   spyro::guest_terrain::ScreenBounds bounds_;
 };
+
+inline constexpr std::uint32_t kEntry = 0x80059F8Cu;
+
+// The draw override.
+void registerOverrides(Core &core);
 
 } // namespace spyro1::shadows

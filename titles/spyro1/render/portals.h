@@ -1,8 +1,7 @@
 // portals.h — SCUS_942.28's portal drawer 0x80050BD0: each level portal's outline projected, and
 // from afar its opening filled with flat triangles clipped to that outline (0x8004FEA0); near one
 // the portal's own sky is drawn through it (0x8004F4BC, 0x80050240), each sky polygon cut to the
-// outline (0x8004F7E8). Runs over guest memory for the real field and over host memory for an
-// in-between.
+// outline (0x8004F7E8).
 #pragma once
 
 #include "gte_registers.h"
@@ -133,11 +132,11 @@ private:
   [[nodiscard]] bool insideOpen(const Point &point) const;
   // A screen-triangle corner moved from retail's edge onto the window's.
   [[nodiscard]] Corner spanned(Corner corner) const;
-  // 1/z over the screen of the plane through the outline's points in front of the eye, from the three spanning the
-  // most screen area; none when fewer than three lie in front.
+  // 1/z over the screen of the plane through the outline's points in front of the eye, from the
+  // three spanning the most screen area; none when fewer than three lie in front.
   void fitOutlinePlane(std::uint32_t count);
-  // `point` at the outline plane's depth under it, the depth the fill and the sky through the opening test at;
-  // depth 0, slot order, with no plane.
+  // `point` at the outline plane's depth under it, the depth the fill and the sky through the
+  // opening test at; depth 0, slot order, with no plane.
   [[nodiscard]] psx::gte::ProjectedVertex onOutlinePlane(psx::gte::ProjectedVertex point) const;
   // The outline pushed out; its sky and whether it fades, when it shows.
   std::optional<std::pair<std::uint32_t, bool>> outlineNear(const Approach &approach);
@@ -186,5 +185,10 @@ SkySpin advanceSkySpin(Core &core);
 // 80050C5C..80050E8C: the near sky's rotations, the camera's own turned by the spin.
 sky::Rotations
 nearSkyRotations(Core &core, const spyro::guest_camera::Angles &camera, SkySpin spin);
+
+inline constexpr std::uint32_t kEntry = 0x80050BD0u;
+
+// The draw override: every portal, then the level sky.
+void registerOverrides(Core &core);
 
 } // namespace spyro1::portals

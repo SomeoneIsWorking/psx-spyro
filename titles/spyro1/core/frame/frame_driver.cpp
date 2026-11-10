@@ -5,6 +5,7 @@
 #include "game.h"
 #include "guest_call.h"
 #include "spyro1/core/frame/guest_update_budget.h"
+#include "spyro1/core/native_state.h"
 
 #include <algorithm>
 #include <cstdlib>
@@ -38,7 +39,8 @@ FrameDriver::FrameDriver(Game &game)
                                      // lw at 0x8001F090 in the draw 0x8001ED5C.
                                      .drawWaitFlag = 0x80075784u},
               &skipMap_),
-      boot_(fields_, skipMap_), transitions_(fields_), cut_(kFrameCutFacts) {}
+      boot_(fields_, skipMap_), transitions_(fields_),
+      motion_(game.core, nativeState(game.core).replayAngles), cut_(kFrameCutFacts) {}
 
 void FrameDriver::initialize(Core &core) {
   fields_.publish();
@@ -89,7 +91,10 @@ void FrameDriver::stepFrame(Core &core, std::uint32_t) {
   // draw-less ones the guest chains before it.
   perf.phaseBegin(GpuPerf::Phase::GameLogic);
   spyro::session(core).warp->applyArmed(core, frame);
+  bool switched = false;
   while (runGuestUpdate(core)) {
+    // g_StateSwitch: a load, respawn, exit or cutscene start re-placed the scene.
+    switched = true;
     if (fields_.fieldsThisLogicFrame() > kGuestUpdateFields) {
       lucent::error("frameloop",
                     "product step {} chained draw-less guest iterations across {} fields; "
@@ -102,6 +107,9 @@ void FrameDriver::stepFrame(Core &core, std::uint32_t) {
   perf.phaseEnd(GpuPerf::Phase::GameLogic);
 
   perf.phaseBegin(GpuPerf::Phase::Present);
+  if (switched) {
+    replay_.forget();
+  }
   if (core.mem_r32(guest::kGamestate) == kGamestatePlaying) {
     replay_.beforeDraw(core);
   } else {

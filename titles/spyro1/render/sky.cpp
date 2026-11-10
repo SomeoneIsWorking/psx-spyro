@@ -1,11 +1,14 @@
 #include "spyro1/render/sky.h"
 
 #include "core.h"
+#include "native_dispatch.h"
+#include "render/field/guest_render_globals.h"
+#include "render/field/guest_view_slope.h"
 #include "render/field/guest_word.h"
+#include "render/field/guest_working_memory.h"
 #include "render/terrain/guest_depth_bins.h"
 #include "render/terrain/guest_terrain_fog.h"
 #include "spyro1/render/terrain_facts.h"
-#include "state_producer.h"
 
 namespace spyro1::sky {
 namespace {
@@ -302,6 +305,25 @@ std::optional<SkyChain> Cyclorama::link(std::uint32_t slot) {
     v1_ = first_ >> 16;
   }
   return SkyChain{.first = first_, .last = last_};
+}
+
+namespace {
+
+void drawSky(Core *core) {
+  Core &guest = *core;
+  spyro::guest_render_globals::spillBorrowedRegisters(guest, terrain::kRenderGlobals);
+  const psx::present::EmitMemory memory(guest);
+  const Rotations rotations{.view = spyro::guest_memory::rotationAt(memory, guest.r[5]),
+                            .projection = spyro::guest_memory::rotationAt(memory, guest.r[6])};
+  Cyclorama sky(guest, memory, spyro::presentedBounds(guest, spyro1::terrain::kSharedFacts));
+  sky.draw(static_cast<std::int32_t>(guest.r[4]), rotations);
+  sky.end();
+}
+
+} // namespace
+
+void registerOverrides(Core &core) {
+  psx::cpu::installNativeOverride(core, kEntry, "spyro1-sky", drawSky);
 }
 
 } // namespace spyro1::sky

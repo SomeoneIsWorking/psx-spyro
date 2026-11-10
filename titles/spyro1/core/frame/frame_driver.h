@@ -6,6 +6,7 @@
 #include "machine_state.h"
 #include "replay_frame.h"
 #include "spyro1/core/frame/boot_sequence.h"
+#include "spyro1/core/frame/draw_motion.h"
 #include "spyro1/core/frame/draw_section.h"
 #include "spyro1/core/frame/frame_draw.h"
 #include "spyro1/core/frame/skip_map.h"

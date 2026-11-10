@@ -14,13 +14,24 @@ Between between(const Bytes &from, const Bytes &to, float t) {
   for (const std::uint32_t at : {kX, kY, kZ}) {
     record_blend::wordBetween(shown.bytes, from, to, at, t);
   }
+  const AnglesBetween angles = anglesBetween(record_blend::load<std::uint32_t>(from, kAngles),
+                                             record_blend::load<std::uint32_t>(to, kAngles),
+                                             t);
   for (std::uint32_t axis = 0; axis < 3; ++axis) {
-    const std::uint32_t angle = psx::present::lerpTurn(std::uint32_t{from[kAngles + axis]} << 4,
-                                                       std::uint32_t{to[kAngles + axis]} << 4,
-                                                       12,
-                                                       t);
-    shown.bytes[kAngles + axis] = static_cast<std::uint8_t>(angle >> 4);
-    shown.angleFractions |= (angle & 0xFu) << (8 * axis);
+    shown.bytes[kAngles + axis] = static_cast<std::uint8_t>(angles.bytes >> (8 * axis));
+  }
+  shown.angleFractions = angles.fractions;
+  return shown;
+}
+
+AnglesBetween anglesBetween(std::uint32_t from, std::uint32_t to, float t) {
+  AnglesBetween shown;
+  for (std::uint32_t axis = 0; axis < 3; ++axis) {
+    const std::uint32_t shift = 8 * axis;
+    const std::uint32_t angle =
+        psx::present::lerpTurn(((from >> shift) & 0xFFu) << 4, ((to >> shift) & 0xFFu) << 4, 12, t);
+    shown.bytes |= (angle >> 4) << shift;
+    shown.fractions |= (angle & 0xFu) << shift;
   }
   return shown;
 }

@@ -3,8 +3,6 @@
 //               projected centre, behind one draw mode, in the centre's depth bin;
 //   0x800584C4  the eight sparkles at kSparkles, each a two-line star that turns and fades by the
 //               field's delta, killed when it leaves retail's 4:3 view.
-// Both run over guest memory for the real field and over host memory for an in-between, one
-// record at a time.
 #pragma once
 
 #include "render/field/guest_working_memory.h"
@@ -103,5 +101,11 @@ private:
   std::uint32_t v0_ = 0;
   std::uint32_t v1_ = 0;
 };
+
+inline constexpr std::uint32_t kEmittersEntry = 0x800580F4u;
+inline constexpr std::uint32_t kSparklesEntry = 0x800584C4u;
+
+// The two draw overrides.
+void registerOverrides(Core &core);
 
 } // namespace spyro1::glows

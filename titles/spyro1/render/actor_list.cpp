@@ -10,6 +10,7 @@
 #include "render/field/guest_word.h"
 #include "render/field/moby_record.h"
 #include "spyro1/core/guest_globals.h"
+#include "spyro1/core/native_state.h"
 
 #include <algorithm>
 #include <array>
@@ -44,8 +45,6 @@ public:
       : core_(core), memory_(memory), pass_(pass) {}
 
   void run();
-  // The camera, then `record` alone at `angleFractions`; true when it was given an entry.
-  bool runOne(std::uint32_t record, std::uint32_t angleFractions);
 
 private:
   void loadCamera();
@@ -63,7 +62,6 @@ private:
   std::uint32_t out_ = kDrawList;
   std::uint32_t shadows_ = kShadowList;
   std::uint32_t v1_ = 0;
-  std::uint32_t angleFractions_ = 0;
 };
 
 void ListBuilder::loadCamera() {
@@ -75,13 +73,6 @@ void ListBuilder::loadCamera() {
     cameraPosition_[i] = memory_.mem_r32(kRenderGlobals.cameraPosition + i * 4);
   }
   camera_ = spyro::guest_memory::rotationAt(memory_, kRenderGlobals.cameraRotation);
-}
-
-bool ListBuilder::runOne(std::uint32_t record, std::uint32_t angleFractions) {
-  angleFractions_ = angleFractions;
-  loadCamera();
-  visit(record);
-  return out_ != kDrawList;
 }
 
 void ListBuilder::run() {
@@ -204,11 +195,12 @@ void ListBuilder::visit(std::uint32_t record) {
   memory_.mem_w32(out_ + entry::kRecord, record);
 
   psx::gte::RotationWords composed = camera_;
-  if (const auto last = rotation::composeTabled(core_,
-                                                kRenderGlobals.cameraSineTable,
-                                                {.angles = angles, .flags = angleFractions_},
-                                                composed,
-                                                rotation::Byte0Result::Stored)) {
+  if (const auto last = rotation::composeTabled(
+          core_,
+          kRenderGlobals.cameraSineTable,
+          {.angles = angles, .flags = nativeState(core_).replayAngles.at(record)},
+          composed,
+          rotation::Byte0Result::Stored)) {
     v1_ = *last;
   }
   for (std::uint32_t i = 0; i < 4; ++i) {
@@ -223,14 +215,6 @@ void ListBuilder::visit(std::uint32_t record) {
 void buildList(Core &core, const ListPass &pass) {
   // The real field's lists keep no level words.
   ListBuilder(core, psx::present::EmitMemory(core), pass).run();
-}
-
-bool listRecord(Core &core,
-                const psx::present::EmitMemory &memory,
-                const ListPass &pass,
-                std::uint32_t record,
-                std::uint32_t angleFractions) {
-  return ListBuilder(core, memory, pass).runOne(record, angleFractions);
 }
 
 namespace {

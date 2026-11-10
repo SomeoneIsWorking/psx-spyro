@@ -2,12 +2,12 @@
 
 #include "core.h"
 #include "gte_registers.h"
+#include "native_dispatch.h"
 #include "render/field/guest_render_globals.h"
 #include "render/field/guest_word.h"
 #include "render/terrain/guest_depth_bins.h"
 #include "spyro1/core/effect/flame_block.h"
 #include "spyro1/render/terrain_facts.h"
-#include "state_producer.h"
 
 namespace spyro1::flame {
 namespace {
@@ -39,7 +39,8 @@ std::uint32_t packXy(std::uint32_t x, std::uint32_t y) {
 
 } // namespace
 
-FlameTrails::FlameTrails(Core &core, const psx::present::EmitMemory &memory) : core_(core), memory_(memory) {}
+FlameTrails::FlameTrails(Core &core, const psx::present::EmitMemory &memory)
+    : core_(core), memory_(memory) {}
 
 void FlameTrails::draw() {
   table_ = memory_.mem_r32(kRenderGlobals.orderingTable);
@@ -152,7 +153,8 @@ bool FlameTrails::drawTip(std::uint32_t entry) {
     return false;
   }
   const std::uint32_t slot = (bin << 3) + table_;
-  const std::array<psx::gte::ProjectedVertex, 3> ring3 = {gte.projected(0), gte.projected(1), gte.projected(2)};
+  const std::array<psx::gte::ProjectedVertex, 3> ring3 = {
+      gte.projected(0), gte.projected(1), gte.projected(2)};
   tipTriangle(slot, {tipScreen, ring3[1], ring3[0]}, {colour[0], colour[2], colour[1]});
   tipTriangle(slot, {tipScreen, ring3[0], ring3[2]}, {colour[0], colour[1], colour[3]});
   tipTriangle(slot, {tipScreen, ring3[2], ring3[1]}, {colour[0], colour[3], colour[2]});
@@ -273,6 +275,22 @@ void FlameTrails::drawRibbon(const PartWalk &walk, bool tipped) {
     vStep = 0x500u;
     darken = 0x050505u;
   }
+}
+
+namespace {
+
+void drawFlame(Core *core) {
+  spyro::guest_render_globals::spillBorrowedRegisters(*core, kRenderGlobals);
+  const psx::present::EmitMemory memory(*core);
+  FlameTrails flame(*core, memory);
+  flame.draw();
+  flame.end();
+}
+
+} // namespace
+
+void registerOverrides(Core &core) {
+  psx::cpu::installNativeOverride(core, kEntry, "spyro1-flame", drawFlame);
 }
 
 } // namespace spyro1::flame

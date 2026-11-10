@@ -2,6 +2,7 @@
 
 #include "core.h"
 #include "gte_registers.h"
+#include "native_dispatch.h"
 #include "render/field/guest_render_globals.h"
 #include "render/field/guest_word.h"
 #include "spyro1/core/effect/flame_block.h"
@@ -337,6 +338,22 @@ void PairedActor::rotate(std::uint32_t angles) {
     rt[2] = (rt[2] & 0xFFFF0000u) + (b[1] & 0xFFFFu);
     loadRotation();
   }
+}
+
+namespace {
+
+void drawSpyro(Core *core) {
+  spyro::guest_render_globals::spillBorrowedRegisters(*core, terrain::kRenderGlobals);
+  const psx::present::EmitMemory memory(*core);
+  PairedActor actor(*core, memory);
+  actor.draw();
+  actor.end();
+}
+
+} // namespace
+
+void registerPairedActorOverrides(Core &core) {
+  psx::cpu::installNativeOverride(core, kPairedActorEntry, "spyro1-paired-actor", drawSpyro);
 }
 
 } // namespace spyro1::actors

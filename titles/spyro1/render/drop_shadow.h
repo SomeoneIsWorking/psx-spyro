@@ -1,12 +1,11 @@
 // drop_shadow.h — SCUS_942.28's DrawSpyroDropShadow 0x80059A48: a ring of sixteen points
 // around the shadow's ground point, sized by Spyro's frame and lifted by the sampled ground
 // heights, drawn as sixteen subtractive gouraud triangles each behind its own draw mode and linked
-// into the depth bin of its rim. Runs over guest memory for the real field and over host memory
-// for an in-between.
+// into the depth bin of its rim.
 #pragma once
 
-#include "projected_vertex.h"
 #include "guest_memory_map.h"
+#include "projected_vertex.h"
 
 #include "render/field/guest_working_memory.h"
 #include "spyro1/core/effect/shadow_block.h"
@@ -54,5 +53,10 @@ private:
   psx::gte::ProjectedVertex centreScreen_;
   std::uint32_t centreDepth_ = 0;
 };
+
+inline constexpr std::uint32_t kEntry = 0x80059A48u;
+
+// The draw override.
+void registerOverrides(Core &core);
 
 } // namespace spyro1::shadow

@@ -2,13 +2,14 @@
 
 #include "core.h"
 #include "gte_registers.h"
+#include "native_dispatch.h"
 #include "render/field/guest_packet.h"
 #include "render/field/guest_render_globals.h"
+#include "render/field/guest_view_slope.h"
 #include "render/field/guest_word.h"
 #include "render/terrain/guest_depth_bins.h"
 #include "spyro1/render/screen.h"
 #include "spyro1/render/terrain_facts.h"
-#include "state_producer.h"
 
 namespace spyro1::particles {
 namespace {
@@ -26,7 +27,6 @@ constexpr std::uint32_t kTop = 0x00010000u;    // $s4
 constexpr std::uint32_t kBottom = 0x01000000u; // $s5
 constexpr std::uint32_t kPoolMargin = 0x400u;
 
-
 bool retailDrops(std::uint32_t sxy) {
   return kRetailBounds.atOrLeftOfLeft(sxy) || kRetailBounds.atOrRightOfRight(sxy);
 }
@@ -36,8 +36,7 @@ bool retailDrops(std::uint32_t sxy) {
 EmitList::EmitList(Core &core,
                    const psx::present::EmitMemory &memory,
                    const spyro::guest_terrain::ScreenBounds &bounds)
-    : core_(core), memory_(memory),
-      leftEdge_(static_cast<std::uint32_t>(bounds.left()) << 16),
+    : core_(core), memory_(memory), leftEdge_(static_cast<std::uint32_t>(bounds.left()) << 16),
       rightEdge_(static_cast<std::uint32_t>(bounds.right()) << 16) {}
 
 void EmitList::begin() {
@@ -379,8 +378,10 @@ Outcome EmitList::scaledQuad(std::uint32_t at) {
   const GtePlace middle = centre.place();
   memory_.storeVertex(cursor_ + 0x20, {v0, {middle.x + halfWidth, middle.y + halfHeight}});
   memory_.storeVertex(cursor_ + 0x18, {v0 - width, {middle.x - halfWidth, middle.y + halfHeight}});
-  memory_.storeVertex(cursor_ + 0x10, {v0 - (height << 16), {middle.x + halfWidth, middle.y - halfHeight}});
-  memory_.storeVertex(cursor_ + 0x08, {v0 - (height << 16) - width, {middle.x - halfWidth, middle.y - halfHeight}});
+  memory_.storeVertex(cursor_ + 0x10,
+                      {v0 - (height << 16), {middle.x + halfWidth, middle.y - halfHeight}});
+  memory_.storeVertex(cursor_ + 0x08,
+                      {v0 - (height << 16) - width, {middle.x - halfWidth, middle.y - halfHeight}});
   writeUvs(first, second);
   memory_.mem_w32(cursor_, guest_packet::kFt4Tag);
   v1_ = link(v1 << 3, Packet::Quad);
@@ -600,6 +601,31 @@ Outcome EmitList::dot(std::uint32_t at) {
   }
   v1_ = link(v1_, Packet::Dot);
   return Outcome::Drawn;
+}
+
+namespace {
+
+constexpr spyro::guest_render_globals::Globals kSpill{.registerSaveArea = kRegisterSpill};
+
+void drawList(Core *core) {
+  Core &guest = *core;
+  spyro::guest_render_globals::spillBorrowedRegisters(guest, kSpill);
+  const psx::present::EmitMemory memory(guest);
+  EmitList list(guest, memory, spyro::presentedBounds(guest, spyro1::terrain::kSharedFacts));
+  list.begin();
+  for (std::uint32_t at = guest.mem_r32(kListBase);; at += kRecordBytes) {
+    const Outcome outcome = list.draw(at);
+    if (outcome == Outcome::End || outcome == Outcome::PoolFull) {
+      list.end(outcome == Outcome::PoolFull);
+      return;
+    }
+  }
+}
+
+} // namespace
+
+void registerOverrides(Core &core) {
+  psx::cpu::installNativeOverride(core, kEntry, "spyro1-particles", drawList);
 }
 
 } // namespace spyro1::particles

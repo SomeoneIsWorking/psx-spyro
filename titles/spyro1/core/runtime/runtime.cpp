@@ -15,6 +15,7 @@
 #include "spyro1/core/execution/native_level_initialization.h"
 #include "spyro1/core/execution/native_owners.h"
 #include "spyro1/core/execution/native_random_range.h"
+#include "spyro1/core/frame/draw_cuts.h"
 #include "spyro1/core/frame/frame_driver.h"
 #include "spyro1/core/frame/logo_facts.h"
 #include "spyro1/core/frame/native_draw_setup.h"
@@ -32,30 +33,30 @@
 #include "spyro1/core/moby/native_moby_transform.h"
 #include "spyro1/core/moby/native_shaded_moby_queue.h"
 #include "spyro1/core/moby/native_shared_models.h"
+#include "spyro1/core/native_state.h"
 #include "spyro1/core/player/native_cutscene.h"
 #include "spyro1/core/player/native_player_animation.h"
 #include "spyro1/core/player/native_player_physics.h"
-#include "spyro1/render/actor_emitter_producer.h"
+#include "spyro1/render/actor_emitter_passes.h"
 #include "spyro1/render/actor_list.h"
-#include "spyro1/render/drop_shadow_producer.h"
-#include "spyro1/render/flame_producer.h"
+#include "spyro1/render/drop_shadow.h"
+#include "spyro1/render/flame.h"
 #include "spyro1/render/glow_pools.h"
-#include "spyro1/render/glow_producers.h"
+#include "spyro1/render/glows.h"
 #include "spyro1/render/hud_anchor.h"
 #include "spyro1/render/inventory_band.h"
-#include "spyro1/render/moby_shadow_producer.h"
+#include "spyro1/render/moby_shadows.h"
 #include "spyro1/render/ordering_table.h"
-#include "spyro1/render/paired_actor_producer.h"
-#include "spyro1/render/particle_producer.h"
+#include "spyro1/render/paired_actor.h"
+#include "spyro1/render/particles.h"
 #include "spyro1/render/pause_backdrop.h"
-#include "spyro1/render/portal_producer.h"
-#include "spyro1/render/rescue_star_producer.h"
+#include "spyro1/render/portals.h"
+#include "spyro1/render/rescue_star.h"
 #include "spyro1/render/screen_overlays.h"
 #include "spyro1/render/shaded_line.h"
-#include "spyro1/render/sky_producer.h"
-#include "spyro1/render/sprite_queue_producer.h"
+#include "spyro1/render/sky.h"
+#include "spyro1/render/sprite_queue.h"
 #include "spyro1/render/terrain_image.h"
-#include "spyro1/render/title_sprites.h"
 
 #include <lucent/log.h>
 
@@ -126,6 +127,7 @@ void Runtime::registerOverrides(Game &game) {
   game.platform_hle.bindStock(kCdInitHandshake, PlatformHle::completeImmediately);
   spyro1::registerCdQueue(game.core);
   spyro1::registerNativeRand(game.core);
+  spyro1::registerDrawCutOverrides(game.core);
   spyro1::registerNativeLeaves(game.core);
   spyro1::registerNativeVec(game.core);
   spyro1::registerNativeGte(game.core);
@@ -160,20 +162,19 @@ void Runtime::registerOverrides(Game &game) {
   native::registerSoundPositionOverrides(game.core);
   OrderingTable::registerOverrides(game.core);
   registerScreenOverlayOverrides(game.core);
-  registerTitleSpriteProducer(game.core);
   spyro1::terrain::registerOverrides(game.core);
   actors::registerListOverrides(game.core);
   actors::registerEmitterOverrides(game.core);
   actors::registerSpriteQueueOverrides(game.core);
   actors::registerPairedActorOverrides(game.core);
-  sky::registerSkyOverrides(game.core);
-  shadow::registerDropShadowOverrides(game.core);
-  flame::registerFlameOverrides(game.core);
-  rescue_star::registerRescueStarOverrides(game.core);
-  shadows::registerMobyShadowOverrides(game.core);
-  portals::registerPortalOverrides(game.core);
-  glows::registerGlowOverrides(game.core);
-  particles::registerParticleOverrides(game.core);
+  sky::registerOverrides(game.core);
+  shadow::registerOverrides(game.core);
+  flame::registerOverrides(game.core);
+  rescue_star::registerOverrides(game.core);
+  shadows::registerOverrides(game.core);
+  portals::registerOverrides(game.core);
+  glows::registerOverrides(game.core);
+  particles::registerOverrides(game.core);
   pause_backdrop::registerOverrides(game.core);
   shaded_line::registerOverrides(game.core);
   inventory_band::registerProducer(game.core);
@@ -224,7 +225,7 @@ std::unique_ptr<spyro::Warp> Runtime::createWarp() const {
 }
 
 std::unique_ptr<spyro::TitleState> Runtime::createTitleState() const {
-  return std::make_unique<shaded_line::CallSites>();
+  return std::make_unique<NativeState>();
 }
 
 } // namespace spyro1

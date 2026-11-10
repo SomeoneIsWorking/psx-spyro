@@ -3,12 +3,11 @@
 #include "core.h"
 #include "guest_redraw.h"
 #include "ordering_table.h"
-#include "render/field/keyframe_blend.h"
+#include "spyro1/core/native_state.h"
 
 #include <lucent/log.h>
 
 #include <array>
-#include <cstring>
 #include <span>
 
 namespace spyro1 {
@@ -48,30 +47,21 @@ constexpr std::uint32_t kDrawHud = 0x800189F0u;
 constexpr std::uint32_t kFlattenBins = 0x80016784u;
 constexpr std::uint32_t kBinCount = 0x800u;
 
-// Byte offsets inside the 16 pose bytes from g_Spyro +0x18: part p's anim pair at 2p, frame pair at
-// 6 + 2p, progress at 12 + p (0x80023AC4).
-constexpr std::size_t kPoseBytes = 16;
-constexpr std::size_t kPoseParts = 3;
-constexpr std::size_t kFrameBytes = 6;
-constexpr std::size_t kProgressBytes = 12;
-constexpr spyro::keyframe_blend::Progress kPartSteps{16};
+// The motion set noted the replay's angle fractions before the section; none outlive it.
+class AnglesNoted {
+public:
+  explicit AnglesNoted(actors::ReplayAngles &angles) : angles_(angles) {}
+  ~AnglesNoted() {
+    angles_.clear();
+  }
+  AnglesNoted(const AnglesNoted &) = delete;
+  AnglesNoted &operator=(const AnglesNoted &) = delete;
+  AnglesNoted(AnglesNoted &&) = delete;
+  AnglesNoted &operator=(AnglesNoted &&) = delete;
 
-std::array<std::uint8_t, kPoseBytes> bytesOf(std::span<const std::uint32_t> words) {
-  std::array<std::uint8_t, kPoseBytes> bytes{};
-  std::memcpy(bytes.data(), words.data(), bytes.size());
-  return bytes;
-}
-
-spyro::keyframe_blend::Pose partOf(const std::array<std::uint8_t, kPoseBytes> &bytes,
-                                   std::size_t part) {
-  const std::size_t pair = 2 * part;
-  const std::size_t frames = kFrameBytes + pair;
-  const auto byte = [&bytes](std::size_t at, unsigned shift) {
-    return static_cast<std::uint32_t>(bytes[at]) << shift;
-  };
-  return {.keyframes = byte(pair, 0) | byte(pair + 1, 8) | byte(frames, 16) | byte(frames + 1, 24),
-          .progress = bytes[kProgressBytes + part]};
-}
+private:
+  actors::ReplayAngles &angles_;
+};
 
 bool step(psx::present::GuestRedraw &redraw,
           std::uint32_t entry,
@@ -86,6 +76,7 @@ bool step(psx::present::GuestRedraw &redraw,
 
 std::optional<std::uint32_t> DrawSection::draw(Core &core,
                                                psx::present::GuestRedraw &redraw) const {
+  const AnglesNoted noted(nativeState(core).replayAngles);
   const std::uint32_t db = core.mem_r32(kCurDb) == kDb0 ? kDb1 : kDb0;
   const std::uint32_t poly = core.mem_r32(db + kDbPolyBuffer);
   redraw.writeWord(kCurDb, db);
@@ -125,23 +116,6 @@ std::optional<std::uint32_t> DrawSection::draw(Core &core,
     return std::nullopt;
   }
   return core.r[2];
-}
-
-void SpyroPoses::blend(const Samples &samples, float t, std::span<std::uint32_t> out) const {
-  const std::array<std::uint8_t, kPoseBytes> earlier = bytesOf(samples.from);
-  std::array<std::uint8_t, kPoseBytes> shown = bytesOf(samples.to);
-  for (std::size_t part = 0; part < kPoseParts; ++part) {
-    const spyro::keyframe_blend::Pose pose =
-        spyro::keyframe_blend::between(partOf(earlier, part), partOf(shown, part), t, kPartSteps);
-    const std::size_t pair = 2 * part;
-    const std::size_t frames = kFrameBytes + pair;
-    shown[pair] = static_cast<std::uint8_t>(pose.keyframes);
-    shown[pair + 1] = static_cast<std::uint8_t>(pose.keyframes >> 8u);
-    shown[frames] = static_cast<std::uint8_t>(pose.keyframes >> 16u);
-    shown[frames + 1] = static_cast<std::uint8_t>(pose.keyframes >> 24u);
-    shown[kProgressBytes + part] = pose.progress;
-  }
-  std::memcpy(out.data(), shown.data(), shown.size());
 }
 
 bool DrawSection::linked(std::uint32_t head) const {

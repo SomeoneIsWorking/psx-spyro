@@ -5,12 +5,9 @@
 #include "gte_registers.h"
 #include "native_dispatch.h"
 #include "render/field/guest_render_globals.h"
-#include "render/state_producer_override.h"
+#include "render/terrain/guest_terrain_drawer.h"
 #include "render/terrain/guest_terrain_passes.h"
-#include "render/terrain/terrain_state_producer.h"
 #include "spyro1/render/terrain_passes.h"
-
-#include <memory>
 
 namespace spyro1::terrain {
 namespace {
@@ -64,22 +61,14 @@ void TerrainImage::drawPasses(spyro::guest_terrain::TerrainFrame &frame) const {
 namespace {
 
 void drawTerrain(Core *core) {
-  spyro::guest_terrain::drawField(*core, kTerrainImage);
+  const psx::present::Kept<psx::present::LevelReads>::Use reads(spyro::session(*core).drawReads);
+  spyro::guest_terrain::draw(*core, kTerrainImage, *reads);
 }
 
 } // namespace
 
 void registerOverrides(Core &core) {
-  spyro::installProducerOverride(
-      core,
-      kSharedFacts.entry,
-      kSharedFacts.overrideName,
-      drawTerrain,
-      std::make_unique<spyro::guest_terrain::TerrainStateProducer>(core, kTerrainImage),
-      psx::present::Arg::None);
-  core.depthTest.mark(kSharedFacts.entry,
-                      psx::present::DepthOrder::Polygon,
-                      spyro::guest_render_globals::kDepthBinViewUnits);
+  psx::cpu::installNativeOverride(core, kSharedFacts.entry, kSharedFacts.overrideName, drawTerrain);
 }
 
 } // namespace spyro1::terrain

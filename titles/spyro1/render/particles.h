@@ -2,8 +2,6 @@
 // from [g_pEmitListBase], each drawn by its kind as a textured quad, a turned quad, a line or a dot
 // and linked alone into its depth bin. Retail clears a record's seen byte (+3) and sets it when the
 // record passes the view tests; the byte follows retail's 4:3 window even when the draw is widened.
-// Runs over guest memory for the real field and over host memory for an in-between, one record at
-// a time.
 #pragma once
 
 #include "guest_memory_map.h"
@@ -20,6 +18,8 @@ class Core;
 
 namespace spyro1::particles {
 
+// RasterizeEmitList.
+inline constexpr std::uint32_t kEntry = 0x800573C8u;
 // g_pEmitListBase: the first record. A record whose kind halfword is 0xFFxx ends the list.
 inline constexpr std::uint32_t kListBase = 0x80075824u;
 inline constexpr std::uint32_t kRecordBytes = 0x20u;
@@ -99,5 +99,8 @@ private:
   std::uint32_t v0_ = 0;
   std::uint32_t v1_ = 0;
 };
+
+// The draw override: every record of the list through EmitList.
+void registerOverrides(Core &core);
 
 } // namespace spyro1::particles

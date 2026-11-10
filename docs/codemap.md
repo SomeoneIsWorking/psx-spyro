@@ -43,8 +43,9 @@ Frame loop: not owned. Spyro 1 runs update `0x8003385C` and draw `0x8001ED5C` an
 - `game/render/terrain/terrain_rebuild.*`, `terrain_state_producer.*` — terrain interpolation: drawer re-run over both fields' saved words at an in-between camera, terrain state producer and its refusal after a disc landing
 - `titles/spyro1/core/runtime/` — S1 runtime: crt0, stock bindings, native leaves, pad delivery, Record capabilities, cut, title command
 - `titles/spyro1/core/guest_globals.h`, `guest_gp.h`, `guest_functions.h` — S1 guest globals, gp, callee entries, names from the spyro-1 decomp
+- `titles/spyro1/core/native_state.h` — S1 title state: shaded-line call sites, replay angle fractions
 - `titles/spyro1/core/execution/` — S1 native leaves: vector math, GTE geometry, angles, rand and random range, utilities, level initialisation, cooperative CD loader queue
-- `titles/spyro1/core/frame/` — S1 main loop: frame driver, GamestateDraw and its VSync tail, boot sequence and logos, Start press latch, transition skip, skip map, draw setup, update budget, logo facts; `draw_section.*` the GS_Playing draw as a replay section and its motion tracks (camera, Spyro, part poses)
+- `titles/spyro1/core/frame/` — S1 main loop: frame driver, GamestateDraw and its VSync tail, boot sequence and logos, Start press latch, transition skip, skip map, draw setup, update budget, logo facts; `draw_section.*` the GS_Playing draw as a replay section, `draw_motion.*` its motion tracks and record rules (camera, Spyro, mobys, HUD, particles, sparkles, flame, counters), `draw_cuts.*` the camera snap and Spyro reset that forget the earlier sample
 - `titles/spyro1/core/audio/` — S1 sound: libspu natives, SPU registers, voices, pitch, key status, positional moby sound
 - `titles/spyro1/core/moby/` — S1 mobys / game objects: allocator, lists, transform, animation, collision, collision shade, environment light, shaded queue, shared models (PETE.WAD), level globals table
 - `titles/spyro1/core/player/` — S1 player: Spyro physics, body / head / tail animation, cutscene playback
@@ -54,24 +55,23 @@ Frame loop: not owned. Spyro 1 runs update `0x8003385C` and draw `0x8001ED5C` an
 - `titles/spyro1/core/input/` — S1 gamepad buffers, input phase for `.pad` recordings
 - `titles/spyro1/core/debug/` — S1 debug menu (`spyro1::DebugMenu`), S1 warp route (reset then TSD_Level flyby from the title, `CheatProcessLevelWarp` from play); the portal and dragon arrivals of each level (`teleport`: Spyro in front of the level's hub portal, onto a crystal dragon for the rescue cutscene), `gates` / `dragons` listings; `where` / `spyro-at` read and set Spyro's position; `mobys` / `moby-teleport` onto any moby by class (on `game/core/debug/moby_teleport`)
 - `titles/spyro1/render/terrain_*` — S1 terrain drawer RenderWorldChunks: sector loop, far, detail, coarse and fine subdivision passes, facts
-- `titles/spyro1/render/actor_*`, `lit_actor_emitter.*`, `local_bins.*` — S1 actors / mobys: draw list builders, emitters (flat light, reflection), layouts, producers, in-between record blend and host-memory run (`InBetween`), local depth bins
-- `titles/spyro1/render/sprite_queue*` — S1 sprite queue: lit and HUD mobys, producer
-- `titles/spyro1/render/paired_actor*` — S1 Spyro model draw (RasterizePairedActor), producer
-- `titles/spyro1/render/sky*` — S1 sky / cyclorama and the walk a portal's own sky shares with it, producer
-- `titles/spyro1/render/portal*` — S1 portal drawer: outline, far fill, near sky cut to the outline, sky spin, producer
-- `titles/spyro1/render/moby_shadow*` — S1 moby shadows (RenderMobyShadows), producer
-- `titles/spyro1/render/drop_shadow*` — S1 Spyro drop shadow, producer
-- `titles/spyro1/render/flame*` — S1 flame breath (DrawSpyroHornStrikeTrails): tip fans and arc ribbons, producer
-- `titles/spyro1/render/rescue_star*` — S1 dragon-rescue star burst over a freed dragon, producer
-- `titles/spyro1/render/glow*` — S1 glow fans and sparkles, their emitter and sparkle pools, producers
+- `titles/spyro1/render/actor_*`, `lit_actor_emitter.*`, `local_bins.*` — S1 actors / mobys: draw list builders, emitters (flat light, reflection), emitter passes, layouts, local depth bins; `replay_angles.h` the sub-step angle fractions a replay notes per moby for the list builders
+- `titles/spyro1/render/sprite_queue*` — S1 sprite queue: lit and HUD mobys
+- `titles/spyro1/render/paired_actor*` — S1 Spyro model draw (RasterizePairedActor)
+- `titles/spyro1/render/sky*` — S1 sky / cyclorama and the walk a portal's own sky shares with it
+- `titles/spyro1/render/portal*` — S1 portal drawer: outline, far fill, near sky cut to the outline, sky spin
+- `titles/spyro1/render/moby_shadow*` — S1 moby shadows (RenderMobyShadows)
+- `titles/spyro1/render/drop_shadow*` — S1 Spyro drop shadow
+- `titles/spyro1/render/flame*` — S1 flame breath (DrawSpyroHornStrikeTrails): tip fans and arc ribbons
+- `titles/spyro1/render/rescue_star*` — S1 dragon-rescue star burst over a freed dragon
+- `titles/spyro1/render/glow*` — S1 glow fans and sparkles, their emitter and sparkle pools
 - `titles/spyro1/render/ordering_table.*` — S1 LinkOTPrimitives / ordering table slots
 - `titles/spyro1/render/hud_anchor.*` — S1 HUD anchor class per HUD record
 - `titles/spyro1/render/screen_overlays.h` — S1 facts for the shared tint and letterbox
-- `titles/spyro1/render/title_sprites.*` — S1 title screen sprites (logo slide, PRESS START, memory card menus) producer, installed per title overlay landing
-- `titles/spyro1/render/particle*` — S1 particles / emit list, producer
+- `titles/spyro1/render/particle*` — S1 particles / emit list
 - `titles/spyro1/render/screen.h` — S1 retail outcode window for widened culls
 - `titles/spyro1/render/pause_backdrop.*` — S1 pause backdrop: the grey read-back page (func_80017E98) declared as a read-back texture
-- `titles/spyro1/render/shaded_line.*` — S1 shaded border line (func_8001844C): pause, flight, balloonist and inventory borders, producer keyed by call site and turn (`CallSites`, the title state)
+- `titles/spyro1/render/shaded_line.*` — S1 shaded border line (func_8001844C): pause, flight, balloonist and inventory borders, producer keyed by call site and turn (`CallSites`, in `NativeState`)
 - `titles/spyro1/render/inventory_band.*` — S1 inventory row band (inline in 0x8001A40C, linked at 0x8001BEC0), producer rendering the guest quad, continued across a widened canvas when it starts at column 0
 - `titles/spyro2/core/`, `titles/spyro3/core/` — S2/S3 runtime: crt0, stock libraries, interrupt-driven libcd, module landing, packet pool, cut, logo; boot facts (boot prefix, update / draw, gamestate and level words); warp routes (the title screen's Start teardown, the game's own level start from gameplay, `portal` through the level's exit to its homeworld); S2 debug menu (`spyro2::DebugMenu`) with `mobys` / `moby-teleport`
 - `titles/spyro2/render/`, `titles/spyro3/render/` — S2/S3 render facts per image, HUD widget anchoring; S2 conversation producers: box and name tab (slide lerp), underline and text (held to the earlier field)

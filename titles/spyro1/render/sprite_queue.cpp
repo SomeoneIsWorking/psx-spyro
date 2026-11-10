@@ -3,16 +3,20 @@
 #include "core.h"
 #include "gte_registers.h"
 #include "lucent/log.h"
+#include "native_dispatch.h"
 #include "render/field/guest_moby_rotation.h"
 #include "render/field/guest_packet.h"
 #include "render/field/guest_render_globals.h"
 #include "render/field/guest_view_slope.h"
 #include "render/field/guest_word.h"
 #include "render/field/moby_record.h"
+#include "render/hud/ui_anchor.h"
 #include "render/terrain/guest_depth_bins.h"
 #include "spyro1/core/guest_globals.h"
+#include "spyro1/core/native_state.h"
+#include "spyro1/render/actor_facts.h"
+#include "spyro1/render/hud_anchor.h"
 #include "spyro1/render/terrain_facts.h"
-#include "state_producer.h"
 
 #include <cstdlib>
 
@@ -716,6 +720,43 @@ void SpriteQueue::end() {
   memory_.mem_w32(kShadowListEnd, shadows_);
   core_.r[2] = v0_;
   core_.r[3] = v1_;
+}
+
+namespace {
+
+void drawQueue(Core *core) {
+  Core &guest = *core;
+  spyro::guest_render_globals::spillBorrowedRegisters(guest, terrain::kRenderGlobals);
+  const psx::present::EmitMemory memory(guest);
+  SpriteQueue queue(guest, memory, presentedQueueView(guest));
+  hud_anchor::QueueAnchors anchors;
+  queue.begin();
+  for (std::uint32_t input = kSpriteQueue;; input += 4) {
+    const std::uint32_t record = guest.mem_r32(input);
+    if (record == 0) {
+      break;
+    }
+    const bool screenSpace =
+        (guest.mem_r16(record + moby::kCullDistance) & moby::kScreenSpace) != 0;
+    const std::int32_t hudShift =
+        screenSpace ? spyro::ui_anchor::correction(guest,
+                                                   {.name = "spyro1-hud-record", .index = record},
+                                                   anchors.next(record))
+                    : 0;
+    if (const auto chain =
+            queue.draw({.record = record,
+                        .hudShift = hudShift,
+                        .angleFractions = nativeState(guest).replayAngles.at(record)})) {
+      queue.link(*chain);
+    }
+  }
+  queue.end();
+}
+
+} // namespace
+
+void registerSpriteQueueOverrides(Core &core) {
+  psx::cpu::installNativeOverride(core, kSpriteQueueEntry, "spyro1-sprite-queue", drawQueue);
 }
 
 } // namespace spyro1::actors

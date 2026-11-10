@@ -4,12 +4,13 @@
 #include "cpu_divide.h"
 #include "gte_registers.h"
 #include "guest_memory_map.h"
+#include "native_dispatch.h"
 #include "render/field/guest_packet.h"
 #include "render/field/guest_render_globals.h"
+#include "render/field/guest_view_slope.h"
 #include "render/field/guest_word.h"
 #include "spyro1/render/screen.h"
 #include "spyro1/render/terrain_facts.h"
-#include "state_producer.h"
 
 namespace spyro1::glows {
 namespace {
@@ -30,7 +31,6 @@ constexpr std::uint32_t kLinePairTag = guest_packet::kLineF2Tag | psx::kKseg0Bas
 std::uint32_t slotOf(std::uint32_t table, std::uint32_t bin) {
   return (bin << 3) + table;
 }
-
 
 } // namespace
 
@@ -79,7 +79,8 @@ std::optional<std::uint32_t> GlowFans::draw(std::uint32_t entry) {
     return std::nullopt;
   }
   const std::uint32_t position = memory_.mem_r32(entry + emitter::kPosition);
-  std::uint32_t x = memory_.mem_r32(position) + memory_.mem_r32(entry + emitter::kOffset) - camera_[0];
+  std::uint32_t x =
+      memory_.mem_r32(position) + memory_.mem_r32(entry + emitter::kOffset) - camera_[0];
   std::uint32_t y =
       camera_[1] - (memory_.mem_r32(position + 4) + memory_.mem_r32(entry + emitter::kOffset + 4));
   std::uint32_t z =
@@ -148,8 +149,8 @@ std::optional<std::uint32_t> GlowFans::draw(std::uint32_t entry) {
   rim += 8;
   --count;
   gte.execute(gte::kGpfSf);
-  const std::uint32_t colour =
-      ((memory_.mem_r32(entry + emitter::kColour) << 8) >> 8) | guest_packet::kG3Code | guest_packet::kSemiCode;
+  const std::uint32_t colour = ((memory_.mem_r32(entry + emitter::kColour) << 8) >> 8) |
+                               guest_packet::kG3Code | guest_packet::kSemiCode;
   std::uint32_t pointX = gte.readData(gte::kMac1) + centreX;
   std::uint32_t pointY = gte.readData(gte::kMac2) + centreY;
   std::uint32_t edges = outcode({.x = pointX, .y = pointY});
@@ -190,7 +191,8 @@ Sparkles::Sparkles(Core &core,
 void Sparkles::begin(std::uint32_t delta) {
   auto &gte = core_.gte();
   delta_ = delta;
-  const psx::gte::RotationWords rotation = spyro::guest_memory::rotationAt(memory_, kRenderGlobals.cameraRotation);
+  const psx::gte::RotationWords rotation =
+      spyro::guest_memory::rotationAt(memory_, kRenderGlobals.cameraRotation);
   gte.loadRotation(rotation);
   gte.loadLight(rotation);
   gte.loadTranslation({});
@@ -267,7 +269,8 @@ std::optional<std::uint32_t> Sparkles::draw(std::uint32_t record) {
   memory_.mem_w32(cursor_ + 0x14, command);
   const std::uint32_t reach = (0x100u - worn) * size;
   const std::uint32_t sineValue = signedHalf(memory_.mem_r16(sine));
-  const std::uint32_t cosineValue = signedHalf(memory_.mem_r16(sine + spyro::guest_render_globals::kCosineOffset));
+  const std::uint32_t cosineValue =
+      signedHalf(memory_.mem_r16(sine + spyro::guest_render_globals::kCosineOffset));
   gte.writeData(gte::kIr0, reach);
   gte.writeData(gte::kIr2, sineValue);
   gte.writeData(gte::kIr1, cosineValue);
@@ -327,6 +330,44 @@ std::optional<std::uint32_t> Sparkles::draw(std::uint32_t record) {
   }
   cursor_ += 0x20;
   return bin;
+}
+
+namespace {
+
+void drawEmitters(Core *core) {
+  Core &guest = *core;
+  spyro::guest_render_globals::spillBorrowedRegisters(guest, kRenderGlobals);
+  const psx::present::EmitMemory memory(guest);
+  GlowFans fans(guest, memory, spyro::presentedBounds(guest, spyro1::terrain::kSharedFacts));
+  fans.begin();
+  for (std::uint32_t index = 0; index < kEmitterCount; ++index) {
+    const std::uint32_t entry = kEmitters + index * kEmitterBytes;
+    if (guest.mem_r32(entry + emitter::kCount) != 0) {
+      fans.draw(entry);
+    }
+  }
+  fans.end();
+}
+
+void drawSparkles(Core *core) {
+  Core &guest = *core;
+  const psx::present::EmitMemory memory(guest);
+  Sparkles sparkles(guest, memory, spyro::presentedBounds(guest, spyro1::terrain::kSharedFacts));
+  sparkles.begin(guest.r[4]);
+  for (std::uint32_t index = 0; index < kSparkleCount; ++index) {
+    const std::uint32_t record = kSparkles + index * kSparkleBytes;
+    if (sparkles.draw(record)) {
+      sparkles.retire(record);
+    }
+  }
+  sparkles.end();
+}
+
+} // namespace
+
+void registerOverrides(Core &core) {
+  psx::cpu::installNativeOverride(core, kEmittersEntry, "spyro1-glow-emitters", drawEmitters);
+  psx::cpu::installNativeOverride(core, kSparklesEntry, "spyro1-sparkles", drawSparkles);
 }
 
 } // namespace spyro1::glows

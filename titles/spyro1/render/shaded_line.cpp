@@ -1,5 +1,7 @@
 #include "spyro1/render/shaded_line.h"
 
+#include "spyro1/core/native_state.h"
+
 #include "core.h"
 #include "core/session.h"
 #include "emission_scope.h"
@@ -32,10 +34,6 @@ static_assert(std::is_trivially_copyable_v<LineWords>);
 constexpr std::uint32_t kSiteBits = 19;
 constexpr std::uint32_t kTurnBits = 8;
 
-CallSites &callSites(Core &core) {
-  return static_cast<CallSites &>(*spyro::session(core).titleState);
-}
-
 void drawLine(Core *core) {
   Core &guest = *core;
   const std::uint32_t packet = guest.mem_r32(terrain::kRenderGlobals.primitiveCursor);
@@ -56,7 +54,7 @@ void drawLine(Core *core) {
 // The page joins the key because a page change moves every inventory line by a whole page.
 std::uint32_t callObject(Core &core) {
   const std::uint32_t site = core.r[31];
-  const std::uint32_t turn = callSites(core).turn(core.game->timing.logicFrame, site);
+  const std::uint32_t turn = nativeState(core).callSites.turn(core.game->timing.logicFrame, site);
   const std::uint32_t page = core.mem_r32(guest::kInventoryPage);
   return ((site >> 2) & ((1u << kSiteBits) - 1u)) |
          ((turn & ((1u << kTurnBits) - 1u)) << kSiteBits) | (page << (kSiteBits + kTurnBits));
@@ -67,7 +65,8 @@ std::uint32_t CallSites::turn(std::uint32_t frame, std::uint32_t site) {
     frame_ = frame;
     calls_.clear();
   }
-  const auto found = std::ranges::find(calls_, site, &std::pair<std::uint32_t, std::uint32_t>::first);
+  const auto found =
+      std::ranges::find(calls_, site, &std::pair<std::uint32_t, std::uint32_t>::first);
   if (found == calls_.end()) {
     calls_.emplace_back(site, 1u);
     return 0;

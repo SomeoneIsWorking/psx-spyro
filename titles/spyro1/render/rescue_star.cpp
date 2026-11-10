@@ -2,10 +2,10 @@
 
 #include "core.h"
 #include "gte_registers.h"
+#include "native_dispatch.h"
 #include "render/field/guest_render_globals.h"
 #include "render/field/guest_word.h"
 #include "spyro1/render/terrain_facts.h"
-#include "state_producer.h"
 
 namespace spyro1::rescue_star {
 namespace {
@@ -29,7 +29,8 @@ constexpr std::uint32_t kLastSpike = 0x1E0u;
 
 } // namespace
 
-RescueStar::RescueStar(Core &core, const psx::present::EmitMemory &memory) : core_(core), memory_(memory) {}
+RescueStar::RescueStar(Core &core, const psx::present::EmitMemory &memory)
+    : core_(core), memory_(memory) {}
 
 std::uint32_t RescueStar::draw() {
   placeCentre();
@@ -127,6 +128,21 @@ std::uint32_t RescueStar::drawTriangles() {
   }
   memory_.mem_w32(kRenderGlobals.primitiveCursor, cursor);
   return first;
+}
+
+namespace {
+
+void drawStar(Core *core) {
+  const psx::present::EmitMemory memory(*core);
+  RescueStar star(*core, memory);
+  star.draw();
+  star.end();
+}
+
+} // namespace
+
+void registerOverrides(Core &core) {
+  psx::cpu::installNativeOverride(core, kEntry, "spyro1-rescue-star", drawStar);
 }
 
 } // namespace spyro1::rescue_star

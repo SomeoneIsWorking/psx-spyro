@@ -1,6 +1,9 @@
 # 0206: Spyro 1 title screen in-betweens are shown whole
 
-Status: fixed
+Status: open again (2026-11-10). Spyro 1 draws its in-betweens by replay (`titles/spyro1/core/frame/draw_section.*`),
+which covers only GamestateDraw's GS_Playing section, so the composer and this producer no longer ran and
+`title_sprites.*` was deleted; the title screen's in-betweens are held (`not-replayed`) until the title state's
+draw is a replay section with the sprite positions as motion tracks.
 
 ## Observed
 Spyro 1, fps60, 16:9, real speed, unmapped window, boot with no input, `PSXPORT_DEBUG=compose`: from

@@ -1,12 +1,11 @@
 // rescue_star.h — SCUS_942.28's 0x80058864: the star burst over a freed dragon (D_80076248, set
 // when a dragon statue is touched, drawn by the dragon cutscene's draw 0x8001CFDC). Eight inner
 // points and eight spikes at the block's scale around its centre, drawn as sixteen additive flat
-// triangles appended to the overlay pair. Runs over guest memory for the real field and over host
-// memory for an in-between.
+// triangles appended to the overlay pair.
 #pragma once
 
-#include "projected_vertex.h"
 #include "guest_memory_map.h"
+#include "projected_vertex.h"
 
 #include "render/field/guest_working_memory.h"
 
@@ -50,5 +49,10 @@ private:
   const psx::present::EmitMemory &memory_;
   psx::gte::ProjectedVertex centreScreen_;
 };
+
+inline constexpr std::uint32_t kEntry = 0x80058864u;
+
+// The draw override.
+void registerOverrides(Core &core);
 
 } // namespace spyro1::rescue_star

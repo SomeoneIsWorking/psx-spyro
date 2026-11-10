@@ -1,7 +1,6 @@
 // flame.h — SCUS_942.28's DrawSpyroHornStrikeTrails 0x80058D64: Spyro's flame breath as eight
 // parts, each a tip of four gouraud triangles around the part's newest arc entry and a textured
 // ribbon down its arc path, placed at the anchor by the view-space rotation Spyro's draw published.
-// Runs over guest memory for the real field and over host memory for an in-between.
 #pragma once
 
 #include "projected_vertex.h"
@@ -62,5 +61,10 @@ private:
   std::uint32_t v0_ = 0;
   std::uint32_t v1_ = 0;
 };
+
+inline constexpr std::uint32_t kEntry = 0x80058D64u;
+
+// The draw override.
+void registerOverrides(Core &core);
 
 } // namespace spyro1::flame

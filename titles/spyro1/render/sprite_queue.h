@@ -1,7 +1,7 @@
 // sprite_queue.h — SCUS_942.28's RasterizeSpritePrimQueue 0x80022A2C: the lit and HUD mobys
 // queued at kSpriteQueue. Each record is culled, projected, lit and drawn into the local bins,
 // whose chain is then linked into one slot: its depth bin, or the overlay pair for a HUD record at
-// depth 0. Runs over guest memory for the real field and over host memory for an in-between.
+// depth 0.
 #pragma once
 
 #include "projected_vertex.h"
@@ -30,7 +30,7 @@ struct QueueView {
 [[nodiscard]] QueueView presentedQueueView(const Core &core);
 
 // A queued record as draw() takes it: a HUD record `hudShift` columns off its authored x, its
-// angles refined by an in-between's `angleFractions` (spyro::moby_record::Between).
+// angles refined by the replay's fractions (ReplayAngles).
 struct QueuedDraw {
   std::uint32_t record = 0;
   std::int32_t hudShift = 0;
@@ -130,5 +130,10 @@ private:
   std::array<psx::gte::ProjectedVertex, 4> screen_{};
   LocalBins bins_;
 };
+
+inline constexpr std::uint32_t kSpriteQueueEntry = 0x80022A2Cu;
+
+// The draw override: every queued record, a HUD record shifted to its anchor.
+void registerSpriteQueueOverrides(Core &core);
 
 } // namespace spyro1::actors

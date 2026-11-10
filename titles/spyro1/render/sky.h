@@ -1,8 +1,7 @@
 // sky.h — SCUS_942.28's cyclorama drawer 0x8004EBA8: the sky sectors in front of the camera
 // projected, outcoded and drawn as flat or gouraud triangles chained into the deepest depth bin;
 // and its copies 0x8004F4BC and 0x80050240 that draw a portal's own sky through the portal, each
-// polygon cut to the portal's outline. Runs over guest memory for the real field and over host
-// memory for an in-between.
+// polygon cut to the portal's outline.
 #pragma once
 
 #include "guest_memory_map.h"
@@ -128,5 +127,10 @@ private:
   std::uint32_t tag_ = 0;
   std::uint32_t limit_ = 0;
 };
+
+inline constexpr std::uint32_t kEntry = 0x8004EBA8u;
+
+// The draw override.
+void registerOverrides(Core &core);
 
 } // namespace spyro1::sky

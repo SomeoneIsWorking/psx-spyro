@@ -2,20 +2,23 @@
 
 #include "core.h"
 #include "core/guest_magnitude.h"
+#include "core/native_execution.h"
 #include "cpu_divide.h"
 #include "lucent/log.h"
+#include "native_dispatch.h"
 #include "render/field/guest_moby_rotation.h"
 #include "render/field/guest_packet.h"
 #include "render/field/guest_render_globals.h"
+#include "render/field/guest_view_slope.h"
 #include "render/field/guest_word.h"
 #include "render/terrain/guest_depth_bins.h"
 #include "render/terrain/guest_terrain_fog.h"
 #include "render/terrain/guest_terrain_screen.h"
+#include "render/terrain/terrain_rebuild.h"
 #include "spyro1/core/guest_globals.h"
 #include "spyro1/render/sky.h"
 #include "spyro1/render/terrain_facts.h"
 #include "spyro1/render/terrain_image.h"
-#include "state_producer.h"
 
 #include <algorithm>
 #include <cmath>
@@ -282,7 +285,8 @@ std::optional<Approach> Portals::drawFar(std::uint32_t index) {
   const psx::cpu::DepthUnit unit(
       gte,
       std::ldexp(1.0f,
-                 static_cast<int>(shift) - static_cast<int>(spyro::guest_render_globals::kNearViewShift)));
+                 static_cast<int>(shift) -
+                     static_cast<int>(spyro::guest_render_globals::kNearViewShift)));
   for (std::uint32_t i = 0; i < count; ++i) {
     const std::uint32_t point = at + portal::kPoints + i * portal::kPointBytes;
     const std::uint32_t x = memory_.mem_r32(point);
@@ -633,7 +637,8 @@ void Portals::cutShaded(std::array<Corner, 3> q, std::uint32_t at, sky::Cycloram
       return;
     }
   }
-  const sky::SkyTriangle drawn{.points = {onOutlinePlane(q[0].point), onOutlinePlane(q[1].point),
+  const sky::SkyTriangle drawn{.points = {onOutlinePlane(q[0].point),
+                                          onOutlinePlane(q[1].point),
                                           onOutlinePlane(q[2].point)},
                                .colours = {q[0].colour, q[1].colour, q[2].colour}};
   sky.emit(drawn, q[0].colour == q[1].colour && q[0].colour == q[2].colour);
@@ -754,7 +759,8 @@ gte::ProjectedVertex Portals::onOutlinePlane(gte::ProjectedVertex point) const {
   place.back = 0.0f;
   place.z = 0.0f;
   if (outlinePlane_) {
-    const float inverse = outlinePlane_->a * place.x + outlinePlane_->b * place.y + outlinePlane_->c;
+    const float inverse =
+        outlinePlane_->a * place.x + outlinePlane_->b * place.y + outlinePlane_->c;
     if (inverse > 0.0f) {
       place.z = 1.0f / inverse;
     }
@@ -801,6 +807,48 @@ nearSkyRotations(Core &core, const spyro::guest_camera::Angles &camera, SkySpin 
                                      .aroundY = asSigned(asWord(camera.aroundY) - spin.pitch),
                                      .aroundZ = asSigned(asWord(camera.aroundZ) + spin.yaw)});
   return sky::Rotations{.view = matrices.view, .projection = matrices.projection};
+}
+
+namespace {
+
+constexpr std::string_view kOwner = "spyro1-portals";
+constexpr psx::cpu::GuestCallSite kLevelSky =
+    psx::cpu::GuestCallSite::fromJal(0x80051FB0u, sky::kEntry);
+
+void drawPortals(Core *core) {
+  Core &guest = *core;
+  const spyro::PreservedReturnAddress returnAddress(guest);
+  const spyro::guest_terrain::CameraState camera =
+      spyro::guest_terrain::readCamera(guest, terrain::kRenderGlobals);
+  const sky::Rotations rotations = nearSkyRotations(
+      guest, {camera.angles[0], camera.angles[1], camera.angles[2]}, advanceSkySpin(guest));
+  {
+    const psx::present::EmitMemory emit(guest);
+    Portals portals(guest, emit, spyro::presentedBounds(guest, terrain::kSharedFacts));
+    const std::int32_t count = asSigned(guest.mem_r32(guest::kPortalCount));
+    for (std::int32_t index = 0; index < count; ++index) {
+      if (const std::optional<Approach> approach =
+              portals.drawFar(static_cast<std::uint32_t>(index))) {
+        portals.drawNear(*approach, rotations);
+      }
+    }
+  }
+  std::uint32_t group = guest.mem_r32(guest::kCameraOcclusionGroup);
+  if (asSigned(group) >= asSigned(guest.mem_r32(guest::kEnvironmentOcclusionGroupCount))) {
+    group = 0xFFFFFFFFu;
+  }
+  psx::cpu::callGuestNow(guest,
+                         kOwner,
+                         kLevelSky,
+                         group,
+                         terrain::kSharedFacts.classify.viewRotation,
+                         terrain::kRenderGlobals.cameraRotation);
+}
+
+} // namespace
+
+void registerOverrides(Core &core) {
+  psx::cpu::installNativeOverride(core, kEntry, "spyro1-portals", drawPortals);
 }
 
 } // namespace spyro1::portals

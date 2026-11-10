@@ -77,6 +77,8 @@ set(SPYRO_RUNTIME_SOURCES
   titles/spyro1/core/frame/skip_map.cpp
   titles/spyro1/core/frame/frame_draw.cpp
   titles/spyro1/core/frame/draw_section.cpp
+  titles/spyro1/core/frame/draw_motion.cpp
+  titles/spyro1/core/frame/draw_cuts.cpp
   titles/spyro1/core/frame/frame_driver.cpp
   titles/spyro1/render/ordering_table.cpp
   titles/spyro1/core/input/input_phase.cpp
@@ -115,7 +117,6 @@ set(SPYRO_RUNTIME_SOURCES
   titles/spyro1/core/effect/native_particle_alloc.cpp
   titles/spyro1/core/hud/native_pause_menu.cpp
   titles/spyro1/core/hud/native_pixel_fade.cpp
-  titles/spyro1/render/title_sprites.cpp
   titles/spyro1/render/hud_anchor.cpp
   titles/spyro1/core/player/native_player_animation.cpp
   titles/spyro1/core/player/native_player_physics.cpp
@@ -159,39 +160,28 @@ set(SPYRO_RUNTIME_SOURCES
   game/render/terrain/guest_terrain_sphere.cpp
   game/render/terrain/guest_terrain_split.cpp
   game/render/terrain/guest_terrain_translucent.cpp
-  titles/spyro1/render/actor_between.cpp
   titles/spyro1/render/actor_emitter.cpp
   titles/spyro1/render/actor_emitter_polygons.cpp
-  titles/spyro1/render/actor_emitter_producer.cpp
+  titles/spyro1/render/actor_emitter_passes.cpp
   titles/spyro1/render/actor_emitter_vertices.cpp
   titles/spyro1/render/actor_list.cpp
   titles/spyro1/render/local_bins.cpp
   titles/spyro1/render/lit_actor_emitter.cpp
   titles/spyro1/render/paired_actor.cpp
   titles/spyro1/render/paired_actor_polygons.cpp
-  titles/spyro1/render/paired_actor_producer.cpp
   titles/spyro1/render/paired_actor_vertices.cpp
   titles/spyro1/render/drop_shadow.cpp
-  titles/spyro1/render/drop_shadow_producer.cpp
   titles/spyro1/render/flame.cpp
-  titles/spyro1/render/flame_producer.cpp
   titles/spyro1/render/rescue_star.cpp
-  titles/spyro1/render/rescue_star_producer.cpp
   titles/spyro1/render/moby_shadows.cpp
-  titles/spyro1/render/moby_shadow_producer.cpp
-  titles/spyro1/render/glow_producers.cpp
   titles/spyro1/render/glows.cpp
-  titles/spyro1/render/particle_producer.cpp
   titles/spyro1/render/particles.cpp
   titles/spyro1/render/pause_backdrop.cpp
   titles/spyro1/render/shaded_line.cpp
   titles/spyro1/render/inventory_band.cpp
-  titles/spyro1/render/portal_producer.cpp
   titles/spyro1/render/portals.cpp
   titles/spyro1/render/sky.cpp
-  titles/spyro1/render/sky_producer.cpp
   titles/spyro1/render/sprite_queue.cpp
-  titles/spyro1/render/sprite_queue_producer.cpp
   titles/spyro1/render/terrain_coarse.cpp
   titles/spyro1/render/terrain_detail.cpp
   titles/spyro1/render/terrain_far.cpp
