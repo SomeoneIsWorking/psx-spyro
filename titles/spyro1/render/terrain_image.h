@@ -1,6 +1,6 @@
 // terrain_image.h — SCUS_942.28's terrain drawer (0x800258F0) as the engine family's
 // `TerrainImage`: its sector loop, far, detail and split passes, the shared re-split pass, and
-// the camera builder 0x80033C50 an in-between rebuilds its camera with.
+// the camera builder 0x80033C50 the near sky rebuilds its rotations with.
 #pragma once
 
 #include "render/terrain/guest_camera_builder.h"
@@ -37,9 +37,10 @@ public:
   [[nodiscard]] const spyro::guest_render_globals::Globals &globals() const override {
     return kRenderGlobals;
   }
-  [[nodiscard]] spyro::guest_terrain::FieldWindows windows(Core &core) const override;
+  [[nodiscard]] std::uint32_t scratch(Core &core) const override;
+  // 0x80033C50's matrices at `angles`, for the near sky.
   [[nodiscard]] spyro::guest_camera::Matrices
-  camera(Core &core, const spyro::guest_camera::Angles &angles) const override;
+  camera(Core &core, const spyro::guest_camera::Angles &angles) const;
   void drawPasses(spyro::guest_terrain::TerrainFrame &frame) const override;
 };
 

@@ -93,8 +93,6 @@ inline constexpr std::uint32_t kPacketPoolBytes = 0x1C000u;
 // Set by the sky (8004EF68) and the particles (8005809C) when the pool comes within 0x400 bytes of
 // its end.
 inline constexpr std::uint32_t kPoolExhausted = 0x800758B0u;
-// The depth bins it flattens (8001F138), 8 bytes each.
-inline constexpr std::uint32_t kOrderingTableBytes = 0x800u * 8;
 
 // The shared passes' view of the drawer.
 inline constexpr spyro::guest_terrain::Facts kSharedFacts{

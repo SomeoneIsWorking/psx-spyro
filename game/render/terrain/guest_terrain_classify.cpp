@@ -100,20 +100,17 @@ void SectorClassifier::run() {
   memory_.mem_w32(farCursor_, 0);
   memory_.mem_w32(detailCursor_, 0);
 
-  // 800244F0: the moby visibility walk (each moby's group byte at +0x52) is the guest's own, so a
-  // real field must publish these bytes; an in-between field classifies from what it was handed.
-  if (frame_.realField()) {
-    const std::uint32_t copyEnd = (end + kGroupCopyEnd) & ~kGroupCopyEnd;
-    std::uint32_t from = kScratchpad;
-    std::uint32_t to = frame_.globals.visibilityGroups;
-    do {
-      for (std::uint32_t word = 0; word < 16; word += 4) {
-        core_.mem_w32(to + word, memory_.mem_r32(from + word));
-      }
-      from += 16;
-      to += 16;
-    } while (from != copyEnd);
-  }
+  // 800244F0: the moby visibility walk reads each moby's group byte (+0x52) from these.
+  const std::uint32_t copyEnd = (end + kGroupCopyEnd) & ~kGroupCopyEnd;
+  std::uint32_t from = kScratchpad;
+  std::uint32_t to = frame_.globals.visibilityGroups;
+  do {
+    for (std::uint32_t word = 0; word < 16; word += 4) {
+      core_.mem_w32(to + word, memory_.mem_r32(from + word));
+    }
+    from += 16;
+    to += 16;
+  } while (from != copyEnd);
 }
 
 // 80023CB0..80023E88.
@@ -180,10 +177,8 @@ void SectorClassifier::classify(const Visible &visible) {
   }
   marks |= claim;
   memory_.mem_w8(visibilityByte, static_cast<std::uint8_t>(taken));
-  // 80023E8C..80024314: each slot whose mark byte is still clear animates once, and each of the
-  // four writes a word of the level's own sector data, so an in-between field must not advance the
-  // animation a second time inside one field.
-  if (!frame_.realField() || marks == 0xFFFFFFFFu) {
+  // 80023E8C..80024314: each slot whose mark byte is still clear animates once.
+  if (marks == 0xFFFFFFFFu) {
     return;
   }
   animateSector(frame_, frame_.facts.classify.animation, sector, marks);

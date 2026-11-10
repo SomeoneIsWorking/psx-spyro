@@ -1,6 +1,5 @@
-// guest_working_memory.h — what Spyro's render routines share beside psxport's EmitMemory: the
-// arena an in-between links its packets into, a packet's tag link, and the draw a field saves for
-// its in-betweens.
+// guest_working_memory.h — what Spyro's render routines share beside psxport's EmitMemory: a
+// packet's tag link and a rotation read.
 #pragma once
 
 #include "core.h"
@@ -19,20 +18,6 @@
 #include <type_traits>
 
 namespace spyro::guest_memory {
-
-// Where an in-between links its packets, guest-shaped because a tag's link is a 24-bit main-RAM
-// offset. No bytes when nothing is free above the field's ranges.
-using PacketArena = GuestSpan;
-
-// From the page above `frameTop`, the end of the last range the traversal owns, to the end of main
-// RAM.
-[[nodiscard]] constexpr PacketArena packetArenaWindow(std::uint32_t frameTop) {
-  const std::uint32_t base = (frameTop + 0xFFFu) & ~0xFFFu;
-  if (base >= psx::kMainRamEnd) {
-    return PacketArena{};
-  }
-  return PacketArena{base, psx::kMainRamEnd - base};
-}
 
 // The tag of `packet` linked to `next`: its low 24 bits, the word count kept.
 inline void

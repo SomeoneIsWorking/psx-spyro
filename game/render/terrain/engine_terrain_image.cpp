@@ -2,12 +2,8 @@
 
 #include "core.h"
 #include "core/native_execution.h"
-#include "core/session.h"
 #include "gte_registers.h"
 #include "render/terrain/guest_terrain_passes.h"
-
-#include <algorithm>
-#include <vector>
 
 namespace spyro::guest_terrain {
 namespace {
@@ -16,58 +12,23 @@ namespace gte = psx::gte;
 
 } // namespace
 
-FieldWindows EngineTerrainImage::windows(Core &core) const {
-  // The windows are disjoint: the guest's own cursor can already be past the field's packets.
-  const std::uint32_t scratch =
-      core.mem_r32(globals_.scratchBaseWord) - facts_.scratchListsBelowEnd;
-  const std::uint32_t tableBase = core.mem_r32(globals_.orderingTable);
-  // The scratch block runs to `frameTop` because a split list can grow past retail's block when
-  // the camera sits between two fields.
-  const std::uint32_t frameTop = std::max({scratch + facts_.scratchListsBelowEnd,
-                                           tableBase + kOrderingWindowBytes,
-                                           facts_.foggedColours + kFoggedColourBytes});
-  return FieldWindows{.scratch = scratch,
-                      .tableBase = tableBase,
-                      .arenaEnd = scratch + kPrimitiveArenaBytes,
-                      .inBetweenArena = guest_memory::packetArenaWindow(frameTop),
-                      .owned = {GuestSpan{kScratchpad, kScratchpadBytes},
-                                GuestSpan{scratch, frameTop - scratch},
-                                GuestSpan{scratch, kFlagWindowBytes},
-                                GuestSpan{tableBase, kOrderingWindowBytes},
-                                GuestSpan{facts_.foggedColours, kFoggedColourBytes}}};
-}
-
-guest_camera::Matrices EngineTerrainImage::camera(Core &core,
-                                                  const guest_camera::Angles &angles) const {
-  return guest_camera::EngineBuilder(core, globals_.cameraSineTable).build(angles);
+std::uint32_t EngineTerrainImage::scratch(Core &core) const {
+  return core.mem_r32(globals_.scratchBaseWord) - facts_.scratchListsBelowEnd;
 }
 
 void EngineTerrainImage::drawPasses(TerrainFrame &frame) const {
   Core &core = frame.core;
   core.gte().writeData(gte::kVxy1, frame.scratch);
-  if (frame.realField()) {
-    const std::uint32_t cursor = core.mem_r32(globals_.primitiveCursor);
-    spyro::session(core).terrainPacketBudget =
-        static_cast<std::int32_t>(frame.scratch + kPrimitiveArenaBytes - cursor);
-    // The drawer's one call out of its own body. Only the guest can answer it, so an in-between
-    // field is handed the sectors its visibility was decided for, not asked again.
-    {
-      spyro::PreservedReturnAddress returnAddress(core);
-      psx::cpu::callGuestNow(
-          core,
-          facts_.overrideName,
-          psx::cpu::GuestCallSite::fromJal(facts_.visibilityCallSite, facts_.sectorVisibility),
-          0u);
-    }
-    core.mem_w32(facts_.visibleSectorCount, core.r[2]);
-    // The guest's answer, copied now: the classification clears each byte as it consumes it.
-    const std::uint32_t count = core.mem_r32(facts_.classify.sectorCount);
-    std::vector<std::uint8_t> &visible = spyro::session(core).terrainVisibility;
-    visible.resize(count);
-    for (std::uint32_t i = 0; i < count; ++i) {
-      visible[i] = frame.memory.mem_r8(kScratchpad + i);
-    }
+  // The drawer's one call out of its own body.
+  {
+    spyro::PreservedReturnAddress returnAddress(core);
+    psx::cpu::callGuestNow(
+        core,
+        facts_.overrideName,
+        psx::cpu::GuestCallSite::fromJal(facts_.visibilityCallSite, facts_.sectorVisibility),
+        0u);
   }
+  core.mem_w32(facts_.visibleSectorCount, core.r[2]);
   classifySectors(frame);
   drawDetailSectors(frame);
   drawTranslucentSectors(frame);

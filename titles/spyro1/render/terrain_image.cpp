@@ -9,31 +9,8 @@
 #include "spyro1/render/terrain_passes.h"
 
 namespace spyro1::terrain {
-namespace {
-
-namespace gte = psx::gte;
-using spyro::guest_terrain::FieldWindows;
-
-// The flag bytes, the sector lists and the re-split queue, which grows from kFarList.
-constexpr std::uint32_t kScratchBlockBytes = 0x3000u;
-
-} // namespace
-
-FieldWindows TerrainImage::windows(Core &core) const {
-  const std::uint32_t tableBase = core.mem_r32(kRenderGlobals.orderingTable);
-  const std::uint32_t poolEnd = core.mem_r32(kPacketPoolEnd);
-  // An in-between links into the pool the guest's own field drew into, which no pass reads.
-  return FieldWindows{
-      .scratch = kFacts.scratch,
-      .tableBase = tableBase,
-      .arenaEnd = poolEnd,
-      .inBetweenArena = {.address = poolEnd - kPacketPoolBytes, .bytes = kPacketPoolBytes},
-      .owned = {
-          GuestSpan{spyro::guest_terrain::kScratchpad, spyro::guest_terrain::kScratchpadBytes},
-          GuestSpan{kFacts.scratch, kScratchBlockBytes},
-          GuestSpan{tableBase, kOrderingTableBytes},
-          GuestSpan{},
-          GuestSpan{}}};
+std::uint32_t TerrainImage::scratch(Core &) const {
+  return kFacts.scratch;
 }
 
 spyro::guest_camera::Matrices
@@ -60,7 +37,7 @@ void TerrainImage::drawPasses(spyro::guest_terrain::TerrainFrame &frame) const {
 namespace {
 
 void drawTerrain(Core *core) {
-  spyro::guest_terrain::drawField(*core, kTerrainImage);
+  spyro::guest_terrain::draw(*core, kTerrainImage);
 }
 
 } // namespace

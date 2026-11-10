@@ -41,7 +41,7 @@ template <const EngineRenderFacts &facts>
 inline constexpr guest_terrain::EngineTerrainImage kTerrainImage{facts.terrain, facts.globals};
 
 template <const EngineRenderFacts &facts> void drawTerrain(Core *core) {
-  guest_terrain::drawField(*core, kTerrainImage<facts>);
+  guest_terrain::draw(*core, kTerrainImage<facts>);
 }
 
 template <const EngineRenderFacts &facts> void drawSky(Core *core) {

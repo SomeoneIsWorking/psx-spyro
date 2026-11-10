@@ -118,11 +118,8 @@ void FarPass::run() {
       break;
     }
   }
-  // 80029118: the drawer's exit stores the mark in a guest word the next frame's draw starts from,
-  // so only the guest's own field publishes it.
-  if (frame_.realField()) {
-    core_.mem_w32(frame_.globals.orderingTableMark, frame_.markSlot(markBin_));
-  }
+  // 80029118: the drawer's exit stores the mark the next frame's draw starts from.
+  core_.mem_w32(frame_.globals.orderingTableMark, frame_.markSlot(markBin_));
 }
 
 // 80028B80.

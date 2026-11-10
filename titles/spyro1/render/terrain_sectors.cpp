@@ -73,10 +73,8 @@ void SectorLister::run(std::int32_t group) {
              .z = asSigned(frame_.positionWord(2)) >> 4};
   slope_ = spyro::presentedSlope(core_);
   // The marks are read by level code, so they stay retail's.
-  if (frame_.realField()) {
-    for (std::uint32_t offset = 0; offset < kSectorMarkBytes; offset += 4) {
-      core_.mem_w32(facts_.sectorMarks + offset, 0);
-    }
+  for (std::uint32_t offset = 0; offset < kSectorMarkBytes; offset += 4) {
+    core_.mem_w32(facts_.sectorMarks + offset, 0);
   }
   nearDepth_ = memory_.mem_r32(facts_.lodTable + lod::kNearDepth) >> 4;
   nearCursor_ = frame_.scratch + kNearList;
@@ -126,7 +124,7 @@ void SectorLister::list(std::uint32_t index) {
   if (sphere.inside) {
     entry ^= kEdgeTouching;
   }
-  if (frame_.realField() && retailSees) {
+  if (retailSees) {
     core_.mem_w8(facts_.sectorMarks + index, kDrawn);
   }
 
@@ -152,7 +150,7 @@ void SectorLister::list(std::uint32_t index) {
   }
   marks |= claim;
   // 80025BB0: each claimed slot rewrites the level's own sector data.
-  if (!frame_.realField() || !retailSees || marks == 0xFFFFFFFFu) {
+  if (!retailSees || marks == 0xFFFFFFFFu) {
     return;
   }
   animateSector(frame_, frame_.facts.classify.animation, sector, marks);

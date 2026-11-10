@@ -1,5 +1,5 @@
-// The guest's own camera builders (SCUS_944.25 FUN_8001c2f8, SCUS_942.28 0x80033C50), re-run so an
-// in-between camera can interpolate.
+// The camera builders' arithmetic (SCUS_942.28 0x80033C50, SCUS_944.25 FUN_8001c2f8), for the
+// rotations Spyro 1's near sky builds from the camera's angles.
 
 // Each is the only writer of its image's view matrix (0x80067E98 / 0x80076DE4) and projection
 // matrix (0x80067E84 / 0x80076DD0), which is the same matrix with row 1 scaled by 0x140 / 512: the
@@ -24,8 +24,7 @@ namespace spyro::guest_camera {
 // FUN_8001b61C and FUN_8001b664 both index `(angle & 0xFFF) >> 4` with the low nibble as the
 // interpolation fraction, so 4096 is the period.
 inline constexpr unsigned kTurnBits = 12;
-// An in-between camera's angles carry this many bits below the guest's unit, so a turn of one unit
-// per field still moves at the in-between.
+// Angles carry this many bits below the guest's unit.
 inline constexpr unsigned kFineBits = 4;
 // 0x140 >> 9 is 5/8, the display's vertical scale.
 inline constexpr std::int32_t kVerticalScaleShift = 9;
@@ -103,21 +102,6 @@ private:
 
   AngleTable sin_;
   AngleTable cos_;
-};
-
-// SCUS_944.25 FUN_8001c2f8: Rx * (Ry * Rz), the scale shifted (rounding toward -infinity).
-class EngineBuilder final : public Builder {
-public:
-  using Builder::Builder;
-
-private:
-  [[nodiscard]] Rotation
-  compose(const Rotation &x, const Rotation &y, const Rotation &z) const override {
-    return multiply(x, multiply(y, z));
-  }
-  [[nodiscard]] std::int32_t scaleVertical(std::int32_t element) const override {
-    return (element * kVerticalScale) >> kVerticalScaleShift;
-  }
 };
 
 } // namespace spyro::guest_camera

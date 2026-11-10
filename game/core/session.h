@@ -29,15 +29,6 @@ public:
   // The selected title's field owner, published by its frame driver. Non-owning: the driver
   // holds it and is installed before the first host turn can arrive.
   FieldOwner *fieldOwner = nullptr;
-  // The sector-visibility bytes the guest's own visibility call left in the scratchpad. The
-  // drawer's classification clears each byte as it consumes it, so an in-between has to be handed
-  // them rather than find them.
-  std::vector<std::uint8_t> terrainVisibility;
-  // How far the real field's packets could grow before its far pass stopped: the pool's top minus
-  // the cursor the drawer started at. An in-between draws within the same budget.
-  std::int32_t terrainPacketBudget = 0;
-  // The level words a producer's draw reads, kept across saves.
-  psx::present::Kept<psx::present::LevelReads> drawReads;
   // The state renders this title's producers registered, keyed by producer entry.
   psx::present::StateProducerTable stateProducers;
   // The title's `warp` request, applied by its frame driver.

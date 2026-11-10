@@ -19,12 +19,8 @@ public:
   [[nodiscard]] const guest_render_globals::Globals &globals() const override {
     return globals_;
   }
-  // The scratch block below the frame's scratch block end, its flag window, the ordering table and
-  // the fogged colours.
-  [[nodiscard]] FieldWindows windows(Core &core) const override;
-  // FUN_8001c2f8.
-  [[nodiscard]] guest_camera::Matrices camera(Core &core,
-                                              const guest_camera::Angles &angles) const override;
+  // kScratchListsBelowEnd below the frame's scratch block end.
+  [[nodiscard]] std::uint32_t scratch(Core &core) const override;
   // The sector-visibility call, then the seven passes (guest_terrain_passes.h).
   void drawPasses(TerrainFrame &frame) const override;
 
