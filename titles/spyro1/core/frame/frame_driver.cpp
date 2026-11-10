@@ -25,6 +25,8 @@ constexpr std::uint32_t kRootHandlers = 0x80073928u;
 constexpr std::uint32_t kInputLatchOpen = kGp + 0x604u;
 constexpr std::int32_t kDeltaTimeMin = 2;
 constexpr std::int32_t kDeltaTimeMax = 4;
+// GS_Playing: GamestateDraw's only branch with a replayable section.
+constexpr std::uint32_t kGamestatePlaying = 0;
 
 } // namespace
 
@@ -100,6 +102,11 @@ void FrameDriver::stepFrame(Core &core, std::uint32_t) {
   perf.phaseEnd(GpuPerf::Phase::GameLogic);
 
   perf.phaseBegin(GpuPerf::Phase::Present);
+  if (core.mem_r32(guest::kGamestate) == kGamestatePlaying) {
+    replay_.beforeDraw(core);
+  } else {
+    replay_.forget();
+  }
   draw_.run(core, fields_);
   cut_.onFrameDrawn(core);
   cut_.onFrameTail(core);
@@ -134,6 +141,7 @@ void FrameDriver::restored(Core &) {
   transitions_.dropHeldPress();
   gameplayFrame_ = *stagedFrame_;
   stagedFrame_.reset();
+  replay_.forget();
 }
 
 } // namespace spyro1

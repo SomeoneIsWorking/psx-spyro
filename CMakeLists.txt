@@ -76,6 +76,7 @@ set(SPYRO_RUNTIME_SOURCES
   titles/spyro1/core/frame/boot_sequence.cpp
   titles/spyro1/core/frame/skip_map.cpp
   titles/spyro1/core/frame/frame_draw.cpp
+  titles/spyro1/core/frame/draw_section.cpp
   titles/spyro1/core/frame/frame_driver.cpp
   titles/spyro1/render/ordering_table.cpp
   titles/spyro1/core/input/input_phase.cpp

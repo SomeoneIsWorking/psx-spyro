@@ -202,6 +202,11 @@ bool Runtime::sealedFrameIsCut(Core &core) const {
   return core.game->frameDriver == nullptr || core.game->frameDriverAs<FrameDriver>().cut().isCut();
 }
 
+psx::present::ReplayFrame *Runtime::replayFrame(Core &core) {
+  return core.game->frameDriver == nullptr ? nullptr
+                                           : &core.game->frameDriverAs<FrameDriver>().replay();
+}
+
 const spyro::TitleLogoFacts &Runtime::logoFacts() const {
   return kLogoFacts;
 }

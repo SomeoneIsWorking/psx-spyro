@@ -44,7 +44,7 @@ Frame loop: not owned. Spyro 1 runs update `0x8003385C` and draw `0x8001ED5C` an
 - `titles/spyro1/core/runtime/` — S1 runtime: crt0, stock bindings, native leaves, pad delivery, Record capabilities, cut, title command
 - `titles/spyro1/core/guest_globals.h`, `guest_gp.h`, `guest_functions.h` — S1 guest globals, gp, callee entries, names from the spyro-1 decomp
 - `titles/spyro1/core/execution/` — S1 native leaves: vector math, GTE geometry, angles, rand and random range, utilities, level initialisation, cooperative CD loader queue
-- `titles/spyro1/core/frame/` — S1 main loop: frame driver, GamestateDraw and its VSync tail, boot sequence and logos, Start press latch, transition skip, skip map, draw setup, update budget, logo facts
+- `titles/spyro1/core/frame/` — S1 main loop: frame driver, GamestateDraw and its VSync tail, boot sequence and logos, Start press latch, transition skip, skip map, draw setup, update budget, logo facts; `draw_section.*` the GS_Playing draw as a replay section and its motion tracks (camera, Spyro, part poses)
 - `titles/spyro1/core/audio/` — S1 sound: libspu natives, SPU registers, voices, pitch, key status, positional moby sound
 - `titles/spyro1/core/moby/` — S1 mobys / game objects: allocator, lists, transform, animation, collision, collision shade, environment light, shaded queue, shared models (PETE.WAD), level globals table
 - `titles/spyro1/core/player/` — S1 player: Spyro physics, body / head / tail animation, cutscene playback

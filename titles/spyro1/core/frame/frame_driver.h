@@ -4,7 +4,9 @@
 #include "core/frame_cut.h"
 #include "game_runtime.h"
 #include "machine_state.h"
+#include "replay_frame.h"
 #include "spyro1/core/frame/boot_sequence.h"
+#include "spyro1/core/frame/draw_section.h"
 #include "spyro1/core/frame/frame_draw.h"
 #include "spyro1/core/frame/skip_map.h"
 #include "spyro1/core/frame/transition_skip.h"
@@ -32,6 +34,10 @@ public:
   [[nodiscard]] const spyro::FrameCut &cut() const {
     return cut_;
   }
+  // GS_Playing's in-betweens, replayed from its draw section.
+  [[nodiscard]] psx::present::ReplayFrame &replay() {
+    return replay_;
+  }
 
   // A state is taken past the boot sequence; its guest state lives in RAM, the gameplay frame here.
   [[nodiscard]] const char *sectionName() const override {
@@ -54,6 +60,9 @@ private:
   BootSequence boot_;
   TransitionSkip transitions_;
   FrameDraw draw_;
+  DrawSection section_;
+  DrawMotion motion_;
+  psx::present::ReplayFrame replay_{section_, motion_.tracks()};
   spyro::FrameCut cut_;
   std::uint32_t gameplayFrame_ = 0;
   std::optional<std::uint32_t>

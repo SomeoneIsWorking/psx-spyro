@@ -1,0 +1,154 @@
+#include "spyro1/core/frame/draw_section.h"
+
+#include "core.h"
+#include "guest_redraw.h"
+#include "ordering_table.h"
+#include "render/field/keyframe_blend.h"
+
+#include <lucent/log.h>
+
+#include <array>
+#include <cstring>
+#include <span>
+
+namespace spyro1 {
+namespace {
+
+// g_DB[2] and the globals the draw's preamble sets from the buffer it flips to
+// (src/gamestates/draw.c).
+constexpr std::uint32_t kDb0 = 0x80076EE0u;
+constexpr std::uint32_t kDb1 = 0x80076F64u;
+constexpr std::uint32_t kDbSize = 0x84u;
+constexpr std::uint32_t kDbPolyBuffer = 0x70u;
+constexpr std::uint32_t kDbWorldOt = 0x74u;
+constexpr std::uint32_t kDbHudOt = 0x78u;
+constexpr std::uint32_t kCurDb = 0x80075888u;
+constexpr std::uint32_t kWorldOt = 0x80075820u;
+constexpr std::uint32_t kHudOt = 0x8007581Cu;
+constexpr std::uint32_t kPolyCursor = 0x800757B0u;
+constexpr std::uint32_t kUnread = 0x800758B0u;
+constexpr std::array<std::uint32_t, 3> kPolyEnds{0x800756FCu, 0x80075710u, 0x80075780u};
+constexpr std::uint32_t kPolyEndOffset = 0x1C000u;
+
+constexpr std::uint32_t kIsFlightLevel = 0x80075690u;
+constexpr std::uint32_t kDemoMode = 0x80075714u;
+constexpr std::uint32_t kFade = 0x80075918u;
+constexpr std::uint32_t kScreenBorder = 0x8007570Cu;
+constexpr std::uint32_t kBorderSize = 0x800756C0u;
+
+constexpr std::uint32_t kCameraUpdateMatrices = 0x80033C50u;
+constexpr std::uint32_t kQueueMobys = 0x800521C0u;
+constexpr std::uint32_t kDrawCollectables = 0x80019300u;
+constexpr std::uint32_t kDrawDemoText = 0x80018908u;
+constexpr std::array<std::uint32_t, 4> kDrawers{0x80019698u, 0x8002B9CCu, 0x80050BD0u, 0x800573C8u};
+constexpr std::uint32_t kDrawFade = 0x800190D4u;
+constexpr std::uint32_t kDrawBorder = 0x80018F30u;
+constexpr std::uint32_t kDrawHud = 0x800189F0u;
+// func_80016784(0x800): links the bins into one chain and returns its head, DrawOTag's argument.
+constexpr std::uint32_t kFlattenBins = 0x80016784u;
+constexpr std::uint32_t kBinCount = 0x800u;
+
+// Byte offsets inside the 16 pose bytes from g_Spyro +0x18: part p's anim pair at 2p, frame pair at
+// 6 + 2p, progress at 12 + p (0x80023AC4).
+constexpr std::size_t kPoseBytes = 16;
+constexpr std::size_t kPoseParts = 3;
+constexpr std::size_t kFrameBytes = 6;
+constexpr std::size_t kProgressBytes = 12;
+constexpr spyro::keyframe_blend::Progress kPartSteps{16};
+
+std::array<std::uint8_t, kPoseBytes> bytesOf(std::span<const std::uint32_t> words) {
+  std::array<std::uint8_t, kPoseBytes> bytes{};
+  std::memcpy(bytes.data(), words.data(), bytes.size());
+  return bytes;
+}
+
+spyro::keyframe_blend::Pose partOf(const std::array<std::uint8_t, kPoseBytes> &bytes,
+                                   std::size_t part) {
+  const std::size_t pair = 2 * part;
+  const std::size_t frames = kFrameBytes + pair;
+  const auto byte = [&bytes](std::size_t at, unsigned shift) {
+    return static_cast<std::uint32_t>(bytes[at]) << shift;
+  };
+  return {.keyframes = byte(pair, 0) | byte(pair + 1, 8) | byte(frames, 16) | byte(frames + 1, 24),
+          .progress = bytes[kProgressBytes + part]};
+}
+
+bool step(psx::present::GuestRedraw &redraw,
+          std::uint32_t entry,
+          std::span<const std::uint32_t> args = {}) {
+  const bool returned = redraw.dispatch(entry, args);
+  lucent::debug(
+      "replay", "spyro1 section step 0x{:08X}: {}", entry, returned ? "returned" : "refused");
+  return returned;
+}
+
+} // namespace
+
+std::optional<std::uint32_t> DrawSection::draw(Core &core,
+                                               psx::present::GuestRedraw &redraw) const {
+  const std::uint32_t db = core.mem_r32(kCurDb) == kDb0 ? kDb1 : kDb0;
+  const std::uint32_t poly = core.mem_r32(db + kDbPolyBuffer);
+  redraw.writeWord(kCurDb, db);
+  redraw.writeWord(kUnread, 0);
+  redraw.writeWord(kWorldOt, core.mem_r32(db + kDbWorldOt));
+  redraw.writeWord(kHudOt, core.mem_r32(db + kDbHudOt));
+  redraw.writeWord(kPolyCursor, poly);
+  for (const std::uint32_t end : kPolyEnds) {
+    redraw.writeWord(end, poly + kPolyEndOffset);
+  }
+  if (!step(redraw, kCameraUpdateMatrices) || !step(redraw, kQueueMobys)) {
+    return std::nullopt;
+  }
+  if (core.mem_r32(kIsFlightLevel) == 0 && !step(redraw, kDrawCollectables)) {
+    return std::nullopt;
+  }
+  if (core.mem_r32(kDemoMode) != 0 && !step(redraw, kDrawDemoText)) {
+    return std::nullopt;
+  }
+  for (const std::uint32_t drawer : kDrawers) {
+    if (!step(redraw, drawer)) {
+      return std::nullopt;
+    }
+  }
+  if (const std::uint32_t fade = core.mem_r32(kFade); fade != 0) {
+    const std::array<std::uint32_t, 4> args{2u, fade << 3, fade << 3, fade << 3};
+    if (!step(redraw, kDrawFade, args)) {
+      return std::nullopt;
+    }
+  }
+  if ((core.mem_r32(kScreenBorder) != 0 || core.mem_r32(kBorderSize) != 0) &&
+      !step(redraw, kDrawBorder)) {
+    return std::nullopt;
+  }
+  const std::array<std::uint32_t, 1> bins{kBinCount};
+  if (!step(redraw, kDrawHud) || !step(redraw, kFlattenBins, bins)) {
+    return std::nullopt;
+  }
+  return core.r[2];
+}
+
+void SpyroPoses::blend(const Samples &samples, float t, std::span<std::uint32_t> out) const {
+  const std::array<std::uint8_t, kPoseBytes> earlier = bytesOf(samples.from);
+  std::array<std::uint8_t, kPoseBytes> shown = bytesOf(samples.to);
+  for (std::size_t part = 0; part < kPoseParts; ++part) {
+    const spyro::keyframe_blend::Pose pose =
+        spyro::keyframe_blend::between(partOf(earlier, part), partOf(shown, part), t, kPartSteps);
+    const std::size_t pair = 2 * part;
+    const std::size_t frames = kFrameBytes + pair;
+    shown[pair] = static_cast<std::uint8_t>(pose.keyframes);
+    shown[pair + 1] = static_cast<std::uint8_t>(pose.keyframes >> 8u);
+    shown[frames] = static_cast<std::uint8_t>(pose.keyframes >> 16u);
+    shown[frames + 1] = static_cast<std::uint8_t>(pose.keyframes >> 24u);
+    shown[kProgressBytes + part] = pose.progress;
+  }
+  std::memcpy(out.data(), shown.data(), shown.size());
+}
+
+bool DrawSection::linked(std::uint32_t head) const {
+  // The frame's other chain is PutDrawEnv's packet inside g_DB.
+  const std::uint32_t offset = psx::gpu::mainRamOffsetOf(head);
+  return offset < psx::gpu::mainRamOffsetOf(kDb0) ||
+         offset >= psx::gpu::mainRamOffsetOf(kDb1 + kDbSize);
+}
+
+} // namespace spyro1
