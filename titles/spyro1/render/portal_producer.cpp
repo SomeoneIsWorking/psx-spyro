@@ -4,6 +4,7 @@
 #include "core.h"
 #include "core/native_execution.h"
 #include "core/session.h"
+#include "render/field/guest_render_globals.h"
 #include "render/field/guest_view_slope.h"
 #include "render/field/guest_word.h"
 #include "render/state_producer_override.h"
@@ -124,6 +125,10 @@ void registerPortalOverrides(Core &core) {
                                  "spyro1-portals",
                                  drawPortals,
                                  std::make_unique<PortalProducer>(core));
+  // The fill and the sky through the opening test at the outline's plane (Portals::onOutlinePlane).
+  core.depthTest.mark(PortalProducer::kEntry,
+                      psx::present::DepthOrder::Polygon,
+                      spyro::guest_render_globals::kDepthBinViewUnits);
 }
 
 } // namespace spyro1::portals

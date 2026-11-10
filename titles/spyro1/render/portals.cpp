@@ -6,6 +6,7 @@
 #include "lucent/log.h"
 #include "render/field/guest_moby_rotation.h"
 #include "render/field/guest_packet.h"
+#include "render/field/guest_render_globals.h"
 #include "render/field/guest_word.h"
 #include "render/terrain/guest_depth_bins.h"
 #include "render/terrain/guest_terrain_fog.h"
@@ -17,6 +18,7 @@
 #include "state_producer.h"
 
 #include <algorithm>
+#include <cmath>
 #include <cstdlib>
 
 namespace spyro1::portals {
@@ -276,6 +278,11 @@ std::optional<Approach> Portals::drawFar(std::uint32_t index) {
   const std::uint32_t cameraX = memory_.mem_r32(kRenderGlobals.cameraPosition);
   const std::uint32_t cameraY = memory_.mem_r32(kRenderGlobals.cameraPosition + 4);
   const std::uint32_t cameraZ = memory_.mem_r32(kRenderGlobals.cameraPosition + 8);
+  // Points are viewed from the camera >> shift, near terrain from it >> kNearViewShift.
+  const psx::cpu::DepthUnit unit(
+      gte,
+      std::ldexp(1.0f,
+                 static_cast<int>(shift) - static_cast<int>(spyro::guest_render_globals::kNearViewShift)));
   for (std::uint32_t i = 0; i < count; ++i) {
     const std::uint32_t point = at + portal::kPoints + i * portal::kPointBytes;
     const std::uint32_t x = memory_.mem_r32(point);
@@ -298,6 +305,7 @@ std::optional<Approach> Portals::drawFar(std::uint32_t index) {
   for (std::uint32_t &component : approach.centre) {
     component = psx::cpu::quotient({component, count});
   }
+  fitOutlinePlane(count);
 
   // 80051168..80051214: which way round the outline runs, from the camera's side of its plane.
   std::uint32_t winding = 0;
@@ -560,9 +568,9 @@ void Portals::clip(std::array<Corner, 3> p,
   }
   memory_.mem_w32(cursor, spyro::guest_packet::kF3Tag);
   memory_.mem_w32(cursor + 0x04, command);
-  memory_.storeVertex(cursor + 0x08, p[0].point);
-  memory_.storeVertex(cursor + 0x0C, p[1].point);
-  memory_.storeVertex(cursor + 0x10, p[2].point);
+  memory_.storeVertex(cursor + 0x08, onOutlinePlane(p[0].point));
+  memory_.storeVertex(cursor + 0x0C, onOutlinePlane(p[1].point));
+  memory_.storeVertex(cursor + 0x10, onOutlinePlane(p[2].point));
   spyro::depth_bins::linkIntoBin(memory_, slot, cursor, cursor);
   cursor += spyro::guest_packet::kF3Bytes;
 }
@@ -625,7 +633,8 @@ void Portals::cutShaded(std::array<Corner, 3> q, std::uint32_t at, sky::Cycloram
       return;
     }
   }
-  const sky::SkyTriangle drawn{.points = {q[0].point, q[1].point, q[2].point},
+  const sky::SkyTriangle drawn{.points = {onOutlinePlane(q[0].point), onOutlinePlane(q[1].point),
+                                          onOutlinePlane(q[2].point)},
                                .colours = {q[0].colour, q[1].colour, q[2].colour}};
   sky.emit(drawn, q[0].colour == q[1].colour && q[0].colour == q[2].colour);
 }
@@ -697,6 +706,60 @@ Portals::Corner Portals::crossing(Corner inside, Corner outside, std::uint32_t a
   gte.execute(gte::kDpcs);
   return Corner{.point = {point, crossingPlace(inside.point.place(), outside.point.place(), at)},
                 .colour = spyro::guest_packet::kG3Code | gte.readData(gte::kRgb2)};
+}
+
+void Portals::fitOutlinePlane(std::uint32_t count) {
+  outlinePlane_.reset();
+  const std::uint32_t points = std::min<std::uint32_t>(count, kOutlinePoints);
+  const auto area = [this](std::uint32_t i, std::uint32_t j, std::uint32_t k) {
+    const GtePlace &p = outline_.at(i);
+    const GtePlace &q = outline_.at(j);
+    const GtePlace &r = outline_.at(k);
+    return (q.x - p.x) * (r.y - p.y) - (r.x - p.x) * (q.y - p.y);
+  };
+  std::array<std::uint32_t, 3> best{};
+  float bestArea = 0.0f;
+  for (std::uint32_t i = 0; i < points; ++i) {
+    for (std::uint32_t j = i + 1; j < points; ++j) {
+      for (std::uint32_t k = j + 1; k < points; ++k) {
+        if (outline_.at(i).z <= 0.0f || outline_.at(j).z <= 0.0f || outline_.at(k).z <= 0.0f) {
+          continue;
+        }
+        const float spanned = std::abs(area(i, j, k));
+        if (spanned > bestArea) {
+          bestArea = spanned;
+          best = {i, j, k};
+        }
+      }
+    }
+  }
+  // Under a square pixel the three points name no plane.
+  if (bestArea < 1.0f) {
+    return;
+  }
+  const GtePlace &p = outline_.at(best[0]);
+  const GtePlace &q = outline_.at(best[1]);
+  const GtePlace &r = outline_.at(best[2]);
+  const float signedArea = area(best[0], best[1], best[2]);
+  const float ip = 1.0f / p.z;
+  const float iq = 1.0f / q.z;
+  const float ir = 1.0f / r.z;
+  const float a = ((iq - ip) * (r.y - p.y) - (ir - ip) * (q.y - p.y)) / signedArea;
+  const float b = ((ir - ip) * (q.x - p.x) - (iq - ip) * (r.x - p.x)) / signedArea;
+  outlinePlane_ = InversePlane{.a = a, .b = b, .c = ip - a * p.x - b * p.y};
+}
+
+gte::ProjectedVertex Portals::onOutlinePlane(gte::ProjectedVertex point) const {
+  GtePlace place = point.place();
+  place.back = 0.0f;
+  place.z = 0.0f;
+  if (outlinePlane_) {
+    const float inverse = outlinePlane_->a * place.x + outlinePlane_->b * place.y + outlinePlane_->c;
+    if (inverse > 0.0f) {
+      place.z = 1.0f / inverse;
+    }
+  }
+  return {point.word(), place};
 }
 
 GtePlace Portals::crossingPlace(GtePlace inside, GtePlace outside, std::uint32_t at) const {

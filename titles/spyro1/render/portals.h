@@ -133,6 +133,12 @@ private:
   [[nodiscard]] bool insideOpen(const Point &point) const;
   // A screen-triangle corner moved from retail's edge onto the window's.
   [[nodiscard]] Corner spanned(Corner corner) const;
+  // 1/z over the screen of the plane through the outline's points in front of the eye, from the three spanning the
+  // most screen area; none when fewer than three lie in front.
+  void fitOutlinePlane(std::uint32_t count);
+  // `point` at the outline plane's depth under it, the depth the fill and the sky through the opening test at;
+  // depth 0, slot order, with no plane.
+  [[nodiscard]] psx::gte::ProjectedVertex onOutlinePlane(psx::gte::ProjectedVertex point) const;
   // The outline pushed out; its sky and whether it fades, when it shows.
   std::optional<std::pair<std::uint32_t, bool>> outlineNear(const Approach &approach);
   // 0x8004F4BC, or 0x80050240 when `fading`: sky `sky` through the outline, linked into the
@@ -166,6 +172,13 @@ private:
   spyro::guest_terrain::ScreenBounds screen_;
   // Each outline point's place; kProjected keeps its x and y as separate words.
   std::array<GtePlace, kOutlinePoints> outline_{};
+  // 1/z = a x + b y + c over the screen.
+  struct InversePlane {
+    float a = 0.0f;
+    float b = 0.0f;
+    float c = 0.0f;
+  };
+  std::optional<InversePlane> outlinePlane_;
 };
 
 // 80050BD0..80050C58: the near sky's spin advanced, as the drawer does once a call.

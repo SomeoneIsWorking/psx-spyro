@@ -1,14 +1,32 @@
 # 0224 — Spyro 1: the Toasty portal's sky covers its left inner jamb
 
-Status: closed (2026-11-04): the original guest portal code draws the same cover. Owner: `titles/spyro1/render/portals.cpp`
-(`Portals`, `0x80050BD0`).
+Status: fixed (2026-11-10). Owner: `titles/spyro1/render/portals.cpp` (`Portals`, `0x80050BD0`).
+
+## Cause
+The portal drawer fills the opening and draws the sky through it as 2D triangles clipped to the projected outline,
+all linked into one bin from the outline's mean depth. A jamb face longer than that bin is sorted farther and drawn
+first, so the 2D sky covers the part of it nearer than the opening. Retail draws the same (below); with native depth
+the triangles carried no depth, so nothing corrected it.
+
+## Fix
+`Portals::fitOutlinePlane` fits 1/z over the screen through the outline's projected points (depth in near-terrain
+view units: the outline is viewed from the camera >> shift). `Portals::onOutlinePlane` gives every fill and sky vertex
+that plane's depth, and the portal producer is marked `Polygon`, so a jamb face in front of the opening covers the
+sky and one behind it stays covered. With fewer than three outline points in front of the eye the vertices carry
+no depth and the portal draws in slot order.
+
+## Proof
+The `r0224b` report state (`scratch/depth3/runs/r0224b/.../state.bin`), loaded in Spyro 1 at ires 0, fps60, 4K sink,
+presents 40 and 41 (`scratch/reports/p_zoom.png`: depth off, on, on's in-between): off, the sky cuts the arch's
+top-left inner face along a diagonal; on, the inner faces draw whole and the sky's edges follow the arch, on the real
+frame and the in-between.
 
 ## Observed
 Player report `20261031-174318-geometry-disappering`, pad frame 3009, mark x 27-39% y 15-52%: the left side of the
 Toasty portal arch disappears. The report's `psx.png` is a later frame than `screen.png`; its motion frames show the
 jamb steady.
 
-## What was checked
+## Earlier investigation
 `warp Artisans/Toasty/portal`: in the record path at judgement settings (`scratch/depth/runs/toasty`) and in the device
 path (`toasty-dev`) the portal sky covers the left inner jamb when the camera is left of the portal's centre. Depth on and
 off draw it the same (`toasty-on/cmp0.png`): the portal sky is not a marked producer and the jamb is drawn before it, so
