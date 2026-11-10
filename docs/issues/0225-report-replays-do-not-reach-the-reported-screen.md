@@ -1,6 +1,6 @@
 # 0225 — Bug report replays do not reach the reported screen
 
-Status: fixed for new reports (2026-11-03); the three 2026-10-31 reports stay unreproducible. Owner: the bug report capture and pad replay (psxport `docs/presentation.md` Bug report capture,
+Status: fixed for new reports (2026-11-03), except the pillarboxed first presents after a load (Remaining); the three 2026-10-31 reports stay unreproducible. Owner: the bug report capture and pad replay (psxport `docs/presentation.md` Bug report capture,
 `pad_recording`).
 
 ## Observed
@@ -25,17 +25,23 @@ Shown: replay to 3009, B report, load of its `state.bin` in a new process: the f
 `screen.png` (`scratch/depth/runs/state-r1c-load/sheet.png`).
 
 ## Remaining
-- The first frames after a load show the 4:3 device picture before the 16:9 record takes over. Traced on the
-  `r0224` state (`scratch/depth3/runs/load43`, `load43b` with `PSXPORT_DEBUG=recordcheck`, sheet
-  `scratch/depth3/load43.png`): frames 1-2 are 4:3, frame 3 on is 16:9. The state carries VRAM but no frame record. The
-  first record after the restore (seq 1) has no entries and is resynced from VRAM, so
-  `record_present.cpp:RenderState::presentRecord` shows the restored device picture at its 4:3 width until the
-  first guest frame seals (seq 2). Fix (not done, 2026-11-04): a `record` state section holding the last sealed
-  `present::FrameRecord` (entries, CLUT and upload pools, slot starts, table exits) and the VRAM it drew over, written
-  beside `gpu` by the state command and read before the first present, so `RenderState::presentRecord` rasterizes it
-  at 16:9 instead of resyncing from VRAM. Not started: it serializes every `DrawPrimitive` field (keys, owners, slots)
-  and seeds the rasterizer's VRAM-before image, which is the presentation lane's state and larger than this pass. Seq
-  3's 4:3 check also reports 83,196 pixels where record and device differ, which is not traced.
+- The first two presents after a load are pillarboxed: the wide canvas holds only the 4:3 device picture and
+  black margins (`r0224` state, `scratch/depth3/runs/load43b` with `PSXPORT_DEBUG=recordcheck`, sheet
+  `scratch/depth3/load43.png`). They are two different pictures: present 1 shows the buffer at 0,240 and present 2
+  the one at 0,0, both drawn before the save; seq 2 is the first record drawn after the load (into 0,240) and present
+  3 shows it at 16:9. Cause: no record of the pre-save frames survives the load, and
+  `gp0_record_tap.cpp:Gp0RecordTap::onStateReplaced` marks the first record incomplete, so
+  `record_rasterizer.cpp:RecordRasterizer::advance` resyncs from VRAM and `seedCanvas` clears every canvas's margins;
+  only a record replayed after the load draws them. Proper fix (not done, 2026-11-10): the state carries the picture
+  the presenter holds: VRAM before the oldest record in `FramePresenter`'s history, those records (raw
+  `RecordEntry` arrays are trivially copyable; owner handles written as `kNoOwner`, since the ledger is run-local),
+  and the tap's unsealed record with its sequence. The save is taken at an idle tap framing; the load restores the tap
+  complete at that sequence, refills the presenter's history and has `RenderState::presentRecord` replay them over the
+  saved VRAM before its first present. It spans the state file, the GPU tap, the presenter, the record present and
+  the bug report capture, which arms the VRAM copy (a copy every frame would be wasted work). Holding presents until
+  a record drawn after the load is shown is not a fix: the rasterizer advances only on presents, so the held records
+  would still resync and clear the margins. Seq 3's recordcheck also reports 83,196 pixels where record and device
+  differ, which is not traced.
 
 ## Fixed since
 - `psx.png` and `screen.png` are one frame: `BugReportSession::presented` shoots the first whole present of the sequence
