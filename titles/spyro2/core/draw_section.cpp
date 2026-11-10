@@ -43,7 +43,7 @@ std::optional<std::uint32_t> handlerOf(std::uint32_t state) {
 
 } // namespace
 
-bool DrawSection::replaysState(std::uint32_t state) const {
+bool DrawSection::replaysState(Core &, std::uint32_t state) const {
   return state == 2u || handlerOf(state).has_value();
 }
 

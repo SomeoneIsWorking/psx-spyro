@@ -151,11 +151,31 @@ inline constexpr spyro::guest_moby::Facts kMobyFacts{
 //   800495E8  the shadow drawer reads its position at 0x800698D4 and angles at 0x800698E0
 //   8001C68C  the level start clears the effects pass's pools and names the particle pool at
 //             0x80066F18; each drawer walks its pool from the address below
+// The conversation handler 0x80013BC4 (state 1 of 0x800681C8) places the box at
+// [0x800633F4 + 2 * ((timer - 0x18) / 2)] while mode 0x80067134 is 0 and the timer 0x80067130 is
+// 0x18..0x3B, and at [0x80063418 + 2 * (timer / 2)] in mode 2; 0x80016328 adds the field delta to
+// the timer each update.
+inline constexpr spyro::ConversationFacts kConversation{
+    .gameState = 0x800681C8u,
+    .state = 1u,
+    .mode = 0x80067134u,
+    .timer = 0x80067130u,
+    .tables = {{
+        {.mode = 0u, .table = 0x800633F4u, .firstTick = 0x18u, .entries = 0x12u},
+        {.mode = 2u, .table = 0x80063418u, .firstTick = 0u, .entries = 0xCu},
+    }},
+};
+
+//   8002F08C  the update anchors 0x8006AA1C on Spyro while byte 0x8006AAB4 is set; 0x80048F04
+//             draws it
+//   800155A0  the dispatcher draws the subtractive fade 0x80066F68 and the additive 0x80067150
+//             (words) while non-zero
 inline constexpr spyro::DrawMotionFacts kDrawMotion{
     .cameraAngles = kRenderGlobals.cameraAngles,
     .cameraPosition = kRenderGlobals.cameraPosition,
     .spyro = 0x80069FF0u,
     .shadow = 0x800698D4u,
+    .heldObject = 0x8006AA1Cu,
     .moby = &kMobyFacts,
     .effects =
         {
@@ -168,6 +188,9 @@ inline constexpr spyro::DrawMotionFacts kDrawMotion{
             .meshes = 0x80069F30u,    // 80015618
             .particles = 0x80066F18u, // 800481DC
         },
+    .fades = {{{"subtractive fade", 0x80066F68u}, {"additive fade", 0x80067150u}}},
+    .fadeCount = 2,
+    .conversation = &kConversation,
 };
 
 // The flatten, FUN_8001B2A8, called by the draw at 800159A4 and by three other draws (800146AC,

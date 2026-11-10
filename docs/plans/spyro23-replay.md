@@ -114,7 +114,10 @@ Record `0x80069FF0` / `0x80070328`, one layout (G3:8003CDA0 reads the same offse
 | body matrix | +0x30..+0x40, 5 RT words; read only while the water floor is set | Matrix (`psx::present::rotationBetween`) | G2:80041DBC:523-527 |
 | hidden | `0x8006A250` / `0x800705B0` | Step | G2:8004C534, G3:8001EC5C |
 
-Not moved today: tint, water floor, reflection shift, matrix (field_redraw steps them).
+Tint, water floor, reflection shift and matrix are one rule, `SpyroSurface` (`game/core/draw_motion.cpp`): each blends
+only while both samples have it on (tint amount non-zero; floor non-zero on the same side of 0, the fog branch being
+the negative one; shift non-zero; the rotation, by `psx::present::rotationBetween`, while both floors are set). The
+shift is `y - [0x8006AB78]`, written by update `0x8002A4C8`.
 
 ### Shadow and held object
 
@@ -125,10 +128,12 @@ Not moved today: tint, water floor, reflection shift, matrix (field_redraw steps
 | shadow hidden | `0x800698E3` / `0x8006FBBB` | Step | |
 | shadow pose | Spyro +0x14, +0x1C | Derived (Spyro's track) | G2:800495E8 |
 | held object position | `0x8006AA1C` / `0x8007179C`, 3 x s32 | Linear | G2:80048F04, G3:8002D2C4 |
-| held object matrix | `0x8006AACC` / `0x8007184C`, 5 words | Matrix | same |
+| held object matrix | `0x8006AACC` / `0x8007184C`, 5 words | Derived: Spyro's draw copies his head or body rotation there while byte `0x8006AAB6` is set | G2:80041DBC:273 |
 | held object on | byte `0x8006AAB4` / `0x80071834` | Step | set by `0x8002FC20`, cleared by `0x8002F08C` (S2) |
 
-What the held object is (a carried item, a charge effect) is not named (Open 6). field_redraw moves neither.
+What the held object is (an eight-part effect the update `0x8002F08C` anchors at Spyro's position plus `0x8006AB40`,
+its parts lit in turn by `0x8006AAB5`) is not named (Open 6). The position is the `held object` track, live while
+byte +0x98 is set; the parts' timers step.
 
 ## Moby array
 
@@ -164,8 +169,8 @@ All six pools are field_redraw's, with their pairing rules in `effect_pools.cpp:
 | track | S2 / S3 | kind | evidence |
 |---|---|---|---|
 | sky sectors | `0x800681B8` / `0x8006E334` | Skip (level data; follows the camera) | `port: guest_sky_drawer.*` |
-| sky objects | list `[0x80066F00]`, count `0x80066FA8` / `[0x8006C530]`, `0x8006C5E0`; position at +0x18, on byte +0x40 | Skip unless they move (Open 7) | G2:8004C66C, G3:8001EDEC |
-| sky object wave | tick `0x8006700C` / `0x8006C644`, +1 per tick (`0x80012488`, `0x800125C8` / `0x8003A40C`) | Scalar, wrap 256 in the sine index | G2:8004C66C:178 |
+| sky objects | list `[0x80066F00]`, count `0x80066FA8` / `[0x8006C530]`, `0x8006C5E0`; position at +0x18, on byte +0x40 | Skip: level data, written only by the level setup `0x8001C734` and `0x80019928` | G2:8004C66C, G3:8001EDEC |
+| sky object wave | tick `0x8006700C` / `0x8006C644`, +1 per tick (`0x80012488`, `0x800125C8` / `0x8003A40C`) | Step: the draw reads the sine at `tick * 4`, so a written tick cannot hold a half step | G2:8004C66C:178 |
 | terrain animation, texture scroll | `0x800681E8..` / `0x8006E364..` tables | Step (applied per draw from level keys, as Spyro 1) | `port: guest_terrain_facts.h classify.animation` |
 | fog level, colours | `0x80067EC4`, `0x80067408..10` / `0x8006E038`, `0x8006D07C..84` | Step (fog level is 0 or 0x800) | G2:8001E454:124 |
 
@@ -173,16 +178,18 @@ All six pools are field_redraw's, with their pairing rules in `effect_pools.cpp:
 
 | track | S2 / S3 | kind | evidence / port |
 |---|---|---|---|
-| subtractive fade | `0x80066F68` / `0x8006C598`, byte; ±0x10 per update in play (`0x800159C8`), set by loads | Scalar while monotone, else Step | G2:800159C8:30-33; `port: screen_overlays.cpp:FullscreenTint::render` lerped the colour |
-| additive fade | `0x80067150` / `0x8006C7C0` | Scalar | no writer in the decompiled C (Open 5) |
-| red flash | — / `0x8006C6D4` | draw-written: pre-draw Scalar | G3:8001E460 |
-| letterbox | height and enable above | height draw-written; enable Step | `port: CinematicLetterbox::render` drew the bar edge at a fractional row |
+| subtractive fade | `0x80066F68` / `0x8006C598`, word (`lw`/`sw` at every site); ±0x10 per update in play (`0x800159C8`), set by loads | Linear | G2:800159C8:30-33; Ghidra refs |
+| additive fade | `0x80067150` / `0x8006C7C0` | Linear | no writer in the decompiled C (Open 5) |
+| red flash | — / `0x8006C6D4` | draw-written (−0x20 per draw): pre-draw Linear | G3:8001E460 |
+| letterbox | height and enable above | Step (Open 1) | G2:8004D604 |
+| conversation box | mode `0x80067134`, timer `0x80067130` (+ the field delta per update, `0x80016328`); state 1's handler `0x80013BC4` places the box at the halfword `0x800633F4[(timer - 0x18) / 2]` in mode 0 (timer 0x18..0x3B) and `0x80063418[timer / 2]` in mode 2 | `ConversationSlide` (`TableSlide`): the entry the later tick reads, written `t` of the way from the one the earlier read | G2:80013BC4:22-45 |
 | HUD tick | `0x80067008` / `0x8006C640`, +1 per update | Step (`(tick >> 1) % 6` picks the gem frame) | G2:80053E78:11-12, G2:800159C8:12 |
 | HUD shown | letterbox enable and height both 0 | Step | G2:80053E78:7 |
 | demo text | `0x80067024`, `0x80067118` / `0x8006C658`, `0x8006C76C` | Step | G2:80013A14 |
 
-The HUD's own slides (counter and meter offsets) are not listed: their globals were not traced (Open 8). field_redraw
-redrew the HUD at the later field's values, so stepping is no regression.
+The HUD's slides step (Open 8): counters are 8-byte slots from `0x8006765C` (state byte, slide halfword +2, value
++4); `0x80052498(slot, offset, x)` returns the slide `0x80063430[(slide + offset) / 2]` (state 1) or
+`0x80063448[...]` (state 4), the index clamped to 0..0x2F, and each digit passes its own offset (−3 per digit).
 
 ## Cuts
 
@@ -266,11 +273,23 @@ wings and tail and Sparx land between their neighbours (`scratch/replay23/s2b/sp
 refusal in gameplay. Open: issue 0237 (loading screen held, untracked fades and letterbox, other states unjudged,
 the terrain drawer's dead in-between mode, paced judgement on a quiet host).
 
+Added (2026-11-10, second pass): `SpyroSurface`, the held object, the fades (S2 `0x80066F68`, `0x80067150`; S3
+`0x8006C598`, `0x8006C7C0`, red flash `0x8006C6D4`) and Spyro 2's conversation box slide. Shown (hidden, unpaced,
+judgement settings, `scratch/spyro23-tracks`): the Glimmer arrival fade-in alternates t=0.5 / t=1 with each in-between's
+centre brightness between its neighbours (6.24 / 9.35 / 13.30, 13.30 / 17.41 / 21.95, 21.95 / 27.20 / 33.32); the
+conversation box (`warp 0/1/0`, `moby-teleport 554 2`) slides 128 of 5472 columns per present, every in-between
+halfway, through its bounce (`conv2_box.png`); the Spyro 2 title screen's Spyro turns his head halfway
+(`title2_spyro.png`); Spyro 3's pause (`warp 0/0/0`, Start) composes every in-between with Sparx's second pass drawn
+and his wings between their neighbours (`pause3_sparx.png`), while its HUD slide steps (Open 8, `pause3_hud.png`).
+Spyro 3's warp no longer refuses a replay (Open 12). Nothing leaks: warp, Up and Left held 600 steps, fps60 on
+(Spyro 2: 920 in-betweens, Spyro 3: 746) and off (0, since psxport replays nothing without fps60): the `fielddigest`
+lines are byte-identical, 2914 and 2813 fields.
+
 ## Open
 
-1. Letterbox: the guest's bars move one row per logic frame and a GP0 vertex holds whole rows, so a replayed bar
-   lands on S' or S's row; the producer drew a fractional edge. Needs vertex places (route D step 1) or stays a
-   step.
+1. Letterbox: the draw `0x8004D604` / `0x8001FF44` moves the height one row per draw and emits it as whole GP0 rows,
+   so any written height lands on S' or S's row; it stays a step until the replay carries sub-row vertex places
+   (route D step 1).
 2. Angle8 quantisation of moby and Spyro angle bytes, as Spyro 1 Open 2; mobys flagged with bit 30 have
    fractions, Spyro and the shadow have none.
 3. Whether any gameplay chain bakes a VRAM upload (`ReplayFrame::at` refuses such a record); none reached by the
@@ -280,12 +299,17 @@ the terrain drawer's dead in-between mode, paced judgement on a quiet host).
 5. `0x80067150` (Spyro 2 additive fade) has no writer in the decompiled C; it may be written through a pointer or
    by overlay code.
 6. The held object at `0x8006AA1C` / `0x8007179C` is not identified; its blend is inferred.
-7. Whether the sky objects at `[0x80066F00]` / `[0x8006C530]` move between logic frames.
-8. HUD slide state (counter and meter offsets) not traced; Spyro 3's HUD tick `0x8006C640` is matched to Spyro 2's
-   by use only (writers `0x80053374`, `0x80050F18`).
+7. Sky objects: settled, level data (Environment table).
+8. HUD slides step at 30 Hz (Spyro 3's pause shows each in-between equal to the next real). The slide is the index of
+   a byte table that several slots and digits read at different offsets, and the index clamps at both ends, so no
+   single table entry can be written for all readers: the blend has to be of `0x80052498`'s result per slot (an
+   override that, inside a replay, returns the result for both samples' slot words `t` apart). Spyro 3's HUD tick
+   `0x8006C640` is matched to Spyro 2's by use only (writers `0x80053374`, `0x80050F18`).
 9. Pause menus (`0x800145AC`, `0x8001DD1C`): Spyro 1's pause reads VRAM back; whether these do is not known.
-10. Spyro 2's conversation slide (`titles/spyro2/render/conversation.cpp`, the box timer that indexes the slide
-    table) and the loading pictures' fade counters (`0x800698EC`, `0x8006FBC4`) become tracks; the timer's address
-    is not in the port's facts.
+10. Spyro 2's conversation slide: done (`ConversationSlide`). The loading pictures' fade counters (`0x800698EC`,
+    `0x8006FBC4`) belong to state 5, which is not replayed.
+12. Spyro 3's level load, state 3 handler `0x8001DC5C`: in steps 0 and 4 of `0x8006FBC8` with the fade at 0xFF it calls
+    `0x8001EBAC` (DrawSync `0x8005A264`, whose GPUSTAT poll at `0x8005C224` never ends in the sandbox, VSync, two
+    ClearImage `0x8005A3E8`), so `spyro3::DrawSection::replaysState` declines that frame; the screen is black there.
 11. Cost: each replay runs the whole field, terrain included, once per in-between; not measured against
     field_redraw's dispatcher redraw plus terrain rebuild.

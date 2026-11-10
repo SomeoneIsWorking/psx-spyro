@@ -60,6 +60,7 @@ set(SPYRO_RUNTIME_SOURCES
   game/core/boot_prefix_runtime.cpp
   game/core/draw_motion.cpp
   game/core/draw_section.cpp
+  game/core/table_slide.cpp
   game/core/field_owner.cpp
   game/core/frame_cut.cpp
   game/core/guest_magnitude.cpp

@@ -4,7 +4,6 @@
 #include "guest_redraw.h"
 
 #include <array>
-#include <cstddef>
 #include <cstdint>
 #include <optional>
 #include <utility>
@@ -56,15 +55,16 @@ constexpr std::uint32_t kClearWords = 0xC00u;
 constexpr std::array<std::uint32_t, 2> kSparxDrawers{0x80030478u, 0x80031124u};
 constexpr std::array<std::uint32_t, 1> kSceneDrawers{0x8003CDA0u};
 
-void writeByte(psx::present::GuestRedraw &redraw,
-               Core &core,
-               std::uint32_t address,
-               std::byte value) {
-  const std::uint32_t word = address & ~3u;
-  const std::uint32_t shift = (address & 3u) * 8u;
-  redraw.writeWord(word,
-                   (core.mem_r32(word) & ~(0xFFu << shift)) |
-                       (std::to_integer<std::uint32_t>(value) << shift));
+// State 3's handler 0x8001DC5C, in steps 0 and 4 of 0x8006FBC8 with the fade 0x8006C598 at 0xFF,
+// first clears both buffers through 0x8001EBAC (DrawSync, VSync, ClearImage), a device wait.
+constexpr std::uint32_t kLevelLoadState = 3u;
+constexpr std::uint32_t kLevelLoadStep = 0x8006FBC8u;
+constexpr std::uint32_t kFade = 0x8006C598u;
+constexpr std::uint32_t kFadeBlack = 0xFFu;
+
+bool clearsScreen(Core &core) {
+  const std::uint32_t step = core.mem_r32(kLevelLoadStep);
+  return (step == 0u || step == 4u) && core.mem_r32(kFade) == kFadeBlack;
 }
 
 std::optional<std::uint32_t> handlerOf(std::uint32_t state) {
@@ -78,7 +78,10 @@ std::optional<std::uint32_t> handlerOf(std::uint32_t state) {
 
 } // namespace
 
-bool DrawSection::replaysState(std::uint32_t state) const {
+bool DrawSection::replaysState(Core &core, std::uint32_t state) const {
+  if (state == kLevelLoadState && clearsScreen(core)) {
+    return false;
+  }
   return state == 2u || state == 0x12u || handlerOf(state).has_value();
 }
 
@@ -141,7 +144,7 @@ std::optional<std::uint32_t> DrawSection::flattenFrame(Core &core,
   }
   if (pause) {
     redraw.writeWord(kMobyArray, sparx);
-    writeByte(redraw, core, sparx + kSparxEnd, std::byte{0xFF});
+    redraw.writeByte(sparx + kSparxEnd, 0xFFu);
   }
   const std::span<const std::uint32_t> drawers =
       pause ? std::span<const std::uint32_t>(kSparxDrawers)

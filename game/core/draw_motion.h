@@ -2,6 +2,7 @@
 // (docs/plans/spyro23-replay.md).
 #pragma once
 
+#include "core/table_slide.h"
 #include "motion_set.h"
 #include "render/field/effect_pools.h"
 #include "render/field/guest_moby_visibility.h"
@@ -10,10 +11,35 @@
 #include <array>
 #include <cstdint>
 #include <span>
+#include <vector>
 
 class Core;
 
 namespace spyro {
+
+// A conversation box's slide table: in `mode`, the box is placed at entry (timer - firstTick) / 2.
+struct SlideTable {
+  std::uint32_t mode = 0;
+  std::uint32_t table = 0; // signed halfwords
+  std::uint32_t firstTick = 0;
+  std::uint32_t entries = 0;
+};
+
+// The conversation state's box slide: its mode and timer words and the tables it slides by.
+struct ConversationFacts {
+  std::uint32_t gameState = 0;
+  std::uint32_t state = 0;
+  std::uint32_t mode = 0;
+  std::uint32_t timer = 0;
+  std::array<SlideTable, 2> tables{};
+};
+
+inline constexpr std::size_t kMaxFades = 3;
+
+struct FadeWord {
+  const char *name = "";
+  std::uint32_t address = 0;
+};
 
 struct DrawMotionFacts {
   std::uint32_t cameraAngles = 0;   // three 12-bit angle halfwords
@@ -23,8 +49,33 @@ struct DrawMotionFacts {
   std::uint32_t spyro = 0;
   // His shadow: position words, then three angle bytes and a flag byte.
   std::uint32_t shadow = 0;
+  // The object the update anchors on Spyro: position words, drawn while the byte 0x98 past them
+  // is set.
+  std::uint32_t heldObject = 0;
   const guest_moby::Facts *moby = nullptr;
   effect_pools::Facts effects;
+  // The fade words the dispatcher draws while non-zero, `fadeCount` of them.
+  std::array<FadeWord, kMaxFades> fades{};
+  std::size_t fadeCount = 0;
+  const ConversationFacts *conversation = nullptr;
+};
+
+// Spyro's tint (+0x20), water floor (+0x28), reflection shift (+0x2C) and the body rotation the
+// water pass reads (+0x30): each blends only while both samples have it on.
+class SpyroSurface final : public psx::present::MotionRule {
+public:
+  void blend(const Samples &samples, float t, std::span<std::uint32_t> out) const override;
+};
+
+// The conversation box's slide entry.
+class ConversationSlide final : public TableSlide {
+public:
+  explicit ConversationSlide(const ConversationFacts *facts) : facts_(facts) {}
+
+private:
+  [[nodiscard]] std::optional<Entry> entryOf(Core &core) const override;
+
+  const ConversationFacts *facts_;
 };
 
 // Spyro's body and head poses: each part's keyframe pair and nibble progress.
@@ -108,6 +159,20 @@ private:
       {0x18u, kStep},
       {0x1Cu, kStep},
   }};
+  // SpyroSurface's words, in its order.
+  static constexpr std::array<Field, 8> kSpyroSurface{{
+      {0x20u, kStep},
+      {0x28u, kStep},
+      {0x2Cu, kStep},
+      {0x30u, kStep},
+      {0x34u, kStep},
+      {0x38u, kStep},
+      {0x3Cu, kStep},
+      {0x40u, kStep},
+  }};
+  static constexpr psx::present::MotionRecords kHeldObject{
+      .live = psx::present::RecordByte{0x98u, 0x01u, 0xFFu}};
+  static constexpr std::array<Field, 1> kFade{{{0x00u, kLinear}}};
   // Position words, then three angle bytes whose top byte is the hidden flag.
   static constexpr std::array<Field, 4> kShadow{{
       {0x00u, kLinear},
@@ -119,10 +184,12 @@ private:
   static constexpr std::array<psx::present::MotionKey, 1> kMobyKeys{{{0x34u, 0xFFFF0000u}}};
 
   SpyroPoses poses_;
+  SpyroSurface surface_;
   MobyMotion moby_;
   EffectMotion effects_;
-  std::array<psx::present::MotionTrack, 6> tracks_;
-  std::array<psx::present::MotionSource *, 1> sources_{&effects_};
+  ConversationSlide conversation_;
+  std::vector<psx::present::MotionTrack> tracks_;
+  std::array<psx::present::MotionSource *, 2> sources_{&effects_, &conversation_};
 };
 
 } // namespace spyro

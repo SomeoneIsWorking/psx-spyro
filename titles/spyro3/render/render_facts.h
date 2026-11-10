@@ -149,11 +149,15 @@ inline constexpr spyro::guest_moby::Facts kMobyFacts{
 //
 //   8003CDE8  the Spyro drawer FUN_8003CDA0's base 0x80070328, laid out as SCUS_944.25's 0x80069FF0
 //   8002D9BC  the shadow drawer reads its position at 0x8006FBAC and angles at 0x8006FBB8
+//   8002D2C4  draws the object at 0x8007179C while byte 0x80071834 is set
+//   8001E460  the dispatcher draws the fades 0x8006C598, 0x8006C7C0 and the red flash 0x8006C6D4,
+//             which it lowers by 0x20 per draw
 inline constexpr spyro::DrawMotionFacts kDrawMotion{
     .cameraAngles = kRenderGlobals.cameraAngles,
     .cameraPosition = kRenderGlobals.cameraPosition,
     .spyro = 0x80070328u,
     .shadow = 0x8006FBACu,
+    .heldObject = 0x8007179Cu,
     .moby = &kMobyFacts,
     .effects =
         {
@@ -166,6 +170,10 @@ inline constexpr spyro::DrawMotionFacts kDrawMotion{
             .meshes = 0x80070260u,    // 8001E4D8
             .particles = 0x8006C554u, // 8003AAE8
         },
+    .fades = {{{"subtractive fade", 0x8006C598u},
+               {"additive fade", 0x8006C7C0u},
+               {"red flash", 0x8006C6D4u}}},
+    .fadeCount = 3,
 };
 
 // The flatten, FUN_8004E664: FUN_8001B2A8's body over this image's table (8006C634) and mark

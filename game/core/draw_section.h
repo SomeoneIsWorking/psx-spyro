@@ -53,8 +53,9 @@ public:
   [[nodiscard]] bool linked(std::uint32_t head) const final;
 
 protected:
-  // Whether `state` has a handler that stays off the devices; any other state is never replayed.
-  [[nodiscard]] virtual bool replaysState(std::uint32_t state) const = 0;
+  // Whether `state`'s handler, as it runs this frame, stays off the devices; any other frame is
+  // never replayed.
+  [[nodiscard]] virtual bool replaysState(Core &core, std::uint32_t state) const = 0;
   // The state's handler, as the body's switch calls it; false when a step was refused.
   [[nodiscard]] virtual bool
   drawState(Core &core, psx::present::GuestRedraw &redraw, std::uint32_t state) const = 0;

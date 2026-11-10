@@ -12,7 +12,7 @@
 namespace spyro {
 
 bool DrawSection::replays(Core &core) const {
-  return core.mem_r32(facts_.gate) == 0 && replaysState(gameState(core));
+  return core.mem_r32(facts_.gate) == 0 && replaysState(core, gameState(core));
 }
 
 std::uint32_t DrawSection::gameState(Core &core) const {

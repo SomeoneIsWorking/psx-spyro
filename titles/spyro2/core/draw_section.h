@@ -32,7 +32,7 @@ public:
   DrawSection() : spyro::DrawSection(kDrawSectionFacts) {}
 
 private:
-  [[nodiscard]] bool replaysState(std::uint32_t state) const override;
+  [[nodiscard]] bool replaysState(Core &core, std::uint32_t state) const override;
   [[nodiscard]] bool
   drawState(Core &core, psx::present::GuestRedraw &redraw, std::uint32_t state) const override;
 };
