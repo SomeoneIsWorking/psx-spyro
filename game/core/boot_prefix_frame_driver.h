@@ -10,7 +10,9 @@
 #include "resumable_guest_call.h"
 
 #include <cstdint>
+#include <map>
 #include <optional>
+#include <string_view>
 
 class Core;
 class Game;
@@ -69,6 +71,8 @@ public:
   [[nodiscard]] psx::present::ReplayFrame &replay() {
     return replay_;
   }
+  // Run end: the drawn frames the section declined, by the guest condition that kept each off.
+  void reportDeclined() const;
 
   [[nodiscard]] const char *sectionName() const override {
     return "spyro.frame-driver";
@@ -137,6 +141,7 @@ private:
   DrawMotion motion_;
   psx::present::ReplayFrame replay_;
   std::optional<std::uint32_t> sampledState_;
+  std::map<std::string_view, std::uint64_t> declined_;
   psx::cpu::ResumableGuestCall call_;
   Phase phase_ = Phase::Boot;
   // Which retail call `call_` is, once the main loop runs: a call suspended at a display wait is

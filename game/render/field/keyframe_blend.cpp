@@ -35,9 +35,6 @@ double share(const Pose &pose, Progress encoding) {
   return static_cast<double>(step(pose.progress, encoding)) / steps(pose.progress, encoding);
 }
 
-// A progress byte steps a moby under four frames a tick.
-constexpr std::uint32_t kMostFramesPast = 3;
-
 std::uint32_t slotA(const Pose &pose) {
   return pose.keyframes & 0xFFu;
 }
@@ -51,20 +48,45 @@ std::uint32_t frameB(const Pose &pose) {
   return pose.keyframes >> 24;
 }
 
+// The frame the stepper moves `frame` to.
+std::uint32_t next(std::uint32_t frame, std::optional<Loop> loop) {
+  return loop && frame + 1 >= loop->end ? loop->start : frame + 1;
+}
+
+// `frame` stepped `frames` times.
+std::uint32_t advanced(std::uint32_t frame, std::uint32_t frames, std::optional<Loop> loop) {
+  for (std::uint32_t i = 0; i < frames; ++i) {
+    frame = next(frame, loop);
+  }
+  return frame;
+}
+
+// The steps from `frame` round to `target`, under one lap; none when `target` is not ahead.
+std::optional<std::uint32_t>
+stepsTo(std::uint32_t frame, std::uint32_t target, std::optional<Loop> loop) {
+  if (!loop) {
+    return target >= frame ? std::optional(target - frame) : std::nullopt;
+  }
+  if (frame < loop->start || frame >= loop->end || target < loop->start || target >= loop->end) {
+    return std::nullopt;
+  }
+  return target >= frame ? target - frame : (loop->end - frame) + (target - loop->start);
+}
+
 // The whole frames of `from`'s animation between its frame B and `to`'s frame A: 0 when `to`
 // starts at `from`'s frame B, more when the animation stepped past it within the tick.
-std::optional<std::uint32_t> framesPast(const Pose &from, const Pose &to) {
+std::optional<std::uint32_t>
+framesPast(const Pose &from, const Pose &to, std::optional<Loop> loop) {
   if (slotA(to) != slotB(from)) {
     return std::nullopt;
   }
   if (frameA(to) == frameB(from)) {
     return 0u;
   }
-  if (slotA(from) != slotB(from) || frameB(from) != frameA(from) + 1 || frameA(to) < frameB(from) ||
-      frameA(to) - frameB(from) > kMostFramesPast) {
+  if (slotA(from) != slotB(from) || frameB(from) != next(frameA(from), loop)) {
     return std::nullopt;
   }
-  return frameA(to) - frameB(from);
+  return stepsTo(frameB(from), frameA(to), loop);
 }
 
 bool samePair(const Pose &from, const Pose &to, Progress encoding) {
@@ -85,13 +107,14 @@ std::array<std::uint32_t, 2> nearer(const Pose &pose, Progress encoding) {
 
 } // namespace
 
-bool continues(const Pose &from, const Pose &to, Progress progress) {
-  return samePair(from, to, progress) || framesPast(from, to).has_value();
+bool continues(const Pose &from, const Pose &to, Progress progress, std::optional<Loop> loop) {
+  return samePair(from, to, progress) || framesPast(from, to, loop).has_value();
 }
 
-Pose between(const Pose &from, const Pose &to, float t, Progress progress) {
+Pose between(
+    const Pose &from, const Pose &to, float t, Progress progress, std::optional<Loop> loop) {
   const bool inPair = samePair(from, to, progress);
-  const std::optional<std::uint32_t> past = framesPast(from, to);
+  const std::optional<std::uint32_t> past = framesPast(from, to, loop);
   if (!inPair && !past) {
     return to;
   }
@@ -102,11 +125,12 @@ Pose between(const Pose &from, const Pose &to, float t, Progress progress) {
   // The pair starting `frames` frames past `from`'s frame A: a pair of `from`'s animation the tick
   // stepped through, at `to`'s step count, until `to`'s own.
   const auto starting = [&](std::uint32_t frames) {
-    const std::uint32_t first = frameA(from) + frames;
     if (static_cast<double>(frames) > skipped) {
       return to;
     }
-    return Pose{.keyframes = slotA(from) | (slotA(from) << 8) | (first << 16) | ((first + 1) << 24),
+    const std::uint32_t first = advanced(frameA(from), frames, loop);
+    return Pose{.keyframes =
+                    slotA(from) | (slotA(from) << 8) | (first << 16) | (next(first, loop) << 24),
                 .progress = to.progress};
   };
   const auto whole = static_cast<std::uint32_t>(std::max(0.0, shown));

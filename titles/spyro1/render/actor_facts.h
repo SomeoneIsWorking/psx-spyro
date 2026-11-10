@@ -95,10 +95,11 @@ inline constexpr std::uint32_t kDrawn = 0x51;
 inline constexpr std::uint32_t kTint = 0x57;
 } // namespace moby
 
-// A mesh (spyro1::guest::kModels entry): its frame pointers from +0x38, each frame's
-// radius byte at +7.
+// A mesh (spyro1::guest::kModels entry): its animation header pointers from +0x38, each header's
+// frame count (s16) at +0 and radius byte at +7.
 namespace mesh {
 inline constexpr std::uint32_t kFrames = 0x38;
+inline constexpr std::uint32_t kFrameCount = 0x00;
 inline constexpr std::uint32_t kRadius = 0x07;
 inline constexpr std::uint32_t kDepthShift = 0x0B;
 inline constexpr std::uint32_t kVertexSteps = 0x24;

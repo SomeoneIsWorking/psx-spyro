@@ -11,8 +11,11 @@
 
 namespace spyro {
 
-bool DrawSection::replays(Core &core) const {
-  return core.mem_r32(facts_.gate) == 0 && replaysState(core, gameState(core));
+std::optional<std::string_view> DrawSection::declines(Core &core) const {
+  if (core.mem_r32(facts_.gate) != 0) {
+    return "the body's gate is set";
+  }
+  return declinesState(core, gameState(core));
 }
 
 std::uint32_t DrawSection::gameState(Core &core) const {

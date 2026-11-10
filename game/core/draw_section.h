@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <optional>
 #include <span>
+#include <string_view>
 
 class Core;
 
@@ -42,9 +43,9 @@ public:
 
   explicit DrawSection(const DrawSectionFacts &facts) : facts_(facts) {}
 
-  // Whether this frame's body can be replayed: its gate is clear and its state's handler reaches
-  // no device.
-  [[nodiscard]] bool replays(Core &core) const;
+  // Why this frame's body is not replayed, by the guest condition that keeps it off: its gate, or
+  // its state's handler as it runs this frame; nothing when it is replayed.
+  [[nodiscard]] std::optional<std::string_view> declines(Core &core) const;
   [[nodiscard]] std::uint32_t gameState(Core &core) const;
 
   [[nodiscard]] std::optional<std::uint32_t> draw(Core &core,
@@ -53,9 +54,10 @@ public:
   [[nodiscard]] bool linked(std::uint32_t head) const final;
 
 protected:
-  // Whether `state`'s handler, as it runs this frame, stays off the devices; any other frame is
-  // never replayed.
-  [[nodiscard]] virtual bool replaysState(Core &core, std::uint32_t state) const = 0;
+  // Why `state`'s handler, as it runs this frame, is not replayed (a device it reaches, a state the
+  // switch has no case for); nothing when it stays off the devices.
+  [[nodiscard]] virtual std::optional<std::string_view>
+  declinesState(Core &core, std::uint32_t state) const = 0;
   // The state's handler, as the body's switch calls it; false when a step was refused.
   [[nodiscard]] virtual bool
   drawState(Core &core, psx::present::GuestRedraw &redraw, std::uint32_t state) const = 0;

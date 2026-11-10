@@ -149,15 +149,17 @@ inline constexpr spyro::guest_moby::Facts kMobyFacts{
 //
 //   8003CDE8  the Spyro drawer FUN_8003CDA0's base 0x80070328, laid out as SCUS_944.25's 0x80069FF0
 //   8002D9BC  the shadow drawer reads its position at 0x8006FBAC and angles at 0x8006FBB8
-//   8002D2C4  draws the object at 0x8007179C while byte 0x80071834 is set
+//   8002D2C4  draws Spyro's flame breath at 0x8007179C while byte 0x80071834 is set (lit by
+//             800451C4)
 //   8001E460  the dispatcher draws the fades 0x8006C598, 0x8006C7C0 and the red flash 0x8006C6D4,
-//             which it lowers by 0x20 per draw
+//             which it lowers by 0x20 per draw; 8004B324 sets the flash to 0xFF at once, and the
+//             subtractive fade ramps 0x10 a tick both ways (80053374, 800144B4)
 inline constexpr spyro::DrawMotionFacts kDrawMotion{
     .cameraAngles = kRenderGlobals.cameraAngles,
     .cameraPosition = kRenderGlobals.cameraPosition,
     .spyro = 0x80070328u,
     .shadow = 0x8006FBACu,
-    .heldObject = 0x8007179Cu,
+    .flame = 0x8007179Cu,
     .moby = &kMobyFacts,
     .effects =
         {
@@ -172,7 +174,7 @@ inline constexpr spyro::DrawMotionFacts kDrawMotion{
         },
     .fades = {{{"subtractive fade", 0x8006C598u},
                {"additive fade", 0x8006C7C0u},
-               {"red flash", 0x8006C6D4u}}},
+               {"red flash", 0x8006C6D4u, {0x00u, psx::present::Motion::Countdown}}}},
     .fadeCount = 3,
 };
 

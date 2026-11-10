@@ -39,6 +39,8 @@ inline constexpr std::size_t kMaxFades = 3;
 struct FadeWord {
   const char *name = "";
   std::uint32_t address = 0;
+  // A fade that ramps both ways is Linear; one set at once and lowered by the draw is a Countdown.
+  psx::present::MotionField field{0x00u, psx::present::Motion::Linear};
 };
 
 struct DrawMotionFacts {
@@ -49,9 +51,9 @@ struct DrawMotionFacts {
   std::uint32_t spyro = 0;
   // His shadow: position words, then three angle bytes and a flag byte.
   std::uint32_t shadow = 0;
-  // The object the update anchors on Spyro: position words, drawn while the byte 0x98 past them
-  // is set.
-  std::uint32_t heldObject = 0;
+  // Spyro's flame breath: the anchor words the update places at his mouth, then +0x98 the byte
+  // it is drawn while, +0x99 the parts it has lit, +0x9A its aim and +0x9B its path row.
+  std::uint32_t flame = 0;
   const guest_moby::Facts *moby = nullptr;
   effect_pools::Facts effects;
   // The fade words the dispatcher draws while non-zero, `fadeCount` of them.
@@ -63,6 +65,13 @@ struct DrawMotionFacts {
 // Spyro's tint (+0x20), water floor (+0x28), reflection shift (+0x2C) and the body rotation the
 // water pass reads (+0x30): each blends only while both samples have it on.
 class SpyroSurface final : public psx::present::MotionRule {
+public:
+  void blend(const Samples &samples, float t, std::span<std::uint32_t> out) const override;
+};
+
+// The flame's anchor while one breath lasts: a breath begins with its lit count at 0, so a count
+// that fell is a new breath, drawn as it is now.
+class FlameMotion final : public psx::present::MotionRule {
 public:
   void blend(const Samples &samples, float t, std::span<std::uint32_t> out) const override;
 };
@@ -99,6 +108,8 @@ public:
 private:
   [[nodiscard]] bool sharesLayout(std::uint32_t mesh,
                                   const keyframe_blend::Pose &pose) const override;
+  [[nodiscard]] std::optional<keyframe_blend::Loop> loopOf(std::uint32_t mesh,
+                                                           std::uint32_t animation) const override;
   void finish(const Samples &samples,
               const moby_record::Bytes &from,
               const moby_record::Bytes &to,
@@ -176,9 +187,17 @@ private:
       {0x3Cu, kStep},
       {0x40u, kStep},
   }};
-  static constexpr psx::present::MotionRecords kHeldObject{
+  static constexpr psx::present::MotionRecords kFlameRecords{
       .live = psx::present::RecordByte{0x98u, 0x01u, 0xFFu}};
-  static constexpr std::array<Field, 1> kFade{{{0x00u, kLinear}}};
+  // FlameMotion's words: the anchor, then the word of its state bytes.
+  static constexpr std::array<Field, 4> kFlame{{
+      {0x00u, kLinear},
+      {0x04u, kLinear},
+      {0x08u, kLinear},
+      {0x98u, kStep},
+  }};
+  // One breath while its aim and path row hold.
+  static constexpr std::array<psx::present::MotionKey, 1> kFlameKeys{{{0x98u, 0xFFFF0000u}}};
   // Position words, then three angle bytes whose top byte is the hidden flag.
   static constexpr std::array<Field, 4> kShadow{{
       {0x00u, kLinear},
@@ -191,6 +210,7 @@ private:
 
   SpyroPoses poses_;
   SpyroSurface surface_;
+  FlameMotion flame_;
   MobyMotion moby_;
   EffectMotion effects_;
   ConversationSlide conversation_;

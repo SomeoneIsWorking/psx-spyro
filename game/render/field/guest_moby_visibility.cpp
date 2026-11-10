@@ -23,12 +23,11 @@ using psx::gte::RotationWords;
 
 // The scratch block's regions, as offsets below [globals_.scratchBaseWord]
 // (SCUS_944.25 800438B4..800438E0; SCUS_944.67 800304D4..80030500).
-constexpr std::uint32_t kCloseListBelow = 0x1C00;     // LO
-constexpr std::uint32_t kDeferredBelow = 0x1400;      // CR8
-constexpr std::uint32_t kDeferredEndBelow = 0x1010;   // CR9
+constexpr std::uint32_t kCloseListBelow = 0x1C00;                                         // LO
+constexpr std::uint32_t kDeferredBelow = 0x1400;                                          // CR8
+constexpr std::uint32_t kDeferredEndBelow = 0x1010;                                       // CR9
 constexpr std::uint32_t kRenderListBelow = kDrawerScratchBelow - kRenderListAboveScratch; // fp
-constexpr std::uint32_t kRenderListEndBelow = 0x10;   // HI
-
+constexpr std::uint32_t kRenderListEndBelow = 0x10;                                       // HI
 
 // Mesh header fields.
 constexpr std::uint32_t kMeshDetail = 0x02; // u16: centre shift (low), detail level (high)
@@ -235,8 +234,10 @@ MobyWalk::Step MobyWalk::visit(std::uint32_t rec) {
 }
 
 MeshSlots MobyWalk::slotsOf(std::uint32_t rec) {
-  return meshSlots(
-      core_, facts_, core_.mem_r16(rec + moby_record::kMesh), core_.mem_r32(rec + record::kKeyframes));
+  return meshSlots(core_,
+                   facts_,
+                   core_.mem_r16(rec + moby_record::kMesh),
+                   core_.mem_r32(rec + record::kKeyframes));
 }
 
 // SCUS_944.25 8004415C..80044194. The record pointer is stored even when the buffer is full; the
@@ -260,8 +261,7 @@ MobyWalk::Step MobyWalk::drawCandidate(std::uint32_t rec,
                                        const CameraOffset &offset,
                                        std::int32_t drawDistance,
                                        const MeshSlots &slots) {
-  const Candidate candidate{
-      .rec = rec, .mesh = slotMesh(core_, slots.slot()), .slots = slots};
+  const Candidate candidate{.rec = rec, .mesh = slotMesh(core_, slots.slot()), .slots = slots};
   const std::uint32_t mesh = candidate.mesh;
   core_.gte().loadRotation(camera_);
   const std::uint32_t radius = static_cast<std::uint32_t>(core_.mem_r8(mesh + kMeshRadius)) << 4;
@@ -352,12 +352,13 @@ RotationWords MobyWalk::orient(std::uint32_t rec) {
 }
 
 // The drawers' class-1 edge tests (SCUS_944.25 80044BB0, SCUS_944.67 in 80031124) keep retail's 4:3
-// window, so in a widened view they drop a moby's polygons in the margins. A sphere clear of the eye
-// that reaches past that window is drawn untested; the GPU clips what lies off the canvas.
+// window, so in a widened view they drop a moby's polygons in the margins. A sphere clear of the
+// eye that reaches past that window is drawn untested; the GPU clips what lies off the canvas.
 bool MobyWalk::edgeTestsCullMargin(const ViewPoint &view,
                                    std::uint32_t radius,
                                    const guest_moby_frustum::SphereMargins &margins) const {
-  return slope_ != guest_moby_frustum::kRetailSlope && guest_moby_frustum::clearOfEye(view, radius) &&
+  return slope_ != guest_moby_frustum::kRetailSlope &&
+         guest_moby_frustum::clearOfEye(view, radius) &&
          !guest_moby_frustum::insideHorizontal(view, margins, guest_moby_frustum::kRetailSlope);
 }
 
@@ -495,6 +496,19 @@ bool slotsShareLayout(Core &core,
     return core.mem_r16(slotMesh(core, slot) + kMeshVertexCounts);
   };
   return counts(slots.slot()) == counts(slots.slotB());
+}
+
+std::optional<keyframe_blend::Loop>
+animationLoop(Core &core, const Facts &facts, std::uint32_t meshIndex, std::uint32_t animation) {
+  const MeshSlots slots = meshSlots(core, facts, meshIndex, animation);
+  if (!slots.resident()) {
+    return std::nullopt;
+  }
+  const std::uint32_t frames = core.mem_r8(slotMesh(core, slots.slot()) + kMeshFrameCount);
+  if (frames == 0) {
+    return std::nullopt;
+  }
+  return keyframe_blend::Loop{.start = 0, .end = frames};
 }
 
 void walk(Core &core, const Facts &facts, const guest_render_globals::Globals &globals) {

@@ -119,7 +119,7 @@ only while both samples have it on (tint amount non-zero; floor non-zero on the 
 the negative one; shift non-zero; the rotation, by `psx::present::rotationBetween`, while both floors are set). The
 shift is `y - [0x8006AB78]`, written by update `0x8002A4C8`.
 
-### Shadow and held object
+### Shadow and flame
 
 | track | S2 / S3 | kind | evidence |
 |---|---|---|---|
@@ -127,13 +127,14 @@ shift is `y - [0x8006AB78]`, written by update `0x8002A4C8`.
 | shadow angles | `0x800698E0` / `0x8006FBB8`, three bytes, top byte a flag | Angle8x3 | G2:800495E8:52, G2:8002F7A8:25-43 |
 | shadow hidden | `0x800698E3` / `0x8006FBBB` | Step | |
 | shadow pose | Spyro +0x14, +0x1C | Derived (Spyro's track) | G2:800495E8 |
-| held object position | `0x8006AA1C` / `0x8007179C`, 3 x s32 | Linear | G2:80048F04, G3:8002D2C4 |
-| held object matrix | `0x8006AACC` / `0x8007184C`, 5 words | Derived: Spyro's draw copies his head or body rotation there while byte `0x8006AAB6` is set | G2:80041DBC:273 |
-| held object on | byte `0x8006AAB4` / `0x80071834` | Step | set by `0x8002FC20`, cleared by `0x8002F08C` (S2) |
+| flame anchor | `0x8006AA1C` / `0x8007179C`, 3 x s32 | `FlameMotion`: Linear, `to` when the lit count fell | G2:80048F04, G3:8002D2C4 |
+| flame matrix | `0x8006AACC` / `0x8007184C`, 5 words | Derived: Spyro's draw copies his head or body rotation there while the aim byte `0x8006AAB6` is set | G2:80041DBC:273 |
+| flame on, lit count, aim, path row | bytes `0x8006AAB4..B7` / `0x80071834..37` | Step; on and aim plus path row are the key | set by `0x8002FC20` while on is clear (on 1, count 0, aim 1, row random), aim cleared at timer 0x14 and on cleared when all 8 parts are done by `0x8002F08C` (S2); S3 lit by `0x800451C4` |
 
-What the held object is (an eight-part effect the update `0x8002F08C` anchors at Spyro's position plus `0x8006AB40`,
-its parts lit in turn by `0x8006AAB5`) is not named (Open 6). The position is the `held object` track, live while
-byte +0x98 is set; the parts' timers step.
+This is Spyro's flame breath: eight parts the update `0x8002F08C` anchors at his mouth and lights in turn
+(`0x8006AAB5`). The anchor is the `flame` track, live while byte +0x98 is set and keyed by the aim and path row, so
+a new breath never pairs with the last; the parts' timers step. Glimmer, Circle held: the breath grows from his mouth
+across the in-betweens (`scratch/review5/flame2_strip.png`).
 
 ## Moby array
 
@@ -178,9 +179,9 @@ All six pools are field_redraw's, with their pairing rules in `effect_pools.cpp:
 
 | track | S2 / S3 | kind | evidence / port |
 |---|---|---|---|
-| subtractive fade | `0x80066F68` / `0x8006C598`, word (`lw`/`sw` at every site); ±0x10 per update in play (`0x800159C8`), set by loads | Linear | G2:800159C8:30-33; Ghidra refs |
+| subtractive fade | `0x80066F68` / `0x8006C598`, word (`lw`/`sw` at every site); ramps ±0x10 per update both ways (S2 `0x800159C8`, `0x8001FA58`; S3 `0x80053374`, `0x800144B4`), set by loads | Linear | G2:800159C8:30-33; Ghidra refs |
 | additive fade | `0x80067150` / `0x8006C7C0` | Linear | no writer in the decompiled C (Open 5) |
-| red flash | — / `0x8006C6D4` | draw-written (−0x20 per draw): pre-draw Linear | G3:8001E460 |
+| red flash | — / `0x8006C6D4` | Countdown: `0x8004B324` sets 0xFF at once, the draw lowers it 0x20 per draw, so a rise is shown whole | G3:8004B324, G3:8001E460 |
 | letterbox | height and enable above | Step (Open 1) | G2:8004D604 |
 | conversation box | mode `0x80067134`, timer `0x80067130` (+ the field delta per update, `0x80016328`); state 1's handler `0x80013BC4` places the box at the halfword `0x800633F4[(timer - 0x18) / 2]` in mode 0 (timer 0x18..0x3B) and `0x80063418[timer / 2]` in mode 2 | `ConversationSlide` (`TableSlide`): the entry the later tick reads, written `t` of the way from the one the earlier read | G2:80013BC4:22-45 |
 | HUD tick | `0x80067008` / `0x8006C640`, +1 per update | Step (`(tick >> 1) % 6` picks the gem frame) | G2:80053E78:11-12, G2:800159C8:12 |
@@ -224,7 +225,7 @@ record, the one that walks, as wanted.
    `titles/spyro2|3/core/frame/` owning the state switch (and Spyro 3's second-pass tail) by guest address. The
    moving inputs as one `MotionSource` built from field_redraw's code moved, not copied: `readInputs`,
    `recordBetween`, the Spyro block of `writeInBetween`, `effect_pools::read`/`writeBetween`, plus the new rows
-   above (Spyro tint, water, shift, matrix; shadow; held object; fades). Camera as two `MotionTrack`s.
+   above (Spyro tint, water, shift, matrix; shadow; flame; fades). Camera as two `MotionTrack`s.
 3. Overrides inside the replay: steps are dispatched with their overrides in force (`GuestRedraw::dispatch`).
    Every S2/S3 override that saves producer state or keys packets would run inside the sandbox: the dispatcher's
    `field_redraw::redrawField` (it would recurse), the screen draws, the terrain producer, the tint and letterbox
@@ -273,7 +274,7 @@ wings and tail and Sparx land between their neighbours (`scratch/replay23/s2b/sp
 refusal in gameplay. Open: issue 0237 (loading screen held, untracked fades and letterbox, other states unjudged,
 the terrain drawer's dead in-between mode, paced judgement on a quiet host).
 
-Added (2026-11-10, second pass): `SpyroSurface`, the held object, the fades (S2 `0x80066F68`, `0x80067150`; S3
+Added (2026-11-10, second pass): `SpyroSurface`, the flame breath, the fades (S2 `0x80066F68`, `0x80067150`; S3
 `0x8006C598`, `0x8006C7C0`, red flash `0x8006C6D4`) and Spyro 2's conversation box slide. Shown (hidden, unpaced,
 judgement settings, `scratch/spyro23-tracks`): the Glimmer arrival fade-in alternates t=0.5 / t=1 with each in-between's
 centre brightness between its neighbours (6.24 / 9.35 / 13.30, 13.30 / 17.41 / 21.95, 21.95 / 27.20 / 33.32); the
@@ -283,7 +284,9 @@ halfway, through its bounce (`conv2_box.png`); the Spyro 2 title screen's Spyro 
 and his wings between their neighbours (`pause3_sparx.png`), while its HUD slide steps (Open 8, `pause3_hud.png`).
 Spyro 3's warp no longer refuses a replay (Open 12). Nothing leaks: warp, Up and Left held 600 steps, fps60 on
 (Spyro 2: 920 in-betweens, Spyro 3: 746) and off (0, since psxport replays nothing without fps60): the `fielddigest`
-lines are byte-identical, 2914 and 2813 fields.
+lines are byte-identical, 2914 and 2813 fields. Re-run 2026-11-11 (`scratch/review5/leak-spyro{2,3}-{0,1}.dig`): the
+same counts, identical; the declined frames report as S2 `state 5 polls 0x800577A0 for its pages` (16), S3 `state 5
+waits in VSync at 0x8005927C` (253), `state 3 clears both buffers through 0x8001EBAC` (1).
 
 ## Open
 
@@ -298,7 +301,7 @@ lines are byte-identical, 2914 and 2813 fields.
    pointers) were not followed for device access.
 5. `0x80067150` (Spyro 2 additive fade) has no writer in the decompiled C; it may be written through a pointer or
    by overlay code.
-6. The held object at `0x8006AA1C` / `0x8007179C` is not identified; its blend is inferred.
+6. Done: the flame breath (`FlameMotion`).
 7. Sky objects: settled, level data (Environment table).
 8. HUD slides step at 30 Hz (Spyro 3's pause shows each in-between equal to the next real). The slide is the index of
    a byte table that several slots and digits read at different offsets, and the index clamps at both ends, so no
@@ -310,7 +313,8 @@ lines are byte-identical, 2914 and 2813 fields.
     `0x8006FBC4`) belong to state 5, which is not replayed.
 12. Spyro 3's level load, state 3 handler `0x8001DC5C`: in steps 0 and 4 of `0x8006FBC8` with the fade at 0xFF it calls
     `0x8001EBAC` (DrawSync `0x8005A264`, whose GPUSTAT poll at `0x8005C224` never ends in the sandbox, VSync, two
-    ClearImage `0x8005A3E8`), so `spyro3::DrawSection::replaysState` declines that frame; the screen is black there.
+    ClearImage `0x8005A3E8`), so `spyro3::DrawSection::declinesState` declines that frame; the screen is black there.
+    Each declined frame is counted by its reason and reported at run end (`BootPrefixFrameDriver::reportDeclined`).
 11. Cost: each replay runs the whole field, terrain included, once per in-between; not measured against
     field_redraw's dispatcher redraw plus terrain rebuild.
 13. Native depth (psxport route D step 1, vertex places): Spyro 2 marks only Spyro's drawer `0x80041DBC`, `Polygon`

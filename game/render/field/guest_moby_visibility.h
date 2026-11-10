@@ -42,10 +42,13 @@
 // binds them in a one-line thunk of its own and calls `walk` below.
 #pragma once
 
+#include "render/field/keyframe_blend.h"
+
 #include "core.h"
 #include "render/field/guest_render_globals.h"
 
 #include <cstdint>
+#include <optional>
 
 namespace spyro::guest_moby {
 
@@ -93,6 +96,8 @@ inline constexpr std::uint32_t kRecord = 0x40;
 
 // u8 pair: the drawer counts with one or the other by the sign of its entry's first word.
 inline constexpr std::uint32_t kMeshVertexCounts = 0x04;
+// u8: the animation's frame count (SCUS_944.67 func_80034F80 reads it as m_NumFrames).
+inline constexpr std::uint32_t kMeshFrameCount = 0x00;
 
 struct Facts {
   // The walk's own entry, the address the native override is installed at.
@@ -115,5 +120,10 @@ void walk(Core &core, const Facts &facts, const guest_render_globals::Globals &g
 // drawer (SCUS_944.25 80044504) walks frame B's stream with slot A's count.
 [[nodiscard]] bool
 slotsShareLayout(Core &core, const Facts &facts, std::uint32_t meshIndex, std::uint32_t keyframes);
+
+// Animation `animation` of mesh `meshIndex` loops from frame 0 over its frame count; nothing while
+// the mesh is not resident.
+[[nodiscard]] std::optional<keyframe_blend::Loop>
+animationLoop(Core &core, const Facts &facts, std::uint32_t meshIndex, std::uint32_t animation);
 
 } // namespace spyro::guest_moby

@@ -19,6 +19,7 @@ public:
   bool sealedFrameIsCut(Core &core) const final;
   psx::state::NativeStatePort *nativeState(Core &core) const final;
   psx::present::ReplayFrame *replayFrame(Core &core) final;
+  void reportRun(Core &core) const final;
 
 protected:
   BootPrefixRuntime(const psx::game::Crt0Image &crt0, const BootPrefixFacts &facts);

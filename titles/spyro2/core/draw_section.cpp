@@ -18,6 +18,7 @@ constexpr std::uint32_t kHookFlags = 0xCu;
 constexpr std::uint32_t kPlay = 0x80013A14u;
 // The switch's other cases but state 5, the loading screen: 0x800151F0 polls 0x800577A0 until its
 // storybook pages load, so it is never replayed.
+constexpr std::uint32_t kLoadingState = 5u;
 constexpr std::array<std::pair<std::uint32_t, std::uint32_t>, 11> kHandlers{{
     {0u, kPlay},
     {1u, 0x80013BC4u},
@@ -43,8 +44,12 @@ std::optional<std::uint32_t> handlerOf(std::uint32_t state) {
 
 } // namespace
 
-bool DrawSection::replaysState(Core &, std::uint32_t state) const {
-  return state == 2u || handlerOf(state).has_value();
+std::optional<std::string_view> DrawSection::declinesState(Core &, std::uint32_t state) const {
+  if (state == 2u || handlerOf(state).has_value()) {
+    return std::nullopt;
+  }
+  return state == kLoadingState ? "state 5 polls 0x800577A0 for its pages"
+                                : "the switch has no replayed case";
 }
 
 bool DrawSection::drawState(Core &core,

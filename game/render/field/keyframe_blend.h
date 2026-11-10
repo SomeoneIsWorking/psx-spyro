@@ -6,6 +6,7 @@
 #pragma once
 
 #include <cstdint>
+#include <optional>
 
 namespace spyro::keyframe_blend {
 
@@ -21,14 +22,27 @@ struct Progress {
 
 inline constexpr Progress kNibbleSteps{};
 
-// `to` is `from`'s pair further on, the pair after it, or a pair of `from`'s animation a few
-// frames on (the tick stepped through whole frames).
-[[nodiscard]] bool continues(const Pose &from, const Pose &to, Progress progress = kNibbleSteps);
+// How the stepper wraps an animation's frames: past `end - 1` its next frame is `start`.
+struct Loop {
+  std::uint32_t start = 0;
+  std::uint32_t end = 0;
+};
 
-// The pose at `t`: in `from`'s pair or, when `to`'s frame A is `from`'s frame B, in `to`'s, at the
-// step nearest `t` of the way; `to` when the two are not one animation a step apart.
-[[nodiscard]] Pose
-between(const Pose &from, const Pose &to, float t, Progress progress = kNibbleSteps);
+// `to` is `from`'s pair further on, the pair after it, or a pair of `from`'s animation further
+// round `loop` (the tick stepped through whole frames, across the loop's end too). Without a loop
+// the frames only count up.
+[[nodiscard]] bool continues(const Pose &from,
+                             const Pose &to,
+                             Progress progress = kNibbleSteps,
+                             std::optional<Loop> loop = std::nullopt);
+
+// The pose at `t` along that path: through each pair of `from`'s animation the tick stepped past
+// into `to`'s, at the step nearest `t` of the way; `to` when `to` does not continue `from`.
+[[nodiscard]] Pose between(const Pose &from,
+                           const Pose &to,
+                           float t,
+                           Progress progress = kNibbleSteps,
+                           std::optional<Loop> loop = std::nullopt);
 
 // Across an animation switch, which `to` does not continue: `from`'s frame A as A, `to`'s nearer
 // frame as B, at `from`'s share carried `t` of the rest of the way, in `to`'s step count.

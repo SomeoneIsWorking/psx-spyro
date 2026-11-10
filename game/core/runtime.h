@@ -16,7 +16,8 @@ namespace spyro {
 // The behaviour Spyro 1/2/3 share; each serial's runtime derives from it.
 class Runtime : public psx::game::GameRuntime {
 public:
-  // The title screen's logo gate and the texture pages its wordmark is drawn from; the base has none.
+  // The title screen's logo gate and the texture pages its wordmark is drawn from; the base has
+  // none.
   virtual const TitleLogoFacts &logoFacts() const;
 
   std::unique_ptr<psx::game::TitleSessionState> createSession(Game &game) final;
@@ -28,7 +29,7 @@ public:
   std::span<const psx::present::LogoTexture> logoTextures() const final;
   // The player's aspect; the canvas holds the margins and each title widens its own culls.
   const psx::present::GuestWidescreenProjection *guestWidescreenProjection() const final;
-  void reportRun(Core &core) const final;
+  void reportRun(Core &core) const override;
   bool interpolates() const final;
 
 protected:

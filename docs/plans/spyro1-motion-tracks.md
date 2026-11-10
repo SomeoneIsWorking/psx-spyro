@@ -46,7 +46,7 @@ the draw adds one step before reading).
 | flame view rotation | `0x80078780..0x80078790` | written by Spyro's draw when `0x80078762` is set, read by `0x80058D64` | G:80023AC4 (`_DAT_80078780 = DAT_80071604 ...`) |
 | shadow list end, pool flag | `0x80075F00`, `0x800758B0` | cursors | G:8001F158, G:800573C8 |
 
-Nothing leaks (2026-11-10): boot through the title, warp `0/1/0`, Up held 600 steps, run with fps60 on (1878 in-betweens replayed) and off (0 replayed: psxport replays nothing without fps60; the first proof's off run still replayed); the `fielddigest` main-RAM hash, I_STAT, I_MASK and pad match on all 4576 fields.
+Nothing leaks (2026-11-11, `scratch/review5/leak-spyro1-{0,1}.dig`): boot through the title, warp `0/1/0`, Up held 600 steps, run with fps60 on (1878 in-betweens replayed, 0 refused) and off (0 replayed: psxport replays nothing without fps60); the `fielddigest` main-RAM hash, I_STAT, I_MASK and pad match on all 4576 fields. Paced on a quiet host (load 2.2, same warp, Up held): 698 of 701 simulated 60 Hz vblanks advance 0.5 tick, 3 repeat (`scratch/review5/paced.log`, `vblank.py`).
 
 ## Camera
 

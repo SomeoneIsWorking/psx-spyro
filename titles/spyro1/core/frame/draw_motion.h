@@ -24,7 +24,11 @@ namespace spyro1 {
 // step one unit, blended as keyframe_blend does for the guest's 16-step weight.
 class SpyroPoses final : public psx::present::MotionRule {
 public:
+  explicit SpyroPoses(Core &core) : core_(core) {}
   void blend(const Samples &samples, float t, std::span<std::uint32_t> out) const override;
+
+private:
+  Core &core_;
 };
 
 // A moby slot, with its shadow word and scale override. Spyro 1's record keeps no sixteenths of an
@@ -44,6 +48,9 @@ private:
   // The class's mesh (the emitter reads both frames with frame A's counts and shifts).
   [[nodiscard]] bool sharesLayout(std::uint32_t mesh,
                                   const spyro::keyframe_blend::Pose &pose) const override;
+  // 0x800522C0 steps a frame past the animation header's count back to 0.
+  [[nodiscard]] std::optional<spyro::keyframe_blend::Loop>
+  loopOf(std::uint32_t mesh, std::uint32_t animation) const override;
   void finish(const Samples &samples,
               const spyro::moby_record::Bytes &from,
               const spyro::moby_record::Bytes &to,
@@ -76,7 +83,7 @@ public:
 
 class DrawMotion {
 public:
-  DrawMotion(Core &core, actors::ReplayAngles &angles) : moby_(core, angles) {}
+  DrawMotion(Core &core, actors::ReplayAngles &angles) : poses_(core), moby_(core, angles) {}
 
   [[nodiscard]] std::span<const psx::present::MotionTrack> tracks() const {
     return tracks_;

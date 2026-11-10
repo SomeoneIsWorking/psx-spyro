@@ -8,6 +8,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <span>
 
 namespace spyro {
@@ -51,6 +52,9 @@ protected:
   // Whether `pose`'s two frames of mesh `mesh` share a vertex layout the drawer can blend across.
   [[nodiscard]] virtual bool sharesLayout(std::uint32_t mesh,
                                           const keyframe_blend::Pose &pose) const = 0;
+  // How mesh `mesh`'s animation `animation` wraps its frames, from its animation header.
+  [[nodiscard]] virtual std::optional<keyframe_blend::Loop>
+  loopOf(std::uint32_t mesh, std::uint32_t animation) const = 0;
   // The title's angle bytes and own words on `shown`, which starts as `moved`; the pose is written
   // after.
   virtual void finish(const Samples &samples,

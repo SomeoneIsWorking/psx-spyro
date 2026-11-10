@@ -174,16 +174,16 @@ inline constexpr spyro::ConversationFacts kConversation{
     }},
 };
 
-//   8002F08C  the update anchors 0x8006AA1C on Spyro while byte 0x8006AAB4 is set; 0x80048F04
-//             draws it
+//   8002F08C  the update anchors Spyro's flame breath 0x8006AA1C at his mouth while byte
+//             0x8006AAB4 is set, lit by 8002FC20 only while it is clear; 0x80048F04 draws it
 //   800155A0  the dispatcher draws the subtractive fade 0x80066F68 and the additive 0x80067150
-//             (words) while non-zero
+//             (words) while non-zero; 8001FA58 ramps the subtractive fade both ways
 inline constexpr spyro::DrawMotionFacts kDrawMotion{
     .cameraAngles = kRenderGlobals.cameraAngles,
     .cameraPosition = kRenderGlobals.cameraPosition,
     .spyro = 0x80069FF0u,
     .shadow = 0x800698D4u,
-    .heldObject = 0x8006AA1Cu,
+    .flame = 0x8006AA1Cu,
     .moby = &kMobyFacts,
     .effects =
         {

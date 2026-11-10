@@ -241,7 +241,8 @@ BootPrefixFrameDriver::LoopStop BootPrefixFrameDriver::stepMainLoop(Core &core) 
 
 void BootPrefixFrameDriver::beforeDraw(Core &core) {
   const std::uint32_t state = section_.gameState(core);
-  if (!section_.replays(core)) {
+  if (const std::optional<std::string_view> reason = section_.declines(core)) {
+    ++declined_[*reason];
     replay_.forget();
     sampledState_.reset();
     return;
@@ -251,6 +252,12 @@ void BootPrefixFrameDriver::beforeDraw(Core &core) {
   }
   sampledState_ = state;
   replay_.beforeDraw(core);
+}
+
+void BootPrefixFrameDriver::reportDeclined() const {
+  for (const auto &[reason, frames] : declined_) {
+    lucent::info("replay", "run-end: {} drawn frame(s) not replayed: {}", frames, reason);
+  }
 }
 
 void BootPrefixFrameDriver::presentField(Core &core, std::uint32_t frame, const char *site) {

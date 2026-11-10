@@ -10,6 +10,7 @@
 
 #include <array>
 #include <cstring>
+#include <optional>
 
 namespace spyro1 {
 namespace {
@@ -25,6 +26,10 @@ constexpr std::size_t kPoseParts = 3;
 constexpr std::size_t kFrameBytes = 6;
 constexpr std::size_t kProgressBytes = 12;
 constexpr spyro::keyframe_blend::Progress kPartSteps{16};
+// Spyro's animation table: four bytes per animation, its loop start then its end; 0x8003CB24
+// steps a part's next frame past the end back to the start.
+constexpr std::uint32_t kSpyroAnimations = 0x8006C4A0u;
+constexpr std::uint32_t kSpyroAnimationBytes = 4u;
 
 template <std::size_t N> std::array<std::uint8_t, N> bytesOf(std::span<const std::uint32_t> words) {
   std::array<std::uint8_t, N> bytes{};
@@ -99,8 +104,16 @@ void SpyroPoses::blend(const Samples &samples, float t, std::span<std::uint32_t>
   const auto earlier = bytesOf<kPoseBytes>(samples.from);
   auto shown = bytesOf<kPoseBytes>(samples.to);
   for (std::size_t part = 0; part < kPoseParts; ++part) {
+    const spyro::keyframe_blend::Pose from = partOf(earlier, part);
+    const std::uint32_t row = kSpyroAnimations + (from.keyframes & 0xFFu) * kSpyroAnimationBytes;
+    const spyro::keyframe_blend::Loop loop{.start = core_.mem_r8(row),
+                                           .end = core_.mem_r8(row + 1u)};
     const spyro::keyframe_blend::Pose pose =
-        spyro::keyframe_blend::between(partOf(earlier, part), partOf(shown, part), t, kPartSteps);
+        spyro::keyframe_blend::between(from,
+                                       partOf(shown, part),
+                                       t,
+                                       kPartSteps,
+                                       loop.end > loop.start ? std::optional(loop) : std::nullopt);
     const std::size_t pair = 2 * part;
     const std::size_t frames = kFrameBytes + pair;
     shown[pair] = static_cast<std::uint8_t>(pose.keyframes);
@@ -129,6 +142,17 @@ void MobyMotion::finish(const Samples &samples,
   if (from[kMobyScale] != 0 && to[kMobyScale] != 0) {
     shown[kMobyScale] = byteBetween(from[kMobyScale], to[kMobyScale], t);
   }
+}
+
+std::optional<spyro::keyframe_blend::Loop> MobyMotion::loopOf(std::uint32_t mesh,
+                                                              std::uint32_t animation) const {
+  const std::uint32_t header = core_.mem_r32(core_.mem_r32(guest::kModels + mesh * 4) +
+                                             actors::mesh::kFrames + animation * 4);
+  const auto frames = static_cast<std::int16_t>(core_.mem_r16(header + actors::mesh::kFrameCount));
+  if (frames <= 0) {
+    return std::nullopt;
+  }
+  return spyro::keyframe_blend::Loop{.start = 0, .end = static_cast<std::uint32_t>(frames)};
 }
 
 bool MobyMotion::sharesLayout(std::uint32_t mesh, const spyro::keyframe_blend::Pose &pose) const {

@@ -37,6 +37,13 @@ psx::present::ReplayFrame *BootPrefixRuntime::replayFrame(Core &core) {
              : &core.game->frameDriverAs<BootPrefixFrameDriver>().replay();
 }
 
+void BootPrefixRuntime::reportRun(Core &core) const {
+  Runtime::reportRun(core);
+  if (core.game->frameDriver != nullptr) {
+    core.game->frameDriverAs<BootPrefixFrameDriver>().reportDeclined();
+  }
+}
+
 psx::state::NativeStatePort *BootPrefixRuntime::nativeState(Core &core) const {
   return &core.game->frameDriverAs<BootPrefixFrameDriver>();
 }

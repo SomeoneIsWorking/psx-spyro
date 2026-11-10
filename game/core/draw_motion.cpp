@@ -94,6 +94,11 @@ bool MobyMotion::sharesLayout(std::uint32_t mesh, const keyframe_blend::Pose &po
   return guest_moby::slotsShareLayout(core_, walk_, mesh, pose.keyframes);
 }
 
+std::optional<keyframe_blend::Loop> MobyMotion::loopOf(std::uint32_t mesh,
+                                                       std::uint32_t animation) const {
+  return guest_moby::animationLoop(core_, walk_, mesh, animation);
+}
+
 void MobyMotion::finish(const Samples &,
                         const moby_record::Bytes &from,
                         const moby_record::Bytes &to,
@@ -118,6 +123,19 @@ void MobyMotion::finish(const Samples &,
   record_blend::store(shown, record::kFlags, flags);
 }
 
+void FlameMotion::blend(const Samples &samples, float t, std::span<std::uint32_t> out) const {
+  std::copy(samples.to.begin(), samples.to.end(), out.begin());
+  const auto lit = [](std::uint32_t state) {
+    return (state >> 8) & 0xFFu;
+  };
+  if (lit(samples.to[3]) < lit(samples.from[3])) {
+    return;
+  }
+  for (std::size_t word = 0; word < 3; ++word) {
+    out[word] = psx::present::lerpWord(samples.from[word], samples.to[word], t);
+  }
+}
+
 void EffectMotion::sample(Core &core) {
   later_ ^= 1u;
   effect_pools::read(core, facts_, records_[later_]);
@@ -139,10 +157,12 @@ DrawMotion::DrawMotion(Core &core, const DrawMotionFacts &facts)
            .fields = kSpyroSurface,
            .rule = &surface_},
           {.name = "spyro shadow", .address = facts.shadow, .fields = kShadow},
-          {.name = "held object",
-           .address = facts.heldObject,
-           .fields = kVector,
-           .records = kHeldObject},
+          {.name = "flame",
+           .address = facts.flame,
+           .fields = kFlame,
+           .rule = &flame_,
+           .keys = kFlameKeys,
+           .records = kFlameRecords},
           {.name = "mobys",
            .address = facts.moby->firstRecordWord,
            .fields = MobyMotion::kFields,
@@ -151,8 +171,9 @@ DrawMotion::DrawMotion(Core &core, const DrawMotionFacts &facts)
            .records = kMobyRecords},
       }} {
   for (std::size_t i = 0; i < facts.fadeCount; ++i) {
-    tracks_.push_back(
-        {.name = facts.fades[i].name, .address = facts.fades[i].address, .fields = kFade});
+    tracks_.push_back({.name = facts.fades[i].name,
+                       .address = facts.fades[i].address,
+                       .fields = std::span(&facts.fades[i].field, 1)});
   }
 }
 

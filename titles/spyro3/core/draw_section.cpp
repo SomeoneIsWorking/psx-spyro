@@ -22,6 +22,7 @@ constexpr std::uint32_t kSceneFlags = 0x3Du;
 constexpr std::uint32_t kPlay = 0x8001D274u;
 // The switch's other cases but state 5, the loading screen: 0x80059038 waits in VSync at 0x8005927C
 // (UpdateLoadingImage), so it is never replayed. States 8 and 0x11 have no case.
+constexpr std::uint32_t kLoadingState = 5u;
 constexpr std::array<std::pair<std::uint32_t, std::uint32_t>, 14> kHandlers{{
     {0u, kPlay},
     {0xEu, kPlay},
@@ -78,11 +79,15 @@ std::optional<std::uint32_t> handlerOf(std::uint32_t state) {
 
 } // namespace
 
-bool DrawSection::replaysState(Core &core, std::uint32_t state) const {
+std::optional<std::string_view> DrawSection::declinesState(Core &core, std::uint32_t state) const {
   if (state == kLevelLoadState && clearsScreen(core)) {
-    return false;
+    return "state 3 clears both buffers through 0x8001EBAC";
   }
-  return state == 2u || state == 0x12u || handlerOf(state).has_value();
+  if (state == 2u || state == 0x12u || handlerOf(state).has_value()) {
+    return std::nullopt;
+  }
+  return state == kLoadingState ? "state 5 waits in VSync at 0x8005927C"
+                                : "the switch has no replayed case";
 }
 
 bool DrawSection::drawState(Core &core,

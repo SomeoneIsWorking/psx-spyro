@@ -26,11 +26,16 @@ void MobyRecordMotion::blend(const Samples &samples, float t, std::span<std::uin
   const moby_record::Between moved = moby_record::between(from, to, t);
   moby_record::Bytes shown = moved.bytes;
   finish(samples, from, to, moved, t, shown);
-  keyframe_blend::Pose pose = keyframe_blend::between(poseOf(from), poseOf(to), t, progress_);
-  if (!keyframe_blend::continues(poseOf(from), poseOf(to), progress_)) {
+  const std::uint32_t mesh = record_blend::load<std::uint16_t>(to, moby_record::kMesh);
+  // A pose that did not step needs no loop, and a model that never animates has no headers to read.
+  const std::optional<keyframe_blend::Loop> loop =
+      poseOf(from).keyframes == poseOf(to).keyframes ? std::nullopt
+                                                     : loopOf(mesh, poseOf(from).keyframes & 0xFFu);
+  keyframe_blend::Pose pose = keyframe_blend::between(poseOf(from), poseOf(to), t, progress_, loop);
+  if (!keyframe_blend::continues(poseOf(from), poseOf(to), progress_, loop)) {
     const keyframe_blend::Pose crossing =
         keyframe_blend::across(poseOf(from), poseOf(to), t, progress_);
-    if (sharesLayout(record_blend::load<std::uint16_t>(to, moby_record::kMesh), crossing)) {
+    if (sharesLayout(mesh, crossing)) {
       pose = crossing;
     }
   }
