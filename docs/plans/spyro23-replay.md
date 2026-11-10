@@ -324,3 +324,6 @@ waits in VSync at 0x8005927C` (253), `state 3 clears both buffers through 0x8001
     marked: the terrain drawer, the moby draws (`0x80044504` and the other guest sites) and all of Spyro 3, because
     their depths are not yet in one view unit. Each needs its `DepthUnit` derived from its transform before it is
     marked.
+    The mark ignores the per-face bias `0x80041DBC` subtracts before bucketing (face word bits 0-2, 128 of the summed
+    SZ each), and `0x8004C534` calls the same drawer for the reflection pass, so the two passes share one depth plane.
+    Both need a per-polygon bias or per-call mark carried with the vertex places; until then a biased face can lose.
