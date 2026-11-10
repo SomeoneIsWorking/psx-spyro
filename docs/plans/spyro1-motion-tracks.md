@@ -168,7 +168,7 @@ queue by `0x80019300`; text mobys are rebuilt each draw from the arena at `g_Hud
 | portal colour | `D_800757D4` | Derived (a lerp from the portal's distance) | | | G:80050BD0 |
 | terrain animation (platforms, torch-lit geometry, colours) | `g_EnvironmentAnimations` `0x80078560`: lists at `0x80078564` (texture swap), `0x8007856C` (scroll), `0x80078574` low poly, `0x8007857C` low colour, `0x80078584` high poly, `0x8007858C` high colour, `0x800785A4` collision; animation record: +1 flags, +2 key index, +3 ticks left | Step (keys apply at logic rate; marks at sector +0x18..+0x1B) | animation record address | classification pass of `0x800258F0` | G:8002A6FC, `port: guest_terrain_animation.h`; key fraction `key & 0xFF` feeds GTE IR0 (`fraction << 4`); blending inside a key needs a patch of the level's key table (Open 1) |
 | texture swap | list `0x80078564`, 0x10-byte records at `0x800785C0`, 0xA8-byte at `0x800785C4` | Step (copies a texture record's UVs onto another) | record | terrain, sprite emitters | G:8002A6FC (first loop) |
-| texture scroll | list `0x8007856C`; animation record +6 u16 position, wrap 0x80; UV bytes written to records: LQ `+1,+5,+9,+0xD = pos >> 2`; HQ `pos >> 1` with `+0x20`, `+0x10`, `+0x10`, `+0x10` phase offsets, masked 0x3F | Scalar on the position (wrap 128), UV bytes rebaked; or blend the baked UV bytes with wrap 32 (LQ) / 64 (HQ) (inferred) | animation record address | terrain (water, lava) | G:8002A6FC (second loop); the baked bytes are level data, so the replay must write them (Open 6) |
+| texture scroll | count `0x80078568`, nodes `0x8007856C`; node +4 u16 texture index, +6 u16 position, 7 bits; baked into the world mesh headers `0x800785C0` (16 bytes per index) and vertex data `0x800785C4` (0xA8): `scroll_bake.h` | Angle on the position (`lerpTurn`, 7 bits), rebaked through the same `scroll::bake` the native 0x8002A6FC uses (`core/frame/texture_scroll.*`) | node address + index | terrain (water, lava) | G:8002A6FC second loop, called only by the update 0x8003385C; Dark Passage portal (warp `4/1/1`) water: t = 1 in-betweens equal their reals, t = 0.5 differs from both reals by about the same (16669/16086 px of 24750 apart) |
 | skip-low-poly flag | `0x8007591C` | Step | | `0x8001F798`, `0x80020F34`, `0x80050BD0` | G:8001F798 |
 
 ## Screen and HUD
@@ -220,8 +220,7 @@ A cut keeps the newer value for every track (no blend) in the frame it appears.
 4. Particle identity is slot + kind only; the life-monotone and step-limit rules are inferred, and same-kind
    particles in neighbouring slots can still mispair (the OpenPete streaking).
 5. Whether any Spyro 1 level moves portal records (`m_PathMoby`); none reached.
-6. Texture scroll: whether the replay should blend the position (+6) and rebake, or blend baked UV bytes. The
-   rebake lives inside `0x8002A6FC`, which the replay does not call.
+6. Texture scroll: settled; the replay rebakes the blended position (row above).
 7. Addresses not resolved: `MetalBuildMatrix`, `SpecularUpdate`, `HudReset`, `HudTick` call order inside
    `GamestateUpdate` (the Ghidra image memory ends at `0x800757FF`, so `--refs` answers "outside memory" for
    `0x800758C8`, `0x80075858`, `0x800770E0`, `0x80078640`, `0x8007AA20`, `0x8007591C`, `0x80076E9C`; only

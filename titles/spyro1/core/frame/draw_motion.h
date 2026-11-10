@@ -7,6 +7,7 @@
 #include "render/field/moby_motion.h"
 #include "spyro1/core/effect/flame_block.h"
 #include "spyro1/core/effect/shadow_block.h"
+#include "spyro1/core/frame/texture_scroll.h"
 #include "spyro1/core/frame/title_slide.h"
 #include "spyro1/core/guest_globals.h"
 #include "spyro1/render/glows.h"
@@ -214,8 +215,9 @@ private:
   ParticleMotion particle_;
   SparkleMotion sparkle_;
   FlameMotion flame_;
+  TextureScroll textureScroll_;
   TitleSlide titleSlide_;
-  std::array<psx::present::MotionSource *, 1> sources_{&titleSlide_};
+  std::array<psx::present::MotionSource *, 2> sources_{&textureScroll_, &titleSlide_};
   std::array<psx::present::MotionTrack, 15> tracks_{{
       {.name = "camera", .address = guest::kCamera, .fields = kCamera},
       {.name = "spyro", .address = guest::kSpyro, .fields = kSpyro},

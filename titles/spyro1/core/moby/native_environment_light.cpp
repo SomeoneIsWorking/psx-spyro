@@ -1,5 +1,6 @@
 #include "spyro1/core/moby/native_environment_light.h"
 #include "spyro1/core/guest_globals.h"
+#include "spyro1/core/moby/scroll_bake.h"
 
 #include "core/native_execution.h"
 #include "render/field/guest_word.h"
@@ -15,8 +16,9 @@ using spyro1::guest::kEnvironment;
 using spyro::guest_word::sra;
 
 constexpr std::uint32_t kNodeLists = 0x80078560u;
-constexpr std::uint32_t kNarrowRecords = 0x800785C0u;
-constexpr std::uint32_t kWideRecords = 0x800785C4u;
+using scroll::kNarrowRecords;
+using scroll::kWideRecords;
+using scroll::kWideRecordSize;
 // g_Environment + 0x2C, the TerrainCollision pointer, and the vertex block its +0x10 holds. BOTH
 // arms of the blend reach it through the same two loads: `0x8002AE40 lw $a2,0x2C($a2)` is the
 // delay slot of the arm test, so it runs whichever arm is taken, and `0x8002AE58` (software) and
@@ -25,7 +27,6 @@ constexpr std::uint32_t kWideRecords = 0x800785C4u;
 constexpr std::uint32_t kTerrainCollision = 0x800785D4u;
 constexpr std::uint32_t kVertexBlock = 0x10u;
 constexpr std::uint32_t kGteScratch = 0x1F800000u;
-constexpr std::uint32_t kWideRecordSize = 0xA8u;
 constexpr std::uint32_t kVertexStride = 0x0Cu;
 constexpr std::uint32_t kGpf = 0x4B90003Du;
 constexpr std::uint32_t kGpl = 0x4BA0003Eu;
@@ -290,30 +291,9 @@ void copyNodeRecords(Core *c, const ListNode &at, Tail &tail) {
   tail.v1 = wideSource + kWideRecordSize;
 }
 
-struct ByteRun {
-  std::uint32_t offset;
-  std::uint32_t count;
-  std::uint32_t bias;
-  bool masked;
-};
-
-// The wide record's angle fields come in five runs of four, and only the SECOND run is unmasked:
-// the body shifts by one, adds 0x20 and masks for the first run, then re-reads the same shift and
-// adds 0x10, 0x20 and 0x30 for the rest. Re-deriving the bias instead of reading it off the body
-// would make the 0x29 run the masked one, which is a different byte in every record.
-constexpr ByteRun kAngleRuns[] = {
-    {0x19u, 4u, 0x20u, true},
-    {0x29u, 8u, 0x00u, false},
-    {0x49u, 8u, 0x10u, true},
-    {0x69u, 8u, 0x20u, true},
-    {0x89u, 8u, 0x30u, true},
-};
-constexpr std::uint32_t kAngleHalves[] = {0x09u, 0x0Du, 0x11u, 0x15u};
-
-// The second list: the walk's summed signed deltas are added to the node's own halfword, masked to
-// seven bits, stored back, and broadcast as a byte into both records — four fields of the narrow
-// record and forty-two of the wide one.
-void writeNodeAngle(Core *c, const ListNode &at, Tail &tail) {
+// The second list, texture scroll: the walk's summed signed deltas step the node's 7-bit position,
+// which is stored back and baked into its two texture records (scroll_bake.h).
+void scrollNodeTexture(Core *c, const ListNode &at, Tail &tail) {
   const std::uint32_t node = at.node;
   const std::optional<DueNode> due = nodeIsDue(c, at, tail);
   if (!due) {
@@ -322,34 +302,24 @@ void writeNodeAngle(Core *c, const ListNode &at, Tail &tail) {
   const ByteChain chain = walkByteChain(c, {node, c->mem_r8(node + 2u), *due}, tail);
   c->mem_w8(node + 3u, static_cast<std::uint8_t>(chain.exitValue));
   c->mem_w8(node + 2u, static_cast<std::uint8_t>(chain.next));
-  const std::uint32_t index = c->mem_r16(node + 4u);
+  const std::uint32_t index = c->mem_r16(node + scroll::kNodeIndex);
   multiply(kWideRecordSize, index, tail);
   const std::uint32_t narrow = c->mem_r32(kNarrowRecords) + (index << 4);
   const std::uint32_t wide = c->mem_r32(kWideRecords) + tail.lo;
   tail.v0 = wide;
-  const std::uint32_t angle =
-      (c->mem_r16(node + 6u) + static_cast<std::uint32_t>(chain.sum)) & 0x7Fu;
-  tail.v1 = angle;
-  c->mem_w16(node + 6u, static_cast<std::uint16_t>(angle));
-  const std::uint32_t quarter = angle >> 2;
-  for (std::uint32_t offset = 0x01u; offset <= 0x0Du; offset += 4u) {
-    c->mem_w8(narrow + offset, static_cast<std::uint8_t>(quarter));
-  }
-  c->mem_w8(wide + 0x01u, static_cast<std::uint8_t>(quarter));
-  c->mem_w8(wide + 0x05u, static_cast<std::uint8_t>(quarter));
-  const std::uint32_t half = angle >> 1;
-  for (const std::uint32_t offset : kAngleHalves) {
-    c->mem_w8(wide + offset, static_cast<std::uint8_t>(half));
-  }
-  for (const ByteRun &run : kAngleRuns) {
-    std::uint32_t value = half + run.bias;
-    if (run.masked) {
-      value &= 0x3Fu;
-    }
-    for (std::uint32_t i = 0u; i < run.count; ++i) {
-      c->mem_w8(wide + run.offset + (i * 4u), static_cast<std::uint8_t>(value));
-    }
-  }
+  const std::uint32_t position =
+      (c->mem_r16(node + scroll::kNodePosition) + static_cast<std::uint32_t>(chain.sum)) &
+      ((1u << scroll::kPositionBits) - 1u);
+  tail.v1 = position;
+  c->mem_w16(node + scroll::kNodePosition, static_cast<std::uint16_t>(position));
+  scroll::bake(
+      position,
+      [c, narrow](std::uint32_t offset, std::uint8_t value) {
+        c->mem_w8(narrow + offset, value);
+      },
+      [c, wide](std::uint32_t offset, std::uint8_t value) {
+        c->mem_w8(wide + offset, value);
+      });
 }
 
 // The four middle lists: the same walk, then a moby out of the pointer table is stamped with this
@@ -578,7 +548,7 @@ template <typename Body> void forEachNode(Core *c, std::uint32_t offset, Body bo
 
 // 0x8002A6FC — the environment light pass: seven lists of nodes are ticked against the frame delta
 // in $a0, every node whose tick is spent walks a chain to pick a light record, and the seven bodies
-// then copy a light record, broadcast a directional angle, stamp four moby fields and blend a
+// then copy a light record, step a texture scroll, stamp four moby fields and blend a
 // vertex colour block. Nothing is returned, but v0, v1, hi and lo are all left live, so an empty
 // list hands the next one its values and a run with no due node at all returns the caller's own —
 // which is what the Artisans route's last list does, every call, with v0 ending on a skipped node's
@@ -597,7 +567,7 @@ void propagateEnvironmentLight(Core *c) {
     copyNodeRecords(c, {node, charge}, tail);
   });
   forEachNode(c, 0x08u, [&](std::uint32_t node, std::uint32_t) {
-    writeNodeAngle(c, {node, charge}, tail);
+    scrollNodeTexture(c, {node, charge}, tail);
   });
   forEachNode(c, 0x10u, [&](std::uint32_t node, std::uint32_t index) {
     tagNodeMoby(c, {node, charge}, {index, 0x18u}, tail);
