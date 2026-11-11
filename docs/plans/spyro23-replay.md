@@ -330,8 +330,12 @@ Spyro 3 Sunrise Spring, Up and Left (746 in-betweens), identical over 2813.
 7. Sky objects, Spyro 2 done (`SkyWave`, `game/core/sky_wave.*`): the sine table is shared with other drawers of
    the section (`0x8001B664`, the particles `0x80048128`), so the consumer `0x800296D0` is overridden instead: in a
    replay it rewrites both halves of `0x80068C08` from the guest's sine read `t` of the way between the two ticks'
-   entries, the object index taken from `0x8004C66C`'s frame (`$sp + 0xE8` at the call). Real frames
-   (`PSXPORT_OVERRIDE_DIFF=0x800296D0`, fps60 off): 26 of 26 calls match. Autumn Plains `1/0/0`
+   entries, the object index taken from `0x8004C66C`'s frame (`$sp + 0xE8` at the call; 0x8004D07C is its only
+   caller). The blend starts from the earlier tick's table index and adds the ticks' signed difference, so the
+   index wraps at 256 as the guest's does. Real frames (`PSXPORT_OVERRIDE_DIFF=0x800296D0`, fps60 off): 26 of 26
+   calls match; that covers only the real-frame arm, which calls the guest unchanged. The replay arm has no guest
+   counterpart to compare: its evidence is t = 1 and the halfway values below. A tick reset (a level load) is held:
+   the load changes the game state, which forgets the motion set's samples (`BootPrefixFrameDriver::beforeDraw`). Autumn Plains `1/0/0`
    (`scratch/hudfrac/skywave_values.log`, `sky_wave.png`): at t = 1 the blended value equals the guest's stored one,
    in-betweens lie between the ticks', and the hexagon light's 5-bit colour steps on in-betweens. Spyro 3 (tick
    `0x8006C644`, drawer `0x8001EDEC`) still steps: its facts are not found.
@@ -344,13 +348,22 @@ Spyro 3 Sunrise Spring, Up and Left (746 in-betweens), identical over 2813.
    Spyro 3's HUD tick `0x8006C640` is matched to Spyro 2's by use only (writers `0x80053374`, `0x80050F18`).
    Spyro 2's in-betweens are placed between rows: the callers (`0x80052690`, `0x8005251C`, `0x80052B88`, the
    only callers of the slide) add each slide result to the y of the one element they draw next with
-   `0x800520CC`, which writes it into a SPRT (+0x0A) or POLY_FT4 (+0x0A, +0x12, +0x1A, +0x22). `HudSlide` keeps
-   what its rounding dropped, and the drawer, native (`titles/spyro2/render/hud_element.cpp`, the same override as
-   the meter's anchor, real frames included), stores its y corners with `storeVertex` that far below their rows.
-   Differential (`PSXPORT_OVERRIDE_DIFF=0x800520CC`, Select held 300 fields, `scratch/hudfrac/diff.json`): 862 of
-   862 sampled calls match the guest. Glimmer `0/1/0`, Select (`scratch/null1/hs2`, `scratch/hudfrac/s2_gem_frac.png`):
+   `0x800520CC`, with no call between (in `0x80052690` the slide at `0x8005276C` jumps to its element at
+   `0x80052924`), which writes it into a SPRT (+0x0A) or POLY_FT4 (+0x0A, +0x12, +0x1A, +0x22). `HudSlide` keeps
+   what its rounding dropped with the replay's rollback run, and the drawer, native
+   (`titles/spyro2/render/hud_element.cpp`, the same override as the meter's anchor, real frames included), takes
+   it only inside that run and stores its y corners with `storeVertex` that far below their rows; a replay that
+   stops between a slide and its element leaves nothing for a later element. Differential
+   (`PSXPORT_OVERRIDE_DIFF=0x800520CC`, Select held 300 fields, `scratch/hudfrac/diff.json`): 862 of 862 sampled
+   calls match the guest. Again with every call compared and its arm logged by a local edit (`scratch/review7/hud-diff`,
+   boot, `0/1/0`, Select, pause): 763 of 763 match, SPRT 0x64 at five call sites and SPRT 0x66 (raw) at
+   `0x80052584`. The POLY_FT4 arm (an image word with bit 31 clear) was reached by no screen; it is matched to
+   SCUS_944.25 `0x800521A4..0x80052324` by reading (corners, mirrored u, CLUT, page 0x38, $v0 0, $v1 the packet
+   end), not by a run. Glimmer `0/1/0`, Select (`scratch/null1/hs2.log`, `scratch/hudfrac/s2_gem_frac.png`):
    the gem icon's lowest row per present 107 / 127 / 147 / 167 / 187 / 207 / 227 / 247 of 1920, each in-between
-   20 rows (half the 40-row step at 8x) past the real before it.
+   20 rows (half the 40-row step at 8x) past the real before it. With the run-tagged remainder
+   (`scratch/review7/hud-s`, Select just pressed): 231 / 227 / 223 / 235 / 247 / 243 / 239 for real, in-between,
+   real..., each in-between at its neighbours' midpoint.
 9. Pause menus (`0x800145AC`, `0x8001DD1C`): Spyro 1's pause reads VRAM back; whether these do is not known.
 10. Spyro 2's conversation slide: done (`ConversationSlide`). The loading pictures' fade counters (`0x800698EC`,
     `0x8006FBC4`) belong to state 5, which is not replayed.
@@ -368,14 +381,17 @@ Spyro 3 Sunrise Spring, Up and Left (746 in-betweens), identical over 2813.
       opens his view unit (1/4, translation world minus camera) and his bias byte +0x1E in bins. The reflection call
       (+0x2C set) and Spyro 3's second pass (state 0xD, return `0x8001EB3C`) project with no depth.
     - The moby drawer (`0x80044504` / `0x80031124`) is `Model` with a face sort (`engine_render_overrides.h`). The
-      walk tags each entry's centre z with `meshDepthScale`, its sorted-nearer bins and the view units of one of the
-      drawer's buckets, `slot` (`guest_moby_visibility.cpp:finishEntry`); the drawer's `CTC2` of TRZ carries them.
+      walk tags each entry's centre z with `meshDepthScale`, its sorted-nearer bins, the view units of one of the
+      drawer's buckets, `slot`, and the entry's address as its `model` (`guest_moby_visibility.cpp:finishEntry`);
+      the drawer's `CTC2` of TRZ carries them and ends the last moby's open face. Each moby's faces test against
+      everything before them but that moby's own faces, other mobys included, wherever the slot order splits them.
       The drawer projects into scratch, then per face loads the face word (`lw $s0, 4($fp)`, `kDrawerFaceLoad`), loads
-      the vertex words back and stores them into the packet; its bucket is (summed SZ3 less base less
-      sext(bits 0-2) << 2 << shift) >> shift, shift = entry byte +0x1A + 4 (80044D9C..80044DBC), and it links its
-      buckets into the OT from the far end. psxport's `FaceSort` moves each stored vertex by that bias, so a face tests
-      where the drawer sorts it. `Model` keeps the drawer's own paint order among its faces and tests each against
-      the scene before the moby.
+      the vertex words back and stores them into the packet; its bucket is (summed SZ less base less
+      sext(bits 0-2) << 2 << shift) >> shift, shift = entry byte +0x1A + 4 (80044D9C..80044DBC), the sum over four
+      weights on every path (a quad's four SZ, a triangle's a + 2b + c: 80044FB8..80044FD8, 800451C4..800451D8), so
+      each vertex moves by a quarter of the bias (`slot` = scale · 2^(shift − 2)); it links its buckets into the OT
+      from the far end. psxport's `FaceSort` moves each stored vertex by that bias, so a face tests where the drawer
+      sorts it. `Model` keeps the drawer's own paint order among its faces.
     - Moby evidence (`scratch/mobydepth`, judgement settings, depth on, unpaced, hidden; 9 walks of 8 presents
       every 60 fields plus 13 arrival views and per-class teleports, against `Object`): `Model` fixes moby-against-moby
       errors of the slot order: Spyro 2 `1/1/0` Up, the caveman no longer covered by the farther sign moby
@@ -384,7 +400,12 @@ Spyro 3 Sunrise Spring, Up and Left (746 in-betweens), identical over 2813.
       body, an NPC's eye wedge through its brow: the drawer's order is the guest's rule within a model); `Model`
       with a 32-unit bin (a hole in Sparx's wing showing Spyro); `Model` with no face bias (the caveman's pupils lost
       under the white of the eye); the face bias on Spyro's drawer (his tail cone lost to Sparx's wing), so Spyro's
-      drawer stays as it was. Unresolved: a fish at Spyro 3 `0/2/0` loses a small dark mark (`m3`).
+      drawer stays as it was. Unresolved: a fish at Spyro 3 `0/2/0` loses a small dark mark (`m3`), and Spyro and
+      Sparx overlap at `0/1/0` (`l1b`); neither is judged.
+    - Per-model identity (2026-11-11, `scratch/review7`, judgement settings, depth on, unpaced): the caveman still
+      over the farther sign at `1/1/0` Up (`h1_caveman.png`, pupils kept), the NPC's sleeve over the grey creature at
+      the `0/3/0` arrival (`h1_sleeve.png`), Spyro 3 `0/2/0` Up walk clean (`w3020_sheet.png`), Spyro 1's Toasty
+      portal wall unchanged (`s1_toasty.png`).
     - Shown (`scratch/depth23`, player settings, unpaced, off against on): Glimmer `0/1/0` holding Up+Left 200
       fields (Spyro 2), a grey wall top no longer pops over the near green overhang, on real presents and in-betweens
       (`h_top.png`, `h_top0.png`). Spyro 3 Sunny Villa `0/0/0` and `0/1/0` (41 px) and Cloud Spires `0/2/0` (134 px,
@@ -396,11 +417,12 @@ Spyro 3 Sunrise Spring, Up and Left (746 in-betweens), identical over 2813.
       in-betweens), Spyro 3 3413 (1036); run-end 0 refused. Cost not measured.
     - Not shown: a moby behind nearer terrain. No walk, arrival or teleport view had a moby the slot order drew
       over terrain in front of it, so the terrain case is unproven in frames.
-    - t = 1 and leak with `Model` (2026-11-11, `scratch/mobydepth`, `0/1/0` Up+Left): a local t = 1 edit of
-      `ReplayFrame::replay` (reverted, never committed) differs from the real present after it in the same boxes
-      with depth on and off, Spyro 2 and 3 (`nullcase.txt`), so depth adds no t = 1 difference. `fielddigest` with
-      depth on and fps60 on against fps60 off identical: Spyro 2 3514 lines (1220 in-betweens), Spyro 3 3413 (1036);
-      run-end 0 refused. Cost: psxport `docs/presentation.md` Depth.
+    - t = 1 and leak with `Model` (2026-11-11, `scratch/review7`, `0/1/0`, Up and Left held so Spyro runs, pad
+      `ff6f`; the earlier `scratch/mobydepth` runs named the buttons `Up`/`Left`, which the pad rejected, and its leak
+      runs had depth off, so they were of a still view): a local t = 1 edit of `ReplayFrame::replay` (reverted, never
+      committed): every in-between identical to the real present after it, Spyro 2 4 of 4, Spyro 3 4 of 4
+      (`t1-spyro2`, `t1-spyro3`). `fielddigest` with depth on, fps60 on against off identical: Spyro 2 3514 lines
+      (1219 in-betweens), Spyro 3 3413 (1036); run-end 0 refused. Cost: psxport `docs/presentation.md` Depth.
     - Unmarked, so slot order: the deferred list `0x80046FD8` / `0x80033C5C` (TRZ is 2·view z from a GPR, untagged;
       OT bin view z·4 >> 7 less the record's +0x44 byte; needs that nearer per entry); `0x800499D4` / `0x8002DDA8`
       emits semi-transparent POLY_FT3 (0x26), so never tests; the shadow `0x800495E8` (translucent). Mobys whose

@@ -27,7 +27,7 @@ void spriteEmitter(Core *core) {
   }
   spyro::HudSlide &slide =
       core->game->frameDriverAs<spyro::BootPrefixFrameDriver>().motion().hudSlide();
-  hud_element::draw(*core, slide.takeRemainder());
+  hud_element::draw(*core, slide.takeRemainder(*core));
 }
 
 } // namespace

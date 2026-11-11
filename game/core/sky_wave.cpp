@@ -47,8 +47,12 @@ std::optional<std::uint16_t> SkyWave::between(Core &core, std::uint32_t object, 
   if (facts_ == nullptr || !from_ || !to_) {
     return std::nullopt;
   }
-  const double entry = psx::present::lerpExact(*from_ * facts_->step, *to_ * facts_->step, t) +
-                       static_cast<double>(object * facts_->objectStep);
+  // The table index wraps at 256 entries, so the earlier entry is taken there and the ticks' signed
+  // difference blended from it.
+  const auto start =
+      static_cast<double>((*from_ * facts_->step + object * facts_->objectStep) & 0xFFu);
+  const double steps = static_cast<double>(static_cast<std::int32_t>(*to_ - *from_)) * facts_->step;
+  const double entry = psx::present::lerpExact(start, start + steps, t);
   const double below = std::floor(entry);
   const auto first = static_cast<std::uint32_t>(static_cast<std::int64_t>(below));
   const auto sineAt = [&](std::uint32_t index) {

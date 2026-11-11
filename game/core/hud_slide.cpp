@@ -8,6 +8,7 @@
 #include "replay_frame.h"
 
 #include <algorithm>
+#include <utility>
 
 namespace spyro {
 namespace {
@@ -83,14 +84,20 @@ std::int32_t HudSlide::offset(Core &core, const Call &call, std::optional<float>
   const std::uint32_t slotWord = core.mem_r32(call.slot);
   const std::int32_t now = offsetOf(core, slotWord, call);
   const std::optional<std::size_t> sampled = slotIndex(call.slot);
-  remainder_ = 0.0f;
+  remainder_ = {};
   if (!t || !sampled || !drawn(from_[*sampled]) || !drawn(slotWord)) {
     return now;
   }
   const std::int32_t earlier = offsetOf(core, from_[*sampled], call);
   const std::int32_t shown = psx::present::lerpInt(earlier, now, *t);
-  remainder_ = static_cast<float>(psx::present::lerpExact(earlier, now, *t) - shown);
+  remainder_ = {.rows = static_cast<float>(psx::present::lerpExact(earlier, now, *t) - shown),
+                .run = core.writeRollback.run()};
   return shown;
+}
+
+float HudSlide::takeRemainder(const Core &core) {
+  const Remainder taken = std::exchange(remainder_, {});
+  return core.writeRollback.armed() && taken.run == core.writeRollback.run() ? taken.rows : 0.0f;
 }
 
 void installHudSlide(Core &core, const HudSlideFacts &facts) {
