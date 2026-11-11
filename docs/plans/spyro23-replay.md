@@ -421,7 +421,15 @@ Spyro 3 Sunrise Spring, Up and Left (746 in-betweens), identical over 2813.
       difference; what differed was 0240, closed: t = 1 replays now equal their reals. `fielddigest` with fps60 on and off identical, Spyro 2 3514 lines (1219
       in-betweens), Spyro 3 3413 (1036); run-end 0 refused. Cost not measured.
     - Not shown: a moby behind nearer terrain. No walk, arrival or teleport view had a moby the slot order drew
-      over terrain in front of it, so the terrain case is unproven in frames.
+      over terrain in front of it, so the terrain case is unproven in frames. Also tried (2026-11-11,
+      `scratch/depth4`, depth on, hidden, fps60 off): Glimmer `0/1/0` Up to Gemcutter (gems and the rhynoc
+      behind the ledge lip are cut by it), Sunny Villa `0/1/0` Up through the square, Sunrise Spring `0/0/0`
+      still; none shows a moby over nearer terrain, so the deferred-list placers stay unmarked. That list is
+      the walk's close list: a moby whose record +0x1C is negative and whose view z is below 0x1200 (S2
+      80043A94, S3 800306B4..800306F8), with its mesh's +0x2B byte for the frame; gems are most of it (Glimmer 91 of 108
+      flagged, Sunrise Spring 86 of 120, `close2.out`, `close3.out`). S3's `0x80033C5C` emits F3/F4
+      semi-transparent and G4/GT4 packets; with it patched to return at `0/0/0` the gems still draw
+      (`skip/spyro3-0_0_0-cmp.png`), so the main drawer draws them and the close pass adds to them.
     - t = 1 and leak with `Model` (2026-11-11, `scratch/review7`, `0/1/0`, Up and Left held so Spyro runs, pad
       `ff6f`; the earlier `scratch/mobydepth` runs named the buttons `Up`/`Left`, which the pad rejected, and its leak
       runs had depth off, so they were of a still view): a local t = 1 edit of `ReplayFrame::replay` (reverted, never
