@@ -28,7 +28,6 @@ public:
   std::span<const psx::present::LogoTexture> logoTextures() const final;
   // The player's aspect; the canvas holds the margins and each title widens its own culls.
   const psx::present::GuestWidescreenProjection *guestWidescreenProjection() const final;
-  void reportRun(Core &core) const override;
   bool interpolates() const final;
 
 protected:

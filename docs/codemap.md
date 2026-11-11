@@ -5,7 +5,7 @@ Dependency direction: `titles/<title>/` (one image's facts and natives) → `gam
 Frame loop: not owned. Spyro 1 runs update `0x8003385C` and draw `0x8001ED5C` and delivers fields as the guest clock crosses them (`FieldOwner`); Spyro 2/3 run update/draw (`0x8001B140`/`0x800156FC`, `0x80055400`/`0x8001E638`) and answer each guest VSync with one field (issue 0217).
 
 - `game/core/title_runtime_registry.*` — product catalog / title picker entries: the three runtimes and their generated identities
-- `game/core/runtime.*` — Spyro runtime base: session, presentation pacing, widescreen projection policy, panel logo, run report
+- `game/core/runtime.*` — Spyro runtime base: session, presentation pacing, widescreen projection policy, panel logo
 - `game/core/session.*` — per-Core title state: archive transfer, disc landing count, field owner, HUD draw context
 - `game/core/field_owner.*` — display field / VSync delivery sequence: pad, clock, VBlank root counter, observers, snapshot, presentation fence, audio, host turn
 - `game/core/boot_prefix_runtime.*`, `boot_prefix_frame_driver.*` — S2/S3 boot: crt0, stock libraries, the retail boot prefix as a resumable call, then update and draw one field per step, the replay sampled before each draw, each logic frame presented when its draw returns, each field of the fade-before-load loop presented on its own

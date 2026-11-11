@@ -49,8 +49,4 @@ const psx::present::GuestWidescreenProjection *Runtime::guestWidescreenProjectio
   return &aspectPolicy_;
 }
 
-void Runtime::reportRun(Core &core) const {
-  core.rsub.census.report("spyro run-complete");
-}
-
 } // namespace spyro
