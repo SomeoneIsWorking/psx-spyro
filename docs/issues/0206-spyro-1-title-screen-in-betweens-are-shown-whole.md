@@ -24,7 +24,7 @@ slide out through `AnimOut` from its m_State 5. The slide values are whole nativ
 odd step rounds.
 
 TSM_Demo is GamestateDraw's 0x8001E6B8 branch (the "THE ADVENTURE BEGINS..." card). It waits a single
-VSync, so it presents every field: one field per tick, no in-between to replay (`scratch/camfrac/title1`,
+VSync, so it presents every field: one field per tick, no in-between to replay (`scratch/camfrac/title1.log`, `title1.out`,
 card presents all `fields=1/1`). The section declines it.
 
 ## Still stepping

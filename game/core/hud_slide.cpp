@@ -5,6 +5,7 @@
 #include "core/boot_prefix_frame_driver.h"
 #include "game.h"
 #include "native_dispatch.h"
+#include "replay_frame.h"
 
 #include <algorithm>
 
@@ -26,8 +27,8 @@ void slideFunction(Core *core) {
   const HudSlide::Call call{.slot = core->r[4],
                             .index = static_cast<std::int32_t>(core->r[5]),
                             .y = static_cast<std::int32_t>(core->r[6])};
-  const auto shown = static_cast<std::uint32_t>(
-      driver.motion().hudSlide().offset(*core, call, driver.replay().replaying()));
+  const auto shown = static_cast<std::uint32_t>(driver.motion().hudSlide().offset(
+      *core, call, core->runtime.replayFrame(*core)->replaying()));
   core->r[2] = shown;
   core->r[3] = shown;
 }

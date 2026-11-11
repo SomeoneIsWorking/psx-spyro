@@ -92,7 +92,8 @@ between S' and S's patterns at 60 Hz exactly as they would at 30 Hz.
 | rotations, draw copy | `0x80067E84`, `0x80067E98`, `0x80067EB8` / `0x8006DFF8`, `0x8006E00C`, `0x8006E02C` | Derived (the section runs the builder and the copy) | | |
 | scripted camera | gameplay `0x8001D8A4` copies `0x80068064/70` into the camera while byte `0x80067FC9` | nothing extra: lands in the tracks above | `RE: spyro2.record` |
 
-`port:` Spyro 1's `DrawMotion::kCamera` is the same shape (`MotionTrack` with `Linear`, `Angle12x2`, `Angle12Low`).
+`port:` Spyro 1's camera is `CameraMotion` over Step fields (position straight, the angles through the same
+`lerpTurned` with four fine bits kept for its native matrices, `spyro1-motion-tracks.md`).
 field_redraw's `writeInBetween` wrote the matrices through `guest_terrain::cameraBetween` and raised the bin mark
 past `deepestFarMark` because the terrain was not redrawn; with the terrain inside the replay neither is needed.
 
@@ -331,6 +332,10 @@ Spyro 3 Sunrise Spring, Up and Left (746 in-betweens), identical over 2813.
    leaves in its index argument). There is no one function whose result is the offset, so the blend needs overrides
    of `0x80029708` and the two digit drawers that carry the earlier sample's slide from the widget down to the digits.
    Spyro 3's HUD tick `0x8006C640` is matched to Spyro 2's by use only (writers `0x80053374`, `0x80050F18`).
+   Spyro 2's in-betweens are whole native rows (24 / 16 of a 40-row step at 8x): the callers (`0x80052690`,
+   `0x8005251C`, `0x80052B88`) add the integer result to y and pass it to the element drawer `0x800520CC`, which
+   writes it as halfwords into a SPRT (+0x0A) or POLY_FT4 (+0x0A, +0x12, +0x1A, +0x22). Sub-row placement needs
+   that drawer natively, placing its y corners with `storeVertex` at the fraction its slide call returned.
 9. Pause menus (`0x800145AC`, `0x8001DD1C`): Spyro 1's pause reads VRAM back; whether these do is not known.
 10. Spyro 2's conversation slide: done (`ConversationSlide`). The loading pictures' fade counters (`0x800698EC`,
     `0x8006FBC4`) belong to state 5, which is not replayed.
@@ -354,6 +359,11 @@ Spyro 3 Sunrise Spring, Up and Left (746 in-betweens), identical over 2813.
       fields (Spyro 2), a grey wall top no longer pops over the near green overhang, on real presents and in-betweens
       (`h_top.png`, `h_top0.png`). Spyro 3 Sunny Villa `0/0/0` and `0/1/0` (41 px) and Cloud Spires `0/2/0` (134 px,
       Spyro only) show no holes.
+    - t = 1 and leak (2026-11-11, `scratch/review6`, judgement settings, hidden, unpaced, `0/1/0` Up+Left): a local
+      t = 1 build (a copy of the tree in `scratch/review6/hc`, not shipped) differs from the real present after it
+      in the same boxes with `PSXPORT_DEPTH` on and off (Spyro 3, `nullcase.txt`), so depth adds no t = 1
+      difference; what differs is 0240. `fielddigest` with fps60 on and off identical, Spyro 2 3514 lines (1219
+      in-betweens), Spyro 3 3413 (1036); run-end 0 refused. Cost not measured.
     - Not done: a moby still draws over terrain in front of it, because `Object` never tests. Marking it `Polygon`
       needs each face's bias: the drawer subtracts the face word's bits 0-2, sign-extended, << 2 << (detail + 4)
       from the summed SZ (80044DAC..DBC). Spyro's drawer has the same bias, 128 summed SZ per step (80042C64).
