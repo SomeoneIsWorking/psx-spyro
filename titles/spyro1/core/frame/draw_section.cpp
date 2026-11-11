@@ -162,7 +162,7 @@ std::optional<std::uint32_t> DrawSection::draw(Core &core,
   if (!step(redraw, kCameraUpdateMatrices)) {
     return std::nullopt;
   }
-  // The guest built the matrices from whole angles; the blended camera's carry its fractions.
+  // The guest built the matrices from whole angles; a blended camera with fractions carries them.
   if (const std::optional<spyro::guest_camera::Angles> &camera = nativeState(core).replayCamera) {
     const spyro::guest_camera::Matrices matrices = terrain::kTerrainImage.camera(core, *camera);
     writeMatrix(redraw, kProjectionMatrix, matrices.projection);

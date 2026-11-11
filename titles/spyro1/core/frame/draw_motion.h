@@ -34,7 +34,8 @@ private:
 };
 
 // g_Camera's m_Position straight and m_Rotation's three angles the short way round, each to the
-// unit the guest stores and with its fraction noted for the camera's matrices.
+// unit the guest stores; the fine angles are noted for the camera's matrices while any has a
+// fraction.
 class CameraMotion final : public psx::present::MotionRule {
 public:
   explicit CameraMotion(std::optional<spyro::guest_camera::Angles> &noted) : noted_(noted) {}

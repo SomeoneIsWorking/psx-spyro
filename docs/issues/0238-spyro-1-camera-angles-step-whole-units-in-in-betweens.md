@@ -23,11 +23,15 @@ sixteenth of the camera's angle. The guest's 0x80050BD0 calls Sin/Cos with the w
 halfword's nearest whole unit for the guest, and notes the fine angles in `NativeState::replayCamera` for the
 replay. After the replayed 0x80033C50 the section writes both matrices (nine halfwords each, the pad left as the
 guest wrote it) from `TerrainImage::camera` at the fine angles: the guest's own Sin/Cos interpolation and
-MulMatrix order, which at whole angles is the guest's result. `TerrainImage::cameraAngles` gives every reader
+MulMatrix order. While all three angles are whole (t = 1, or a step that halves evenly) nothing is noted and
+the replay keeps the guest's own 0x80033C50 matrices. The angle arithmetic is psxport's `turnedBetween` /
+`lerpTurned` (`blend.h`), the one blend `Motion::Angle12x2` uses. `TerrainImage::cameraAngles` gives every reader
 the angles in the builder's unit (the replay's fine angles while one draws), so the near sky takes the same
 camera and its spin in that unit.
 
-## Proof (2026-11-11, `scratch/camfrac/`, judgement settings, hidden, unpaced)
+## Proof (2026-11-11, `scratch/camfrac/`, judgement settings, hidden, unpaced; the dumps are gone, the logs
+`turn2.log`, `walk1.log`, `t1turn.log`, `t1turnB.log`, `t1title.log`, `portal3.log`, `paced1.log` and the
+`leak-*`/`tleak-*` digests remain)
 - Turning, warp `0/1/0`, Up+Left held (`turn2`, `shift.py`, `turn_castle.png`): the camera yaw moves 18 to
   21 units a tick and the castle band moves 47 / 46, 54 / 53, 56 / 56 output px across each tick's
   in-between and real. The 21-unit tick splits evenly, which whole units (10 / 11) could not.
@@ -42,6 +46,10 @@ camera and its spin in that unit.
   (`leak-0/1`); the title route, 5709 fields (`tleak-0/1`).
 - Paced, host load 2.8-3.7: 698 of 701 simulated 60.00 Hz vblanks advance 0.5 tick, 3 repeats (`paced1`).
 - Run-end: 0 intervals refused; camera 0 of 1715 record draws unpaired.
+- Whole angles on the guest path (2026-11-11, `scratch/review6/`): Up+Left from `0/1/0`, the castle band moves
+  43 to 48 output px every present, in-betweens and reals alike (`turn_shift.txt`, `turn_strip.png`); a local
+  t = 1 build differs from its reals only in 0239's squares (`nullcase.txt`, `t1diff.png`); `fielddigest` fps60
+  on (2778 in-betweens) and off identical over 6376 lines (`leak-spyro1-*`); 0 refused, camera 0 of 2778 unpaired.
 
 A t = 1 in-between still differs from its real in a few small yellow squares beside a gem's sparkle in Stone
-Hill (`t1turn`, bounding box about 360 x 100 at 8x), with the camera write and without: 0239.
+Hill (`t1turn.log`, `t1diff.png`, bounding box about 360 x 100 at 8x), with the camera write and without: 0239.
