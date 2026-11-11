@@ -53,7 +53,7 @@ Frame loop: not owned. Spyro 1 runs update `0x8003385C` and draw `0x8001ED5C` an
 - `titles/spyro1/core/moby/` — S1 mobys / game objects: allocator, lists, transform, animation, collision, collision shade, environment light, `scroll_bake.h` texture scroll bake (0x8002A6FC), shaded queue, shared models (PETE.WAD), level globals table
 - `titles/spyro1/core/player/` — S1 player: Spyro physics, body / head / tail animation, cutscene playback
 - `titles/spyro1/core/camera/` — S1 camera state
-- `titles/spyro1/core/effect/` — S1 effects: ground shadow block and ring, flame block, particle pool allocation
+- `titles/spyro1/core/effect/` — S1 effects: ground shadow block and ring, flame block, particle pool allocation and each slot's life (`particle_lives.*`)
 - `titles/spyro1/core/hud/` — S1 HUD: collectables, pause menu, pixel fade
 - `titles/spyro1/core/input/` — S1 gamepad buffers, input phase for `.pad` recordings
 - `titles/spyro1/core/debug/` — S1 debug menu (`spyro1::DebugMenu`), S1 warp route (reset then TSD_Level flyby from the title, `CheatProcessLevelWarp` from play); the portal and dragon arrivals of each level (`teleport`: Spyro in front of the level's hub portal, onto a crystal dragon for the rescue cutscene), `gates` / `dragons` listings; `where` / `spyro-at` read and set Spyro's position; `mobys` / `moby-teleport` onto any moby by class (on `game/core/debug/moby_teleport`)

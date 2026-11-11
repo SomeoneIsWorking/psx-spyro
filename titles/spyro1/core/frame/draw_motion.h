@@ -79,14 +79,14 @@ private:
   actors::ReplayAngles &angles_;
 };
 
-// A particle record: its points and, for turned kinds, its angle; a life that rose is a new
-// particle in the slot.
+// A particle record: its points and, for turned kinds, its angle.
 class ParticleMotion final : public psx::present::MotionRule {
 public:
   void blend(const Samples &samples, float t, std::span<std::uint32_t> out) const override;
 };
 
-// A sparkle: position, angle, and its fade while it counts down; a rising fade is a new sparkle.
+// A sparkle: position, angle, and its fade while it counts down (0x800584C4). 0x8005882C hands out
+// only a slot whose fade is 0, so a fade that rose is a new sparkle.
 class SparkleMotion final : public psx::present::MotionRule {
 public:
   void blend(const Samples &samples, float t, std::span<std::uint32_t> out) const override;
@@ -101,7 +101,13 @@ public:
 class DrawMotion {
 public:
   DrawMotion(Core &core, NativeState &state)
-      : camera_(state.replayCamera), poses_(core), moby_(core, state.replayAngles) {}
+      : camera_(state.replayCamera), poses_(core), moby_(core, state.replayAngles),
+        particleRecords_{.throughPointer = true,
+                         .stride = particles::kRecordBytes,
+                         .count = ParticleLives::kSlots,
+                         .end = RecordByte{0x01u, 0xFFu, 0xFFu},
+                         .live = RecordByte{0x01u, 0x00u, 0x7Fu},
+                         .incarnation = &state.particleLives} {}
 
   [[nodiscard]] std::span<const psx::present::MotionTrack> tracks() const {
     return tracks_;
@@ -192,13 +198,9 @@ private:
   }();
 
   // [g_Particles]: 256 0x20-byte records up to the first whose kind (+1) is 0xFF; a negative kind
-  // is free. One particle while its group and kind halfword holds.
+  // is free (particleRecords_). One particle while its group and kind halfword holds, within one
+  // life the allocator began.
   static constexpr std::array<Key, 1> kParticleKeys{{{0x00u, 0xFFFFu}}};
-  static constexpr Records kParticleRecords{.throughPointer = true,
-                                            .stride = 0x20u,
-                                            .count = 0x100u,
-                                            .end = RecordByte{0x01u, 0xFFu, 0xFFu},
-                                            .live = RecordByte{0x01u, 0x00u, 0x7Fu}};
   static constexpr std::array<Field, 4> kParticle{{
       {0x00u, kStep},
       {0x04u, kStep},
@@ -253,6 +255,7 @@ private:
   SpyroPoses poses_;
   MobyMotion moby_;
   ParticleMotion particle_;
+  Records particleRecords_;
   SparkleMotion sparkle_;
   FlameMotion flame_;
   TextureScroll textureScroll_;
@@ -283,7 +286,7 @@ private:
        .fields = kParticle,
        .rule = &particle_,
        .keys = kParticleKeys,
-       .records = kParticleRecords},
+       .records = particleRecords_},
       {.name = "sparkles",
        .address = glows::kSparkles,
        .fields = kSparkle,

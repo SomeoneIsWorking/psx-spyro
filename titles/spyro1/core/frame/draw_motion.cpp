@@ -206,10 +206,6 @@ void ParticleMotion::blend(const Samples &samples, float t, std::span<std::uint3
   std::copy(samples.to.begin(), samples.to.end(), out.begin());
   const std::span<const std::uint32_t> from = samples.from;
   const std::span<const std::uint32_t> to = samples.to;
-  // +2 counts the ticks left; a slot whose count rose holds a particle stamped since.
-  if (byteOf(to[0], 2) > byteOf(from[0], 2)) {
-    return;
-  }
   const std::uint8_t kind = byteOf(to[0], 1);
   out[1] = turn16(from[1], to[1], 0, t) | turn16(from[1], to[1], 16, t);
   out[2] = (to[2] & 0xFFFF0000u) | turn16(from[2], to[2], 0, t);

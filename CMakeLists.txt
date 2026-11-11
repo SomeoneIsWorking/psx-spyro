@@ -122,6 +122,7 @@ set(SPYRO_RUNTIME_SOURCES
   titles/spyro1/core/moby/native_moby_lists.cpp
   titles/spyro1/core/moby/native_moby_transform.cpp
   titles/spyro1/core/effect/native_particle_alloc.cpp
+  titles/spyro1/core/effect/particle_lives.cpp
   titles/spyro1/core/hud/native_pause_menu.cpp
   titles/spyro1/core/hud/native_pixel_fade.cpp
   titles/spyro1/render/hud_anchor.cpp

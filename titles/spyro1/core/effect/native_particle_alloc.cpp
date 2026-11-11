@@ -1,7 +1,11 @@
 #include "spyro1/core/effect/native_particle_alloc.h"
+#include "spyro1/core/effect/particle_lives.h"
 #include "spyro1/core/guest_functions.h"
+#include "spyro1/core/native_state.h"
+#include "spyro1/render/particles.h"
 
 #include "core/native_execution.h"
+#include "replay_frame.h"
 
 #include <cstdint>
 
@@ -11,10 +15,10 @@ namespace {
 
 using spyro1::guest::kRand;
 
-constexpr std::uint32_t kParticlePool = 0x80075824u;
+using particles::kListBase;
 constexpr std::uint32_t kPoolCursor = 0x80075738u;
-constexpr std::uint32_t kSlotStride = 0x20u;
-constexpr std::uint32_t kPoolSpan = 0x2000u;
+constexpr std::uint32_t kSlotStride = particles::kRecordBytes;
+constexpr std::uint32_t kPoolSpan = ParticleLives::kSlots * kSlotStride;
 constexpr std::uint32_t kSlotType = 0x1u;
 constexpr std::uint32_t kFreeSlotByte = 0xFFu;
 
@@ -25,6 +29,14 @@ constexpr std::uint32_t kUnsetExtent = 0x7F7F7F7Fu;
 // Sony's rand(), the standard LCG game/core/native_rand.cpp owns, reached by the `jal` at
 // 0x80053598 in the full-allocation arm.
 constexpr std::uint32_t kRandJal = 0x80053598u;
+
+// A replay's writes are undone, so a slot it stamps never held a particle.
+void noteAllocated(Core &core, std::uint32_t slot) {
+  const psx::present::ReplayFrame *replay = core.runtime.replayFrame(core);
+  if (replay == nullptr || !replay->replaying()) {
+    nativeState(core).particleLives.allocated(core, slot);
+  }
+}
 
 // 0x80053570 — stamp a0's low byte as the type of the next free slot in the 256-slot particle pool
 // and leave g_ParticleAllocPtr on it. Two things are not what the shape suggests. The scan's
@@ -39,28 +51,30 @@ constexpr std::uint32_t kRandJal = 0x80053598u;
 // the caller returns through the dispatcher's own continuation and never reads `$ra` back.
 void allocateParticleSlot(Core *c) {
   const std::uint32_t kind = c->r[4];
-  const std::uint32_t limit = c->mem_r32(kParticlePool) + kPoolSpan;
+  const std::uint32_t limit = c->mem_r32(kListBase) + kPoolSpan;
   const std::uint32_t cursor = c->mem_r32(kPoolCursor);
   c->r[2] = cursor;
   c->r[1] = kPoolCursor;
   if (cursor == limit) {
     psx::cpu::callGuestNow(*c,
-                               "allocate_particle_slot",
-                               psx::cpu::GuestCallSite::fromJal(kRandJal, kRand),
-                               kind,
-                               limit,
-                               kind);
+                           "allocate_particle_slot",
+                           psx::cpu::GuestCallSite::fromJal(kRandJal, kRand),
+                           kind,
+                           limit,
+                           kind);
     const std::uint32_t span = (c->r[2] & 0xFFu) + 1u;
     const std::uint32_t slot = limit - span * kSlotStride;
     c->lo = span * kSlotStride;
     c->hi = 0u;
     c->mem_w8(slot + kSlotType, static_cast<std::uint8_t>(kind));
+    noteAllocated(*c, slot);
     c->r[2] = slot;
     c->r[3] = kSlotStride;
     return;
   }
   const std::int32_t previous = c->mem_r8s(cursor + kSlotType);
   c->mem_w8(cursor + kSlotType, static_cast<std::uint8_t>(kind));
+  noteAllocated(*c, cursor);
   if (previous != -1) {
     std::uint32_t scan = cursor + kSlotStride;
     while (scan != limit && c->mem_r8s(scan + kSlotType) >= 0) {

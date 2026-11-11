@@ -3,6 +3,7 @@
 
 #include "core/session.h"
 #include "render/terrain/guest_camera_builder.h"
+#include "spyro1/core/effect/particle_lives.h"
 #include "spyro1/render/drawn_records.h"
 #include "spyro1/render/replay_angles.h"
 
@@ -16,6 +17,7 @@ class NativeState final : public spyro::TitleState {
 public:
   actors::ReplayAngles replayAngles;
   actors::DrawnRecords drawnRecords;
+  ParticleLives particleLives;
   // m_Rotation's blended angles, with their fractions, while a replay draws.
   std::optional<spyro::guest_camera::Angles> replayCamera;
 };
