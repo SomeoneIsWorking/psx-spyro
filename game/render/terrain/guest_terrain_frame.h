@@ -11,7 +11,6 @@
 #include "render/terrain/guest_depth_bins.h"
 #include "render/terrain/guest_terrain_facts.h"
 #include "render/terrain/guest_terrain_screen.h"
-#include "state_producer.h"
 
 #include <array>
 #include <cstdint>

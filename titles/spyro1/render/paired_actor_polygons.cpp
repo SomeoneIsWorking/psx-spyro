@@ -6,7 +6,6 @@
 #include "cpu_divide.h"
 #include "render/field/guest_packet.h"
 #include "spyro1/render/paired_actor_layout.h"
-#include "state_producer.h"
 
 #include <utility>
 

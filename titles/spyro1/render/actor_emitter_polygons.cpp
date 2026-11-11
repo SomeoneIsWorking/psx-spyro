@@ -5,7 +5,6 @@
 #include "core.h"
 #include "render/field/guest_packet.h"
 #include "spyro1/render/actor_emitter_layout.h"
-#include "state_producer.h"
 
 namespace spyro1::actors {
 
