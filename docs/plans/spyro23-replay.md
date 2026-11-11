@@ -172,7 +172,7 @@ All six pools are field_redraw's, with their pairing rules in `effect_pools.cpp:
 |---|---|---|---|
 | sky sectors | `0x800681B8` / `0x8006E334` | Skip (level data; follows the camera) | `port: guest_sky_drawer.*` |
 | sky objects | list `[0x80066F00]`, count `0x80066FA8` / `[0x8006C530]`, `0x8006C5E0`; position at +0x18, on byte +0x40 | Skip: level data, written only by the level setup `0x8001C734` and `0x80019928` | G2:8004C66C, G3:8001EDEC |
-| sky object wave | tick `0x8006700C` / `0x8006C644`, +1 per tick (`0x80012488`, `0x800125C8` / `0x8003A40C`) | S2 Linear (`SkyWave`, Open 7), S3 Step: the draw reads the sine table `0x80061C58` at `tick * 4 + object * 0x40` and stores `(sine >> 4) + 0xE00` in `0x80068C08`/`0C0A` for `0x800296D0` | G2:8004C66C:178, `game/core/sky_wave.*` |
+| sky object wave | tick `0x8006700C` / `0x8006C644`, +1 per tick (`0x80012488`, `0x800125C8` / `0x8003A40C`) | Linear (`SkyWave`, Open 7): the draw reads the sine table (`0x80061C58` / `0x80065920`) at `tick * 4 + object * 0x40` and stores `(sine >> 4) + 0xE00` in `0x80068C08` / `0x8006EDA0` for `0x800296D0` / `0x8001C8C8` | G2:8004C66C:178, G3:8001EDEC, `game/core/sky_wave.*` |
 | terrain animation, texture scroll | `0x800681E8..` / `0x8006E364..` tables | Step (applied per draw from level keys, as Spyro 1) | `port: guest_terrain_facts.h classify.animation` |
 | fog level, colours | `0x80067EC4`, `0x80067408..10` / `0x8006E038`, `0x8006D07C..84` | Step (fog level is 0 or 0x800) | G2:8001E454:124 |
 
@@ -337,8 +337,13 @@ Spyro 3 Sunrise Spring, Up and Left (746 in-betweens), identical over 2813.
    counterpart to compare: its evidence is t = 1 and the halfway values below. A tick reset (a level load) is held:
    the load changes the game state, which forgets the motion set's samples (`BootPrefixFrameDriver::beforeDraw`). Autumn Plains `1/0/0`
    (`scratch/hudfrac/skywave_values.log`, `sky_wave.png`): at t = 1 the blended value equals the guest's stored one,
-   in-betweens lie between the ticks', and the hexagon light's 5-bit colour steps on in-betweens. Spyro 3 (tick
-   `0x8006C644`, drawer `0x8001EDEC`) still steps: its facts are not found.
+   in-betweens lie between the ticks', and the hexagon light's 5-bit colour steps on in-betweens. Spyro 3 done
+   (`kSkyWave`): the drawer `0x8001EDEC` stores the wave in `0x8006EDA0` for `0x8001C8C8` (only caller 8001FA34),
+   which loads it as the red and green far colour with IR0 `0x8006EDA6` (0xFFF past view depth 0x5000), so a far
+   level portal is drawn in the wave's colour; the object index is `$sp + 0xF8`. Sunrise Spring `0/0/0`, no input
+   (`scratch/hudslide3/pg_portal.txt`, `portal_wave.png`): the far portal's 5-bit level follows the drawn wave over
+   a whole cycle, and it changes on in-betweens (5 of 9 changes), four in-betweens showing their earlier real's
+   level where the later real's has moved on.
 8. HUD slides: done in both (`HudSlide`). Spyro 3 (`titles/spyro3/render/hud_slide.*`): its widgets
    (`0x80029E48`, drawers `0x8002982C`, `0x80029904`, `0x80029A00`, `0x80029AA0`, `0x80029BB0`, `0x80029CF8`) keep
    the slide in byte +0x3F; every drawer hands `0x80029708` the index `(slide + 10) / 2` (0 at slide 0), which it

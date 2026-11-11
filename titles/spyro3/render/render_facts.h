@@ -166,6 +166,21 @@ inline constexpr spyro::HudSlots kHudSlots{
     .slideIsByte = true,
 };
 
+// 0x8001EDEC, the sky-object drawer: per object, index 0xF8($sp) (8001F588), it stores
+// (sine 0x80065920[(tick 0x8006C644 * 4 + index * 0x40) & 0xFF] >> 4) + 0xE00 into both halves of
+// 0x8006EDA0 (8001F54C..8001F5F0), then calls 0x8001C8C8 (8001FA34, its only caller), which loads
+// that block into the GTE.
+inline constexpr spyro::SkyWaveFacts kSkyWave{
+    .consumer = 0x8001C8C8u,
+    .objectSlot = 0xF8u,
+    .tick = 0x8006C644u,
+    .sine = 0x80065920u,
+    .wave = 0x8006EDA0u,
+    .step = 4u,
+    .objectStep = 0x40u,
+    .base = 0xE00,
+};
+
 inline constexpr spyro::DrawMotionFacts kDrawMotion{
     .cameraAngles = kRenderGlobals.cameraAngles,
     .cameraPosition = kRenderGlobals.cameraPosition,
@@ -189,6 +204,7 @@ inline constexpr spyro::DrawMotionFacts kDrawMotion{
                {"red flash", 0x8006C6D4u, {0x00u, psx::present::Motion::Countdown}}}},
     .fadeCount = 3,
     .hudSlide = &kHudSlots,
+    .skyWave = &kSkyWave,
 };
 
 // The flatten, FUN_8004E664: FUN_8001B2A8's body over this image's table (8006C634) and mark

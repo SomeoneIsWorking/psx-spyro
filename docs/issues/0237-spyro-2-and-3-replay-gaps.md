@@ -13,15 +13,18 @@ draw body 0x800156FC / 0x8001E638. Gameplay moves halfway (Glimmer `warp 0/1/0`,
    refusals before `declinesState` named the state; each declined frame is reported at run end by reason). A state the switch has no case for (S3 8, 0x11) is not
    replayed either.
 2. **Inputs that still step at 30 Hz**:
-   - Sky object wave (plan Open 7): the draw reads the shared sine table at `tick * 4 + object * 0x40` into
-     `0x80068C08`/`0C0A` for `0x800296D0`; the table cannot be rewritten (other drawers of the section read it) and
-     the consumer would need the object index from `0x8004C66C`'s frame. The objects are level data and do not move.
    - The flame breath's part timers (`0x8006AA3C..`) step; its anchor is tracked.
 3. **Not shown since the change**: cutscenes (S2 6, S3 0x12) and the scene states: no warp reaches them yet. Spyro 2's
    tint and reflection shift (`SpyroSurface`) stayed 0 on every route tried; Spyro 3's letterbox and water were not
    reached (Spyro 3 has no `moby-teleport`).
 
 ## Fixed (2026-11-11, shown in frames, `scratch/hudslide3`)
+- Spyro 3's sky object wave. Cause: `titles/spyro3` gave `SkyWave` no facts, so the far colour `0x8001EDEC` stores
+  in `0x8006EDA0` for `0x8001C8C8` was the later tick's in every in-between. `kSkyWave` installs the shared
+  consumer override (plan Open 7). Sunrise Spring `0/0/0`, no input (`pg_portal.txt`, `portal_wave.png`): the far
+  Sunny Villa portal is drawn in that colour (IR0 0xFFF); over a whole wave cycle its 5-bit level follows the drawn
+  value, changes on in-betweens 5 of 9 times, and four in-betweens keep their earlier real's level while the later
+  real's has moved on. Leak: the HUD route below ran with it installed, `fielddigest` identical.
 - Spyro 3's HUD slides. Cause: `0x80029708` (the widget's icon) and the digit drawers `0x800291B8` / `0x800293C4`
   read the slide table `0x800674E8` at the widget's slide byte +0x3F inline, and the replay blended nothing they
   read, so each in-between drew the later tick's slide. All three are native (`titles/spyro3/render/hud_slide.*`):

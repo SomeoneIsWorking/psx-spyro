@@ -12,7 +12,7 @@ Frame loop: not owned. Spyro 1 runs update `0x8003385C` and draw `0x8001ED5C` an
 - `game/core/draw_section.*` — S2/S3 per-field draw body as a replay section: buffer flip, camera builder and position copy, the image's state switch (subclasses in `titles/spyro2|3/core/draw_section.*`), flatten; the device tail skipped
 - `game/core/draw_motion.*` — what the S2/S3 replay moves: camera, Spyro, his poses, surface (tint, water, reflection, rotation: `SpyroSurface`) and shadow, the flame breath (`FlameMotion`), every moby slot (`MobyMotion`), the effects pools (`EffectMotion`, a `MotionSource`), the fades, S2's conversation box slide (`ConversationSlide`)
 - `game/core/hud_slide.*` — S2/S3 HUD widgets' slide as a `MotionSource` (`HudSlide`): each widget record's state and slide sampled per tick, an element placed between the two ticks' places inside a replay with the rounding remainder kept for the element its caller emits next; S2's slide function `0x80052498` as its native override
-- `game/core/sky_wave.*` — S2's sky-object wave as a `MotionSource`: the consumer `0x800296D0` overridden to write the wave word `t` of the way between ticks inside a replay (`SkyWave`)
+- `game/core/sky_wave.*` — S2/S3 sky-object wave as a `MotionSource`: the consumer (S2 `0x800296D0`, S3 `0x8001C8C8`) overridden to write the wave word `t` of the way between ticks inside a replay (`SkyWave`)
 - `game/core/table_slide.*` — a slide the draw reads from one table entry per tick, as a `MotionSource` (S1 title logo, S2 conversation box)
 - `game/core/frame_cut.*` — cut detection for 60 fps in-betweens: gamestate, level, camera placement, a cutscene camera track's shot change
 - `game/core/native_execution.h` — nested guest call return address `$ra` and lowered stack frame

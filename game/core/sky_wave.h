@@ -25,6 +25,12 @@ struct SkyWaveFacts {
   std::int32_t base = 0;
 };
 
+// One object's draw inside a replay: the drawer's object index and the replay's fraction.
+struct SkyWaveDraw {
+  std::uint32_t object = 0;
+  float t = 0.0F;
+};
+
 class SkyWave final : public psx::present::MotionSource {
 public:
   explicit SkyWave(const SkyWaveFacts *facts) : facts_(facts) {}
@@ -35,10 +41,9 @@ public:
   void sample(Core &core) override;
   psx::present::MotionCount write(psx::present::GuestRedraw &redraw, float t) const override;
 
-  // The wave halfword of `object` `t` of the way from the earlier tick to the later; none outside a
-  // pair of samples.
-  [[nodiscard]] std::optional<std::uint16_t>
-  between(Core &core, std::uint32_t object, float t) const;
+  // The wave halfword of the draw's object `t` of the way from the earlier tick to the later; none
+  // outside a pair of samples.
+  [[nodiscard]] std::optional<std::uint16_t> between(Core &core, SkyWaveDraw draw) const;
   [[nodiscard]] const SkyWaveFacts *facts() const {
     return facts_;
   }
