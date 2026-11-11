@@ -65,6 +65,7 @@ set(SPYRO_RUNTIME_SOURCES
   game/core/frame_cut.cpp
   game/core/guest_magnitude.cpp
   game/core/hud_slide.cpp
+  game/core/sky_wave.cpp
   game/core/session.cpp
   game/core/debug/debug_menu.cpp
   game/core/debug/moby_teleport.cpp

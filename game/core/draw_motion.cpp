@@ -147,7 +147,7 @@ psx::present::MotionCount EffectMotion::write(psx::present::GuestRedraw &redraw,
 
 DrawMotion::DrawMotion(Core &core, const DrawMotionFacts &facts)
     : moby_(core, *facts.moby), effects_(facts.effects), conversation_(facts.conversation),
-      hudSlide_(facts.hudSlide),
+      hudSlide_(facts.hudSlide), skyWave_(facts.skyWave),
       tracks_{{
           {.name = "camera angles", .address = facts.cameraAngles, .fields = kCameraAngles},
           {.name = "camera position", .address = facts.cameraPosition, .fields = kVector},

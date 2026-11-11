@@ -172,7 +172,7 @@ All six pools are field_redraw's, with their pairing rules in `effect_pools.cpp:
 |---|---|---|---|
 | sky sectors | `0x800681B8` / `0x8006E334` | Skip (level data; follows the camera) | `port: guest_sky_drawer.*` |
 | sky objects | list `[0x80066F00]`, count `0x80066FA8` / `[0x8006C530]`, `0x8006C5E0`; position at +0x18, on byte +0x40 | Skip: level data, written only by the level setup `0x8001C734` and `0x80019928` | G2:8004C66C, G3:8001EDEC |
-| sky object wave | tick `0x8006700C` / `0x8006C644`, +1 per tick (`0x80012488`, `0x800125C8` / `0x8003A40C`) | Step (Open 7): the draw reads the sine table `0x80061C58` at `tick * 4 + object * 0x40` and stores `(sine >> 4) + 0xE00` in `0x80068C08`/`0C0A` for `0x800296D0`, so a written tick cannot hold a half step | G2:8004C66C:178 |
+| sky object wave | tick `0x8006700C` / `0x8006C644`, +1 per tick (`0x80012488`, `0x800125C8` / `0x8003A40C`) | S2 Linear (`SkyWave`, Open 7), S3 Step: the draw reads the sine table `0x80061C58` at `tick * 4 + object * 0x40` and stores `(sine >> 4) + 0xE00` in `0x80068C08`/`0C0A` for `0x800296D0` | G2:8004C66C:178, `game/core/sky_wave.*` |
 | terrain animation, texture scroll | `0x800681E8..` / `0x8006E364..` tables | Step (applied per draw from level keys, as Spyro 1) | `port: guest_terrain_facts.h classify.animation` |
 | fog level, colours | `0x80067EC4`, `0x80067408..10` / `0x8006E038`, `0x8006D07C..84` | Step (fog level is 0 or 0x800) | G2:8001E454:124 |
 
@@ -319,12 +319,14 @@ Spyro 3 Sunrise Spring, Up and Left (746 in-betweens), identical over 2813.
 5. `0x80067150` (Spyro 2 additive fade) has no writer in the decompiled C; it may be written through a pointer or
    by overlay code.
 6. Done: the flame breath (`FlameMotion`).
-7. Sky objects: level data (Environment table). Their wave steps at 30 Hz. The table is the general sine read by
-   other drawers of the same section (`0x8001B664`, a callee of `0x8004C66C`, and the particles `0x80048128`), so its
-   entries cannot be rewritten for the replay. The faithful path is an override of the consumer `0x800296D0` that, in
-   a replay, rewrites `0x80068C08`/`0C0A` from the sine `t` of the way between `(tick - 1) * 4` and `tick * 4` (a whole
-   entry at t = 1/2); it needs the object index, which lives only in `0x8004C66C`'s frame (`local_90`), so it is not
-   done.
+7. Sky objects, Spyro 2 done (`SkyWave`, `game/core/sky_wave.*`): the sine table is shared with other drawers of
+   the section (`0x8001B664`, the particles `0x80048128`), so the consumer `0x800296D0` is overridden instead: in a
+   replay it rewrites both halves of `0x80068C08` from the guest's sine read `t` of the way between the two ticks'
+   entries, the object index taken from `0x8004C66C`'s frame (`$sp + 0xE8` at the call). Real frames
+   (`PSXPORT_OVERRIDE_DIFF=0x800296D0`, fps60 off): 26 of 26 calls match. Autumn Plains `1/0/0`
+   (`scratch/hudfrac/skywave_values.log`, `sky_wave.png`): at t = 1 the blended value equals the guest's stored one,
+   in-betweens lie between the ticks', and the hexagon light's 5-bit colour steps on in-betweens. Spyro 3 (tick
+   `0x8006C644`, drawer `0x8001EDEC`) still steps: its facts are not found.
 8. HUD slides: Spyro 2 done (`HudSlide`). Spyro 3's still step (`scratch/spyro23-tracks/pause3_hud.png`): its widgets
    (`0x80029E48`, drawers `0x8002982C`, `0x80029904`, `0x80029A00`, `0x80029AA0`, `0x80029BB0`, `0x80029CF8`) keep
    the slide in byte +0x3F, and the table `0x800674E8` is read inline in `0x80029708` (icon, index

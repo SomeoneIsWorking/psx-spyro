@@ -3,6 +3,7 @@
 #pragma once
 
 #include "core/hud_slide.h"
+#include "core/sky_wave.h"
 #include "core/table_slide.h"
 #include "motion_set.h"
 #include "render/field/effect_pools.h"
@@ -62,6 +63,7 @@ struct DrawMotionFacts {
   std::size_t fadeCount = 0;
   const ConversationFacts *conversation = nullptr;
   const HudSlideFacts *hudSlide = nullptr;
+  const SkyWaveFacts *skyWave = nullptr;
 };
 
 // Spyro's tint (+0x20), water floor (+0x28), reflection shift (+0x2C) and the body rotation the
@@ -152,6 +154,9 @@ public:
   [[nodiscard]] HudSlide &hudSlide() {
     return hudSlide_;
   }
+  [[nodiscard]] const SkyWave &skyWave() const {
+    return skyWave_;
+  }
 
 private:
   using Field = psx::present::MotionField;
@@ -220,8 +225,10 @@ private:
   EffectMotion effects_;
   ConversationSlide conversation_;
   HudSlide hudSlide_;
+  SkyWave skyWave_;
   std::vector<psx::present::MotionTrack> tracks_;
-  std::array<psx::present::MotionSource *, 3> sources_{&effects_, &conversation_, &hudSlide_};
+  std::array<psx::present::MotionSource *, 4> sources_{
+      &effects_, &conversation_, &hudSlide_, &skyWave_};
 };
 
 } // namespace spyro

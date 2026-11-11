@@ -196,6 +196,20 @@ inline constexpr spyro::HudSlideFacts kHudSlide{
     .lowerHalfY = 0x78,
 };
 
+// 0x8004C66C, the sky-object drawer: per object, index 0xE8($sp) (8004CBC8), it stores
+// (sine 0x80061C58[(tick 0x8006700C * 4 + index * 0x40) & 0xFF] >> 4) + 0xE00 into both halves of
+// 0x80068C08 (8004CBCC..8004CC30), then calls 0x800296D0 (8004D07C), which loads it into the GTE.
+inline constexpr spyro::SkyWaveFacts kSkyWave{
+    .consumer = 0x800296D0u,
+    .objectSlot = 0xE8u,
+    .tick = 0x8006700Cu,
+    .sine = 0x80061C58u,
+    .wave = 0x80068C08u,
+    .step = 4u,
+    .objectStep = 0x40u,
+    .base = 0xE00,
+};
+
 //   8002F08C  the update anchors Spyro's flame breath 0x8006AA1C at his mouth while byte
 //             0x8006AAB4 is set, lit by 8002FC20 only while it is clear; 0x80048F04 draws it
 //   800155A0  the dispatcher draws the subtractive fade 0x80066F68 and the additive 0x80067150
@@ -222,6 +236,7 @@ inline constexpr spyro::DrawMotionFacts kDrawMotion{
     .fadeCount = 2,
     .conversation = &kConversation,
     .hudSlide = &kHudSlide,
+    .skyWave = &kSkyWave,
 };
 
 // The flatten, FUN_8001B2A8, called by the draw at 800159A4 and by three other draws (800146AC,

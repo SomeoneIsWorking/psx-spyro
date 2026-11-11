@@ -91,10 +91,12 @@ void Runtime::registerOverrides(Game &game) {
                                   spyro::intro_card::drawOverride<kIntroCard, kRenderGlobals>);
   hud_anchor::registerOverrides(game.core);
   spyro::installHudSlide(game.core, kHudSlide);
+  spyro::installSkyWave(game.core, kSkyWave);
   lucent::info(
       "boot",
       "installed Spyro 2's stock libraries and natives for the projection leaves, the moby "
-      "visibility walk, the terrain drawer, the flatten, the HUD anchor and the HUD slide");
+      "visibility walk, the terrain drawer, the flatten, the HUD anchor, the HUD slide and the sky "
+      "wave");
 }
 
 std::optional<psx::gpu::PacketPoolExtent> Runtime::packetPool(Core &core) const {
