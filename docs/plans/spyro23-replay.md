@@ -352,9 +352,24 @@ Spyro 3 Sunrise Spring, Up and Left (746 in-betweens), identical over 2813.
     - Spyro's drawer (`0x80041DBC` / `0x8003CDA0`, `spyro_drawer_depth.cpp`) is `Polygon` with 4-unit buckets. It
       opens his view unit (1/4, translation world minus camera) and his bias byte +0x1E in bins. The reflection call
       (+0x2C set) and Spyro 3's second pass (state 0xD, return `0x8001EB3C`) project with no depth.
-    - The moby drawer (`0x80044504` / `0x80031124`) is `Object`. The walk tags each entry's centre z with
-      `meshDepthScale` and its sorted-nearer bins (`guest_moby_visibility.cpp:finishEntry`), and the drawer's
-      `CTC2` of TRZ carries that unit.
+    - The moby drawer (`0x80044504` / `0x80031124`) is `Model` with a face sort (`engine_render_overrides.h`). The
+      walk tags each entry's centre z with `meshDepthScale`, its sorted-nearer bins and the view units of one of the
+      drawer's buckets, `slot` (`guest_moby_visibility.cpp:finishEntry`); the drawer's `CTC2` of TRZ carries them.
+      The drawer projects into scratch, then per face loads the face word (`lw $s0, 4($fp)`, `kDrawerFaceLoad`), loads
+      the vertex words back and stores them into the packet; its bucket is (summed SZ3 less base less
+      sext(bits 0-2) << 2 << shift) >> shift, shift = entry byte +0x1A + 4 (80044D9C..80044DBC), and it links its
+      buckets into the OT from the far end. psxport's `FaceSort` moves each stored vertex by that bias, so a face tests
+      where the drawer sorts it. `Model` keeps the drawer's own paint order among its faces and tests each against
+      the scene before the moby.
+    - Moby evidence (`scratch/mobydepth`, judgement settings, depth on, unpaced, hidden; 9 walks of 8 presents
+      every 60 fields plus 13 arrival views and per-class teleports, against `Object`): `Model` fixes moby-against-moby
+      errors of the slot order: Spyro 2 `1/1/0` Up, the caveman no longer covered by the farther sign moby
+      (`m0`); `0/3/0` arrival, an NPC's sleeve over the grey creature behind it (`a2030`). Spyro 3 class teleports
+      at `0/0/0` (14 classes) are identical to `Object`. Rejected: `Polygon` per face (Sparx's wing roots over his
+      body, an NPC's eye wedge through its brow: the drawer's order is the guest's rule within a model); `Model`
+      with a 32-unit bin (a hole in Sparx's wing showing Spyro); `Model` with no face bias (the caveman's pupils lost
+      under the white of the eye); the face bias on Spyro's drawer (his tail cone lost to Sparx's wing), so Spyro's
+      drawer stays as it was. Unresolved: a fish at Spyro 3 `0/2/0` loses a small dark mark (`m3`).
     - Shown (`scratch/depth23`, player settings, unpaced, off against on): Glimmer `0/1/0` holding Up+Left 200
       fields (Spyro 2), a grey wall top no longer pops over the near green overhang, on real presents and in-betweens
       (`h_top.png`, `h_top0.png`). Spyro 3 Sunny Villa `0/0/0` and `0/1/0` (41 px) and Cloud Spires `0/2/0` (134 px,
@@ -364,10 +379,15 @@ Spyro 3 Sunrise Spring, Up and Left (746 in-betweens), identical over 2813.
       in the same boxes with `PSXPORT_DEPTH` on and off (Spyro 3, `nullcase.txt`), so depth adds no t = 1
       difference; what differs is 0240. `fielddigest` with fps60 on and off identical, Spyro 2 3514 lines (1219
       in-betweens), Spyro 3 3413 (1036); run-end 0 refused. Cost not measured.
-    - Not done: a moby still draws over terrain in front of it, because `Object` never tests. Marking it `Polygon`
-      needs each face's bias: the drawer subtracts the face word's bits 0-2, sign-extended, << 2 << (detail + 4)
-      from the summed SZ (80044DAC..DBC). Spyro's drawer has the same bias, 128 summed SZ per step (80042C64).
-      Both live only in `$s0` mid-body while the packet's SXY words are stored from GPRs. Carrying them needs a
-      native drawer, or a vertex-place hook at the face store.
-    - Unmarked, so slot order: the deferred list `0x80046FD8` / `0x80033C5C`, the close mobys `0x800499D4` /
-      `0x8002DDA8` (each computes its own TR), the shadow `0x800495E8` (translucent). Their units are not derived yet.
+    - Not shown: a moby behind nearer terrain. No walk, arrival or teleport view had a moby the slot order drew
+      over terrain in front of it, so the terrain case is unproven in frames.
+    - t = 1 and leak with `Model` (2026-11-11, `scratch/mobydepth`, `0/1/0` Up+Left): a local t = 1 edit of
+      `ReplayFrame::replay` (reverted, never committed) differs from the real present after it in the same boxes
+      with depth on and off, Spyro 2 and 3 (`nullcase.txt`), so depth adds no t = 1 difference. `fielddigest` with
+      depth on and fps60 on against fps60 off identical: Spyro 2 3514 lines (1220 in-betweens), Spyro 3 3413 (1036);
+      run-end 0 refused. Cost: psxport `docs/presentation.md` Depth.
+    - Unmarked, so slot order: the deferred list `0x80046FD8` / `0x80033C5C` (TRZ is 2·view z from a GPR, untagged;
+      OT bin view z·4 >> 7 less the record's +0x44 byte; needs that nearer per entry); `0x800499D4` / `0x8002DDA8`
+      emits semi-transparent POLY_FT3 (0x26), so never tests; the shadow `0x800495E8` (translucent). Mobys whose
+      entry is edge-class (`$gp` >= 0 in the drawer) store SXY << 5 | outcodes to scratch, so their vertices carry no
+      place and draw in slot order.

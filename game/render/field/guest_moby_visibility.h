@@ -75,6 +75,14 @@ inline constexpr std::uint32_t kMirrored = 1u << 28;
 inline constexpr std::uint32_t kDrawerScratchBelow = 0x3000; // below the frame's scratch block end
 inline constexpr std::uint32_t kRenderListAboveScratch = 0x2000;
 inline constexpr std::uint32_t kEntryStride = 0x44;
+// The drawer's load of each face word, `lw $s0, 4($fp)` (SCUS_944.25 80044E2C, 80046008;
+// SCUS_944.67 80031A4C, 80032C8C).
+inline constexpr std::uint32_t kDrawerFaceLoad = 0x8FD00004u;
+// Bits 0-2 of the face word, signed, << 2 << shift come off the summed SZ the drawer buckets by
+// >> shift (SCUS_944.25 80044FB8..80044FD8).
+[[nodiscard]] constexpr std::int32_t drawerFaceSlots(std::uint32_t faceWord) {
+  return (static_cast<std::int32_t>(faceWord << 29u) >> 29) * 4;
+}
 namespace entry {
 inline constexpr std::uint32_t kClass = 0x00; // word: class byte, frame B share, depth bias
 inline constexpr std::uint32_t kOverlay = 0x01;

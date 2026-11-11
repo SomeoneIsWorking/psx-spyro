@@ -27,7 +27,7 @@ struct EngineRenderFacts {
   guest_terrain::Facts terrain;
   guest_moby::Facts moby;
   // The drawer of the walk's render list (SCUS_944.25 0x80044504, SCUS_944.67 0x80031124): each
-  // entry's faces under the translation the walk tagged with its view unit.
+  // entry's faces under the translation the walk tagged with its view unit and bucket.
   std::uint32_t mobyDrawer = 0;
   spyro_drawer_depth::Facts spyroDrawer;
   guest_sky::Facts sky;
@@ -88,12 +88,17 @@ template <const EngineRenderFacts &facts> void registerEngineRenderOverrides(Cor
                                   facts.spyroDrawer.entry,
                                   facts.spyroDrawer.overrideName,
                                   engine_render::drawSpyro<facts>);
-  // Terrain sorts per polygon into the table's bins and Spyro per face; a moby draws over what came
-  // before it and leaves its depth, as its per-face bias is not carried.
+  // Terrain sorts per polygon into the table's bins and Spyro per face into his own buckets. A
+  // moby paints its faces in its drawer's bucket order: each face tests only against the scene
+  // before the moby, nearer by its face bias in the bucket its translation carries
+  // (guest_moby_visibility.cpp), and the moby leaves its depth moved back by that bucket.
   core.depthTest.mark(facts.terrain.entry,
                       psx::present::DepthOrder::Polygon,
                       guest_render_globals::kDepthBinViewUnits);
-  core.depthTest.mark(facts.mobyDrawer, psx::present::DepthOrder::Object);
+  core.depthTest.mark(facts.mobyDrawer, psx::present::DepthOrder::Model);
+  core.vertexPlaces.sortFaces({.function = facts.mobyDrawer,
+                               .faceLoad = guest_moby::kDrawerFaceLoad,
+                               .slots = guest_moby::drawerFaceSlots});
   spyro_drawer_depth::markDepth(core, facts.spyroDrawer);
 }
 

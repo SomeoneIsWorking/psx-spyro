@@ -12,6 +12,7 @@
 #include "render/field/moby_record.h"
 
 #include <array>
+#include <cmath>
 
 namespace spyro::guest_moby {
 namespace {
@@ -482,13 +483,16 @@ MobyWalk::Step MobyWalk::finishEntry(const Candidate &candidate) {
   core_.mem_w32(entry_ + entry::kCentre + 4, asWord(y));
   core_.mem_w32(entry_ + entry::kCentre + 8, asWord(z));
   // The drawer loads this word into TRZ (SCUS_944.25 800445A8, SCUS_944.67 800311C8), so its
-  // projections take this entry's view unit.
+  // projections take this entry's view unit, and its faces' bucket: summed SZ >> (detail + 4)
+  // (80044D9C..80044DBC).
+  const float viewScale = guest_render_globals::meshDepthScale(amount, scale);
   core_.vertexPlaces.note(
       entry_ + entry::kCentre + 8,
       asWord(z),
-      {.translation = {.scale = guest_render_globals::meshDepthScale(amount, scale),
+      {.translation = {.scale = viewScale,
                        .nearer = static_cast<float>(sortedNearer) *
                                  guest_render_globals::kDepthBinViewUnits,
+                       .slot = std::ldexp(viewScale, static_cast<int>((detail + 4u) & 31u) - 2),
                        .carried = 1}});
   entry_ += kEntryStride;
   return entry_ == listEnd_ ? Step::End : Step::Next;
