@@ -59,6 +59,17 @@ constexpr std::uint32_t kMenuDraw = 0x8001A40Cu;
 constexpr std::uint32_t kMenuDraws = 0x800758B8u;
 constexpr std::uint32_t kPutDrawEnv = 0x8005FDD8u;
 constexpr std::uint32_t kMenuFlatten = 0x8001C598u;
+// Flight5, GS_FlightResults through D_8007567C: the same code at the same address in all five
+// flight overlays; like the menus it counts its draws in D_800758B8, opens a later one with
+// PutDrawEnv and ends with DrawOTag(func_80016784(0)) at 0x8007CEC8.
+constexpr std::uint32_t kFlightResultsDraw = 0x8007B68Cu;
+constexpr std::uint32_t kFlightResultsFlatten = 0x8007CEC8u;
+// The draws D_800758B8 counts, which link their packets straight into the overlay pair and flatten
+// no bins.
+bool countedDraw(std::uint32_t state) {
+  return guest::menuDraw(state) || state == guest::kGamestateFlightResults;
+}
+
 // func_8001CFDC, GS_Dragon: every m_State's drawers, fade and border join at its DrawSync,
 // 0x8001D644.
 constexpr std::uint32_t kDragonDraw = 0x8001CFDCu;
@@ -75,15 +86,14 @@ constexpr std::uint32_t kBalloonistTail = 0x8001E5E4u;
 constexpr std::uint32_t kFlattenBins = 0x80016784u;
 constexpr std::uint32_t kBinCount = 0x800u;
 
-// What a replay leaves is undone when it returns: the angle fractions the motion set noted for it,
-// and the shaded lines' call-site turns, so the real draw counts from where the replays began.
+// What a replay leaves is undone when it returns: the angle fractions the motion set noted for it
+// and its blended camera.
 class ReplayScope {
 public:
-  explicit ReplayScope(NativeState &state) : state_(state), callSites_(state.callSites) {}
+  explicit ReplayScope(NativeState &state) : state_(state) {}
   ~ReplayScope() {
     state_.replayAngles.clear();
     state_.replayCamera.reset();
-    state_.callSites = callSites_;
   }
   ReplayScope(const ReplayScope &) = delete;
   ReplayScope &operator=(const ReplayScope &) = delete;
@@ -92,7 +102,6 @@ public:
 
 private:
   NativeState &state_;
-  shaded_line::CallSites callSites_;
 };
 
 // g_Camera's projection (+0x00) and view (+0x14) matrices: nine halfwords each, the pad after them
@@ -136,7 +145,7 @@ bool DrawSection::replays(Core &core) const {
   return state == guest::kGamestatePlaying || state == guest::kGamestateDragon ||
          state == guest::kGamestateFairy || state == guest::kGamestateBalloonist ||
          state == guest::kGamestateCutscene ||
-         (guest::menuDraw(state) && core.mem_r32(kMenuDraws) != 0) ||
+         (countedDraw(state) && core.mem_r32(kMenuDraws) != 0) ||
          (state == guest::kGamestateTitleScreen &&
           core.mem_r32(guest::kTitlescreenMode) != guest::kTitleModeDemo);
 }
@@ -225,6 +234,10 @@ bool DrawSection::drawState(Core &core, psx::present::GuestRedraw &redraw) {
     return drawPlaying(core, redraw);
   case guest::kGamestateDragon:
     return drawDragon(core, redraw);
+  case guest::kGamestateFlightResults: {
+    const std::array<psx::present::GuestRedraw::Skip, 1> applied{{{.at = kPutDrawEnv}}};
+    return drawTo(redraw, kFlightResultsDraw, kFlightResultsFlatten, applied);
+  }
   case guest::kGamestateFairy:
     return drawTo(redraw, kFairyDraw, kFairyTail);
   case guest::kGamestateBalloonist:
@@ -260,9 +273,8 @@ std::optional<std::uint32_t> DrawSection::draw(Core &core,
     writeMatrix(redraw, kViewMatrix, matrices.view);
   }
   const bool drawn = drawState(core, redraw);
-  // The menu draw links its packets straight into the overlay pair and flattens no bins.
-  const std::array<std::uint32_t, 1> bins{
-      guest::menuDraw(core.mem_r32(guest::kGamestate)) ? 0u : kBinCount};
+  const std::array<std::uint32_t, 1> bins{countedDraw(core.mem_r32(guest::kGamestate)) ? 0u
+                                                                                       : kBinCount};
   if (!drawn || !step(redraw, kFlattenBins, bins)) {
     return std::nullopt;
   }

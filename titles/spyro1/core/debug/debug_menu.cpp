@@ -2,10 +2,12 @@
 
 #include "spyro1/core/debug/warp.h"
 #include "spyro1/core/frame/frame_driver.h"
+#include "spyro1/core/guest_functions.h"
 #include "spyro1/core/guest_globals.h"
 
 #include "core.h"
 #include "core/session.h"
+#include "guest_call.h"
 
 #include <lucent/log.h>
 
@@ -84,6 +86,22 @@ DebugMenu::DebugMenu()
                                       .y = static_cast<std::int32_t>(call.values.value(1)),
                                       .z = static_cast<std::int32_t>(call.values.value(2))},
                                      static_cast<std::uint32_t>(call.values.value(3)));
+          },
+      .refusal =
+          [](Core &core) {
+            return teleport::inActiveField(core) ? std::string()
+                                                 : "gameplay is not in an active field";
+          },
+      .inMenu = false,
+  });
+  verb({
+      .name = "credits",
+      .summary = "Roll the credits as the credits cheat does",
+      .run =
+          [](const DebugCall &call) {
+            psx::cpu::callGuestNow(
+                call.core, "debug-credits", guest::kCheatApplyEffect, guest::kCheatCredits);
+            call.reply = "ok: credits";
           },
       .refusal =
           [](Core &core) {

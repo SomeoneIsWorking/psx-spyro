@@ -68,6 +68,7 @@ inline constexpr std::uint32_t kGamestatePauseMenu = 2u;                        
 inline constexpr std::uint32_t kGamestateInventoryMenu = 3u;                     // GS_InventoryMenu
 inline constexpr std::uint32_t kGamestateOldDragon = 6u;                         // GS_OldDragon
 inline constexpr std::uint32_t kGamestatePlaying = 0u;                           // GS_Playing
+inline constexpr std::uint32_t kGamestateFlightResults = 7u;                     // GS_FlightResults
 inline constexpr std::uint32_t kGamestateDragon = 8u;                            // GS_Dragon
 inline constexpr std::uint32_t kGamestateFairy = 11u;                            // GS_Fairy
 inline constexpr std::uint32_t kGamestateBalloonist = 12u;                       // GS_Balloonist

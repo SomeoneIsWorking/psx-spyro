@@ -34,7 +34,7 @@ way because the read-back lives in the record path, not in a producer. Unpausing
 The judder half: the menu's border lines come from `func_8001844C`, a LINE_G2 whose endpoint greys follow
 `D_800770C8.m_specularTime` (decomp `draw.c`), so every packet moved each frame and the owner verdict held every pause
 in-between (`UnownedMoving guest fn=0x8001844C`, 299 of 299 in-betweens `composed=0` from fence 698 on HEAD). The
-producer `titles/spyro1/render/shaded_line.*` owns each call, saves its four packet words, and draws an in-between
+producer `titles/spyro1/render/shaded_line.*` (removed 2026-11-11: every draw that calls the line is replayed) owned each call, saves its four packet words, and draws an in-between
 with each endpoint's position and colour moved between the two saves. A call is keyed by its return address, its turn
 at that address in the logic frame (`CallSites`; the inventory draws one site once per visited level) and the
 inventory page `D_80075744`. Endpoints are no key: the inventory lines sit at `D_800757CC + x`, which slides every

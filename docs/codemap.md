@@ -61,7 +61,7 @@ Frame loop: not owned. Spyro 1 runs update `0x8003385C` and draw `0x8001ED5C` an
 - `titles/spyro1/render/terrain_*` — S1 terrain drawer RenderWorldChunks: sector loop, far, detail, coarse and fine subdivision passes, facts
 - `titles/spyro1/render/actor_*`, `lit_actor_emitter.*`, `local_bins.*` — S1 actors / mobys: draw list builders, emitters (flat light, reflection), emitter passes, layouts, local depth bins; `replay_angles.h` the sub-step angle fractions a replay notes per moby for the list builders
 - `titles/spyro1/render/sprite_queue*` — S1 sprite queue: lit and HUD mobys
-- `titles/spyro1/render/drawn_records.*` — S1 mobys a draw builds in its buffer's packet pool (menu items, dialogue letters): named by the build that made them (fill site, builder caller, ordinal); a replay's record moved `t` of the way from the last real draw's of the same name
+- `titles/spyro1/render/drawn_records.*` — S1 mobys a draw builds in its buffer's packet pool (menu items, dialogue letters): named by the build that made them (builder call site, that call's turn, character index); a replay's record moved `t` of the way from the last real draw's of the same name
 - `titles/spyro1/render/paired_actor*` — S1 Spyro model draw (RasterizePairedActor)
 - `titles/spyro1/render/sky*` — S1 sky / cyclorama and the walk a portal's own sky shares with it
 - `titles/spyro1/render/portal*` — S1 portal drawer: outline, far fill, near sky cut to the outline, sky spin
@@ -76,7 +76,6 @@ Frame loop: not owned. Spyro 1 runs update `0x8003385C` and draw `0x8001ED5C` an
 - `titles/spyro1/render/particle*` — S1 particles / emit list
 - `titles/spyro1/render/screen.h` — S1 retail outcode window for widened culls
 - `titles/spyro1/render/pause_backdrop.*` — S1 pause backdrop: the grey read-back page (func_80017E98) declared as a read-back texture
-- `titles/spyro1/render/shaded_line.*` — S1 shaded border line (func_8001844C): pause, flight, balloonist and inventory borders, producer keyed by call site and turn (`CallSites`, in `NativeState`)
 - `titles/spyro1/render/inventory_band.*` — S1 inventory row band (inline in 0x8001A40C, linked at 0x8001BEC0): its right edge moved onto the buffer's on a widened canvas when it starts at column 0, so the margin rule continues it
 - `titles/spyro2/core/`, `titles/spyro3/core/` — S2/S3 runtime and `draw_section.*` (the draw body's state switch, S3's second pass, S3's level-load clear not replayed): crt0, stock libraries, interrupt-driven libcd, module landing, packet pool, cut, logo; boot facts (boot prefix, update / draw, gamestate and level words); warp routes (the title screen's Start teardown, the game's own level start from gameplay, `portal` through the level's exit to its homeworld); `mobys` / `moby-teleport` in both debug menus
 - `titles/spyro2/render/`, `titles/spyro3/render/` — S2/S3 render facts per image, HUD widget anchoring; `titles/spyro2/render/hud_element.*` S2's HUD element drawer `0x800520CC` (sprite or quad), its y corners at the slide's unrounded in-between; `titles/spyro3/render/hud_slide.*` S3's widget slide step `0x80029708` and digit drawers `0x800291B8` / `0x800293C4`, native, each icon and digit placed through `HudSlide`, the icon emitter's corners moved by the remainder

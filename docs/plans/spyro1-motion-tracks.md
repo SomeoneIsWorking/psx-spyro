@@ -56,7 +56,7 @@ join at its DrawSync; the cutscene draw `0x8001E9C8` to `0x8001EA88`, then its f
 `ScreenFade`. `DrawSection::stage` (gamestate, and the dragon's `m_State`) is a cut when it changes: each dragon
 step re-places the camera. The menus run `0x8001A40C` to `0x8001C598` with PutDrawEnv stepped over as already
 applied; their mobys are rebuilt from the whole draw count, so the sprite queue moves each built record from the
-last real draw's (`actors::DrawnRecords`, same mesh and the same name: by the build that made it (the Memset of `g_HudMobys` that clears it: its call site, the text, digit or cursor builder's caller, and its ordinal at that site in the draw)).
+last real draw's (`actors::DrawnRecords`, same mesh and the same name: by the build that made it: inside a text, digit or cursor builder, the `jal` site that called the builder, that call's turn at the site in the draw and the builder's own character index (the non-space characters of `pText` before it, `draw.c` `func_80017FE4`/`func_800181AC`); a draw's own `Memset(g_HudMobys)` by its site and its turn there).
 The fairy draw `0x8001D718` runs to its DrawSync `0x8001E168`. It is reached through the guest's own trigger
 (InitFairyCutscene `0x8002CCC8`, called from the class-110 fairy's update once its linked moby's state allows it):
 warp `0/0/0`, `moby-teleport 110 0` (the dragon rescue runs), then `moby-teleport 110 0` again once it has ended.
@@ -77,12 +77,21 @@ the draw buffer's packet pool, so the sprite queue moves them through `actors::D
 The cutscene Spyro and dragon (`m_CutsceneSpyro`/`m_CutsceneDragon`, +0x88/+0x8C) are `g_LevelMobys` slots
 `0x800524C4` hands out, classes 511 and 510 at +0x36, so the moby track keys them by its own class key.
 
-Not replayed:
-- Respawn and game over (GS 4, 5), `0x8001CA38`: after a MoveImage copies the last frame into both buffers it
-  clears `isbg` and each frame tints over the image the frame before left, so a frame's picture is the sum of
-  every earlier draw and an in-between replayed over S would tint twice.
-- Flight results (GS 7), `Flight5` through `D_8007567C`: not replayed; it draws the shaded lines.
-- Credits (GS 15): the overlay `func_credits_8007BFD0` draws the tint.
+Flight results (GS 7) draw through `D_8007567C`, `Flight5`, at `0x8007B68C` in all five flight overlays (the code
+bytes to its tail are identical in levels 15 to 55). Like the menus it counts its draws in `D_800758B8`, opens a
+later one with PutDrawEnv and ends with `DrawOTag(func_80016784(0))` at `0x8007CEC8`; its letters and trophy go
+through `actors::DrawnRecords`. Reached by warp `0/5/0` (any `x/5/0`) and the time-left halfwords
+`0x80075908`/`0x8007590A` written 0. A reveal frame's replay reaches PlaySound and is held (issue 0246).
+
+Respawn and game over (GS 4, 5), `0x8001CA38`, wait one VSync per draw: every frame is one field
+(`fields=1/1`), so they have no in-betweens (issue 0245).
+
+Not replayed: credits (GS 15), the overlay `func_credits_8007BFD0`, which waits two fields like `Flight5` and draws
+the fullscreen tint; reached with the `credits` debug verb (CheatApplyEffect `0x8002D810` case 2). Its flyby draw builds the letters from
+`D_8007589C` (count `D_800756E4`), DrawFade(2, `g_Fade << 4`) at `0x8007C1D4`, then HUD mobys, terrain
+`0x800258F0(-1)` and sky `0x8004EBA8` before its DrawSync at `0x8007C260`. A replay from `0x8007BFD0` to `0x8007C260`
+did not stop there: every run reached the VSync wait at `0x8007C2BC` (939 of 1676 intervals, `scratch/s1states/go.py
+cred4`); why the stop is missed is not yet traced.
 
 ## Camera
 

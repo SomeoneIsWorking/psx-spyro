@@ -249,5 +249,5 @@ alternation measured at both aspects in §4's table and is not part of D1.
 ## 2026-10-28: the pause in-betweens compose
 
 The menu judder in report `20261023-181349` was the border lines of `func_8001844C`: unowned packets whose colours
-change every frame, so the verdict held each in-between. `titles/spyro1/render/shaded_line.*` owns them; proof in
-issue 0212.
+change every frame, so the verdict held each in-between. They are drawn by the replayed menu draw (issue
+0244); issue 0212 has the earlier producer.

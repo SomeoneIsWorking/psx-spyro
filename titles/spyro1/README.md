@@ -8,7 +8,6 @@ It presents on the Record path: `spyro1::FrameDriver` runs the retail update, th
 `0x8001ED5C` through its own display tail (`spyro1::FrameDraw`), and presents the frame once. libgte's
 projection leaves (`0x80062618`, `0x80062638`) are stock bindings and the canvas widens through
 `spyro::Runtime::guestWidescreenProjection`. Its 60 fps producers (psxport F-FPS60,
-`docs/features.md`) are the fullscreen tint and the cinematic letterbox
-(`titles/spyro1/render/screen_overlays.*`), slotted by the LinkOTPrimitives override
+`docs/features.md`) are the fullscreen tint (`game/render/screen_overlays.*`, the credits only), slotted by the LinkOTPrimitives override
 (`titles/spyro1/render/ordering_table.*`); culls, HUD anchoring and the terrain, actor and
 sky producers are issue 0186.
