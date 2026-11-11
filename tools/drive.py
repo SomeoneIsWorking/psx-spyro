@@ -141,8 +141,13 @@ class Port:
         self._send(f"release {button}")
 
     def words(self, address: int, count: int = 1) -> list[int]:
-        self._send(f"rw {address:X} {count}")
-        return self._await_words(address, count)
+        # The verb serves at most its line's cap per answer, so the rest is asked for again.
+        values: list[int] = []
+        while len(values) < count:
+            at = address + 4 * len(values)
+            self._send(f"rw {at:X} {count - len(values)}")
+            values += self._await_words(at)
+        return values
 
     def word(self, address: int) -> int:
         return self.words(address, 1)[0]
@@ -220,13 +225,13 @@ class Port:
                 return self.frame
         raise ToolError("the port exited before reaching its next frame boundary")
 
-    def _await_words(self, address: int, count: int) -> list[int]:
+    def _await_words(self, address: int) -> list[int]:
         for line in self._lines():
             match = self._WORDS.search(line)
             if match and int(match.group(1), 16) == address:
-                values = [int(v, 16) for v in match.group(2).split()]
-                if len(values) == count:
-                    return values
+                return [int(v, 16) for v in match.group(2).split()]
+            if f"[rw] refused: {address:08X}" in line:
+                raise ToolError(line.strip())
         raise ToolError(f"the port exited before answering rw 0x{address:08X}")
 
     def _drain(self) -> None:
