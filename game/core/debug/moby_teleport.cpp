@@ -65,4 +65,14 @@ std::string MobyTeleport::teleport(Core &core, std::uint32_t mobyClass, std::uin
   return lucent::format("ok: Spyro on moby {:#010x}", target.address);
 }
 
+bool RecordMobyTeleport::inActiveField(Core &core) const {
+  return core.mem_r32(facts_.gameState) == 0u;
+}
+
+void RecordMobyTeleport::placeSpyro(Core &core, const Position &destination) const {
+  core.mem_w32(facts_.spyro, static_cast<std::uint32_t>(destination.x));
+  core.mem_w32(facts_.spyro + 4u, static_cast<std::uint32_t>(destination.y));
+  core.mem_w32(facts_.spyro + 8u, static_cast<std::uint32_t>(destination.z));
+}
+
 } // namespace spyro

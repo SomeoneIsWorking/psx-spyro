@@ -2,7 +2,7 @@
 #pragma once
 
 #include "core/debug/debug_menu.h"
-#include "spyro2/core/moby_teleport.h"
+#include "core/debug/moby_teleport.h"
 
 namespace spyro2 {
 
@@ -11,7 +11,7 @@ public:
   DebugMenu();
 
 private:
-  MobyTeleport mobys_;
+  spyro::RecordMobyTeleport mobys_;
 };
 
 } // namespace spyro2

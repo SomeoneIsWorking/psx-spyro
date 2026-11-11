@@ -50,4 +50,28 @@ protected:
   virtual void placeSpyro(Core &core, const Position &destination) const = 0;
 };
 
+// Spyro 2/3: one moby array word, one gameplay state and Spyro's record, whose first three words
+// are the only copy of his position.
+class RecordMobyTeleport final : public MobyTeleport {
+public:
+  struct Facts {
+    std::uint32_t gameState = 0;
+    std::uint32_t mobysWord = 0;
+    std::uint32_t spyro = 0;
+  };
+
+  explicit RecordMobyTeleport(const Facts &facts) : facts_(facts) {}
+
+  [[nodiscard]] bool inActiveField(Core &core) const override;
+
+protected:
+  [[nodiscard]] std::uint32_t levelMobysWord() const override {
+    return facts_.mobysWord;
+  }
+  void placeSpyro(Core &core, const Position &destination) const override;
+
+private:
+  Facts facts_;
+};
+
 } // namespace spyro

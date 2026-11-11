@@ -2,9 +2,11 @@
 
 #include "core/boot_prefix_runtime.h"
 #include "core/debug/debug_menu.h"
+#include "core/debug/moby_teleport.h"
 #include "spyro3/core/boot_facts.h"
 #include "spyro3/core/draw_section.h"
 #include "spyro3/core/warp.h"
+#include "spyro3/render/render_facts.h"
 #include "stock_libcd.h"
 #include "stock_libgte.h"
 #include "stock_vsync.h"
@@ -36,8 +38,11 @@ private:
   psx::hle::StockVSync vsync_;
   psx::cd::GuestInterruptLibcd libcd_;
   psx::hle::StockLibgte libgte_;
+  spyro::RecordMobyTeleport mobys_{{.gameState = kGameState,
+                                    .mobysWord = kMobyFacts.firstRecordWord,
+                                    .spyro = kDrawMotion.spyro}};
   spyro::DebugMenu debugMenu_{
-      &Warp::worlds, nullptr, kBootPrefixFacts.cut, {.title = kTitleScreenGameState}};
+      &Warp::worlds, &mobys_, kBootPrefixFacts.cut, {.title = kTitleScreenGameState}};
 };
 
 } // namespace spyro3

@@ -197,7 +197,6 @@ set(SPYRO_RUNTIME_SOURCES
   titles/spyro1/render/terrain_split.cpp
   titles/spyro2/core/debug_menu.cpp
   titles/spyro2/core/draw_section.cpp
-  titles/spyro2/core/moby_teleport.cpp
   titles/spyro2/core/runtime.cpp
   titles/spyro2/core/warp.cpp
   titles/spyro2/render/hud_anchor.cpp
