@@ -483,8 +483,9 @@ MobyWalk::Step MobyWalk::finishEntry(const Candidate &candidate) {
   core_.mem_w32(entry_ + entry::kCentre + 4, asWord(y));
   core_.mem_w32(entry_ + entry::kCentre + 8, asWord(z));
   // The drawer loads this word into TRZ (SCUS_944.25 800445A8, SCUS_944.67 800311C8), so its
-  // projections take this entry's view unit, and its faces' bucket: summed SZ >> (detail + 4)
-  // (80044D9C..80044DBC).
+  // projections take this entry's view unit and model, and its faces' bucket: SZ summed with four
+  // weights (a quad's four, a triangle's 1, 2, 1) >> (detail + 4) (80044D9C..80044DBC), one
+  // bucket a quarter of that per vertex.
   const float viewScale = guest_render_globals::meshDepthScale(amount, scale);
   core_.vertexPlaces.note(
       entry_ + entry::kCentre + 8,
@@ -493,6 +494,7 @@ MobyWalk::Step MobyWalk::finishEntry(const Candidate &candidate) {
                        .nearer = static_cast<float>(sortedNearer) *
                                  guest_render_globals::kDepthBinViewUnits,
                        .slot = std::ldexp(viewScale, static_cast<int>((detail + 4u) & 31u) - 2),
+                       .model = entry_,
                        .carried = 1}});
   entry_ += kEntryStride;
   return entry_ == listEnd_ ? Step::End : Step::Next;

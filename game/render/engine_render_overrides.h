@@ -88,10 +88,8 @@ template <const EngineRenderFacts &facts> void registerEngineRenderOverrides(Cor
                                   facts.spyroDrawer.entry,
                                   facts.spyroDrawer.overrideName,
                                   engine_render::drawSpyro<facts>);
-  // Terrain sorts per polygon into the table's bins and Spyro per face into his own buckets. A
-  // moby paints its faces in its drawer's bucket order: each face tests only against the scene
-  // before the moby, nearer by its face bias in the bucket its translation carries
-  // (guest_moby_visibility.cpp), and the moby leaves its depth moved back by that bucket.
+  // A moby's faces keep its drawer's order and test at their biased buckets
+  // (guest_moby_visibility.cpp).
   core.depthTest.mark(facts.terrain.entry,
                       psx::present::DepthOrder::Polygon,
                       guest_render_globals::kDepthBinViewUnits);
