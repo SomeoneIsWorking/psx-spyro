@@ -50,16 +50,24 @@ Nothing leaks (2026-11-11, `scratch/review5/leak-spyro1-{0,1}.dig`): boot throug
 
 ## Other state draws
 
-`spyro1::DrawSection::replays` also takes GS_Dragon, GS_Fairy, GS_Cutscene and the menus (GS 2 and 3). Each runs as a `dispatchTo` step after the
+`spyro1::DrawSection::replays` also takes GS_Dragon, GS_Fairy, GS_Balloonist, GS_Cutscene and the menus (GS 2 and 3). Each runs as a `dispatchTo` step after the
 shared preamble: the dragon draw `0x8001CFDC` to `0x8001D644`, where every `m_State`'s drawers, fade and border
 join at its DrawSync; the cutscene draw `0x8001E9C8` to `0x8001EA88`, then its fade `g_Fade * 16` through
 `ScreenFade`. `DrawSection::stage` (gamestate, and the dragon's `m_State`) is a cut when it changes: each dragon
 step re-places the camera. The menus run `0x8001A40C` to `0x8001C598` with PutDrawEnv stepped over as already
 applied; their mobys are rebuilt from the whole draw count, so the sprite queue moves each built record from the
-last real draw's (`actors::DrawnRecords`, same mesh at the same address).
+last real draw's (`actors::DrawnRecords`, same mesh in the same slot of the buffer's packet pool).
 The fairy draw `0x8001D718` runs to its DrawSync `0x8001E168`. It is reached through the guest's own trigger
 (InitFairyCutscene `0x8002CCC8`, called from the class-110 fairy's update once its linked moby's state allows it):
 warp `0/0/0`, `moby-teleport 110 0` (the dragon rescue runs), then `moby-teleport 110 0` again once it has ended.
+The balloonist draw `0x8001E24C` runs to its DrawSync `0x8001E5E4`. Its trigger is the class-187 (0xBB) arm of
+Artisans' moby update (`func_level_10_8007D9C8`, `0x800827E8`): the moby arms (+0x48 set) while Spyro is 0x1000 or
+more away, then calls `D_800757A0` (Balloonist1) when Spyro, in a ground state, is within 0x780, faces it within
+0x20 and it faces him within 0x28 (8-bit angles). From its position (67082, 107397, 4015) and yaw byte +0x46
+`0xC0`: warp `0/0/0`, `spyro-at 67082 102277 4271 1024` (0x1400 in front), then `spyro-at 67082 106629 4271 1024`
+(0x300 in front, facing it). Its name and dialogue letters spin by `D_800777E8 +0x04` read whole; they are built in
+the draw buffer's packet pool, so the sprite queue moves them through `actors::DrawnRecords`, keyed by their slot
+below the pool's end (the pool alternates between the two buffers).
 
 | track | address / layout | kind | identity | read by |
 |---|---|---|---|---|
@@ -74,8 +82,8 @@ Not replayed:
 - Respawn and game over (GS 4, 5), `0x8001CA38`: after a MoveImage copies the last frame into both buffers it
   clears `isbg` and each frame tints over the image the frame before left, so a frame's picture is the sum of
   every earlier draw and an in-between replayed over S would tint twice.
-- Balloonist (GS 12), `0x8001E24C`: not reached; a moby teleport onto Artisans' single-instance classes
-  did not enter it.
+- Flight results (GS 7), `Flight5` through `D_8007567C`: not replayed; it draws the shaded lines.
+- Credits (GS 15): the overlay `func_credits_8007BFD0` draws the tint.
 
 ## Camera
 

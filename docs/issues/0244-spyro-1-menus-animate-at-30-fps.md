@@ -19,7 +19,7 @@ over (a stand-in that returns at once inside a replay was enough).
 `0x8001A40C` to `0x8001C598`, with PutDrawEnv `0x8005FDD8` passed as a call the real frame already ran
 (psxport `GuestRedraw::dispatchTo` stops at each callee entry and steps over the applied ones). The draw still
 builds each moby from the whole count; the sprite queue override owns the half step: `actors::DrawnRecords` keeps
-each record the last real draw queued, and a replay's record with the same mesh at the same address is moved `t` of
+each record the last real draw queued, and a replay's record with the same mesh in the same slot is moved `t` of
 the way from it (position and angles, the angles' sixteenths passed on). The inventory band is no longer a
 producer: its native body widens the band's right edge to the canvas width at its link (`0x8001BEC8`).
 

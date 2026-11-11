@@ -732,7 +732,10 @@ void drawQueue(Core *core) {
   SpriteQueue queue(guest, memory, presentedQueueView(guest));
   hud_anchor::QueueAnchors anchors;
   NativeState &state = nativeState(guest);
-  const bool built = guest::menuDraw(guest.mem_r32(guest::kGamestate));
+  // The mobys this draw built: taken down from the end of the current buffer's packet pool.
+  const std::uint32_t builtFrom =
+      guest.mem_r32(guest.mem_r32(guest::kCurDb) + guest::kDbPolyBuffer);
+  const std::uint32_t builtTo = builtFrom + terrain::kPacketPoolBytes;
   queue.begin();
   for (std::uint32_t input = kSpriteQueue;; input += 4) {
     const std::uint32_t record = guest.mem_r32(input);
@@ -747,7 +750,9 @@ void drawQueue(Core *core) {
                                                    anchors.next(record))
                     : 0;
     const std::optional<std::uint32_t> drawn =
-        built ? state.drawnRecords.queued(guest, record) : std::nullopt;
+        record >= builtFrom && record < builtTo
+            ? state.drawnRecords.queued(guest, record, builtTo - record)
+            : std::nullopt;
     const std::uint32_t fractions = drawn.value_or(state.replayAngles.at(record));
     if (const auto chain =
             queue.draw({.record = record, .hudShift = hudShift, .angleFractions = fractions})) {

@@ -29,6 +29,10 @@ inline constexpr std::uint32_t kModels = 0x80076378u;
 // packets.
 inline constexpr std::uint32_t kHudMobys = 0x80075710u;
 inline constexpr std::uint32_t kHudMobyArenaEnd = 0x800756FCu;
+// The current draw buffer (g_DB[0] or [1]) and its packet pool pointer; the arena end starts
+// terrain::kPacketPoolBytes past the pool.
+inline constexpr std::uint32_t kCurDb = 0x80075888u;
+inline constexpr std::uint32_t kDbPolyBuffer = 0x70u;
 // Per collision region, the head of its moby chain.
 inline constexpr std::uint32_t kMobyCollisionChain = 0x80075778u;
 
@@ -64,6 +68,7 @@ inline constexpr std::uint32_t kGamestateOldDragon = 6u;                        
 inline constexpr std::uint32_t kGamestatePlaying = 0u;                           // GS_Playing
 inline constexpr std::uint32_t kGamestateDragon = 8u;                            // GS_Dragon
 inline constexpr std::uint32_t kGamestateFairy = 11u;                            // GS_Fairy
+inline constexpr std::uint32_t kGamestateBalloonist = 12u;                       // GS_Balloonist
 inline constexpr std::uint32_t kGamestateCutscene = 14u;                         // GS_Cutscene
 inline constexpr std::uint32_t kTitleModeInit = 0u;                              // TSM_Init
 inline constexpr std::uint32_t kTitleModeLoading = 2u;                           // TSM_Loading
@@ -162,8 +167,7 @@ inline constexpr std::uint32_t kDragonCutsceneTicks = kDragonCutscene + 0x3Cu; /
 // changes.
 inline constexpr std::uint32_t kInventoryPage = 0x80075744u;
 
-// GS_PauseMenu, GS_InventoryMenu and GS_OldDragon share the menu draw 0x8001A40C, which builds its
-// mobys in g_HudMobys each draw.
+// GS_PauseMenu, GS_InventoryMenu and GS_OldDragon share the menu draw 0x8001A40C.
 inline bool menuDraw(std::uint32_t gamestate) {
   return gamestate == kGamestatePauseMenu || gamestate == kGamestateInventoryMenu ||
          gamestate == kGamestateOldDragon;

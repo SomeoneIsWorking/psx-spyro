@@ -80,25 +80,18 @@ void drawTint(Core &core, const TintFacts &facts) {
 bool drawLetterbox(Core &core, const LetterboxFacts &facts) {
   const std::uint32_t first = core.mem_r32(facts.primitiveCursor);
   const auto read = static_cast<std::int32_t>(core.mem_r32(facts.height));
-  const auto site = core.emission.instance(core.r[31]);
   if (!psx::cpu::callOriginalOrPropagate(core, facts.entry)) {
     return false;
   }
-  const CinematicLetterbox::State state{.height =
-                                            static_cast<std::int32_t>(core.mem_r32(facts.height))};
-  if (state.height == 0) {
+  const auto drawn = static_cast<std::int32_t>(core.mem_r32(facts.height));
+  if (drawn == 0) {
     return true;
   }
   const psx::present::ReplayFrame *replay = core.runtime.replayFrame(core);
   if (const std::optional<float> t = replay != nullptr ? replay->replaying() : std::nullopt;
-      facts.rowPerDraw && t && read != state.height) {
-    placeEdges(core, facts, first, barHeight(read, state.height, *t));
+      facts.rowPerDraw && t && read != drawn) {
+    placeEdges(core, facts, first, barHeight(read, drawn, *t));
   }
-  for (std::uint32_t bar = 0; bar < 2; ++bar) {
-    const auto part = core.emission.element(bar);
-    core.emission.bindPacket(first + bar * kBarBytes);
-  }
-  core.frameStates.save(core.emission.current(), state);
   return true;
 }
 
@@ -137,43 +130,13 @@ bool FullscreenTint::rests(std::span<const std::byte> drawn, std::span<std::byte
   return true;
 }
 
-void CinematicLetterbox::render(const psx::present::StateInterval &states,
-                                psx::present::PrimitiveSink &sink) const {
-  const State before = psx::present::stateAs<State>(states.from);
-  const State after = psx::present::stateAs<State>(states.to);
-  const float shown = barHeight(before.height, after.height, states.t);
-  const float topEdge = static_cast<float>(facts_.top) + shown;
-  const float bottomEdge = static_cast<float>(facts_.bottom) - shown;
-  Quad top;
-  top.store(0, guest_packet::kF4Code);
-  top.store(1, position(0, facts_.top));
-  top.store(2, position(kScreenWidth, facts_.top));
-  top.storeVertex(3, edge(0, topEdge));
-  top.storeVertex(4, edge(kScreenWidth, topEdge));
-  Quad bottom;
-  bottom.store(0, guest_packet::kF4Code);
-  bottom.storeVertex(1, edge(0, bottomEdge));
-  bottom.storeVertex(2, edge(kScreenWidth, bottomEdge));
-  bottom.store(3, position(0, facts_.bottom));
-  bottom.store(4, position(kScreenWidth, facts_.bottom));
-  sink.emit(depth_bins::kOverlaySlot, quad(top));
-  sink.emit(depth_bins::kOverlaySlot, quad(bottom));
-}
-
-bool CinematicLetterbox::rests(std::span<const std::byte>, std::span<std::byte> into) const {
-  const State rest{};
-  std::memcpy(into.data(), &rest, sizeof(rest));
-  return true;
-}
-
 void installTint(Core &core, const TintFacts &facts, psx::cpu::NativeFunction draw) {
   installProducerOverride(
       core, facts.entry, facts.overrideName, draw, std::make_unique<FullscreenTint>(facts));
 }
 
 void installLetterbox(Core &core, const LetterboxFacts &facts, psx::cpu::NativeFunction draw) {
-  installProducerOverride(
-      core, facts.entry, facts.overrideName, draw, std::make_unique<CinematicLetterbox>(facts));
+  psx::cpu::installNativeOverride(core, facts.entry, facts.overrideName, draw);
 }
 
 } // namespace spyro::screen_overlays

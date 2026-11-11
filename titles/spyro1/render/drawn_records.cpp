@@ -21,17 +21,18 @@ moby_record::Bytes read(Core &core, std::uint32_t record) {
 
 } // namespace
 
-std::optional<std::uint32_t> DrawnRecords::queued(Core &core, std::uint32_t record) {
+std::optional<std::uint32_t>
+DrawnRecords::queued(Core &core, std::uint32_t record, std::uint32_t slot) {
   const std::optional<float> t = core.runtime.replayFrame(core)->replaying();
   if (!t) {
     if (core.game->timing.logicFrame != frame_) {
       frame_ = core.game->timing.logicFrame;
       drawn_.clear();
     }
-    drawn_.emplace_back(record, read(core, record));
+    drawn_.emplace_back(slot, read(core, record));
     return std::nullopt;
   }
-  const auto found = std::ranges::find(drawn_, record, &Saved::first);
+  const auto found = std::ranges::find(drawn_, slot, &Saved::first);
   if (found == drawn_.end()) {
     return std::nullopt;
   }

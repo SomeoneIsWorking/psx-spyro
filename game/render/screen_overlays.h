@@ -1,10 +1,10 @@
-// screen_overlays.h — the whole-screen overlays all three images draw the same way, as state
-// producers: the fullscreen tint (Spyro 1 0x800190D4, Spyro 2 0x8004D748, Spyro 3 0x800200A0) and
-// the cinematic letterbox (0x80018F30, 0x8004D604, 0x8001FF44).
+// screen_overlays.h — the whole-screen overlays all three images draw the same way: the fullscreen
+// tint (Spyro 1 0x800190D4, Spyro 2 0x8004D748, Spyro 3 0x800200A0), a state producer for the
+// draws no replay covers, and the cinematic letterbox (0x80018F30, 0x8004D604, 0x8001FF44), which
+// only replayed draws call.
 //
-// Each override keys the packets its guest body writes by the call site, saves what the body draws
-// from and runs the body. Both bodies link into the overlay pair, so their renders emit into that
-// one slot.
+// The tint's override keys the packets its guest body writes by the call site, saves what the body
+// draws from and runs the body; its render emits into the overlay pair the body links into.
 #pragma once
 
 #include "native_dispatch.h"
@@ -66,25 +66,8 @@ private:
   const TintFacts &facts_;
 };
 
-class CinematicLetterbox final : public psx::present::StateProducer {
-public:
-  struct State {
-    std::int32_t height = 0;
-  };
-
-  explicit CinematicLetterbox(const LetterboxFacts &facts) : facts_(facts) {}
-
-  void render(const psx::present::StateInterval &states,
-              psx::present::PrimitiveSink &sink) const override;
-  // The guest draws no bars at height 0.
-  [[nodiscard]] bool rests(std::span<const std::byte> drawn,
-                           std::span<std::byte> into) const override;
-
-private:
-  const LetterboxFacts &facts_;
-};
-
-// The override bodies. drawLetterbox returns whether the guest body ran to its end.
+// The override bodies. drawLetterbox returns whether the guest body ran to its end; in a replay
+// it places the bars' moving edge between the row read and the row drawn.
 void drawTint(Core &core, const TintFacts &facts);
 bool drawLetterbox(Core &core, const LetterboxFacts &facts);
 
@@ -99,7 +82,7 @@ template <const LetterboxFacts &facts> void letterboxOverride(Core *core) {
 
 // The tint's override and its render.
 void installTint(Core &core, const TintFacts &facts, psx::cpu::NativeFunction draw);
-// The letterbox's render, for an override `draw` that runs drawLetterbox.
+// The letterbox's override `draw`, which runs drawLetterbox.
 void installLetterbox(Core &core, const LetterboxFacts &facts, psx::cpu::NativeFunction draw);
 
 } // namespace spyro::screen_overlays

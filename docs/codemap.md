@@ -23,7 +23,7 @@ Frame loop: not owned. Spyro 1 runs update `0x8003385C` and draw `0x8001ED5C` an
 - `game/core/debug/warp.*` — the warp arrival: the level entered from the idle title screen or, where the title has a route, from gameplay, change after change from wherever the game resumes play until gameplay is in it, then an optional placement
 - `game/core/debug/moby_teleport.*` — `mobys <class>` / `moby-teleport <class> <n>`: list a level's mobys of one class and place Spyro on one (NPC conversation, dragon rescue routes); each title names its moby array, active field and position words, S2/S3 through `RecordMobyTeleport`'s facts
 - `game/render/engine_render_overrides.*` — S2/S3 render overrides bound to one image: terrain drawer, moby walk, sky drawer, flatten depth bins, fullscreen tint and letterbox
-- `game/render/screen_overlays.*` — fullscreen tint / fade and cinematic letterbox producers shared by all three images; in an S2/S3 replay the letterbox's moving edge is placed between the row read and the row drawn
+- `game/render/screen_overlays.*` — fullscreen tint / fade producer and cinematic letterbox override shared by all three images; in a replay the letterbox's moving edge is placed between the row read and the row drawn
 - `game/render/field/effect_pools.*` — S2/S3 effects pass pools (sprites, glows, beams, trails, vertex meshes, particles): one field's records read, paired by slot and moved for the replay
 - `game/render/field/keyframe_blend.*` — moby / Spyro animation keyframe pair and progress (S2/S3 nibbles, S1 64ths and 16ths), pose between two fields and across an animation switch
 - `game/render/field/moby_motion.*` — a moby slot between two samples for all three replays: the moby array's records, position, angles, pose across an animation switch; titles subclass for layout test and own words
@@ -61,7 +61,7 @@ Frame loop: not owned. Spyro 1 runs update `0x8003385C` and draw `0x8001ED5C` an
 - `titles/spyro1/render/terrain_*` — S1 terrain drawer RenderWorldChunks: sector loop, far, detail, coarse and fine subdivision passes, facts
 - `titles/spyro1/render/actor_*`, `lit_actor_emitter.*`, `local_bins.*` — S1 actors / mobys: draw list builders, emitters (flat light, reflection), emitter passes, layouts, local depth bins; `replay_angles.h` the sub-step angle fractions a replay notes per moby for the list builders
 - `titles/spyro1/render/sprite_queue*` — S1 sprite queue: lit and HUD mobys
-- `titles/spyro1/render/drawn_records.*` — S1 mobys a menu draw rebuilds each draw: the last real draw's records by address, a replay's record moved `t` of the way from them
+- `titles/spyro1/render/drawn_records.*` — S1 mobys a draw builds in its buffer's packet pool (menu items, dialogue letters): the last real draw's records by slot, a replay's record moved `t` of the way from them
 - `titles/spyro1/render/paired_actor*` — S1 Spyro model draw (RasterizePairedActor)
 - `titles/spyro1/render/sky*` — S1 sky / cyclorama and the walk a portal's own sky shares with it
 - `titles/spyro1/render/portal*` — S1 portal drawer: outline, far fill, near sky cut to the outline, sky spin
