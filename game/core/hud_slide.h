@@ -9,6 +9,7 @@
 #include <array>
 #include <cstdint>
 #include <optional>
+#include <utility>
 
 class Core;
 
@@ -51,8 +52,14 @@ public:
     std::int32_t y = 0;
   };
   // What the slide function returns for the call now, or, inside a replay at `t` with the slot
-  // drawn in both samples, `t` of the way from what it returned for the earlier sample.
-  [[nodiscard]] std::int32_t offset(Core &core, const Call &call, std::optional<float> t) const;
+  // drawn in both samples, `t` of the way from what it returned for the earlier sample, rounded;
+  // what the rounding dropped is kept for the element the caller draws next.
+  [[nodiscard]] std::int32_t offset(Core &core, const Call &call, std::optional<float> t);
+  // The rows the last offset's rounding dropped, once: each caller adds the offset to the y of the
+  // one element it draws next (0x8005251C, 0x80052690, 0x80052B88).
+  [[nodiscard]] float takeRemainder() {
+    return std::exchange(remainder_, 0.0f);
+  }
 
 private:
   using Slots = std::array<std::uint32_t, kMaxSlots>; // each slot's first word
@@ -62,6 +69,7 @@ private:
   const HudSlideFacts *facts_;
   Slots from_{};
   Slots to_{};
+  float remainder_ = 0.0f;
 };
 
 // Installs the slide function's override, which returns the frame driver's HudSlide::offset at the

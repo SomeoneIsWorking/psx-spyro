@@ -79,14 +79,18 @@ std::int32_t HudSlide::offsetOf(Core &core, std::uint32_t slotWord, const Call &
   return call.y > facts_->lowerHalfY ? -shown : shown;
 }
 
-std::int32_t HudSlide::offset(Core &core, const Call &call, std::optional<float> t) const {
+std::int32_t HudSlide::offset(Core &core, const Call &call, std::optional<float> t) {
   const std::uint32_t slotWord = core.mem_r32(call.slot);
   const std::int32_t now = offsetOf(core, slotWord, call);
   const std::optional<std::size_t> sampled = slotIndex(call.slot);
+  remainder_ = 0.0f;
   if (!t || !sampled || !drawn(from_[*sampled]) || !drawn(slotWord)) {
     return now;
   }
-  return psx::present::lerpInt(offsetOf(core, from_[*sampled], call), now, *t);
+  const std::int32_t earlier = offsetOf(core, from_[*sampled], call);
+  const std::int32_t shown = psx::present::lerpInt(earlier, now, *t);
+  remainder_ = static_cast<float>(psx::present::lerpExact(earlier, now, *t) - shown);
+  return shown;
 }
 
 void installHudSlide(Core &core, const HudSlideFacts &facts) {

@@ -199,6 +199,7 @@ set(SPYRO_RUNTIME_SOURCES
   titles/spyro2/core/runtime.cpp
   titles/spyro2/core/warp.cpp
   titles/spyro2/render/hud_anchor.cpp
+  titles/spyro2/render/hud_element.cpp
   titles/spyro3/core/draw_section.cpp
   titles/spyro3/core/runtime.cpp
   titles/spyro3/core/warp.cpp

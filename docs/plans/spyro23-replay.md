@@ -332,10 +332,15 @@ Spyro 3 Sunrise Spring, Up and Left (746 in-betweens), identical over 2813.
    leaves in its index argument). There is no one function whose result is the offset, so the blend needs overrides
    of `0x80029708` and the two digit drawers that carry the earlier sample's slide from the widget down to the digits.
    Spyro 3's HUD tick `0x8006C640` is matched to Spyro 2's by use only (writers `0x80053374`, `0x80050F18`).
-   Spyro 2's in-betweens are whole native rows (24 / 16 of a 40-row step at 8x): the callers (`0x80052690`,
-   `0x8005251C`, `0x80052B88`) add the integer result to y and pass it to the element drawer `0x800520CC`, which
-   writes it as halfwords into a SPRT (+0x0A) or POLY_FT4 (+0x0A, +0x12, +0x1A, +0x22). Sub-row placement needs
-   that drawer natively, placing its y corners with `storeVertex` at the fraction its slide call returned.
+   Spyro 2's in-betweens are placed between rows: the callers (`0x80052690`, `0x8005251C`, `0x80052B88`, the
+   only callers of the slide) add each slide result to the y of the one element they draw next with
+   `0x800520CC`, which writes it into a SPRT (+0x0A) or POLY_FT4 (+0x0A, +0x12, +0x1A, +0x22). `HudSlide` keeps
+   what its rounding dropped, and the drawer, native (`titles/spyro2/render/hud_element.cpp`, the same override as
+   the meter's anchor, real frames included), stores its y corners with `storeVertex` that far below their rows.
+   Differential (`PSXPORT_OVERRIDE_DIFF=0x800520CC`, Select held 300 fields, `scratch/hudfrac/diff.json`): 862 of
+   862 sampled calls match the guest. Glimmer `0/1/0`, Select (`scratch/null1/hs2`, `scratch/hudfrac/s2_gem_frac.png`):
+   the gem icon's lowest row per present 107 / 127 / 147 / 167 / 187 / 207 / 227 / 247 of 1920, each in-between
+   20 rows (half the 40-row step at 8x) past the real before it.
 9. Pause menus (`0x800145AC`, `0x8001DD1C`): Spyro 1's pause reads VRAM back; whether these do is not known.
 10. Spyro 2's conversation slide: done (`ConversationSlide`). The loading pictures' fade counters (`0x800698EC`,
     `0x8006FBC4`) belong to state 5, which is not replayed.

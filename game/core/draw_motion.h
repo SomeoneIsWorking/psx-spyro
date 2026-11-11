@@ -149,7 +149,7 @@ public:
   [[nodiscard]] std::span<psx::present::MotionSource *const> sources() const {
     return sources_;
   }
-  [[nodiscard]] const HudSlide &hudSlide() const {
+  [[nodiscard]] HudSlide &hudSlide() {
     return hudSlide_;
   }
 
