@@ -377,7 +377,7 @@ Spyro 3 Sunrise Spring, Up and Left (746 in-betweens), identical over 2813.
     - t = 1 and leak (2026-11-11, `scratch/review6`, judgement settings, hidden, unpaced, `0/1/0` Up+Left): a local
       t = 1 build (a copy of the tree in `scratch/review6/hc`, not shipped) differs from the real present after it
       in the same boxes with `PSXPORT_DEPTH` on and off (Spyro 3, `nullcase.txt`), so depth adds no t = 1
-      difference; what differs is 0240. `fielddigest` with fps60 on and off identical, Spyro 2 3514 lines (1219
+      difference; what differed was 0240, closed: t = 1 replays now equal their reals. `fielddigest` with fps60 on and off identical, Spyro 2 3514 lines (1219
       in-betweens), Spyro 3 3413 (1036); run-end 0 refused. Cost not measured.
     - Not shown: a moby behind nearer terrain. No walk, arrival or teleport view had a moby the slot order drew
       over terrain in front of it, so the terrain case is unproven in frames.

@@ -147,6 +147,9 @@ Pose between(
 }
 
 Pose across(const Pose &from, const Pose &to, float t, Progress progress) {
+  if (t >= 1.0f) {
+    return to;
+  }
   const std::array<std::uint32_t, 2> a = end(from, 0);
   const std::array<std::uint32_t, 2> b = nearer(to, progress);
   // `from` already lies its share of the way off frame A, toward a frame B the switch replaced.

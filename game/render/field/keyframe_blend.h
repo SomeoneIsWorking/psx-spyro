@@ -45,7 +45,8 @@ struct Loop {
                            std::optional<Loop> loop = std::nullopt);
 
 // Across an animation switch, which `to` does not continue: `from`'s frame A as A, `to`'s nearer
-// frame as B, at `from`'s share carried `t` of the rest of the way, in `to`'s step count.
+// frame as B, at `from`'s share carried `t` of the rest of the way, in `to`'s step count; `to`
+// itself at t = 1.
 [[nodiscard]] Pose across(const Pose &from, const Pose &to, float t, Progress progress);
 
 } // namespace spyro::keyframe_blend
