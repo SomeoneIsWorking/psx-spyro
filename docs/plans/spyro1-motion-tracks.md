@@ -88,12 +88,15 @@ Respawn and game over (GS 4, 5), `0x8001CA38`, wait one VSync per draw: every fr
 (`fields=1/1`), so they have no in-betweens (issue 0245).
 
 Credits (GS 15) draw through the overlay `func_credits_8007BFD0` while `g_CreditsStage` (`0x80075704`) is past its
-first frame (-1, a MoveImage) and below 99 (`func_8001EB80`, returning home, not replayed). It builds the letters
+first frame (-1, a MoveImage) and below 99 (`slti` at `0x8001EF54`). It builds the letters
 from `D_8007589C` (count `D_800756E4`), calls DrawFade(2, `g_Fade << 4`) at `0x8007C1F0` when `g_Fade` is set
 (`beqz` `0x8007C1E0`), then HUD mobys, terrain `0x800258F0(-1)` and sky `0x8004EBA8` before its DrawSync at
 `0x8007C260`. The letter loop's exit falls through into the fade test inside one block (`0x8007C158`), so no stop can
 sit there: the fade is stopped at DrawFade's entry `0x800190D4` and resumed at its return `0x8007C1F8`. Reached with
 the `credits` debug verb (CheatApplyEffect `0x8002D810` case 2).
+
+From stage 99 the credits draw `func_8001EB80`, RETURNING HOME... spun by `g_CreditsTimer` over its HUD mobys, is
+replayed to its DrawSync at `0x8001ECA4`.
 
 ## Camera
 

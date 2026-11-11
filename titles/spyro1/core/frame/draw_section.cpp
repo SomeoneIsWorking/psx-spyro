@@ -67,21 +67,25 @@ constexpr std::uint32_t kMenuFlatten = 0x8001C598u;
 // v0 after.
 constexpr std::uint32_t kFlightResultsDraw = 0x8007B68Cu;
 constexpr std::uint32_t kFlightResultsFlatten = 0x8007CEC8u;
+// The credits draw is chosen by `slti g_CreditsStage, 99` at 0x8001EF54.
 // func_credits_8007BFD0, GS_Credits while g_CreditsStage is past its first frame (-1, a MoveImage)
-// and below 99 (func_8001EB80, returning home): its letters, then DrawFade(2, g_Fade << 4) called
-// at 0x8007C1F0 when g_Fade is set (beqz 0x8007C1E0), then HUD mobys, terrain and sky up to its
-// DrawSync at 0x8007C260. The letter loop falls through into the fade's test, so the fade is
-// stopped at DrawFade's entry and resumed at the call's return.
+// and below 99: its letters, then DrawFade(2, g_Fade << 4) called at 0x8007C1F0 when g_Fade is set
+// (beqz 0x8007C1E0), then HUD mobys, terrain and sky up to its DrawSync at 0x8007C260. The letter
+// loop falls through into the fade's test, so the fade is stopped at DrawFade's entry and resumed
+// at the call's return.
 constexpr std::uint32_t kCreditsStage = 0x80075704u;
 constexpr std::uint32_t kCreditsFirstStage = 0xFFFFFFFFu;
 constexpr std::int32_t kCreditsReturningHome = 99;
 constexpr std::uint32_t kCreditsDraw = 0x8007BFD0u;
 constexpr std::uint32_t kCreditsFadeReturn = 0x8007C1F8u;
 constexpr std::uint32_t kCreditsTail = 0x8007C260u;
+// func_8001EB80, the credits from stage 99: RETURNING HOME... spun by g_CreditsTimer, its HUD
+// mobys, then DrawSync at 0x8001ECA4.
+constexpr std::uint32_t kReturningHomeDraw = 0x8001EB80u;
+constexpr std::uint32_t kReturningHomeTail = 0x8001ECA4u;
 
 bool creditsFlyby(Core &core) {
-  const std::uint32_t stage = core.mem_r32(kCreditsStage);
-  return stage != kCreditsFirstStage && static_cast<std::int32_t>(stage) < kCreditsReturningHome;
+  return static_cast<std::int32_t>(core.mem_r32(kCreditsStage)) < kCreditsReturningHome;
 }
 
 // The draws D_800758B8 counts, which link their packets straight into the overlay pair and flatten
@@ -165,7 +169,7 @@ bool DrawSection::replays(Core &core) const {
   return state == guest::kGamestatePlaying || state == guest::kGamestateDragon ||
          state == guest::kGamestateFairy || state == guest::kGamestateBalloonist ||
          state == guest::kGamestateCutscene ||
-         (state == guest::kGamestateCredits && creditsFlyby(core)) ||
+         (state == guest::kGamestateCredits && core.mem_r32(kCreditsStage) != kCreditsFirstStage) ||
          (countedDraw(state) && core.mem_r32(kMenuDraws) != 0) ||
          (state == guest::kGamestateTitleScreen &&
           core.mem_r32(guest::kTitlescreenMode) != guest::kTitleModeDemo);
@@ -283,7 +287,8 @@ bool DrawSection::drawState(Core &core, psx::present::GuestRedraw &redraw) {
   case guest::kGamestateCutscene:
     return drawToFade(core, redraw, kCutsceneDraw, kCutsceneFade);
   case guest::kGamestateCredits:
-    return drawCredits(core, redraw);
+    return creditsFlyby(core) ? drawCredits(core, redraw)
+                              : drawTo(redraw, kReturningHomeDraw, kReturningHomeTail);
   default:
     return drawToFade(core, redraw, kTitlescreenDraw, kTitlescreenFade);
   }
