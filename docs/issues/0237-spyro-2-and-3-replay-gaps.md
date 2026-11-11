@@ -14,10 +14,23 @@ draw body 0x800156FC / 0x8001E638. Gameplay moves halfway (Glimmer `warp 0/1/0`,
    replayed either.
 2. **Inputs that still step at 30 Hz**:
    - The flame breath's part timers (`0x8006AA3C..`) step; its anchor is tracked.
-3. **Not shown since the change**: cutscenes (S2 6, S3 0x12) and the scene states: no warp reaches them yet. Spyro 2's
-   tint and reflection shift (`SpyroSurface`) stayed 0 on every route tried; Spyro 3's letterbox and water were not
-   reached (Spyro 3 has no `moby-teleport`).
-
+3. **Not shown since the change** (tried 2026-11-11, `scratch/fade2`):
+   - Spyro 2's tint (+0x20) is written by `0x80031EAC` from the power-up timers `0x8006A1C4`, `0x8006A1C8`,
+     `0x8006A1CC`, `0x8006A1D4`, `0x8006A1D8` and the power-up byte `0x800698CC`; the reflection shift (+0x2C) by
+     `0x8002A4C8` only on a floor of surface type 4 (`0x8002B078`). Neither was reached: Colossus `start` held Up,
+     Glimmer `moby-teleport 554 2`, the story walk; all read 0. The pulsing tints colour (byte 1) from a sine of the
+     timer, which `SpyroSurface` steps: expected to step at 30 Hz once reached.
+   - Spyro 3's letterbox (`0x8006C64C`, set from the camera controller `0x800144B4` modes 9/10 in state 0xE): not
+     reached. Tried the new-game story (states 5/6, word stays 0), Sunny Villa `0/1/0` entry, and `moby-teleport`
+     onto every single-instance class in Sunrise Spring `0/0/0` (35, 120, 198, 325, 425, 432, 434, 435, 436, 460, 498,
+     514, 516, 527, 561, 651, 683, 942, 983, 1002, 1023; 211, 416, 563 by index), with and without Triangle: none
+     opened a conversation (436 and 460 are portals into a level load).
+   - Spyro 3's story (state 6, handler `0x8001E2A8`): shown. Three real-time shots (`s3cut.py s3c3 12 6 60 4700`,
+     dumps at steps 2850, 3550, 4330): every in-between composed with all tracks paired, each in-between 0.55-0.65 of
+     its neighbours' distance from each (`between.py`), Bianca and the egg moving in steps through the run
+     (`s3c3-3550-bianca.png`).
+   - Spyro 2's story (state 6): its rain steps (issue 0242); the rest of the shot is still.
+   - S2 0x12 and S3 0x12 scene states and the S3 bosses: no route reached them.
 ## Fixed (2026-11-11, shown in frames, `scratch/hudslide3`)
 - Spyro 3's sky object wave. Cause: `titles/spyro3` gave `SkyWave` no facts, so the far colour `0x8001EDEC` stores
   in `0x8006EDA0` for `0x8001C8C8` was the later tick's in every in-between. `kSkyWave` installs the shared

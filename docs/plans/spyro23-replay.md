@@ -164,7 +164,7 @@ All six pools are field_redraw's, with their pairing rules in `effect_pools.cpp:
 | beams | `0x8006B400` / `0x80072430` | 8 x 0x30 | segments and colour equal; both ends Linear |
 | trails | `0x8006A2B4` / `0x80070610` | 32 x 0x30 / 0x6C, head byte +0x28 / +0x64 | owner and count equal; points paired by age |
 | vertex meshes | `0x80069F30` / `0x80070260` | 8 x 0x14, each naming a −1-ended list of x, y, z words | list pointer and length equal; words Linear |
-| particles | pointer `0x80066F18` / `0x8006C554` | 256 x 0x20, kind 0xFF ends | texture and kind equal, age not falling; points halfword Linear, size Scalar, spin Angle8 |
+| particles | pointer `0x80066F18` / `0x8006C554` | 256 x 0x20, kind 0xFF ends | texture and kind equal, age not falling (inferred; the Spyro 2 story rain's age falls, issue 0242); points halfword Linear, size Scalar, spin Angle8 |
 
 ## Environment
 
