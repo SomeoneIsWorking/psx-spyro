@@ -291,7 +291,15 @@ Spyro 3's warp no longer refuses a replay (Open 12). Nothing leaks: warp, Up and
 (Spyro 2: 920 in-betweens, Spyro 3: 746) and off (0, since psxport replays nothing without fps60): the `fielddigest`
 lines are byte-identical, 2914 and 2813 fields. Re-run 2026-11-11 (`scratch/review5/leak-spyro{2,3}-{0,1}.dig`): the
 same counts, identical; the declined frames report as S2 `state 5 polls 0x800577A0 for its pages` (16), S3 `state 5
-waits in VSync at 0x8005927C` (253), `state 3 clears both buffers through 0x8001EBAC` (1).
+waits in VSync at 0x8005927C` (253), `state 3 clears both buffers through 0x8001EBAC` (1). The runs above sent `Up`
+and `Left`, which the pad does not name (`pad: no button named`), so Spyro stood still. Re-run with `up left` held
+600 steps (`scratch/review5/leakM-spyro{1,2,3}-{0,1}.dig`; Spyro 2 at Autumn Plains `1/0/0`, Spyro 1 and 3 `1/1/0`):
+identical, 4576 / 2924 / 2813 fields, with 1878 / 911 / 727 in-betweens replayed. The t = 1 probe (a local edit of
+`replay_frame.cpp`, reverted) with `up left` held 900 steps compared 2171 / 1013 / 735 records, none different
+(`scratch/null1/M_spyro1.log`, `M2.log`, `M_spyro3.log`). Paced, `up left` held 700 steps, last 700 presents on a
+simulated 60.00 Hz display (`scratch/null1/P_spyro1.log`, `P2_1_0_0.log`, `P3b.log`): Spyro 1 and 2 advance half a
+tick on 698 of 701 vblanks; Spyro 3 on 671 of 882, the rest two held stretches of about 35 vblanks that repeat at
+the same vblanks across runs; the run declines 271 state 5 frames, and whether the stretches are those is not traced.
 
 Added (2026-11-11, `scratch/hudslide`, hidden, unpaced, judgement settings): `ReplayFrame::replaying` hands title
 overrides the fraction they draw at. Spyro 2's HUD slide (`HudSlide`): Glimmer `warp 0/1/0`, Select: the gem icon's
