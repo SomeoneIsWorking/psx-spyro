@@ -68,6 +68,9 @@ constexpr std::uint32_t kMenuFlatten = 0x8001C598u;
 constexpr std::uint32_t kDragonDraw = 0x8001CFDCu;
 constexpr std::uint32_t kDragonTail = 0x8001D644u;
 constexpr std::uint32_t kDragonShrinkState = 5u;
+// func_8001D718, GS_Fairy: its drawers, menu text and border end at its DrawSync, 0x8001E168.
+constexpr std::uint32_t kFairyDraw = 0x8001D718u;
+constexpr std::uint32_t kFairyTail = 0x8001E168u;
 
 // func_80016784(0x800): links the bins into one chain and returns its head, DrawOTag's argument.
 constexpr std::uint32_t kFlattenBins = 0x80016784u;
@@ -132,7 +135,7 @@ bool DrawSection::replays(Core &core) const {
   const std::uint32_t state = core.mem_r32(guest::kGamestate);
   // TSM_Demo's card 0x8001E6B8 waits one VSync, so it presents every field and has no in-betweens.
   return state == guest::kGamestatePlaying || state == guest::kGamestateDragon ||
-         state == guest::kGamestateCutscene ||
+         state == guest::kGamestateFairy || state == guest::kGamestateCutscene ||
          (guest::menuDraw(state) && core.mem_r32(kMenuDraws) != 0) ||
          (state == guest::kGamestateTitleScreen &&
           core.mem_r32(guest::kTitlescreenMode) != guest::kTitleModeDemo);
@@ -222,6 +225,8 @@ bool DrawSection::drawState(Core &core, psx::present::GuestRedraw &redraw) {
     return drawPlaying(core, redraw);
   case guest::kGamestateDragon:
     return drawDragon(core, redraw);
+  case guest::kGamestateFairy:
+    return drawTo(redraw, kFairyDraw, kFairyTail);
   case guest::kGamestateCutscene:
     return drawToFade(core, redraw, kCutsceneDraw, kCutsceneFade);
   default:

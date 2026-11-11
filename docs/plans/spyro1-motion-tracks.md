@@ -50,13 +50,16 @@ Nothing leaks (2026-11-11, `scratch/review5/leak-spyro1-{0,1}.dig`): boot throug
 
 ## Other state draws
 
-`spyro1::DrawSection::replays` also takes GS_Dragon, GS_Cutscene and the menus (GS 2 and 3). Each runs as a `dispatchTo` step after the
+`spyro1::DrawSection::replays` also takes GS_Dragon, GS_Fairy, GS_Cutscene and the menus (GS 2 and 3). Each runs as a `dispatchTo` step after the
 shared preamble: the dragon draw `0x8001CFDC` to `0x8001D644`, where every `m_State`'s drawers, fade and border
 join at its DrawSync; the cutscene draw `0x8001E9C8` to `0x8001EA88`, then its fade `g_Fade * 16` through
 `ScreenFade`. `DrawSection::stage` (gamestate, and the dragon's `m_State`) is a cut when it changes: each dragon
 step re-places the camera. The menus run `0x8001A40C` to `0x8001C598` with PutDrawEnv stepped over as already
 applied; their mobys are rebuilt from the whole draw count, so the sprite queue moves each built record from the
 last real draw's (`actors::DrawnRecords`, same mesh at the same address).
+The fairy draw `0x8001D718` runs to its DrawSync `0x8001E168`. It is reached through the guest's own trigger
+(InitFairyCutscene `0x8002CCC8`, called from the class-110 fairy's update once its linked moby's state allows it):
+warp `0/0/0`, `moby-teleport 110 0` (the dragon rescue runs), then `moby-teleport 110 0` again once it has ended.
 
 | track | address / layout | kind | identity | read by |
 |---|---|---|---|---|
@@ -71,8 +74,8 @@ Not replayed:
 - Respawn and game over (GS 4, 5), `0x8001CA38`: after a MoveImage copies the last frame into both buffers it
   clears `isbg` and each frame tints over the image the frame before left, so a frame's picture is the sum of
   every earlier draw and an in-between replayed over S would tint twice.
-- Fairy (GS 11) and balloonist (GS 12): not reached; a moby teleport onto Artisans' single-instance classes
-  with Triangle did not enter either.
+- Balloonist (GS 12), `0x8001E24C`: not reached; a moby teleport onto Artisans' single-instance classes
+  did not enter it.
 
 ## Camera
 

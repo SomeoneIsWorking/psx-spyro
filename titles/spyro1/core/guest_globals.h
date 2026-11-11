@@ -63,6 +63,7 @@ inline constexpr std::uint32_t kGamestateInventoryMenu = 3u;                    
 inline constexpr std::uint32_t kGamestateOldDragon = 6u;                         // GS_OldDragon
 inline constexpr std::uint32_t kGamestatePlaying = 0u;                           // GS_Playing
 inline constexpr std::uint32_t kGamestateDragon = 8u;                            // GS_Dragon
+inline constexpr std::uint32_t kGamestateFairy = 11u;                            // GS_Fairy
 inline constexpr std::uint32_t kGamestateCutscene = 14u;                         // GS_Cutscene
 inline constexpr std::uint32_t kTitleModeInit = 0u;                              // TSM_Init
 inline constexpr std::uint32_t kTitleModeLoading = 2u;                           // TSM_Loading
