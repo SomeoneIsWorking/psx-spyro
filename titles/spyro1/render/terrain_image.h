@@ -38,9 +38,11 @@ public:
     return kRenderGlobals;
   }
   [[nodiscard]] std::uint32_t scratch(Core &core) const override;
-  // 0x80033C50's matrices at `angles`, for the near sky.
+  // 0x80033C50's matrices at `angles`.
   [[nodiscard]] spyro::guest_camera::Matrices
   camera(Core &core, const spyro::guest_camera::Angles &angles) const;
+  // g_Camera.m_Rotation as Angles; while a replay draws, its blended angles with their fractions.
+  [[nodiscard]] static spyro::guest_camera::Angles cameraAngles(Core &core);
   void drawPasses(spyro::guest_terrain::TerrainFrame &frame) const override;
 };
 

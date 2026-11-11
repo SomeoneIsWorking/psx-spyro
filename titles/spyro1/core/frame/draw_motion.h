@@ -10,12 +10,14 @@
 #include "spyro1/core/frame/texture_scroll.h"
 #include "spyro1/core/frame/title_slide.h"
 #include "spyro1/core/guest_globals.h"
+#include "spyro1/core/native_state.h"
 #include "spyro1/render/glows.h"
 #include "spyro1/render/particles.h"
 #include "spyro1/render/replay_angles.h"
 
 #include <array>
 #include <cstdint>
+#include <optional>
 #include <span>
 
 namespace spyro1 {
@@ -29,6 +31,17 @@ public:
 
 private:
   Core &core_;
+};
+
+// g_Camera's m_Position straight and m_Rotation's three angles the short way round, each to the
+// unit the guest stores and with its fraction noted for the camera's matrices.
+class CameraMotion final : public psx::present::MotionRule {
+public:
+  explicit CameraMotion(std::optional<spyro::guest_camera::Angles> &noted) : noted_(noted) {}
+  void blend(const Samples &samples, float t, std::span<std::uint32_t> out) const override;
+
+private:
+  std::optional<spyro::guest_camera::Angles> &noted_;
 };
 
 // A moby slot, with its shadow word and scale override. Spyro 1's record keeps no sixteenths of an
@@ -83,7 +96,8 @@ public:
 
 class DrawMotion {
 public:
-  DrawMotion(Core &core, actors::ReplayAngles &angles) : poses_(core), moby_(core, angles) {}
+  DrawMotion(Core &core, NativeState &state)
+      : camera_(state.replayCamera), poses_(core), moby_(core, state.replayAngles) {}
 
   [[nodiscard]] std::span<const psx::present::MotionTrack> tracks() const {
     return tracks_;
@@ -100,13 +114,13 @@ private:
   static constexpr psx::present::Motion kLinear = psx::present::Motion::Linear;
   static constexpr psx::present::Motion kStep = psx::present::Motion::Step;
 
-  // g_Camera: m_Position, then m_Rotation's three 12-bit halfwords.
+  // g_Camera: m_Position, then m_Rotation's three 12-bit halfwords (CameraMotion).
   static constexpr std::array<Field, 5> kCamera{{
       {0x28u, kLinear},
       {0x2Cu, kLinear},
       {0x30u, kLinear},
-      {0x4Cu, psx::present::Motion::Angle12x2},
-      {0x50u, psx::present::Motion::Angle12Low},
+      {0x4Cu, kStep},
+      {0x50u, kStep},
   }};
   // g_Spyro: m_Position, then the body, head and tail rotations, three 8-bit angles and a pad byte
   // each.
@@ -217,6 +231,7 @@ private:
   static constexpr std::array<Field, 1> kAngle12{{{0x00u, psx::present::Motion::Angle12Low}}};
   static constexpr std::array<Field, 1> kAngle8{{{0x00u, psx::present::Motion::Angle8x3}}};
 
+  CameraMotion camera_;
   SpyroPoses poses_;
   MobyMotion moby_;
   ParticleMotion particle_;
@@ -226,7 +241,7 @@ private:
   TitleSlide titleSlide_;
   std::array<psx::present::MotionSource *, 2> sources_{&textureScroll_, &titleSlide_};
   std::array<psx::present::MotionTrack, 15> tracks_{{
-      {.name = "camera", .address = guest::kCamera, .fields = kCamera},
+      {.name = "camera", .address = guest::kCamera, .fields = kCamera, .rule = &camera_},
       {.name = "spyro", .address = guest::kSpyro, .fields = kSpyro},
       {.name = "spyro poses", .address = guest::kSpyro, .fields = kSpyroPoses, .rule = &poses_},
       {.name = "spyro shadow", .address = shadow_block::kAnchor, .fields = kVector},

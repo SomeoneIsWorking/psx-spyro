@@ -37,8 +37,8 @@ FrameDriver::FrameDriver(Game &game)
                                      // lw at 0x8001F090 in the draw 0x8001ED5C.
                                      .drawWaitFlag = 0x80075784u},
               &skipMap_),
-      boot_(fields_, skipMap_), transitions_(fields_),
-      motion_(game.core, nativeState(game.core).replayAngles), cut_(kFrameCutFacts) {}
+      boot_(fields_, skipMap_), transitions_(fields_), motion_(game.core, nativeState(game.core)),
+      cut_(kFrameCutFacts) {}
 
 void FrameDriver::initialize(Core &core) {
   fields_.publish();

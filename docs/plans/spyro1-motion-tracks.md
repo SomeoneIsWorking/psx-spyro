@@ -55,8 +55,8 @@ Nothing leaks (2026-11-11, `scratch/review5/leak-spyro1-{0,1}.dig`): boot throug
 | track | address / layout | kind | identity | read by | evidence |
 |---|---|---|---|---|---|
 | position | `0x80076DF8` (+0x28), 3 x s32 | Vector | single object | every drawer (`0x80076DF8..0x80076E00`), 8001F158, 80059F8C, 80059A48, 80050BD0 | G:8001F158, G:80023AC4:186; already used |
-| rotation | `0x80076E1C` (+0x4C), 3 x s16: x, y, z | Angle12 | single | `0x80033C50` (builds both matrices), 80050BD0 (yaw/pitch/roll terms) | ext `camera.c:28-86`; already used |
-| projection matrix | `0x80076DD0` (+0), 5 words | Derived | | 8001F158, 80022A2C, 80059F8C, 80023AC4, 800573C8 (copied into GTE) | `0x80033C50` writes it from rotation (`camera.c:84`); row 1 scaled 320/512 |
+| rotation | `0x80076E1C` (+0x4C), 3 x s16: x, y, z | Angle12 with 4 fine bits (`CameraMotion`): the halfwords take the nearest whole unit, the fine angles go to `NativeState::replayCamera`; after the replayed `0x80033C50` the section writes both matrices from them with the native builder (`TerrainImage::camera`, guest Sin/Cos `0x80016C58`/`0x80016CB0` arithmetic, identical at whole angles) | single | `0x80033C50` (builds both matrices), 80050BD0 (near sky, `TerrainImage::cameraAngles`) | ext `camera.c:28-86`; 0238 |
+| projection matrix | `0x80076DD0` (+0), 5 words | Derived | | 8001F158, 80022A2C, 80059F8C, 80023AC4, 800573C8 (copied into GTE) | `0x80033C50` writes it from rotation (`camera.c:84`); row 1 scaled 320/512; in a replay rewritten from the fine angles (nine halfwords, the pad left as the guest wrote it) |
 | view matrix | `0x80076DE4` (+0x14), 5 words | Derived | | terrain classify, `0x8004EBA8` | `camera.c:80` |
 | occlusion group | `0x80076E24` (+0x54), s32 | Step | single | `0x8002B9CC` (culling distance, group), `0x80050BD0` (final `0x8004EBA8` argument) | ext `environment.c:24-40`, G:80050BD0 tail |
 | metal matrix | `0x800770E0`, 5 words (`D_800770C8 + 0x18`) | Derived | | `0x80020F34` (`_DAT_800770e0..f0`) | ext `specular_and_metal.c:7`: built in update from the camera's view matrix before `CameraUpdate`, i.e. from the previous draw's matrix; rebuild with the guest's `MetalBuildMatrix` after `0x80033C50` in the replay (inferred; address not resolved, Open 7) |
@@ -204,7 +204,7 @@ A cut keeps the newer value for every track (no blend) in the frame it appears.
 | moby slot freed/reused | state byte +0x48 of a dynamic slot goes 0xFE/0xFD/0xFF and back; level mobys killed go bit 7 set | `port: native_moby_allocator.cpp` (`allocateDynamicMoby`, `releaseMoby`) |
 | particle slot reuse | kind byte (+1) 0xFE released, 0xFF free, new kind stamped by `0x80053570` | `port: native_particle_alloc.cpp` |
 | warps / teleports | a title warp or `mobys` debug teleport moves records between logic frames with no marker beyond the above; use a per-track move limit as the backstop | `port: core/debug/teleport.cpp`, `warp.cpp` |
-| title logo slides | `g_TitlescreenAnimIn/Out` u8[16] `0x8006FA74`/`0x8006FA84` indexed by `m_SubTick` `0x80078D84`, substate `0x80078D88` | Scalar on the table entry the draw reads (`title_slide.*`) | TitlescreenDrawSprite `0x8007CD38` | decomp `titlescreen.c` TSM_Init; menu/loading modes not a section (0206) |
+| title logo slides | `g_TitlescreenAnimIn/Out` u8[16] `0x8006FA74`/`0x8006FA84` indexed by `m_SubTick` `0x80078D84`, substate `0x80078D88` | Scalar on the table entry the draw reads (`title_slide.*`) | TitlescreenDrawSprite `0x8007CD38` | decomp `titlescreen.c` TSM_Init, and TSM_Loading's border slide out (m_State 5, `g_TitlescreenAnimOut`) |
 | respawn spiral, game over | `GS_Respawn`/`GS_GameOver` draw `0x8001CA38`, not the playing section | G:8001ED5C:74 |
 
 ## Open

@@ -6,14 +6,20 @@
 namespace spyro1 {
 
 std::optional<TitleSlide::Entry> TitleSlide::entryOf(Core &core) const {
-  if (core.mem_r32(guest::kGamestate) != guest::kGamestateTitleScreen ||
-      core.mem_r32(guest::kTitlescreenMode) != guest::kTitleModeInit) {
+  if (core.mem_r32(guest::kGamestate) != guest::kGamestateTitleScreen) {
     return std::nullopt;
   }
+  const std::uint32_t mode = core.mem_r32(guest::kTitlescreenMode);
   const std::uint32_t subState = core.mem_r32(guest::kTitlescreenSubState);
   const std::uint32_t subTick = core.mem_r32(guest::kTitlescreenSubTick);
-  Entry entry{.phase = subState};
-  if (subState == guest::kTitleLogoIn) {
+  Entry entry{.phase = mode << 8u | subState};
+  const bool init = mode == guest::kTitleModeInit;
+  if (mode == guest::kTitleModeLoading &&
+      core.mem_r32(guest::kTitlescreenStage) >= guest::kTitleLoadingLeave) {
+    // The save picker's borders slide out from m_State 5 on.
+    entry.table = guest::kTitlescreenAnimOut;
+    entry.index = subTick;
+  } else if (init && subState == guest::kTitleLogoIn) {
     const std::uint32_t layout = core.mem_r32(guest::kCutsceneLayout);
     if (static_cast<std::int32_t>(core.mem_r32(layout + guest::kCutsceneLayoutCurrentTick)) <
         guest::kTitleLogoInTick) {
@@ -21,7 +27,7 @@ std::optional<TitleSlide::Entry> TitleSlide::entryOf(Core &core) const {
     }
     entry.table = guest::kTitlescreenAnimIn;
     entry.index = subTick;
-  } else if (subState == guest::kTitleLogoOut) {
+  } else if (init && subState == guest::kTitleLogoOut) {
     entry.table = subTick < guest::kTitlescreenAnimSteps ? guest::kTitlescreenAnimOut
                                                          : guest::kTitlescreenAnimIn;
     entry.index =

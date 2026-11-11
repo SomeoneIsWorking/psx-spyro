@@ -6,7 +6,10 @@
 #include "render/field/guest_render_globals.h"
 #include "render/terrain/guest_terrain_drawer.h"
 #include "render/terrain/guest_terrain_passes.h"
+#include "spyro1/core/native_state.h"
 #include "spyro1/render/terrain_passes.h"
+
+#include <optional>
 
 namespace spyro1::terrain {
 std::uint32_t TerrainImage::scratch(Core &) const {
@@ -16,6 +19,17 @@ std::uint32_t TerrainImage::scratch(Core &) const {
 spyro::guest_camera::Matrices
 TerrainImage::camera(Core &core, const spyro::guest_camera::Angles &angles) const {
   return CameraBuilder(core, kRenderGlobals.cameraSineTable).build(angles);
+}
+
+spyro::guest_camera::Angles TerrainImage::cameraAngles(Core &core) {
+  if (const std::optional<spyro::guest_camera::Angles> &replay = nativeState(core).replayCamera) {
+    return *replay;
+  }
+  const std::uint32_t angles = kRenderGlobals.cameraAngles;
+  const auto fine = [&core](std::uint32_t at) {
+    return static_cast<std::int32_t>(core.mem_r16s(at)) << spyro::guest_camera::kFineBits;
+  };
+  return {.aroundX = fine(angles), .aroundY = fine(angles + 2), .aroundZ = fine(angles + 4)};
 }
 
 void TerrainImage::drawPasses(spyro::guest_terrain::TerrainFrame &frame) const {

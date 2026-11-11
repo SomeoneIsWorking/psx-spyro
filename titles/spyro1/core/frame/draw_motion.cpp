@@ -5,6 +5,7 @@
 #include "render/field/keyframe_blend.h"
 #include "render/field/moby_record.h"
 #include "render/field/record_blend.h"
+#include "render/terrain/guest_camera_builder.h"
 #include "spyro1/render/actor_emitter_layout.h"
 #include "spyro1/render/actor_facts.h"
 
@@ -98,7 +99,40 @@ bool isTurned(std::uint8_t kind) {
   return kind == 2 || kind == 5 || kind >= 6;
 }
 
+// m_Rotation's halfwords: a 12-bit angle with whole turns above it (x is stored unmasked).
+constexpr unsigned kTurnBits = 12;
+constexpr std::uint32_t kHalfword = 0xFFFFu;
+
+// One camera angle `t` of the way the short way round, in Angles' fine unit.
+std::int32_t fineAngle(std::uint32_t from, std::uint32_t to, float t) {
+  using spyro::guest_camera::kFineBits;
+  const auto start = static_cast<std::int32_t>(from & kHalfword);
+  const std::int32_t step = blend::ringStep(
+      from & ((1u << kTurnBits) - 1u), to & ((1u << kTurnBits) - 1u), std::int64_t{1} << kTurnBits);
+  return blend::lerpInt(start * (1 << kFineBits), (start + step) * (1 << kFineBits), t);
+}
+
+// The halfword the guest stores for a fine angle: the nearest whole unit.
+std::uint32_t wholeAngle(std::int32_t fine) {
+  using spyro::guest_camera::kFineBits;
+  return static_cast<std::uint32_t>((fine + (1 << (kFineBits - 1))) >> kFineBits) & kHalfword;
+}
+
 } // namespace
+
+void CameraMotion::blend(const Samples &samples, float t, std::span<std::uint32_t> out) const {
+  const std::span<const std::uint32_t> from = samples.from;
+  const std::span<const std::uint32_t> to = samples.to;
+  for (std::size_t word = 0; word < 3; ++word) {
+    out[word] = blend::lerpWord(from[word], to[word], t);
+  }
+  const spyro::guest_camera::Angles angles{.aroundX = fineAngle(from[3], to[3], t),
+                                           .aroundY = fineAngle(from[3] >> 16, to[3] >> 16, t),
+                                           .aroundZ = fineAngle(from[4], to[4], t)};
+  out[3] = wholeAngle(angles.aroundX) | wholeAngle(angles.aroundY) << 16;
+  out[4] = (to[4] & ~kHalfword) | wholeAngle(angles.aroundZ);
+  noted_ = angles;
+}
 
 void SpyroPoses::blend(const Samples &samples, float t, std::span<std::uint32_t> out) const {
   const auto earlier = bytesOf<kPoseBytes>(samples.from);

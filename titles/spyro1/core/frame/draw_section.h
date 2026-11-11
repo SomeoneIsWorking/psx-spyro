@@ -1,6 +1,6 @@
-// draw_section.h — GamestateDraw 0x8001ED5C as a replay for GS_Playing and the title screen's
-// TSM_Init: the buffer flip it opens with, CameraUpdateMatrices, GS_Playing's drawers in order or
-// the guest's TitlescreenDraw to its device tail, and the bin flatten whose chain DrawOTag submits.
+// draw_section.h — GamestateDraw 0x8001ED5C as a replay for GS_Playing and the title screen: the
+// buffer flip it opens with, CameraUpdateMatrices, GS_Playing's drawers in order or the title's
+// own draw to its device tail, and the bin flatten whose chain DrawOTag submits.
 #pragma once
 
 #include "replay_frame.h"

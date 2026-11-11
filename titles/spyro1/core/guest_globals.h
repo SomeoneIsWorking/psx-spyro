@@ -58,6 +58,7 @@ inline constexpr std::uint32_t kGamestateTitleScreen = 13u;                     
 inline constexpr std::uint32_t kGamestatePauseMenu = 2u;                         // GS_PauseMenu
 inline constexpr std::uint32_t kGamestatePlaying = 0u;                           // GS_Playing
 inline constexpr std::uint32_t kTitleModeInit = 0u;                              // TSM_Init
+inline constexpr std::uint32_t kTitleModeLoading = 2u;                           // TSM_Loading
 inline constexpr std::uint32_t kTitleModeDemo = 3u;                              // TSM_Demo
 inline constexpr std::uint32_t kTitleStageSetup = 0u;                            // TSS_Setup
 inline constexpr std::uint32_t kTitleStageActive = 2u;                           // TSS_Active
@@ -69,6 +70,8 @@ inline constexpr std::uint32_t kDemoTypeLevel = 1u;                             
 inline constexpr std::uint32_t kTitleLogoIn = 2u;
 inline constexpr std::uint32_t kTitleWaiting = 3u;
 inline constexpr std::uint32_t kTitleLogoOut = 4u;
+// TSM_Loading's m_State 5 fades out and slides the borders away.
+inline constexpr std::uint32_t kTitleLoadingLeave = 5u;
 inline constexpr std::int32_t kTitleLogoInTick = 1170;
 inline constexpr std::uint32_t kTitlescreenAnimIn = 0x8006FA74u;  // g_TitlescreenAnimIn
 inline constexpr std::uint32_t kTitlescreenAnimOut = 0x8006FA84u; // g_TitlescreenAnimOut

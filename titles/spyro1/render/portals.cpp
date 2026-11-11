@@ -800,11 +800,11 @@ SkySpin advanceSkySpin(Core &core) {
 // third; the drawer's own copy of 0x80033C50.
 sky::Rotations
 nearSkyRotations(Core &core, const spyro::guest_camera::Angles &camera, SkySpin spin) {
-  const spyro::guest_camera::Matrices matrices =
-      terrain::kTerrainImage.camera(core,
-                                    {.aroundX = camera.aroundX,
-                                     .aroundY = asSigned(asWord(camera.aroundY) - spin.pitch),
-                                     .aroundZ = asSigned(asWord(camera.aroundZ) + spin.yaw)});
+  const spyro::guest_camera::Matrices matrices = terrain::kTerrainImage.camera(
+      core,
+      {.aroundX = camera.aroundX,
+       .aroundY = asSigned(asWord(camera.aroundY) - (spin.pitch << spyro::guest_camera::kFineBits)),
+       .aroundZ = asSigned(asWord(camera.aroundZ) + (spin.yaw << spyro::guest_camera::kFineBits))});
   return sky::Rotations{.view = matrices.view, .projection = matrices.projection};
 }
 
@@ -817,11 +817,8 @@ constexpr psx::cpu::GuestCallSite kLevelSky =
 void drawPortals(Core *core) {
   Core &guest = *core;
   const spyro::PreservedReturnAddress returnAddress(guest);
-  const std::uint32_t angles = terrain::kRenderGlobals.cameraAngles;
-  const sky::Rotations rotations = nearSkyRotations(
-      guest,
-      {guest.mem_r16s(angles), guest.mem_r16s(angles + 2), guest.mem_r16s(angles + 4)},
-      advanceSkySpin(guest));
+  const sky::Rotations rotations =
+      nearSkyRotations(guest, terrain::TerrainImage::cameraAngles(guest), advanceSkySpin(guest));
   {
     const psx::present::EmitMemory emit(guest);
     Portals portals(guest, emit, spyro::presentedBounds(guest, terrain::kSharedFacts));

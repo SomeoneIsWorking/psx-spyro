@@ -6,6 +6,7 @@
 #include "spyro1/core/guest_globals.h"
 #include "spyro1/core/native_state.h"
 #include "spyro1/render/terrain_facts.h"
+#include "spyro1/render/terrain_image.h"
 
 #include <lucent/log.h>
 
@@ -60,6 +61,7 @@ public:
   explicit ReplayScope(NativeState &state) : state_(state), callSites_(state.callSites) {}
   ~ReplayScope() {
     state_.replayAngles.clear();
+    state_.replayCamera.reset();
     state_.callSites = callSites_;
   }
   ReplayScope(const ReplayScope &) = delete;
@@ -71,6 +73,21 @@ private:
   NativeState &state_;
   shaded_line::CallSites callSites_;
 };
+
+// g_Camera's projection (+0x00) and view (+0x14) matrices: nine halfwords each, the pad after them
+// as the guest left it.
+constexpr std::uint32_t kProjectionMatrix = guest::kCamera;
+constexpr std::uint32_t kViewMatrix = guest::kCamera + 0x14u;
+constexpr std::uint32_t kMatrixHalves = 9u;
+
+void writeMatrix(psx::present::GuestRedraw &redraw,
+                 std::uint32_t at,
+                 std::span<const std::uint32_t> words) {
+  for (std::uint32_t half = 0; half < kMatrixHalves; ++half) {
+    redraw.writeHalf(at + 2u * half,
+                     static_cast<std::uint16_t>(words[half / 2u] >> (16u * (half % 2u))));
+  }
+}
 
 bool step(psx::present::GuestRedraw &redraw,
           std::uint32_t entry,
@@ -85,9 +102,10 @@ bool step(psx::present::GuestRedraw &redraw,
 
 bool DrawSection::replays(Core &core) const {
   const std::uint32_t state = core.mem_r32(guest::kGamestate);
+  // TSM_Demo's card 0x8001E6B8 waits one VSync, so it presents every field and has no in-betweens.
   return state == guest::kGamestatePlaying ||
          (state == guest::kGamestateTitleScreen &&
-          core.mem_r32(guest::kTitlescreenMode) == guest::kTitleModeInit);
+          core.mem_r32(guest::kTitlescreenMode) != guest::kTitleModeDemo);
 }
 
 bool DrawSection::drawPlaying(Core &core, psx::present::GuestRedraw &redraw) {
@@ -143,6 +161,12 @@ std::optional<std::uint32_t> DrawSection::draw(Core &core,
   }
   if (!step(redraw, kCameraUpdateMatrices)) {
     return std::nullopt;
+  }
+  // The guest built the matrices from whole angles; the blended camera's carry its fractions.
+  if (const std::optional<spyro::guest_camera::Angles> &camera = nativeState(core).replayCamera) {
+    const spyro::guest_camera::Matrices matrices = terrain::kTerrainImage.camera(core, *camera);
+    writeMatrix(redraw, kProjectionMatrix, matrices.projection);
+    writeMatrix(redraw, kViewMatrix, matrices.view);
   }
   const bool drawn = core.mem_r32(guest::kGamestate) == guest::kGamestatePlaying
                          ? drawPlaying(core, redraw)
