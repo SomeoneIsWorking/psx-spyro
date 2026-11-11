@@ -91,7 +91,7 @@ The portal fill and near sky of `0x80050BD0` stay on retail's 512-wide window: t
 | 7 | S1 | psxport F-FPS60.1 | `titles/spyro1/core/frame/draw_section.cpp:DrawSection`, `draw_motion.cpp:DrawMotion` — GamestateDraw's GS_Playing section (`0x8001ED5C`) and the title's TitlescreenDraw (`0x8007CEE4`, attract, menu, save picker) replayed for each in-between with its motion tracks written k/n of the way (camera with sub-unit angles rebuilt into both matrices, Spyro, mobys, HUD, particles, sparkles, flame, title slides); other states are held |
 | 6 | all | psxport F-FPS60.2 | `game/core/frame_cut.cpp:FrameCut::isCut` — game state, level, or (S2, S3) a camera placement inside a scene, or (S2) a cutscene track's shot change by the track player's own blend test |
 
-S1's motion trails `0x800189F0` have no producer (unreached: only moby type 104 in levels 50 and 63 pushes them; issue 0186). S2 and S3 have no producers left but the shared fullscreen tint and letterbox, whose renders only run at t = 1; their fades, letterbox and conversation slide step at 30 fps until they are tracks (issue 0237).
+S1's motion trails `0x800189F0` have no producer (unreached: only moby type 104 in levels 50 and 63 pushes them; issue 0186). S2 and S3 have no producers left but the shared fullscreen tint and letterbox, whose renders only run at t = 1; in a replay the fades and conversation slide are tracks, the letterbox's edge is placed between the rows the body steps, and S2's HUD slide is blended by its override (issue 0237).
 
 ## F-DEBUG
 

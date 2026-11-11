@@ -71,6 +71,9 @@ public:
   [[nodiscard]] psx::present::ReplayFrame &replay() {
     return replay_;
   }
+  [[nodiscard]] const DrawMotion &motion() const {
+    return motion_;
+  }
   // Run end: the drawn frames the section declined, by the guest condition that kept each off.
   void reportDeclined() const;
 

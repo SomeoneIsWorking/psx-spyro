@@ -13,17 +13,29 @@ draw body 0x800156FC / 0x8001E638. Gameplay moves halfway (Glimmer `warp 0/1/0`,
    refusals before `declinesState` named the state; each declined frame is reported at run end by reason). A state the switch has no case for (S3 8, 0x11) is not
    replayed either.
 2. **Inputs that still step at 30 Hz**:
-   - HUD slides (plan Open 8): the slide is an index into a byte table that every slot and digit reads at its own
-     offset, clamped at both ends (`0x80052498`), so no table entry can be written for all of them. Shown stepping in
-     Spyro 3's pause (`scratch/spyro23-tracks/pause3_hud.png`: each in-between equals the next real). Next: blend
-     `0x80052498`'s result per slot inside a replay.
-   - Letterbox height (Open 1): drawn as whole GP0 rows, one row per draw; needs sub-row vertex places.
-   - Sky object wave: the draw reads its sine at `tick * 4`, which a written tick cannot halve. The objects
-     themselves are level data and do not move.
+   - Spyro 3's HUD slides (plan Open 8): its widgets keep the slide in byte +0x3F and read the table `0x800674E8`
+     inline in `0x80029708` and per digit in `0x800291B8` / `0x800293C4`; shown stepping in its pause
+     (`scratch/spyro23-tracks/pause3_hud.png`: each in-between equals the next real). Spyro 2's are fixed (below).
+   - Sky object wave (plan Open 7): the draw reads the shared sine table at `tick * 4 + object * 0x40` into
+     `0x80068C08`/`0C0A` for `0x800296D0`; the table cannot be rewritten (other drawers of the section read it) and
+     the consumer would need the object index from `0x8004C66C`'s frame. The objects are level data and do not move.
    - The flame breath's part timers (`0x8006AA3C..`) step; its anchor is tracked.
-3. **Not shown since the change**: cutscenes (6, 0x12) and the boss and scene states: no warp reaches them yet. Spyro
-   2's water floor, reflection and tint (now tracked by `SpyroSurface`) are tracked but no
-   frames show them: Glimmer and Sunrise Spring do not reach water by warp.
+3. **Not shown since the change**: cutscenes (S2 6, S3 0x12) and the scene states: no warp reaches them yet. Spyro 2's
+   tint and reflection shift (`SpyroSurface`) stayed 0 on every route tried; Spyro 3's letterbox and water were not
+   reached (Spyro 3 has no `moby-teleport`).
+
+## Fixed (2026-11-11, shown in frames, `scratch/hudslide`)
+- Spyro 2's HUD slide: `HudSlide` (`game/core/hud_slide.*`) is `0x80052498`'s override and blends each call's
+  offset inside a replay. Glimmer, Select: the gem icon moves down at every present, each in-between on the nearest
+  whole native row to halfway (`s2_gem.png`); 343 of 343 calls equal the guest's own result outside a replay.
+- Letterbox: inside a replay `screen_overlays::drawLetterbox` places the bars' moving corners between the row the
+  body read and the row it drew (`rowPerDraw`). `moby-teleport 554 2`: both bars grow half a native row per present
+  from 12 to 24 (`letterbox.png`). A bar shrinking to 0 is not drawn by S, so its last half row is not shown.
+- Water: Summer Forest `start`, Up into the stream: Spyro's water pass is drawn in every in-between, his strokes and
+  Sparx between their neighbours (`sfwater_seq.png`). Crush's Dungeon: Crush and the camera move halfway
+  (`boss_seq.png`).
+- Leak proof: Select, `moby-teleport 554 2`, Up and Left; fps60 on (906 in-betweens) and off: `fielddigest`
+  identical over 2888 fields; Spyro 3 Sunrise Spring, Up and Left (746 in-betweens), identical over 2813.
 
 ## Fixed (2026-11-10, shown in frames, `scratch/spyro23-tracks`)
 - Fades: the dispatcher's fade words are motion tracks (S2 `0x80066F68`, `0x80067150`; S3 `0x8006C598`,

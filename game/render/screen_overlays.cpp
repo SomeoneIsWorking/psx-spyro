@@ -2,6 +2,7 @@
 
 #include "blend.h"
 #include "core.h"
+#include "emit_memory.h"
 #include "frame_state.h"
 #include "gp0_command.h"
 #include "gp0_primitive_decode.h"
@@ -9,6 +10,7 @@
 #include "render/field/guest_packet.h"
 #include "render/state_producer_override.h"
 #include "render/terrain/guest_depth_bins.h"
+#include "replay_frame.h"
 
 #include <array>
 #include <cstdlib>
@@ -28,6 +30,31 @@ constexpr std::uint32_t position(std::uint32_t x, std::uint32_t y) {
 }
 
 using Quad = psx::gpu::PacketBuffer<5>;
+
+// The bars' height `t` of the way from `before` to `after`.
+float barHeight(std::int32_t before, std::int32_t after, float t) {
+  return static_cast<float>(before) + static_cast<float>(after - before) * t;
+}
+
+// A corner on a bar's moving edge, `y` down the screen.
+psx::gte::ProjectedVertex edge(std::uint32_t x, float y) {
+  return psx::gte::ProjectedVertex::nearest({static_cast<float>(x), y});
+}
+
+// The two bar packets the body linked from `first`: each one's last two corners (+0x10, +0x14) are
+// its moving edge, kept as the body wrote them and placed `height` rows in.
+void placeEdges(Core &core, const LetterboxFacts &facts, std::uint32_t first, float height) {
+  const psx::present::EmitMemory memory(core);
+  const std::array<float, 2> rows{static_cast<float>(facts.top) + height,
+                                  static_cast<float>(facts.bottom) - height};
+  for (std::uint32_t bar = 0; bar < 2; ++bar) {
+    for (std::uint32_t corner = 0; corner < 2; ++corner) {
+      const std::uint32_t address = first + bar * kBarBytes + 0x10u + 4u * corner;
+      const std::uint32_t word = memory.mem_r32(address);
+      memory.storeVertex(address, {word, edge(word & 0xFFFFu, rows[bar]).place()});
+    }
+  }
+}
 
 psx::present::DrawPrimitive quad(const Quad &words) {
   const auto primitive = psx::gpu::decodePacketPrimitive(words.view());
@@ -52,6 +79,7 @@ void drawTint(Core &core, const TintFacts &facts) {
 
 bool drawLetterbox(Core &core, const LetterboxFacts &facts) {
   const std::uint32_t first = core.mem_r32(facts.primitiveCursor);
+  const auto read = static_cast<std::int32_t>(core.mem_r32(facts.height));
   const auto site = core.emission.instance(core.r[31]);
   if (!psx::cpu::callOriginalOrPropagate(core, facts.entry)) {
     return false;
@@ -60,6 +88,11 @@ bool drawLetterbox(Core &core, const LetterboxFacts &facts) {
                                             static_cast<std::int32_t>(core.mem_r32(facts.height))};
   if (state.height == 0) {
     return true;
+  }
+  const psx::present::ReplayFrame *replay = core.runtime.replayFrame(core);
+  if (const std::optional<float> t = replay != nullptr ? replay->replaying() : std::nullopt;
+      facts.rowPerDraw && t && read != state.height) {
+    placeEdges(core, facts, first, barHeight(read, state.height, *t));
   }
   for (std::uint32_t bar = 0; bar < 2; ++bar) {
     const auto part = core.emission.element(bar);
@@ -108,12 +141,7 @@ void CinematicLetterbox::render(const psx::present::StateInterval &states,
                                 psx::present::PrimitiveSink &sink) const {
   const State before = psx::present::stateAs<State>(states.from);
   const State after = psx::present::stateAs<State>(states.to);
-  const float shown = static_cast<float>(before.height) +
-                      static_cast<float>(after.height - before.height) * states.t;
-  // A corner on the bar's moving edge, `y` down the screen.
-  const auto edge = [](std::uint32_t x, float y) {
-    return psx::gte::ProjectedVertex::nearest({static_cast<float>(x), y});
-  };
+  const float shown = barHeight(before.height, after.height, states.t);
   const float topEdge = static_cast<float>(facts_.top) + shown;
   const float bottomEdge = static_cast<float>(facts_.bottom) - shown;
   Quad top;

@@ -90,11 +90,12 @@ void Runtime::registerOverrides(Game &game) {
                                   kIntroCard.overrideName,
                                   spyro::intro_card::drawOverride<kIntroCard, kRenderGlobals>);
   hud_anchor::registerOverrides(game.core);
+  spyro::installHudSlide(game.core, kHudSlide);
   game.core.depthTest.mark(kSpyroDrawer, psx::present::DepthOrder::Polygon, kSpyroDrawerBin);
   lucent::info(
       "boot",
       "installed Spyro 2's stock libraries and natives for the projection leaves, the moby "
-      "visibility walk, the terrain drawer, the flatten and the HUD anchor");
+      "visibility walk, the terrain drawer, the flatten, the HUD anchor and the HUD slide");
 }
 
 std::optional<psx::gpu::PacketPoolExtent> Runtime::packetPool(Core &core) const {

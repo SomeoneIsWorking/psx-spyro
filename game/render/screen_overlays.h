@@ -39,6 +39,9 @@ struct LetterboxFacts {
   std::uint32_t primitiveCursor = 0; // the bars are the next two packets it writes
   std::uint32_t top = 0;
   std::uint32_t bottom = 0;
+  // The body steps the height one row per draw, so an in-between's edge lies between the row the
+  // replay read and the row it drew, which no whole row can hold.
+  bool rowPerDraw = false;
 };
 
 class FullscreenTint final : public psx::present::StateProducer {

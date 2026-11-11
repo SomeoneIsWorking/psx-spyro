@@ -11,6 +11,7 @@ Frame loop: not owned. Spyro 1 runs update `0x8003385C` and draw `0x8001ED5C` an
 - `game/core/boot_prefix_runtime.*`, `boot_prefix_frame_driver.*` — S2/S3 boot: crt0, stock libraries, the retail boot prefix as a resumable call, then update and draw one field per step, the replay sampled before each draw, each logic frame presented when its draw returns, each field of the fade-before-load loop presented on its own
 - `game/core/draw_section.*` — S2/S3 per-field draw body as a replay section: buffer flip, camera builder and position copy, the image's state switch (subclasses in `titles/spyro2|3/core/draw_section.*`), flatten; the device tail skipped
 - `game/core/draw_motion.*` — what the S2/S3 replay moves: camera, Spyro, his poses, surface (tint, water, reflection, rotation: `SpyroSurface`) and shadow, the flame breath (`FlameMotion`), every moby slot (`MobyMotion`), the effects pools (`EffectMotion`, a `MotionSource`), the fades, S2's conversation box slide (`ConversationSlide`)
+- `game/core/hud_slide.*` — S2's HUD counter slide `0x80052498` as a native override and `MotionSource`: each call's offset blended inside a replay (`HudSlide`)
 - `game/core/table_slide.*` — a slide the draw reads from one table entry per tick, as a `MotionSource` (S1 title logo, S2 conversation box)
 - `game/core/frame_cut.*` — cut detection for 60 fps in-betweens: gamestate, level, camera placement, a cutscene camera track's shot change
 - `game/core/native_execution.h` — nested guest call return address `$ra` and lowered stack frame
@@ -21,7 +22,7 @@ Frame loop: not owned. Spyro 1 runs update `0x8003385C` and draw `0x8001ED5C` an
 - `game/core/debug/warp.*` — the warp arrival: the level entered from the idle title screen or, where the title has a route, from gameplay, change after change from wherever the game resumes play until gameplay is in it, then an optional placement
 - `game/core/debug/moby_teleport.*` — `mobys <class>` / `moby-teleport <class> <n>`: list a level's mobys of one class and place Spyro on one (NPC conversation, dragon rescue routes); each title names its moby array, active field and position words
 - `game/render/engine_render_overrides.*` — S2/S3 render overrides bound to one image: terrain drawer, moby walk, sky drawer, flatten depth bins, fullscreen tint and letterbox
-- `game/render/screen_overlays.*` — fullscreen tint / fade and cinematic letterbox producers shared by all three images
+- `game/render/screen_overlays.*` — fullscreen tint / fade and cinematic letterbox producers shared by all three images; in an S2/S3 replay the letterbox's moving edge is placed between the row read and the row drawn
 - `game/render/field/effect_pools.*` — S2/S3 effects pass pools (sprites, glows, beams, trails, vertex meshes, particles): one field's records read, paired by slot and moved for the replay
 - `game/render/field/keyframe_blend.*` — moby / Spyro animation keyframe pair and progress (S2/S3 nibbles, S1 64ths and 16ths), pose between two fields and across an animation switch
 - `game/render/field/moby_motion.*` — a moby slot between two samples for all three replays: the moby array's records, position, angles, pose across an animation switch; titles subclass for layout test and own words

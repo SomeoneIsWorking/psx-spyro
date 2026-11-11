@@ -174,6 +174,24 @@ inline constexpr spyro::ConversationFacts kConversation{
     }},
 };
 
+// 0x80052498(slot, offset, y), the HUD counters' slide: states 1 and 4 read 0x80063430 and
+// 0x80063448 at (slide + offset) / 2, clamped to 0..0x2F, others 0x28, negated below y 0x78. The
+// six slots from 0x8006765C step their slide by the field delta in 0x8005199C (0x80051D18 clears
+// them).
+inline constexpr spyro::HudSlideFacts kHudSlide{
+    .function = 0x80052498u,
+    .firstSlot = 0x8006765Cu,
+    .slotBytes = 8u,
+    .slotCount = 6u,
+    .slidingIn = 1u,
+    .slidingOut = 4u,
+    .inTable = 0x80063430u,
+    .outTable = 0x80063448u,
+    .lastIndex = 0x2F,
+    .restOffset = 0x28,
+    .lowerHalfY = 0x78,
+};
+
 //   8002F08C  the update anchors Spyro's flame breath 0x8006AA1C at his mouth while byte
 //             0x8006AAB4 is set, lit by 8002FC20 only while it is clear; 0x80048F04 draws it
 //   800155A0  the dispatcher draws the subtractive fade 0x80066F68 and the additive 0x80067150
@@ -199,6 +217,7 @@ inline constexpr spyro::DrawMotionFacts kDrawMotion{
     .fades = {{{"subtractive fade", 0x80066F68u}, {"additive fade", 0x80067150u}}},
     .fadeCount = 2,
     .conversation = &kConversation,
+    .hudSlide = &kHudSlide,
 };
 
 // The flatten, FUN_8001B2A8, called by the draw at 800159A4 and by three other draws (800146AC,
@@ -228,6 +247,7 @@ inline constexpr spyro::screen_overlays::LetterboxFacts kCinematicLetterbox{
     .primitiveCursor = kRenderGlobals.primitiveCursor,
     .top = 0xC,
     .bottom = 0xE4,
+    .rowPerDraw = true,
 };
 
 // The sky drawer, 0x80029170: its `jal` to the visibility leaf at 0x800291A8, and the sky's sector

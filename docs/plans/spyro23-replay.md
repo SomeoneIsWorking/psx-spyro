@@ -171,7 +171,7 @@ All six pools are field_redraw's, with their pairing rules in `effect_pools.cpp:
 |---|---|---|---|
 | sky sectors | `0x800681B8` / `0x8006E334` | Skip (level data; follows the camera) | `port: guest_sky_drawer.*` |
 | sky objects | list `[0x80066F00]`, count `0x80066FA8` / `[0x8006C530]`, `0x8006C5E0`; position at +0x18, on byte +0x40 | Skip: level data, written only by the level setup `0x8001C734` and `0x80019928` | G2:8004C66C, G3:8001EDEC |
-| sky object wave | tick `0x8006700C` / `0x8006C644`, +1 per tick (`0x80012488`, `0x800125C8` / `0x8003A40C`) | Step: the draw reads the sine at `tick * 4`, so a written tick cannot hold a half step | G2:8004C66C:178 |
+| sky object wave | tick `0x8006700C` / `0x8006C644`, +1 per tick (`0x80012488`, `0x800125C8` / `0x8003A40C`) | Step (Open 7): the draw reads the sine table `0x80061C58` at `tick * 4 + object * 0x40` and stores `(sine >> 4) + 0xE00` in `0x80068C08`/`0C0A` for `0x800296D0`, so a written tick cannot hold a half step | G2:8004C66C:178 |
 | terrain animation, texture scroll | `0x800681E8..` / `0x8006E364..` tables | Step (applied per draw from level keys, as Spyro 1) | `port: guest_terrain_facts.h classify.animation` |
 | fog level, colours | `0x80067EC4`, `0x80067408..10` / `0x8006E038`, `0x8006D07C..84` | Step (fog level is 0 or 0x800) | G2:8001E454:124 |
 
@@ -182,15 +182,19 @@ All six pools are field_redraw's, with their pairing rules in `effect_pools.cpp:
 | subtractive fade | `0x80066F68` / `0x8006C598`, word (`lw`/`sw` at every site); ramps ±0x10 per update both ways (S2 `0x800159C8`, `0x8001FA58`; S3 `0x80053374`, `0x800144B4`), set by loads | Linear | G2:800159C8:30-33; Ghidra refs |
 | additive fade | `0x80067150` / `0x8006C7C0` | Linear | no writer in the decompiled C (Open 5) |
 | red flash | — / `0x8006C6D4` | Countdown: `0x8004B324` sets 0xFF at once, the draw lowers it 0x20 per draw, so a rise is shown whole | G3:8004B324, G3:8001E460 |
-| letterbox | height and enable above | Step (Open 1) | G2:8004D604 |
+| letterbox | height and enable above | the body steps it, so inside a replay `screen_overlays::drawLetterbox` (`rowPerDraw`) keeps the bars' moving corners (+0x10, +0x14) on the row drawn and places them `t` of the way from the row read | G2:8004D604, G3:8001FF44 |
 | conversation box | mode `0x80067134`, timer `0x80067130` (+ the field delta per update, `0x80016328`); state 1's handler `0x80013BC4` places the box at the halfword `0x800633F4[(timer - 0x18) / 2]` in mode 0 (timer 0x18..0x3B) and `0x80063418[timer / 2]` in mode 2 | `ConversationSlide` (`TableSlide`): the entry the later tick reads, written `t` of the way from the one the earlier read | G2:80013BC4:22-45 |
 | HUD tick | `0x80067008` / `0x8006C640`, +1 per update | Step (`(tick >> 1) % 6` picks the gem frame) | G2:80053E78:11-12, G2:800159C8:12 |
 | HUD shown | letterbox enable and height both 0 | Step | G2:80053E78:7 |
 | demo text | `0x80067024`, `0x80067118` / `0x8006C658`, `0x8006C76C` | Step | G2:80013A14 |
 
-The HUD's slides step (Open 8): counters are 8-byte slots from `0x8006765C` (state byte, slide halfword +2, value
-+4); `0x80052498(slot, offset, x)` returns the slide `0x80063430[(slide + offset) / 2]` (state 1) or
-`0x80063448[...]` (state 4), the index clamped to 0..0x2F, and each digit passes its own offset (−3 per digit).
+Spyro 2's HUD counters are 8-byte slots from `0x8006765C` (state byte, slide halfword +2, value +4), stepped by
+`0x8005199C`; `0x80052498(slot, offset, y)` returns the slide `0x80063430[(slide + offset) / 2]` (state 1) or
+`0x80063448[...]` (state 4), the index clamped to 0..0x2F, else 0x28, negated below y 0x78, and each digit passes its
+own offset (−3 per digit), so no table entry can be written for all readers. `HudSlide` (`game/core/hud_slide.*`)
+samples the six slots and is the function's native override: it returns the guest's result, and inside a replay
+(`ReplayFrame::replaying`) `t` of the way from the result for the earlier sample's slot word while both samples draw
+the slot. Spyro 3's widgets slide by another path (Open 8).
 
 ## Cuts
 
@@ -288,11 +292,23 @@ lines are byte-identical, 2914 and 2813 fields. Re-run 2026-11-11 (`scratch/revi
 same counts, identical; the declined frames report as S2 `state 5 polls 0x800577A0 for its pages` (16), S3 `state 5
 waits in VSync at 0x8005927C` (253), `state 3 clears both buffers through 0x8001EBAC` (1).
 
+Added (2026-11-11, `scratch/hudslide`, hidden, unpaced, judgement settings): `ReplayFrame::replaying` hands title
+overrides the fraction they draw at. Spyro 2's HUD slide (`HudSlide`): Glimmer `warp 0/1/0`, Select: the gem icon's
+lowest row per present 127 / 151 / 167 / 183 / 207 / 231 / 247 of 1920 (t=1 rows step 40, the in-betweens 24 or 16
+past the earlier: the nearest whole native row to halfway), the bounce likewise (`s2_gem.png`); the override returns
+the guest's own result in 343 of 343 calls checked against the original outside a replay. Letterbox (`rowPerDraw`):
+`moby-teleport 554 2`, both bars grow 12.0, 12.5, 13.0 ... 24.0 native rows, half a row per present, across the
+widened margins too (`letterbox.png`). Water: Summer Forest `start`, Up held into the stream: the water floor
+`+0x28` is set and every in-between draws Spyro's water pass composed, his strokes and Sparx between their
+neighbours (`sfwater_seq.png`); tint and reflection shift stayed 0 on every route tried. Crush's Dungeon
+(`Summer Forest/Crush's Dungeon/start`, state 0): Crush and the camera move halfway (`boss_seq.png`). Leak: Select,
+`moby-teleport 554 2`, Up and Left, fps60 on (906 in-betweens) and off: `fielddigest` identical over 2888 fields;
+Spyro 3 Sunrise Spring, Up and Left (746 in-betweens), identical over 2813.
+
 ## Open
 
-1. Letterbox: the draw `0x8004D604` / `0x8001FF44` moves the height one row per draw and emits it as whole GP0 rows,
-   so any written height lands on S' or S's row; it stays a step until the replay carries sub-row vertex places
-   (route D step 1).
+1. Done: the letterbox edge (Screen and HUD). A bar that shrinks to 0 is not drawn by S, so its last half row is not
+   shown. Spyro 3's facts share the body's shape (G3:8001FF44) but no warp reached a Spyro 3 letterbox.
 2. Angle8 quantisation of moby and Spyro angle bytes, as Spyro 1 Open 2; mobys flagged with bit 30 have
    fractions, Spyro and the shadow have none.
 3. Whether any gameplay chain bakes a VRAM upload (`ReplayFrame::at` refuses such a record); none reached by the
@@ -302,12 +318,19 @@ waits in VSync at 0x8005927C` (253), `state 3 clears both buffers through 0x8001
 5. `0x80067150` (Spyro 2 additive fade) has no writer in the decompiled C; it may be written through a pointer or
    by overlay code.
 6. Done: the flame breath (`FlameMotion`).
-7. Sky objects: settled, level data (Environment table).
-8. HUD slides step at 30 Hz (Spyro 3's pause shows each in-between equal to the next real). The slide is the index of
-   a byte table that several slots and digits read at different offsets, and the index clamps at both ends, so no
-   single table entry can be written for all readers: the blend has to be of `0x80052498`'s result per slot (an
-   override that, inside a replay, returns the result for both samples' slot words `t` apart). Spyro 3's HUD tick
-   `0x8006C640` is matched to Spyro 2's by use only (writers `0x80053374`, `0x80050F18`).
+7. Sky objects: level data (Environment table). Their wave steps at 30 Hz. The table is the general sine read by
+   other drawers of the same section (`0x8001B664`, a callee of `0x8004C66C`, and the particles `0x80048128`), so its
+   entries cannot be rewritten for the replay. The faithful path is an override of the consumer `0x800296D0` that, in
+   a replay, rewrites `0x80068C08`/`0C0A` from the sine `t` of the way between `(tick - 1) * 4` and `tick * 4` (a whole
+   entry at t = 1/2); it needs the object index, which lives only in `0x8004C66C`'s frame (`local_90`), so it is not
+   done.
+8. HUD slides: Spyro 2 done (`HudSlide`). Spyro 3's still step (`scratch/spyro23-tracks/pause3_hud.png`): its widgets
+   (`0x80029E48`, drawers `0x8002982C`, `0x80029904`, `0x80029A00`, `0x80029AA0`, `0x80029BB0`, `0x80029CF8`) keep
+   the slide in byte +0x3F, and the table `0x800674E8` is read inline in `0x80029708` (icon, index
+   `(slide + 10) / 2` clamped to 0..0x3B) and per digit in `0x800291B8` / `0x800293C4` (from the value `0x80029708`
+   leaves in its index argument). There is no one function whose result is the offset, so the blend needs overrides
+   of `0x80029708` and the two digit drawers that carry the earlier sample's slide from the widget down to the digits.
+   Spyro 3's HUD tick `0x8006C640` is matched to Spyro 2's by use only (writers `0x80053374`, `0x80050F18`).
 9. Pause menus (`0x800145AC`, `0x8001DD1C`): Spyro 1's pause reads VRAM back; whether these do is not known.
 10. Spyro 2's conversation slide: done (`ConversationSlide`). The loading pictures' fade counters (`0x800698EC`,
     `0x8006FBC4`) belong to state 5, which is not replayed.

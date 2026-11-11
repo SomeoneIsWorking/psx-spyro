@@ -213,6 +213,7 @@ inline constexpr spyro::screen_overlays::LetterboxFacts kCinematicLetterbox{
     .primitiveCursor = kRenderGlobals.primitiveCursor,
     .top = 0xC,
     .bottom = 0xE4,
+    .rowPerDraw = true,
 };
 
 // The sky drawer, 0x8001C368: its `jal` to the visibility leaf at 0x8001C3A0, and the sky's sector
