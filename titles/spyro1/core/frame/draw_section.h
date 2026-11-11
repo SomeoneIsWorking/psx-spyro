@@ -22,8 +22,8 @@ public:
 private:
   // GS_Playing's drawers, from QueueMobys to the HUD.
   [[nodiscard]] static bool drawPlaying(Core &core, psx::present::GuestRedraw &redraw);
-  // TitlescreenDraw 0x8007CEE4 itself, up to its device tail.
-  [[nodiscard]] static bool drawTitle(psx::present::GuestRedraw &redraw);
+  // TitlescreenDraw 0x8007CEE4 itself up to its fade, then the fade at the replay's level.
+  [[nodiscard]] static bool drawTitle(Core &core, psx::present::GuestRedraw &redraw);
 };
 
 } // namespace spyro1

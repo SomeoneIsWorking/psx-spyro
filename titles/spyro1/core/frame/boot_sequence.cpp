@@ -165,7 +165,7 @@ void BootSequence::finalize(Core &core) {
   core.mem_w32(0x800785FCu, 0x80200000u - core.mem_r32(0x800755A4u));
   call(core, 0x8005B7D8u);
   call(core, 0x8002D338u);
-  core.mem_w32(0x80075918u, 0xFu);
+  core.mem_w32(guest::kFade, 0xFu);
   call(core, 0x8002D170u);
   core.mem_w32(spyro1::guest::kDeltaTime, 2u);
   core.mem_w32(spyro1::guest::kUnprocessedFrames, 0u);

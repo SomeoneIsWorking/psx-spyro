@@ -8,6 +8,7 @@
 #include "spyro1/core/effect/flame_block.h"
 #include "spyro1/core/effect/shadow_block.h"
 #include "spyro1/core/frame/texture_scroll.h"
+#include "spyro1/core/frame/title_fade.h"
 #include "spyro1/core/frame/title_slide.h"
 #include "spyro1/core/guest_globals.h"
 #include "spyro1/core/native_state.h"
@@ -105,6 +106,9 @@ public:
   }
   [[nodiscard]] std::span<psx::present::MotionSource *const> sources() const {
     return sources_;
+  }
+  [[nodiscard]] const TitleFade &titleFade() const {
+    return titleFade_;
   }
 
 private:
@@ -224,7 +228,6 @@ private:
   // The section's own counters: the fade it draws (counts down; a raise is a new fade), the
   // border height and portal yaw it ages before reading, the field tick the portal pulse reads and
   // the specular time the life orbs pulse with (& 0xFF).
-  static constexpr std::uint32_t kFade = 0x80075918u;
   static constexpr std::uint32_t kBorderSize = 0x800756C0u;
   static constexpr std::uint32_t kPortalYaw = 0x80075858u;
   static constexpr std::array<Field, 1> kCountdown{{{0x00u, psx::present::Motion::Countdown}}};
@@ -240,7 +243,8 @@ private:
   FlameMotion flame_;
   TextureScroll textureScroll_;
   TitleSlide titleSlide_;
-  std::array<psx::present::MotionSource *, 2> sources_{&textureScroll_, &titleSlide_};
+  TitleFade titleFade_;
+  std::array<psx::present::MotionSource *, 3> sources_{&textureScroll_, &titleSlide_, &titleFade_};
   std::array<psx::present::MotionTrack, 15> tracks_{{
       {.name = "camera", .address = guest::kCamera, .fields = kCamera, .rule = &camera_},
       {.name = "spyro", .address = guest::kSpyro, .fields = kSpyro},
@@ -274,7 +278,7 @@ private:
        .fields = kFlameFields,
        .rule = &flame_,
        .records = kFlameRecords},
-      {.name = "fade", .address = kFade, .fields = kCountdown},
+      {.name = "fade", .address = guest::kFade, .fields = kCountdown},
       {.name = "border", .address = kBorderSize, .fields = kScalar},
       {.name = "portal yaw", .address = kPortalYaw, .fields = kAngle12},
       {.name = "level ticks", .address = guest::kLevelTicks, .fields = kScalar},

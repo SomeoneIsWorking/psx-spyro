@@ -1,8 +1,10 @@
 #include "spyro1/core/frame/draw_section.h"
 
 #include "core.h"
+#include "game.h"
 #include "guest_redraw.h"
 #include "ordering_table.h"
+#include "spyro1/core/frame/frame_driver.h"
 #include "spyro1/core/guest_globals.h"
 #include "spyro1/core/native_state.h"
 #include "spyro1/render/terrain_facts.h"
@@ -33,7 +35,6 @@ constexpr std::array<std::uint32_t, 3> kPolyEnds{0x800756FCu, 0x80075710u, 0x800
 
 constexpr std::uint32_t kIsFlightLevel = 0x80075690u;
 constexpr std::uint32_t kDemoMode = 0x80075714u;
-constexpr std::uint32_t kFade = 0x80075918u;
 constexpr std::uint32_t kScreenBorder = 0x8007570Cu;
 constexpr std::uint32_t kBorderSize = 0x800756C0u;
 
@@ -45,10 +46,10 @@ constexpr std::array<std::uint32_t, 4> kDrawers{0x80019698u, 0x8002B9CCu, 0x8005
 constexpr std::uint32_t kDrawFade = 0x800190D4u;
 constexpr std::uint32_t kDrawBorder = 0x80018F30u;
 constexpr std::uint32_t kDrawHud = 0x800189F0u;
-// TitlescreenDraw (overlay, 0x8007CEE4) up to its device tail: 0x8007DD0C is the `jal DrawSync`
-// both the fade's return and the no-fade branch at 0x8007DCF4 reach.
+// TitlescreenDraw (overlay, 0x8007CEE4) up to its fade: 0x8007DCE8 loads g_Fade, and 0x8007DD04
+// calls DrawFade with it before the device tail at 0x8007DD0C.
 constexpr std::uint32_t kTitlescreenDraw = 0x8007CEE4u;
-constexpr std::uint32_t kTitlescreenDrawTail = 0x8007DD0Cu;
+constexpr std::uint32_t kTitlescreenFade = 0x8007DCE8u;
 
 // func_80016784(0x800): links the bins into one chain and returns its head, DrawOTag's argument.
 constexpr std::uint32_t kFlattenBins = 0x80016784u;
@@ -123,7 +124,7 @@ bool DrawSection::drawPlaying(Core &core, psx::present::GuestRedraw &redraw) {
       return false;
     }
   }
-  if (const std::uint32_t fade = core.mem_r32(kFade); fade != 0) {
+  if (const std::uint32_t fade = core.mem_r32(guest::kFade); fade != 0) {
     const std::array<std::uint32_t, 4> args{2u, fade << 3, fade << 3, fade << 3};
     if (!step(redraw, kDrawFade, args)) {
       return false;
@@ -136,14 +137,23 @@ bool DrawSection::drawPlaying(Core &core, psx::present::GuestRedraw &redraw) {
   return step(redraw, kDrawHud);
 }
 
-bool DrawSection::drawTitle(psx::present::GuestRedraw &redraw) {
-  const bool reached = redraw.dispatchTo(kTitlescreenDraw, kTitlescreenDrawTail, {});
+bool DrawSection::drawTitle(Core &core, psx::present::GuestRedraw &redraw) {
+  const bool reached = redraw.dispatchTo(kTitlescreenDraw, kTitlescreenFade, {});
   lucent::debug("replay",
                 "spyro1 section step 0x{:08X} to 0x{:08X}: {}",
                 kTitlescreenDraw,
-                kTitlescreenDrawTail,
+                kTitlescreenFade,
                 reached ? "reached" : "refused");
-  return reached;
+  if (!reached) {
+    return false;
+  }
+  const TitleFade &fade = core.game->frameDriverAs<FrameDriver>().motion().titleFade();
+  if (const std::optional<std::uint32_t> level =
+          fade.level(core, core.runtime.replayFrame(core)->replaying())) {
+    const std::array<std::uint32_t, 4> args{2u, *level, *level, *level};
+    return step(redraw, kDrawFade, args);
+  }
+  return true;
 }
 
 std::optional<std::uint32_t> DrawSection::draw(Core &core,
@@ -170,7 +180,7 @@ std::optional<std::uint32_t> DrawSection::draw(Core &core,
   }
   const bool drawn = core.mem_r32(guest::kGamestate) == guest::kGamestatePlaying
                          ? drawPlaying(core, redraw)
-                         : drawTitle(redraw);
+                         : drawTitle(core, redraw);
   const std::array<std::uint32_t, 1> bins{kBinCount};
   if (!drawn || !step(redraw, kFlattenBins, bins)) {
     return std::nullopt;

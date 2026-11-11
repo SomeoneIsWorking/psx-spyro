@@ -44,6 +44,9 @@ public:
   [[nodiscard]] psx::present::ReplayFrame &replay() {
     return replay_;
   }
+  [[nodiscard]] const DrawMotion &motion() const {
+    return motion_;
+  }
 
   // A state is taken past the boot sequence; its guest state lives in RAM, the gameplay frame here.
   [[nodiscard]] const char *sectionName() const override {

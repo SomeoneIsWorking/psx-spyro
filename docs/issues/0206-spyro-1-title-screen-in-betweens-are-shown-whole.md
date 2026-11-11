@@ -14,8 +14,8 @@ else drew the title as a section.
 
 ## Fix
 `DrawSection::drawTitle` runs the guest's TitlescreenDraw 0x8007CEE4 itself through
-`GuestRedraw::dispatchTo`, from its entry up to 0x8007DD0C, the `jal DrawSync` that both the fade's return
-(0x8007DD04) and the no-fade branch at 0x8007DCF4 reach; the device tail after it is the real frame's. Every
+`GuestRedraw::dispatchTo`, from its entry up to its fade's load of `g_Fade` at 0x8007DCE8, then draws that fade
+itself (below); the device tail from 0x8007DD0C is the real frame's. Every
 mode but TSM_Demo is replayed: TSM_Init (attract), TSM_Menu (memory-card menu) and TSM_Loading (save
 picker) share that draw, which differs only in its sprites. `TitleSlide` is the slides' motion source: the
 draw places them at `g_TitlescreenAnimIn/Out[m_SubTick]` (u8[16] at 0x8006FA74/0x8006FA84), so an in-between
@@ -27,9 +27,16 @@ TSM_Demo is GamestateDraw's 0x8001E6B8 branch (the "THE ADVENTURE BEGINS..." car
 VSync, so it presents every field: one field per tick, no in-between to replay (`scratch/camfrac/title1.log`, `title1.out`,
 card presents all `fields=1/1`). The section declines it.
 
-## Still stepping
-The title's fade-outs (TSM_Init sub-state 5, the picker's m_State 5) raise `g_Fade` one a tick and the draw
-scales it by 16; a half step cannot be written, so the fade steps at 30 Hz while the border slides at 60.
+## Fade-outs (fixed 2026-11-11, `scratch/fade1`)
+The title's fade-outs (TSM_Init sub-state 5, the picker's m_State 5) raise `g_Fade` one a tick and
+TitlescreenDraw draws `DrawFade(2, l, l, l)` with `l = g_Fade << 4` (0x8007DCE8..0x8007DD04), so the replay,
+which read the whole `g_Fade`, drew each in-between at the later tick's level. `DrawSection::drawTitle` now runs
+TitlescreenDraw to 0x8007DCE8 and draws the fade itself at `TitleFade::level` (`title_fade.*`): `t` of the way
+between the two ticks' levels while both are in one title phase (m_Mode, m_SubState). Boot with no input to the
+idle timeout (`run.py fo +1900 w5 @40`, hidden, unpaced, judgement settings): 30 presents of the fade, every
+in-between composed, mean brightness 114.7 / 107.1 / 99.4 / 91.8 / 84.2 / ... / 1.3 / 0, each in-between at its
+neighbours' midpoint (`fadeout.png`, `mean.py`). Leak: the same boot through the fade with fps60 on (1555
+in-betweens) and off, `fielddigest` identical over 3754 fields (`leak-0.dig`, `leak-1.dig`).
 
 ## Proof
 Boot with no input to logic 1016 (logo slide in, `scratch/ram0236/`, `run.py`, `logo.py`, hidden, unpaced,
