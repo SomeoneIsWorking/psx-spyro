@@ -239,6 +239,7 @@ bool DrawSection::drawState(Core &core, psx::present::GuestRedraw &redraw) {
 std::optional<std::uint32_t> DrawSection::draw(Core &core,
                                                psx::present::GuestRedraw &redraw) const {
   const ReplayScope scope(nativeState(core));
+  nativeState(core).drawnRecords.beginDraw(actors::DrawnRecords::Draw::Replay);
   const std::uint32_t db = core.mem_r32(guest::kCurDb) == guest::kDb0 ? guest::kDb1 : guest::kDb0;
   const std::uint32_t poly = core.mem_r32(db + guest::kDbPolyBuffer);
   redraw.writeWord(guest::kCurDb, db);

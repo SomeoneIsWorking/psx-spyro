@@ -2,9 +2,10 @@
 // which is exactly what the per-call differential compares, and every register it leaves —
 // including ones that "cannot matter" — is part of the contract.
 #include "core.h"
-#include "spyro1/core/guest_functions.h"
 #include "core/native_execution.h"
 #include "spyro1/core/execution/native_owners.h"
+#include "spyro1/core/guest_functions.h"
+#include "spyro1/core/native_state.h"
 
 namespace {
 
@@ -50,6 +51,8 @@ void zero3_native(Core *c) {
 // away, which is what the executable does.
 void fill_native(Core *c) {
   const uint32_t start = c->r[4], val = c->r[5], len = c->r[6];
+  spyro1::nativeState(*c).drawnRecords.filled(*c,
+                                              {.address = start, .bytes = len, .site = c->r[31]});
   const uint32_t end = start + len - 4; // final a2
   uint32_t p = start;
   for (;;) {

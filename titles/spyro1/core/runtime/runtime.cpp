@@ -39,6 +39,7 @@
 #include "spyro1/core/player/native_player_physics.h"
 #include "spyro1/render/actor_emitter_passes.h"
 #include "spyro1/render/actor_list.h"
+#include "spyro1/render/drawn_records.h"
 #include "spyro1/render/drop_shadow.h"
 #include "spyro1/render/flame.h"
 #include "spyro1/render/glow_pools.h"
@@ -165,6 +166,7 @@ void Runtime::registerOverrides(Game &game) {
   actors::registerListOverrides(game.core);
   actors::registerEmitterOverrides(game.core);
   actors::registerSpriteQueueOverrides(game.core);
+  actors::registerBuildSites(game.core);
   actors::registerPairedActorOverrides(game.core);
   sky::registerOverrides(game.core);
   shadow::registerOverrides(game.core);

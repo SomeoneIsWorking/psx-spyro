@@ -56,7 +56,7 @@ join at its DrawSync; the cutscene draw `0x8001E9C8` to `0x8001EA88`, then its f
 `ScreenFade`. `DrawSection::stage` (gamestate, and the dragon's `m_State`) is a cut when it changes: each dragon
 step re-places the camera. The menus run `0x8001A40C` to `0x8001C598` with PutDrawEnv stepped over as already
 applied; their mobys are rebuilt from the whole draw count, so the sprite queue moves each built record from the
-last real draw's (`actors::DrawnRecords`, same mesh in the same slot of the buffer's packet pool).
+last real draw's (`actors::DrawnRecords`, same mesh and the same name: by the build that made it (the Memset of `g_HudMobys` that clears it: its call site, the text, digit or cursor builder's caller, and its ordinal at that site in the draw)).
 The fairy draw `0x8001D718` runs to its DrawSync `0x8001E168`. It is reached through the guest's own trigger
 (InitFairyCutscene `0x8002CCC8`, called from the class-110 fairy's update once its linked moby's state allows it):
 warp `0/0/0`, `moby-teleport 110 0` (the dragon rescue runs), then `moby-teleport 110 0` again once it has ended.
@@ -66,8 +66,7 @@ more away, then calls `D_800757A0` (Balloonist1) when Spyro, in a ground state, 
 0x20 and it faces him within 0x28 (8-bit angles). From its position (67082, 107397, 4015) and yaw byte +0x46
 `0xC0`: warp `0/0/0`, `spyro-at 67082 102277 4271 1024` (0x1400 in front), then `spyro-at 67082 106629 4271 1024`
 (0x300 in front, facing it). Its name and dialogue letters spin by `D_800777E8 +0x04` read whole; they are built in
-the draw buffer's packet pool, so the sprite queue moves them through `actors::DrawnRecords`, keyed by their slot
-below the pool's end (the pool alternates between the two buffers).
+the draw buffer's packet pool, so the sprite queue moves them through `actors::DrawnRecords` by build name, as the menus.
 
 | track | address / layout | kind | identity | read by |
 |---|---|---|---|---|

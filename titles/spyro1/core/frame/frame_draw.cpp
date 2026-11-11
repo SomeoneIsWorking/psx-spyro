@@ -1,4 +1,5 @@
 #include "spyro1/core/frame/frame_draw.h"
+#include "spyro1/core/native_state.h"
 
 #include "core/field_owner.h"
 #include "spyro1/core/frame/guest_update_budget.h"
@@ -17,6 +18,7 @@ constexpr std::uint32_t kFrameDrawReturn = 0x80012284u;
 } // namespace
 
 void FrameDraw::run(Core &core, spyro::FieldOwner &fields) {
+  nativeState(core).drawnRecords.beginDraw(actors::DrawnRecords::Draw::Real);
   call_.begin(core,
               "frame-draw",
               psx::cpu::GuestCallSite{kFrameDraw, kFrameDrawReturn},

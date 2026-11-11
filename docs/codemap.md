@@ -61,7 +61,7 @@ Frame loop: not owned. Spyro 1 runs update `0x8003385C` and draw `0x8001ED5C` an
 - `titles/spyro1/render/terrain_*` — S1 terrain drawer RenderWorldChunks: sector loop, far, detail, coarse and fine subdivision passes, facts
 - `titles/spyro1/render/actor_*`, `lit_actor_emitter.*`, `local_bins.*` — S1 actors / mobys: draw list builders, emitters (flat light, reflection), emitter passes, layouts, local depth bins; `replay_angles.h` the sub-step angle fractions a replay notes per moby for the list builders
 - `titles/spyro1/render/sprite_queue*` — S1 sprite queue: lit and HUD mobys
-- `titles/spyro1/render/drawn_records.*` — S1 mobys a draw builds in its buffer's packet pool (menu items, dialogue letters): the last real draw's records by slot, a replay's record moved `t` of the way from them
+- `titles/spyro1/render/drawn_records.*` — S1 mobys a draw builds in its buffer's packet pool (menu items, dialogue letters): named by the build that made them (fill site, builder caller, ordinal); a replay's record moved `t` of the way from the last real draw's of the same name
 - `titles/spyro1/render/paired_actor*` — S1 Spyro model draw (RasterizePairedActor)
 - `titles/spyro1/render/sky*` — S1 sky / cyclorama and the walk a portal's own sky shares with it
 - `titles/spyro1/render/portal*` — S1 portal drawer: outline, far fill, near sky cut to the outline, sky spin
