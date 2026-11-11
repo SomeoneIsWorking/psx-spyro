@@ -39,9 +39,9 @@ No game code, asset, executable, disc image, or BIOS is distributed. Supply a le
 
 | Title | Executable identity | Current evidence |
 | --- | --- | --- |
-| Spyro the Dragon | `SCUS_942.28` | Reaches the title/save flow, opening cutscene and Artisans gameplay through Lightrec. Presents on the Record path; 60 fps composes only the screen tint and letterbox, and widescreen keeps retail's culls and HUD (issue 0186). |
-| Spyro 2 | `SCUS_944.25` | Reaches Glimmer gameplay from its own title screen. Record path with widened culls, an anchored HUD and interpolated terrain; mobys, HUD, sky and particles have no producer (issue 0176). |
-| Spyro 3 | `SCUS_944.67` | Reaches Sunrise Spring gameplay from its own title screen. Record path as Spyro 2, on the same terrain producer. |
+| Spyro the Dragon | `SCUS_942.28` | Reaches the title/save flow, opening cutscene and Artisans gameplay through Lightrec. Presents on the Record path; 60 fps replays its draws for each in-between, and widescreen keeps retail's culls and HUD (issue 0186). |
+| Spyro 2 | `SCUS_944.25` | Reaches Glimmer gameplay from its own title screen. Record path with widened culls, an anchored HUD and 60 fps from replaying its draw body for each in-between. |
+| Spyro 3 | `SCUS_944.67` | Reaches Sunrise Spring gameplay from its own title screen. Record path and 60 fps as Spyro 2. |
 
 Status and evidence are in `docs/project-state.md`; feature chains in `docs/features.md`.
 

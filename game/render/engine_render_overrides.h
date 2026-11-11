@@ -35,7 +35,6 @@ struct EngineRenderFacts {
   const char *flattenName = "";
   // Flatten calls, by return address, whose pass is chained after the first and keeps no bins.
   std::span<const std::uint32_t> unbinnedFlattens;
-  screen_overlays::TintFacts tint;
   screen_overlays::LetterboxFacts letterbox;
 };
 
@@ -83,7 +82,6 @@ template <const EngineRenderFacts &facts> void registerEngineRenderOverrides(Cor
       core, facts.flatten, facts.flattenName, engine_render::flatten<facts>);
   screen_overlays::installLetterbox(
       core, facts.letterbox, screen_overlays::letterboxOverride<facts.letterbox>);
-  screen_overlays::installTint(core, facts.tint, screen_overlays::tintOverride<facts.tint>);
   psx::cpu::installNativeOverride(core,
                                   facts.spyroDrawer.entry,
                                   facts.spyroDrawer.overrideName,

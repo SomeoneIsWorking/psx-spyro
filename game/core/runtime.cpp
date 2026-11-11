@@ -25,11 +25,6 @@ std::unique_ptr<psx::game::TitleSessionState> Runtime::createSession(Game &) {
   return created;
 }
 
-const psx::present::StateProducer *Runtime::stateProducer(Core &core,
-                                                          std::uint32_t producer) const {
-  return session(core).stateProducers.find(producer);
-}
-
 std::optional<double> Runtime::presentDeadline(Core &core, psx::frame::FieldCadence cadence) {
   return core.game->framePacer.presentedFieldsDeadline(core, cadence);
 }

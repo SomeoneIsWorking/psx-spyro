@@ -10,7 +10,6 @@
 #include "emit_memory.h"
 #include "game_runtime.h"
 #include "image_identity.h"
-#include "state_producer.h"
 
 class Core;
 
@@ -29,8 +28,6 @@ public:
   // The selected title's field owner, published by its frame driver. Non-owning: the driver
   // holds it and is installed before the first host turn can arrive.
   FieldOwner *fieldOwner = nullptr;
-  // The state renders this title's producers registered, keyed by producer entry.
-  psx::present::StateProducerTable stateProducers;
   // The title's `warp` request, applied by its frame driver.
   std::unique_ptr<Warp> warp;
   std::unique_ptr<TitleState> titleState;

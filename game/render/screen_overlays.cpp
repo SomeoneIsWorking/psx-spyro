@@ -1,36 +1,17 @@
 #include "render/screen_overlays.h"
 
-#include "blend.h"
 #include "core.h"
 #include "emit_memory.h"
-#include "frame_state.h"
-#include "gp0_command.h"
-#include "gp0_primitive_decode.h"
-#include "lucent/log.h"
 #include "render/field/guest_packet.h"
-#include "render/state_producer_override.h"
-#include "render/terrain/guest_depth_bins.h"
 #include "replay_frame.h"
 
 #include <array>
-#include <cstdlib>
-#include <cstring>
-#include <memory>
+#include <optional>
 
 namespace spyro::screen_overlays {
 namespace {
 
 constexpr std::uint32_t kBarBytes = guest_packet::kF4Bytes;
-// The semi-transparency modes in which colour 0 leaves the screen as it is.
-constexpr std::uint32_t kAdditive = 1;
-constexpr std::uint32_t kSubtractive = 2;
-
-constexpr std::uint32_t position(std::uint32_t x, std::uint32_t y) {
-  return ((y & 0xFFFFu) << 16) | (x & 0xFFFFu);
-}
-
-using Quad = psx::gpu::PacketBuffer<5>;
-
 // The bars' height `t` of the way from `before` to `after`.
 float barHeight(std::int32_t before, std::int32_t after, float t) {
   return static_cast<float>(before) + static_cast<float>(after - before) * t;
@@ -56,26 +37,7 @@ void placeEdges(Core &core, const LetterboxFacts &facts, std::uint32_t first, fl
   }
 }
 
-psx::present::DrawPrimitive quad(const Quad &words) {
-  const auto primitive = psx::gpu::decodePacketPrimitive(words.view());
-  if (!primitive) {
-    lucent::error("overlays", "the overlay quad 0x{:08X} does not decode", words.word(0));
-    std::abort();
-  }
-  return *primitive;
-}
-
 } // namespace
-
-void drawTint(Core &core, const TintFacts &facts) {
-  const FullscreenTint::State state{.blend = core.r[4],
-                                    .r = static_cast<std::uint8_t>(core.r[5]),
-                                    .g = static_cast<std::uint8_t>(core.r[6]),
-                                    .b = static_cast<std::uint8_t>(core.r[7])};
-  const auto site = core.emission.instance(core.r[31]);
-  core.frameStates.save(core.emission.current(), state);
-  (void)psx::cpu::callOriginalOrPropagate(core, facts.entry);
-}
 
 bool drawLetterbox(Core &core, const LetterboxFacts &facts) {
   const std::uint32_t first = core.mem_r32(facts.primitiveCursor);
@@ -93,46 +55,6 @@ bool drawLetterbox(Core &core, const LetterboxFacts &facts) {
     placeEdges(core, facts, first, barHeight(read, drawn, *t));
   }
   return true;
-}
-
-void FullscreenTint::render(const psx::present::StateInterval &states,
-                            psx::present::PrimitiveSink &sink) const {
-  const float t = states.t;
-  const State after = psx::present::stateAs<State>(states.to);
-  State shown = after;
-  if (const State before = psx::present::stateAs<State>(states.from); before.blend == after.blend) {
-    shown.r = static_cast<std::uint8_t>(psx::present::lerpInt(before.r, after.r, t));
-    shown.g = static_cast<std::uint8_t>(psx::present::lerpInt(before.g, after.g, t));
-    shown.b = static_cast<std::uint8_t>(psx::present::lerpInt(before.b, after.b, t));
-  }
-  const std::uint32_t colour = (guest_packet::kF4Code | guest_packet::kSemiCode) |
-                               (std::uint32_t{shown.b} << 16) | (std::uint32_t{shown.g} << 8) |
-                               shown.r;
-  psx::present::DrawPrimitive primitive =
-      quad(Quad(std::array{colour,
-                           position(0, facts_.top),
-                           position(kScreenWidth, facts_.top),
-                           position(0, facts_.bottom),
-                           position(kScreenWidth, facts_.bottom)}));
-  psx::gpu::applyTexPageAttribute(primitive.state, static_cast<std::uint16_t>(after.blend << 5));
-  sink.emit(depth_bins::kOverlaySlot, primitive);
-}
-
-bool FullscreenTint::rests(std::span<const std::byte> drawn, std::span<std::byte> into) const {
-  State rest = psx::present::stateAs<State>(drawn);
-  if (rest.blend != kAdditive && rest.blend != kSubtractive) {
-    return false;
-  }
-  rest.r = 0;
-  rest.g = 0;
-  rest.b = 0;
-  std::memcpy(into.data(), &rest, sizeof(rest));
-  return true;
-}
-
-void installTint(Core &core, const TintFacts &facts, psx::cpu::NativeFunction draw) {
-  installProducerOverride(
-      core, facts.entry, facts.overrideName, draw, std::make_unique<FullscreenTint>(facts));
 }
 
 void installLetterbox(Core &core, const LetterboxFacts &facts, psx::cpu::NativeFunction draw) {

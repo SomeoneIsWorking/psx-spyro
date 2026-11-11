@@ -1,6 +1,5 @@
 // screen_overlays.h — SCUS_942.28's cinematic letterbox (game/render/screen_overlays.h), linked
 // through AddPrimToOT 0x800168DC into the overlay pair (titles/spyro1/render/ordering_table.h).
-// DrawFullscreenTint 0x800190D4 is guest code: every draw that calls it is replayed.
 #pragma once
 
 #include "render/screen_overlays.h"

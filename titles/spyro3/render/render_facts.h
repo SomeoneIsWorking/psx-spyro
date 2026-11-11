@@ -223,16 +223,6 @@ inline constexpr std::array<std::uint32_t, 2> kSecondPassFlattenReturns = {0x800
 // The game state's step word: the level load's and the loading screen's sub-state.
 inline constexpr std::uint32_t kGameSubState = 0x8006FBC8u;
 
-// The dispatcher's fades: FUN_800200A0(blend, r, g, b) with the subtractive 0x8006C598, the
-// additive 0x8006C7C0 and the red flash 0x8006C6D4, which the dispatcher steps down by 0x20 after
-// drawing it. A draw mode, then a POLY_F4 over rows 0xC to 0xE4.
-inline constexpr spyro::screen_overlays::TintFacts kFullscreenTint{
-    .entry = 0x800200A0u,
-    .overrideName = "spyro3-fullscreen-tint",
-    .top = 0xC,
-    .bottom = 0xE4,
-};
-
 // The letterbox FUN_8001FF44, the dispatcher's last call (8001E5F0, its only site): steps
 // 0x8006C64C toward 12 while 0x8006C74C is set and toward 0 after, bars down from row 0xC and up
 // from 0xE4.
@@ -277,7 +267,6 @@ inline constexpr spyro::EngineRenderFacts kRenderFacts{
     .flatten = kFlatten,
     .flattenName = "spyro3-depth-bins",
     .unbinnedFlattens = kSecondPassFlattenReturns,
-    .tint = kFullscreenTint,
     .letterbox = kCinematicLetterbox,
 };
 

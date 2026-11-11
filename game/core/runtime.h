@@ -21,7 +21,6 @@ public:
   virtual const TitleLogoFacts &logoFacts() const;
 
   std::unique_ptr<psx::game::TitleSessionState> createSession(Game &game) final;
-  const psx::present::StateProducer *stateProducer(Core &core, std::uint32_t producer) const final;
   // The field owner already delivered the simulated fields, so presentation only waits.
   std::optional<double> presentDeadline(Core &core, psx::frame::FieldCadence cadence) final;
   // The logo gate is open, so the title screen is drawing the logo itself.

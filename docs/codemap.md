@@ -5,8 +5,8 @@ Dependency direction: `titles/<title>/` (one image's facts and natives) → `gam
 Frame loop: not owned. Spyro 1 runs update `0x8003385C` and draw `0x8001ED5C` and delivers fields as the guest clock crosses them (`FieldOwner`); Spyro 2/3 run update/draw (`0x8001B140`/`0x800156FC`, `0x80055400`/`0x8001E638`) and answer each guest VSync with one field (issue 0217).
 
 - `game/core/title_runtime_registry.*` — product catalog / title picker entries: the three runtimes and their generated identities
-- `game/core/runtime.*` — Spyro runtime base: session, state producers, presentation pacing, widescreen projection policy, panel logo, run report
-- `game/core/session.*` — per-Core title state: archive transfer, disc landing count, field owner, HUD draw context, state producers
+- `game/core/runtime.*` — Spyro runtime base: session, presentation pacing, widescreen projection policy, panel logo, run report
+- `game/core/session.*` — per-Core title state: archive transfer, disc landing count, field owner, HUD draw context
 - `game/core/field_owner.*` — display field / VSync delivery sequence: pad, clock, VBlank root counter, observers, snapshot, presentation fence, audio, host turn
 - `game/core/boot_prefix_runtime.*`, `boot_prefix_frame_driver.*` — S2/S3 boot: crt0, stock libraries, the retail boot prefix as a resumable call, then update and draw one field per step, the replay sampled before each draw, each logic frame presented when its draw returns, each field of the fade-before-load loop presented on its own
 - `game/core/draw_section.*` — S2/S3 per-field draw body as a replay section: buffer flip, camera builder and position copy, the image's state switch (subclasses in `titles/spyro2|3/core/draw_section.*`), flatten; the device tail skipped
@@ -22,8 +22,8 @@ Frame loop: not owned. Spyro 1 runs update `0x8003385C` and draw `0x8001ED5C` an
 - `game/core/debug/debug_menu.*` — `spyro::DebugMenu`, the title debug menu (psxport `TitleDebugMenu`): the warp catalogue (homeworld, level, arrival) named from each title's guest name tables and grouped under the homeworld its guest table gives each level, moby listing and teleport verbs; S1/S2 derive their own
 - `game/core/debug/warp.*` — the warp arrival: the level entered from the idle title screen or, where the title has a route, from gameplay, change after change from wherever the game resumes play until gameplay is in it, then an optional placement
 - `game/core/debug/moby_teleport.*` — `mobys <class>` / `moby-teleport <class> <n>`: list a level's mobys of one class and place Spyro on one (NPC conversation, dragon rescue routes); each title names its moby array, active field and position words, S2/S3 through `RecordMobyTeleport`'s facts
-- `game/render/engine_render_overrides.*` — S2/S3 render overrides bound to one image: terrain drawer, moby walk, sky drawer, flatten depth bins, fullscreen tint and letterbox
-- `game/render/screen_overlays.*` — fullscreen tint / fade producer and cinematic letterbox override shared by all three images; in a replay the letterbox's moving edge is placed between the row read and the row drawn
+- `game/render/engine_render_overrides.*` — S2/S3 render overrides bound to one image: terrain drawer, moby walk, sky drawer, flatten depth bins and letterbox
+- `game/render/screen_overlays.*` — cinematic letterbox override shared by all three images; in a replay the letterbox's moving edge is placed between the row read and the row drawn
 - `game/render/field/effect_pools.*` — S2/S3 effects pass pools (sprites, glows, beams, trails, vertex meshes, particles): one field's records read, paired by slot and moved for the replay
 - `game/render/field/keyframe_blend.*` — moby / Spyro animation keyframe pair and progress (S2/S3 nibbles, S1 64ths and 16ths), pose between two fields and across an animation switch
 - `game/render/field/moby_motion.*` — a moby slot between two samples for all three replays: the moby array's records, position, angles, pose across an animation switch; titles subclass for layout test and own words
@@ -38,7 +38,6 @@ Frame loop: not owned. Spyro 1 runs update `0x8003385C` and draw `0x8001ED5C` an
 - `game/render/field/guest_working_memory.h` — packet tag link, rotation words
 - `game/render/field/guest_word.h` — MIPS word arithmetic: signed view, `sra`, absolute value, sign-extended halfword, packed 11/11/10 delta fields
 - `game/render/field/guest_packet.h` — GP0 packet tags, packet sizes and command words the emitters write
-- `game/render/state_producer_override.h` — native draw override installed with the state producer that renders its saved draw
 - `game/render/hud/ui_anchor.*` — HUD / screen-space UI horizontal anchoring on a widened canvas
 - `game/render/terrain/guest_terrain_drawer.*`, `guest_terrain_facts.h`, `guest_terrain_frame.h`, `guest_terrain_passes.h` — terrain / world / level geometry drawer: entry and exit, one image's facts, per-call state, pass order, field windows
 - `game/render/terrain/engine_terrain_image.*` — S2/S3 terrain drawer as one TerrainImage
@@ -72,7 +71,7 @@ Frame loop: not owned. Spyro 1 runs update `0x8003385C` and draw `0x8001ED5C` an
 - `titles/spyro1/render/glow*` — S1 glow fans and sparkles, their emitter and sparkle pools
 - `titles/spyro1/render/ordering_table.*` — S1 LinkOTPrimitives / ordering table slots
 - `titles/spyro1/render/hud_anchor.*` — S1 HUD anchor class per HUD record
-- `titles/spyro1/render/screen_overlays.h` — S1 facts for the shared tint and letterbox
+- `titles/spyro1/render/screen_overlays.h` — S1 facts for the shared letterbox
 - `titles/spyro1/render/particle*` — S1 particles / emit list
 - `titles/spyro1/render/screen.h` — S1 retail outcode window for widened culls
 - `titles/spyro1/render/pause_backdrop.*` — S1 pause backdrop: the grey read-back page (func_80017E98) declared as a read-back texture
