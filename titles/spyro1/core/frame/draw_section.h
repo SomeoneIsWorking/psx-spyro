@@ -37,6 +37,8 @@ private:
                                    std::span<const psx::present::GuestRedraw::Skip> skips = {});
   // GS_Dragon's draw, its m_State 5 shrink scaled between the ticks.
   [[nodiscard]] static bool drawDragon(Core &core, psx::present::GuestRedraw &redraw);
+  // The credits flyby, its fade drawn at the blended level.
+  [[nodiscard]] static bool drawCredits(Core &core, psx::present::GuestRedraw &redraw);
   // A state draw up to `fade`, where it loads g_Fade, then the fade at the replay's level.
   [[nodiscard]] static bool drawToFade(Core &core,
                                        psx::present::GuestRedraw &redraw,

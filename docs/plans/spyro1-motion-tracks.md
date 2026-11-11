@@ -81,17 +81,19 @@ Flight results (GS 7) draw through `D_8007567C`, `Flight5`, at `0x8007B68C` in a
 bytes to its tail are identical in levels 15 to 55). Like the menus it counts its draws in `D_800758B8`, opens a
 later one with PutDrawEnv and ends with `DrawOTag(func_80016784(0))` at `0x8007CEC8`; its letters and trophy go
 through `actors::DrawnRecords`. Reached by warp `0/5/0` (any `x/5/0`) and the time-left halfwords
-`0x80075908`/`0x8007590A` written 0. A reveal frame's replay reaches PlaySound and is held (issue 0246).
+`0x80075908`/`0x8007590A` written 0. A reveal frame plays its row's sound from the draw; the replay withholds PlaySound as the real draw's
+(`GuestRedraw::applied`, issue 0246).
 
 Respawn and game over (GS 4, 5), `0x8001CA38`, wait one VSync per draw: every frame is one field
 (`fields=1/1`), so they have no in-betweens (issue 0245).
 
-Not replayed: credits (GS 15), the overlay `func_credits_8007BFD0`, which waits two fields like `Flight5` and draws
-the fullscreen tint; reached with the `credits` debug verb (CheatApplyEffect `0x8002D810` case 2). Its flyby draw builds the letters from
-`D_8007589C` (count `D_800756E4`), DrawFade(2, `g_Fade << 4`) at `0x8007C1D4`, then HUD mobys, terrain
-`0x800258F0(-1)` and sky `0x8004EBA8` before its DrawSync at `0x8007C260`. A replay from `0x8007BFD0` to `0x8007C260`
-did not stop there: every run reached the VSync wait at `0x8007C2BC` (939 of 1676 intervals, `scratch/s1states/go.py
-cred4`); why the stop is missed is not yet traced.
+Credits (GS 15) draw through the overlay `func_credits_8007BFD0` while `g_CreditsStage` (`0x80075704`) is past its
+first frame (-1, a MoveImage) and below 99 (`func_8001EB80`, returning home, not replayed). It builds the letters
+from `D_8007589C` (count `D_800756E4`), calls DrawFade(2, `g_Fade << 4`) at `0x8007C1F0` when `g_Fade` is set
+(`beqz` `0x8007C1E0`), then HUD mobys, terrain `0x800258F0(-1)` and sky `0x8004EBA8` before its DrawSync at
+`0x8007C260`. The letter loop's exit falls through into the fade test inside one block (`0x8007C158`), so no stop can
+sit there: the fade is stopped at DrawFade's entry `0x800190D4` and resumed at its return `0x8007C1F8`. Reached with
+the `credits` debug verb (CheatApplyEffect `0x8002D810` case 2).
 
 ## Camera
 

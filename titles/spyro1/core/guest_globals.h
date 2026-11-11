@@ -73,6 +73,7 @@ inline constexpr std::uint32_t kGamestateDragon = 8u;                           
 inline constexpr std::uint32_t kGamestateFairy = 11u;                            // GS_Fairy
 inline constexpr std::uint32_t kGamestateBalloonist = 12u;                       // GS_Balloonist
 inline constexpr std::uint32_t kGamestateCutscene = 14u;                         // GS_Cutscene
+inline constexpr std::uint32_t kGamestateCredits = 15u;                          // GS_Credits
 inline constexpr std::uint32_t kTitleModeInit = 0u;                              // TSM_Init
 inline constexpr std::uint32_t kTitleModeLoading = 2u;                           // TSM_Loading
 inline constexpr std::uint32_t kTitleModeDemo = 3u;                              // TSM_Demo

@@ -8,6 +8,7 @@
 #include "spyro1/core/frame/draw_motion.h"
 #include "spyro1/core/frame/frame_driver.h"
 #include "spyro1/core/frame/screen_fade.h"
+#include "spyro1/core/guest_functions.h"
 #include "spyro1/core/guest_globals.h"
 #include "spyro1/core/native_state.h"
 #include "spyro1/render/terrain_facts.h"
@@ -61,9 +62,28 @@ constexpr std::uint32_t kPutDrawEnv = 0x8005FDD8u;
 constexpr std::uint32_t kMenuFlatten = 0x8001C598u;
 // Flight5, GS_FlightResults through D_8007567C: the same code at the same address in all five
 // flight overlays; like the menus it counts its draws in D_800758B8, opens a later one with
-// PutDrawEnv and ends with DrawOTag(func_80016784(0)) at 0x8007CEC8.
+// PutDrawEnv and ends with DrawOTag(func_80016784(0)) at 0x8007CEC8. A row's reveal plays its sound
+// from the draw (D_8007569C below the row), the real draw's work; every site passes a3 = 0 and sets
+// v0 after.
 constexpr std::uint32_t kFlightResultsDraw = 0x8007B68Cu;
 constexpr std::uint32_t kFlightResultsFlatten = 0x8007CEC8u;
+// func_credits_8007BFD0, GS_Credits while g_CreditsStage is past its first frame (-1, a MoveImage)
+// and below 99 (func_8001EB80, returning home): its letters, then DrawFade(2, g_Fade << 4) called
+// at 0x8007C1F0 when g_Fade is set (beqz 0x8007C1E0), then HUD mobys, terrain and sky up to its
+// DrawSync at 0x8007C260. The letter loop falls through into the fade's test, so the fade is
+// stopped at DrawFade's entry and resumed at the call's return.
+constexpr std::uint32_t kCreditsStage = 0x80075704u;
+constexpr std::uint32_t kCreditsFirstStage = 0xFFFFFFFFu;
+constexpr std::int32_t kCreditsReturningHome = 99;
+constexpr std::uint32_t kCreditsDraw = 0x8007BFD0u;
+constexpr std::uint32_t kCreditsFadeReturn = 0x8007C1F8u;
+constexpr std::uint32_t kCreditsTail = 0x8007C260u;
+
+bool creditsFlyby(Core &core) {
+  const std::uint32_t stage = core.mem_r32(kCreditsStage);
+  return stage != kCreditsFirstStage && static_cast<std::int32_t>(stage) < kCreditsReturningHome;
+}
+
 // The draws D_800758B8 counts, which link their packets straight into the overlay pair and flatten
 // no bins.
 bool countedDraw(std::uint32_t state) {
@@ -145,6 +165,7 @@ bool DrawSection::replays(Core &core) const {
   return state == guest::kGamestatePlaying || state == guest::kGamestateDragon ||
          state == guest::kGamestateFairy || state == guest::kGamestateBalloonist ||
          state == guest::kGamestateCutscene ||
+         (state == guest::kGamestateCredits && creditsFlyby(core)) ||
          (countedDraw(state) && core.mem_r32(kMenuDraws) != 0) ||
          (state == guest::kGamestateTitleScreen &&
           core.mem_r32(guest::kTitlescreenMode) != guest::kTitleModeDemo);
@@ -211,6 +232,21 @@ bool DrawSection::drawToFade(Core &core,
   return true;
 }
 
+bool DrawSection::drawCredits(Core &core, psx::present::GuestRedraw &redraw) {
+  if (core.mem_r32(guest::kFade) == 0) {
+    return drawTo(redraw, kCreditsDraw, kCreditsTail);
+  }
+  bool faded = true;
+  const std::array<psx::present::GuestRedraw::Skip, 1> fade{
+      {{.at = kDrawFade, .resume = kCreditsFadeReturn, .host = [&] {
+          if (const std::optional<std::uint32_t> level = fadeLevel(core)) {
+            const std::array<std::uint32_t, 4> args{2u, *level, *level, *level};
+            faded = step(redraw, kDrawFade, args);
+          }
+        }}}};
+  return drawTo(redraw, kCreditsDraw, kCreditsTail, fade) && faded;
+}
+
 bool DrawSection::drawDragon(Core &core, psx::present::GuestRedraw &redraw) {
   if (core.mem_r32(guest::kDragonCutsceneState) != kDragonShrinkState) {
     return drawTo(redraw, kDragonDraw, kDragonTail);
@@ -235,6 +271,8 @@ bool DrawSection::drawState(Core &core, psx::present::GuestRedraw &redraw) {
   case guest::kGamestateDragon:
     return drawDragon(core, redraw);
   case guest::kGamestateFlightResults: {
+    const std::array<std::uint32_t, 1> sound{guest::kPlaySound};
+    redraw.applied(sound);
     const std::array<psx::present::GuestRedraw::Skip, 1> applied{{{.at = kPutDrawEnv}}};
     return drawTo(redraw, kFlightResultsDraw, kFlightResultsFlatten, applied);
   }
@@ -244,6 +282,8 @@ bool DrawSection::drawState(Core &core, psx::present::GuestRedraw &redraw) {
     return drawTo(redraw, kBalloonistDraw, kBalloonistTail);
   case guest::kGamestateCutscene:
     return drawToFade(core, redraw, kCutsceneDraw, kCutsceneFade);
+  case guest::kGamestateCredits:
+    return drawCredits(core, redraw);
   default:
     return drawToFade(core, redraw, kTitlescreenDraw, kTitlescreenFade);
   }

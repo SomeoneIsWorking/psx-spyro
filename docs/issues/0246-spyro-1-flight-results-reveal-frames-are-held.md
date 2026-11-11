@@ -1,7 +1,7 @@
 # 0246 — Spyro 1 flight results hold the in-between of each reveal frame
 
-Status: open. Owner: psxport `runtime/psx/present/guest_redraw.*` (`GuestRedraw::Skip`) and the executor stop it
-rests on (`cpu::resumeGuestToReturn`).
+Status: fixed (2026-11-11). Owner: psxport `runtime/psx/present/guest_redraw.*` (`GuestRedraw::applied`) over
+`runtime/cpu/side_effect_journal.*` (`SideEffectJournal::withhold`).
 
 ## Observed
 Flight results (GS 7) are replayed (`DrawSection`, `Flight5` `0x8007B68C` to `0x8007CEC8`), but on each frame that
@@ -16,6 +16,16 @@ refuses it. `GuestRedraw::Skip` steps over a callee the real frame already ran, 
 time and in order: `dispatchTo` stops at one address per stretch (`resumeGuestToReturn` returns at one pc).
 
 ## Fix
-A redraw step-over that holds for any number of calls to a callee entry, reached or not: the redraw names the
-callees whose work is the real frame's (PlaySound here), and a call to one inside the redraw returns at once. It
-belongs to the dispatch the redraw already journals (`SideEffectJournal`), not to the sound native.
+PlaySound (`0x80055A78`, the native `assignActiveSoundSlot`) returns 0 in v0 (0x7F on its size-limit rejection),
+a varying v1, and writes the chosen slot through a3 when a3 is set. Flight5's five calls (returns `0x8007BE08`,
+`0x8007C004`, `0x8007C1FC`, `0x8007C3F8`, `0x8007C5B4`) pass a3 = 0, overwrite v0 with the row number at once
+(`addiu v0, zero, N` before `sw v0, D_8007569C`) and set a0 to a3 again before the next call, so they read nothing
+back. The real draw plays the sound; a replay only needs the call gone. `GuestRedraw::applied` names host services
+whose work is the real frame's: the Discard journal withholds each one wherever the run reaches it, and the
+dispatch returns at the caller's ra with the registers as the call found them (`dispatchGuestHostService`). It
+aborts at a callee that is guest code. `DrawSection` names PlaySound for the flight results draw.
+
+## Evidence
+`fres3` (same route): 2314 intervals replayed, 0 refused (was 5), 0 of 27792 HUD records unpaired; in-betweens
+0.26 / 0.10 and 0.31 / 0.15 to their neighbours. fps60 on/off fielddigest identical over 5460 fields (`fleak30`,
+`fleak31`).

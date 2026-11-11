@@ -18,7 +18,8 @@ inline constexpr std::uint32_t kAngDiff8 = 0x80017908u;
 inline constexpr std::uint32_t kAtan2 = 0x80016AB4u;
 inline constexpr std::uint32_t kInitNewGameState = 0x8001277Cu; // InitNewGameState (open-spyro)
 inline constexpr std::uint32_t kCheatProcessLevelWarp =
-    0x8002D580u;                                                // CheatProcessLevelWarp (cheats.c)
+    0x8002D580u;                                         // CheatProcessLevelWarp (cheats.c)
+inline constexpr std::uint32_t kPlaySound = 0x80055A78u; // PlaySound (native assignActiveSoundSlot)
 inline constexpr std::uint32_t kCheatApplyEffect = 0x8002D810u; // CheatApplyEffect (cheats.c)
 inline constexpr std::uint32_t kCheatCredits = 2u;              // its credits case
 
