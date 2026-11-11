@@ -237,6 +237,7 @@ inline constexpr spyro::DrawMotionFacts kDrawMotion{
             .trailHead = 0x28u,       // 8004B748: 6 points
             .meshes = 0x80069F30u,    // 80015618
             .particles = 0x80066F18u, // 800481DC
+            .allocator = 0x80041C50u,
         },
     .fades = {{{"subtractive fade", 0x80066F68u}, {"additive fade", 0x80067150u}}},
     .fadeCount = 2,

@@ -2,10 +2,15 @@
 
 #include "blend.h"
 #include "core.h"
+#include "core/boot_prefix_frame_driver.h"
+#include "game.h"
 #include "gte_control.h"
+#include "native_dispatch.h"
+#include "r3000.h"
 #include "render/field/keyframe_blend.h"
 #include "render/field/moby_record.h"
 #include "render/field/record_blend.h"
+#include "replay_frame.h"
 
 #include <algorithm>
 
@@ -16,6 +21,15 @@ namespace record = guest_moby::record;
 
 std::uint32_t flagsOf(const moby_record::Bytes &bytes) {
   return record_blend::load<std::uint32_t>(bytes, record::kFlags);
+}
+
+void allocateParticle(Core *core) {
+  EffectMotion &effects = core->game->frameDriverAs<BootPrefixFrameDriver>().motion().effects();
+  if (!psx::cpu::callOriginalOrPropagate(*core, effects.facts().allocator) ||
+      core->runtime.replayFrame(*core)->replaying()) {
+    return;
+  }
+  effects.spawned(*core, core->r[psx::cpu::kV0]);
 }
 
 } // namespace
@@ -139,6 +153,12 @@ void FlameMotion::blend(const Samples &samples, float t, std::span<std::uint32_t
 void EffectMotion::sample(Core &core) {
   later_ ^= 1u;
   effect_pools::read(core, facts_, records_[later_]);
+  records_[later_].spawned = spawned_;
+  spawned_.reset();
+}
+
+void EffectMotion::spawned(Core &core, std::uint32_t address) {
+  spawned_.set((address - core.mem_r32(facts_.particles)) / effect_pools::kParticleBytes);
 }
 
 psx::present::MotionCount EffectMotion::write(psx::present::GuestRedraw &redraw, float t) const {
@@ -176,6 +196,10 @@ DrawMotion::DrawMotion(Core &core, const DrawMotionFacts &facts)
                        .address = facts.fades[i].address,
                        .fields = std::span(&facts.fades[i].field, 1)});
   }
+}
+
+void installEffectSpawns(Core &core, const effect_pools::Facts &facts) {
+  psx::cpu::installNativeOverride(core, facts.allocator, "spyro-particle-spawn", allocateParticle);
 }
 
 } // namespace spyro

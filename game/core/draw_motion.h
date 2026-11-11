@@ -11,6 +11,7 @@
 #include "render/field/moby_motion.h"
 
 #include <array>
+#include <bitset>
 #include <cstdint>
 #include <span>
 #include <vector>
@@ -134,12 +135,22 @@ public:
   }
   void sample(Core &core) override;
   psx::present::MotionCount write(psx::present::GuestRedraw &redraw, float t) const override;
+  // The particle slot at `address` was handed out by the allocator.
+  void spawned(Core &core, std::uint32_t address);
+  [[nodiscard]] const effect_pools::Facts &facts() const {
+    return facts_;
+  }
 
 private:
   const effect_pools::Facts &facts_;
   std::array<effect_pools::Records, 2> records_{};
   std::size_t later_ = 0;
+  std::bitset<effect_pools::kParticles> spawned_;
 };
+
+// Installs the particle allocator's override: it runs the guest body and marks the slot it handed
+// out, outside replays.
+void installEffectSpawns(Core &core, const effect_pools::Facts &facts);
 
 class DrawMotion {
 public:
@@ -156,6 +167,9 @@ public:
   }
   [[nodiscard]] const SkyWave &skyWave() const {
     return skyWave_;
+  }
+  [[nodiscard]] EffectMotion &effects() {
+    return effects_;
   }
 
 private:

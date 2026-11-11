@@ -41,8 +41,7 @@ inline constexpr std::uint32_t kPointBytes = 6;
 
 // Particles, 0x80048128: texture, kind and age bytes, then per kind a point or a line.
 namespace particle {
-inline constexpr std::uint32_t kKind = 0x01; // low nibble; negative: skipped, 0xFF ends the pool
-inline constexpr std::uint32_t kAge = 0x02;
+inline constexpr std::uint32_t kKind = 0x01;   // low nibble; negative: skipped, 0xFF ends the pool
 inline constexpr std::uint32_t kPoint = 0x04;  // x, y, z halfwords
 inline constexpr std::uint32_t kSecond = 0x0A; // kind 1: the line's other end
 inline constexpr std::uint32_t kSize = 0x0A;   // other kinds: size byte, then a spin byte
@@ -57,13 +56,13 @@ void readPool(Core &core, std::uint32_t address, Pool<Bytes, Count> &pool) {
   core.readBytes(address, std::as_writable_bytes(std::span(pool)));
 }
 
-// The first `bytes` of `shown`'s words that differ from `to`'s, written at `address`.
+// The words among `shown`'s first `bytes` that differ from `to`'s, written at `address`.
 template <std::size_t N>
 void writeChanged(psx::present::GuestRedraw &run,
                   std::uint32_t address,
-                  std::uint32_t bytes,
                   const std::array<std::uint8_t, N> &to,
-                  const std::array<std::uint8_t, N> &shown) {
+                  const std::array<std::uint8_t, N> &shown,
+                  std::uint32_t bytes) {
   for (std::uint32_t at = 0; at < bytes; at += 4) {
     if (load<std::uint32_t>(shown, at) != load<std::uint32_t>(to, at)) {
       run.writeWord(address + at, load<std::uint32_t>(shown, at));
@@ -117,7 +116,7 @@ void poolBetween(psx::present::GuestRedraw &run,
     }
     std::array<std::uint8_t, Bytes> shown = to[i];
     move(shown, from[i], to[i]);
-    writeChanged(run, address + static_cast<std::uint32_t>(i) * stride, stride, to[i], shown);
+    writeChanged(run, address + static_cast<std::uint32_t>(i) * stride, to[i], shown, stride);
   }
 }
 
@@ -162,9 +161,9 @@ void particlesBetween(psx::present::GuestRedraw &run,
       continue;
     }
     ++count.drawn;
-    if (from.particlePool != to.particlePool || before[0] != after[0] ||
-        before[particle::kKind] != after[particle::kKind] ||
-        after[particle::kAge] < before[particle::kAge]) {
+    // A slot the allocator handed out between the samples holds a new particle.
+    if (to.spawned[i] || from.particlePool != to.particlePool || before[0] != after[0] ||
+        before[particle::kKind] != after[particle::kKind]) {
       ++count.unpaired;
       continue;
     }
@@ -183,9 +182,9 @@ void particlesBetween(psx::present::GuestRedraw &run,
     }
     writeChanged(run,
                  to.particlePool + static_cast<std::uint32_t>(i) * kParticleBytes,
-                 kParticleBytes,
                  after,
-                 shown);
+                 shown,
+                 kParticleBytes);
   }
 }
 

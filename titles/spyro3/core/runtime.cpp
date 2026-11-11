@@ -62,6 +62,7 @@ void Runtime::registerOverrides(Game &game) {
   spyro3::hud_anchor::registerOverrides(game.core);
   spyro3::hud_slide::registerOverrides(game.core);
   spyro::installSkyWave(game.core, kSkyWave);
+  spyro::installEffectSpawns(game.core, kDrawMotion.effects);
   libgte_.bind(game);
   spyro::registerEngineRenderOverrides<kRenderFacts>(game.core);
   psx::cpu::installNativeOverride(game.core,

@@ -92,6 +92,7 @@ void Runtime::registerOverrides(Game &game) {
   hud_anchor::registerOverrides(game.core);
   spyro::installHudSlide<kHudSlide>(game.core);
   spyro::installSkyWave(game.core, kSkyWave);
+  spyro::installEffectSpawns(game.core, kDrawMotion.effects);
   lucent::info(
       "boot",
       "installed Spyro 2's stock libraries and natives for the projection leaves, the moby "
