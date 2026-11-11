@@ -428,11 +428,14 @@ MobyWalk::Step MobyWalk::finishEntry(const Candidate &candidate) {
   const std::int32_t x4 = asSigned(asWord(cx) << 2);
   const std::int32_t y4 = asSigned(asWord(cy) << 2);
   const std::int32_t z4 = asSigned(asWord(cz) << 2);
-  std::int32_t bin = (z4 >> 7) - (angles >> 24);
+  const std::int32_t viewBin = z4 >> 7;
+  std::int32_t bin = viewBin - (angles >> 24);
   core_.mem_w16(entry_ + entry::kDepthBias, static_cast<std::uint16_t>(depthBias));
   if (bin < 0) {
     bin = 0;
   }
+  // The bins the drawer sorts the moby nearer than its centre lies.
+  const std::int32_t sortedNearer = viewBin - bin;
   if (bin - 0x110 >= 0) {
     bin += 0x20;
     if (bin - 0x1C0 >= 0) {
@@ -478,6 +481,15 @@ MobyWalk::Step MobyWalk::finishEntry(const Candidate &candidate) {
   core_.mem_w32(entry_ + entry::kCentre, asWord(x));
   core_.mem_w32(entry_ + entry::kCentre + 4, asWord(y));
   core_.mem_w32(entry_ + entry::kCentre + 8, asWord(z));
+  // The drawer loads this word into TRZ (SCUS_944.25 800445A8, SCUS_944.67 800311C8), so its
+  // projections take this entry's view unit.
+  core_.vertexPlaces.note(
+      entry_ + entry::kCentre + 8,
+      asWord(z),
+      {.translation = {.scale = guest_render_globals::meshDepthScale(amount, scale),
+                       .nearer = static_cast<float>(sortedNearer) *
+                                 guest_render_globals::kDepthBinViewUnits,
+                       .carried = 1}});
   entry_ += kEntryStride;
   return entry_ == listEnd_ ? Step::End : Step::Next;
 }

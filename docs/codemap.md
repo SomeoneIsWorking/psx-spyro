@@ -31,6 +31,7 @@ Frame loop: not owned. Spyro 1 runs update `0x8003385C` and draw `0x8001ED5C` an
 - `game/render/field/moby_pose.*` — S2/S3 model-space vertices of one moby render-list entry: the drawer's vertex streams decoded and blended toward frame B
 - `game/render/field/intro_card.*` — S2/S3 title intro card at 16:9: the moby drawer, then the card's front-face rows continued into the margins in its own model space
 - `game/render/field/guest_sky_drawer.*` — S2/S3 sky drawer: visible sky sectors projected and outcoded against the presented window, triangle strips chained one bin past the mark
+- `game/render/field/spyro_drawer_depth.*` — S2/S3 player drawer's native depth: his view unit and bias byte per call, slot order for the reflection and unbinned passes
 - `game/render/field/guest_view_slope.*` — horizontal frustum slope, screen margin and outcode window at 4:3 or widened 16:9
 - `game/render/field/guest_render_globals.h` — camera, ordering-table, overlay-pair and packet-cursor guest words per image
 - `game/render/field/guest_working_memory.h` — packet tag link, rotation words

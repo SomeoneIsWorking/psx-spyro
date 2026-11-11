@@ -145,10 +145,14 @@ inline constexpr spyro::guest_moby::Facts kMobyFacts{
 // Spyro's drawer, 0x80041DBC. It projects his vertices with RTPS and keeps each SZ3 (800423CC),
 // then sorts every face into its own bucket table by the sum of its four depths less the face's
 // bias, 64 of that sum to a bucket (80042C48), and links the buckets into the ordering table
-// (800437F4): a per-face sort, so his faces test each other.
-inline constexpr std::uint32_t kSpyroDrawer = 0x80041DBCu;
-// One of those buckets in SZ units.
-inline constexpr float kSpyroDrawerBin = 16.0f;
+// (800437F4): a per-face sort, so his faces test each other. Its translation is his position less
+// the camera's (80041E04), it bins him by that depth >> 7 less the signed byte +0x1E (80042168),
+// and 0x8004C534 calls it first for the reflection while +0x2C is set.
+inline constexpr spyro::spyro_drawer_depth::Facts kSpyroDrawer{
+    .entry = 0x80041DBCu,
+    .overrideName = "spyro2-spyro-depth",
+    .spyro = 0x80069FF0u,
+};
 
 // What the draw body's replay moves (core/draw_motion.h).
 //
@@ -263,6 +267,9 @@ inline constexpr spyro::EngineRenderFacts kRenderFacts{
     .globals = kRenderGlobals,
     .terrain = kTerrainFacts,
     .moby = kMobyFacts,
+    // jal at 8004C564; its translation is the entry's centre, loaded at 800445A8.
+    .mobyDrawer = 0x80044504u,
+    .spyroDrawer = kSpyroDrawer,
     .sky = kSkyFacts,
     .flatten = kFlatten,
     .flattenName = "spyro2-depth-bins",

@@ -225,10 +225,24 @@ inline constexpr spyro::guest_sky::Facts kSkyFacts{
     .sectors = 0x8006E334u,
 };
 
+// Spyro's drawer, 0x8003CDA0: SCUS_944.25's 0x80041DBC over the record 0x80070328, the bias byte
+// +0x1E read at 8003D14C, the reflection called first by 0x8001EC5C while +0x2C is set. State 0xD
+// draws him in the second pass instead (8001EB34), chained after every bin of the first.
+inline constexpr std::array<std::uint32_t, 1> kUnbinnedSpyroReturns = {0x8001EB3Cu};
+inline constexpr spyro::spyro_drawer_depth::Facts kSpyroDrawer{
+    .entry = 0x8003CDA0u,
+    .overrideName = "spyro3-spyro-depth",
+    .spyro = 0x80070328u,
+    .unbinnedReturns = kUnbinnedSpyroReturns,
+};
+
 inline constexpr spyro::EngineRenderFacts kRenderFacts{
     .globals = kRenderGlobals,
     .terrain = kTerrainFacts,
     .moby = kMobyFacts,
+    // jal at 8001EC8C; its translation is the entry's centre, loaded at 800311C8.
+    .mobyDrawer = 0x80031124u,
+    .spyroDrawer = kSpyroDrawer,
     .sky = kSkyFacts,
     .flatten = kFlatten,
     .flattenName = "spyro3-depth-bins",

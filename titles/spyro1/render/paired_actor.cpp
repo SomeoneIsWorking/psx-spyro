@@ -8,8 +8,6 @@
 #include "spyro1/core/effect/flame_block.h"
 #include "spyro1/render/paired_actor_layout.h"
 
-#include <cmath>
-
 namespace spyro1::actors {
 
 using spyro::guest_word::packedFields;
@@ -67,7 +65,7 @@ bool PairedActor::draw() {
   // kNearViewShift.
   const psx::cpu::DepthUnit unit(
       core_.gte(),
-      std::ldexp(1.0f, -static_cast<int>(spyro::guest_render_globals::kNearViewShift)),
+      spyro::guest_render_globals::kWorldDepthScale,
       static_cast<float>(sortedNearer_ << spyro::guest_render_globals::kDepthBinShift));
   orientParts(offsets);
   projectParts();

@@ -5,6 +5,7 @@
 #include "core.h"
 
 #include <array>
+#include <cmath>
 #include <cstdint>
 
 namespace spyro::guest_render_globals {
@@ -27,14 +28,26 @@ struct Globals {
   std::uint32_t visibilityGroups = 0; // one byte per terrain sector
 };
 
-// View units: the near terrain pass and the moby walk work in world units >> kNearViewShift (the camera word at
-// 80024534, each moby's offset at 800439F4), the far pass in world units >> kFarViewShift (80028B14).
+// View units: the near terrain pass and the moby walk work in world units >> kNearViewShift (the
+// camera word at 80024534, each moby's offset at 800439F4), the far pass in world units >>
+// kFarViewShift (80028B14).
 inline constexpr std::uint32_t kNearViewShift = 2;
 inline constexpr std::uint32_t kFarViewShift = 4;
-// An ordering-table bin is a polygon's mean near view depth >> kDepthBinShift (terrain polygonBin, moby depthBin).
+// An ordering-table bin is a polygon's mean near view depth >> kDepthBinShift (terrain polygonBin,
+// moby depthBin).
 inline constexpr std::uint32_t kDepthBinShift = 5;
 // One bin in near view units: how far one slot of the guest's sort spans.
 inline constexpr float kDepthBinViewUnits = 1u << kDepthBinShift;
+// Near view units per SZ unit of a draw whose translation is world minus camera (Spyro's centre).
+inline constexpr float kWorldDepthScale = 1.0f / (1u << kNearViewShift);
+
+// Near view units per SZ unit of a moby drawn at its mesh's `positionShift` (its translation is
+// world >> that), times 32 / `scale` when the scale byte is set (the translation shrunk by it
+// through GPF).
+[[nodiscard]] inline float meshDepthScale(std::uint32_t positionShift, std::uint32_t scale) {
+  return std::ldexp(scale != 0 ? 32.0f / static_cast<float>(scale) : 1.0f,
+                    static_cast<int>(positionShift & 31u) - static_cast<int>(kNearViewShift));
+}
 
 // A quarter turn of 256 halfword sine entries.
 inline constexpr std::uint32_t kCosineOffset = 0x80u;

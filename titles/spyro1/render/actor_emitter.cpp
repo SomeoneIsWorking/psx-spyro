@@ -6,8 +6,6 @@
 #include "render/terrain/guest_terrain_fog.h"
 #include "spyro1/render/actor_emitter_layout.h"
 
-#include <cmath>
-
 namespace spyro1::actors {
 
 using namespace emitter;
@@ -84,10 +82,7 @@ bool ActorEmitter::place() {
   std::uint32_t y = sra(viewY << spyro::guest_render_globals::kNearViewShift, positionShift & 31u);
   std::uint32_t z = sra(viewZ << spyro::guest_render_globals::kNearViewShift, positionShift & 31u);
   const std::uint32_t scale = flags_ & 0xFFu;
-  // TR is the near view back in world units >> positionShift, then times scale / 32 when scaled.
-  depthUnit_ = std::ldexp(scale != 0 ? 32.0f / static_cast<float>(scale) : 1.0f,
-                          static_cast<int>(positionShift & 31u) -
-                              static_cast<int>(spyro::guest_render_globals::kNearViewShift));
+  depthUnit_ = spyro::guest_render_globals::meshDepthScale(positionShift, scale);
   halfShift_ = memory_.mem_r8(frame_ + frame::kHalfShift);
   if (scale != 0) {
     gte.writeData(gte::kIr0, scale);

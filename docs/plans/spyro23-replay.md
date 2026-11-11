@@ -340,13 +340,24 @@ Spyro 3 Sunrise Spring, Up and Left (746 in-betweens), identical over 2813.
     Each declined frame is counted by its reason and reported at run end (`BootPrefixFrameDriver::reportDeclined`).
 11. Cost: each replay runs the whole field, terrain included, once per in-between; not measured against
     field_redraw's dispatcher redraw plus terrain rebuild.
-13. Native depth (psxport route D step 1, vertex places): Spyro 2 marks only Spyro's drawer `0x80041DBC`, `Polygon`
-    with its 16-SZ bucket as the bin (`titles/spyro2/render/render_facts.h`). It buckets each face by its summed SZ, so
-    a far face can paint over a near one: the horn fold at Glimmer and a far face over his hip. Both are gone on real
-    presents and in-betweens (`scratch/depth/h5_tip7.png`; `h4_seq.png` without depth, `h5_seq.png` with). Not yet
-    marked: the terrain drawer, the moby draws (`0x80044504` and the other guest sites) and all of Spyro 3, because
-    their depths are not yet in one view unit. Each needs its `DepthUnit` derived from its transform before it is
-    marked.
-    The mark ignores the per-face bias `0x80041DBC` subtracts before bucketing (face word bits 0-2, 128 of the summed
-    SZ each), and `0x8004C534` calls the same drawer for the reflection pass, so the two passes share one depth plane.
-    Both need a per-polygon bias or per-call mark carried with the vertex places; until then a biased face can lose.
+13. Native depth (psxport `docs/presentation.md` Depth), Spyro 2 and 3 alike (`engine_render_overrides.h`):
+    - Terrain `0x80023BB4`'s near pass is `Polygon` with a 32-unit bin. The far LOD pass
+      (`guest_terrain_far.cpp`) projects with no depth: its coarse quads overlap each other and drew notches into
+      near tree trunks at Spyro 2 `warp 1/0/0` (580 px off against on, 8 after).
+    - Spyro's drawer (`0x80041DBC` / `0x8003CDA0`, `spyro_drawer_depth.cpp`) is `Polygon` with 4-unit buckets. It
+      opens his view unit (1/4, translation world minus camera) and his bias byte +0x1E in bins. The reflection call
+      (+0x2C set) and Spyro 3's second pass (state 0xD, return `0x8001EB3C`) project with no depth.
+    - The moby drawer (`0x80044504` / `0x80031124`) is `Object`. The walk tags each entry's centre z with
+      `meshDepthScale` and its sorted-nearer bins (`guest_moby_visibility.cpp:finishEntry`), and the drawer's
+      `CTC2` of TRZ carries that unit.
+    - Shown (`scratch/depth23`, player settings, unpaced, off against on): Glimmer `0/1/0` holding Up+Left 200
+      fields (Spyro 2), a grey wall top no longer pops over the near green overhang, on real presents and in-betweens
+      (`h_top.png`, `h_top0.png`). Spyro 3 Sunny Villa `0/0/0` and `0/1/0` (41 px) and Cloud Spires `0/2/0` (134 px,
+      Spyro only) show no holes.
+    - Not done: a moby still draws over terrain in front of it, because `Object` never tests. Marking it `Polygon`
+      needs each face's bias: the drawer subtracts the face word's bits 0-2, sign-extended, << 2 << (detail + 4)
+      from the summed SZ (80044DAC..DBC). Spyro's drawer has the same bias, 128 summed SZ per step (80042C64).
+      Both live only in `$s0` mid-body while the packet's SXY words are stored from GPRs. Carrying them needs a
+      native drawer, or a vertex-place hook at the face store.
+    - Unmarked, so slot order: the deferred list `0x80046FD8` / `0x80033C5C`, the close mobys `0x800499D4` /
+      `0x8002DDA8` (each computes its own TR), the shadow `0x800495E8` (translucent). Their units are not derived yet.
