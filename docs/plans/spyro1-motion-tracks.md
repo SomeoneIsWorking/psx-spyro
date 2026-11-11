@@ -62,15 +62,12 @@ last real draw's (`actors::DrawnRecords`, same mesh at the same address).
 |---|---|---|---|---|
 | dragon fade | `g_DragonCutscene.m_Fade` `0x80077074` | Scalar (DrawFade(1, f, f, f) takes it whole) | single | `0x8001CFDC` |
 | rescue star | `D_80076248`: +0x04 position, +0x24 scale, +0x28 angles (byte 3 the colour) | Vector, Scalar, Angle8x3 | drawn while +0x00 is set | `0x8001CFDC` (RotVec8ToMatrix), `0x80058864` |
+| dragon shrink | `g_DragonCutscene.m_CutsceneTicks` `0x8007706C` in m_State 5 | source (`DragonShrink`): the scale block `0x8001D31C`..`0x8001D438` is a host step, `D_8006F3C0` entries and the Cos angle `t` of the way between the ticks' | single | `0x8001CFDC` |
 
 The cutscene Spyro and dragon (`m_CutsceneSpyro`/`m_CutsceneDragon`, +0x88/+0x8C) are `g_LevelMobys` slots
 `0x800524C4` hands out, classes 511 and 510 at +0x36, so the moby track keys them by its own class key.
 
 Not replayed:
-- The menus (GS 2, 3, 6), `0x8001A40C`: every animation is the draw's own count `D_800758B8`, read whole
-  (`COSINE_8(D_800758B8 * 8 + i * 12)`, `func_80018534(.., D_800758B8 * 2, ..)`), and the draw opens with
-  PutDrawEnv. A replay past the PutDrawEnv runs (0 refusals with it stood in), but every in-between equals the
-  earlier tick (luma 0.01 to it); issue 0244.
 - Respawn and game over (GS 4, 5), `0x8001CA38`: after a MoveImage copies the last frame into both buffers it
   clears `isbg` and each frame tints over the image the frame before left, so a frame's picture is the sum of
   every earlier draw and an in-between replayed over S would tint twice.

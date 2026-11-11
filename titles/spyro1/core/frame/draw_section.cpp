@@ -4,6 +4,8 @@
 #include "game.h"
 #include "guest_redraw.h"
 #include "ordering_table.h"
+#include "spyro1/core/frame/dragon_shrink.h"
+#include "spyro1/core/frame/draw_motion.h"
 #include "spyro1/core/frame/frame_driver.h"
 #include "spyro1/core/frame/screen_fade.h"
 #include "spyro1/core/guest_globals.h"
@@ -59,12 +61,13 @@ constexpr std::uint32_t kCutsceneFade = 0x8001EA88u;
 // DrawOTag(func_80016784(0)) at 0x8001C598.
 constexpr std::uint32_t kMenuDraw = 0x8001A40Cu;
 constexpr std::uint32_t kMenuDraws = 0x800758B8u;
-constexpr std::array<std::uint32_t, 1> kMenuAppliedCalls{0x8005FDD8u}; // PutDrawEnv
+constexpr std::uint32_t kPutDrawEnv = 0x8005FDD8u;
 constexpr std::uint32_t kMenuFlatten = 0x8001C598u;
 // func_8001CFDC, GS_Dragon: every m_State's drawers, fade and border join at its DrawSync,
 // 0x8001D644.
 constexpr std::uint32_t kDragonDraw = 0x8001CFDCu;
 constexpr std::uint32_t kDragonTail = 0x8001D644u;
+constexpr std::uint32_t kDragonShrinkState = 5u;
 
 // func_80016784(0x800): links the bins into one chain and returns its head, DrawOTag's argument.
 constexpr std::uint32_t kFlattenBins = 0x80016784u;
@@ -114,10 +117,13 @@ bool step(psx::present::GuestRedraw &redraw,
   return returned;
 }
 
+const DrawMotion &motion(Core &core) {
+  return core.game->frameDriverAs<FrameDriver>().motion();
+}
+
 // The fade level this replay draws, `t` of the way between the ticks' levels.
 std::optional<std::uint32_t> fadeLevel(Core &core) {
-  const ScreenFade &fade = core.game->frameDriverAs<FrameDriver>().motion().screenFade();
-  return fade.level(core, core.runtime.replayFrame(core)->replaying());
+  return motion(core).screenFade().level(core, core.runtime.replayFrame(core)->replaying());
 }
 
 } // namespace
@@ -169,8 +175,8 @@ bool DrawSection::drawPlaying(Core &core, psx::present::GuestRedraw &redraw) {
 bool DrawSection::drawTo(psx::present::GuestRedraw &redraw,
                          std::uint32_t entry,
                          std::uint32_t end,
-                         std::span<const std::uint32_t> appliedCalls) {
-  const bool reached = redraw.dispatchTo(entry, end, {}, appliedCalls);
+                         std::span<const psx::present::GuestRedraw::Skip> skips) {
+  const bool reached = redraw.dispatchTo(entry, end, {}, skips);
   lucent::debug("replay",
                 "spyro1 section step 0x{:08X} to 0x{:08X}: {}",
                 entry,
@@ -193,15 +199,29 @@ bool DrawSection::drawToFade(Core &core,
   return true;
 }
 
+bool DrawSection::drawDragon(Core &core, psx::present::GuestRedraw &redraw) {
+  if (core.mem_r32(guest::kDragonCutsceneState) != kDragonShrinkState) {
+    return drawTo(redraw, kDragonDraw, kDragonTail);
+  }
+  const DragonShrink &shrink = motion(core).dragonShrink();
+  const std::optional<float> t = core.runtime.replayFrame(core)->replaying();
+  const std::array<psx::present::GuestRedraw::Skip, 1> scale{
+      {{.at = DragonShrink::kScaleBlock, .resume = DragonShrink::kScaleBlockEnd, .host = [&] {
+          shrink.scale(core, redraw, t);
+        }}}};
+  return drawTo(redraw, kDragonDraw, kDragonTail, scale);
+}
+
 bool DrawSection::drawState(Core &core, psx::present::GuestRedraw &redraw) {
   if (guest::menuDraw(core.mem_r32(guest::kGamestate))) {
-    return drawTo(redraw, kMenuDraw, kMenuFlatten, kMenuAppliedCalls);
+    const std::array<psx::present::GuestRedraw::Skip, 1> applied{{{.at = kPutDrawEnv}}};
+    return drawTo(redraw, kMenuDraw, kMenuFlatten, applied);
   }
   switch (core.mem_r32(guest::kGamestate)) {
   case guest::kGamestatePlaying:
     return drawPlaying(core, redraw);
   case guest::kGamestateDragon:
-    return drawTo(redraw, kDragonDraw, kDragonTail);
+    return drawDragon(core, redraw);
   case guest::kGamestateCutscene:
     return drawToFade(core, redraw, kCutsceneDraw, kCutsceneFade);
   default:

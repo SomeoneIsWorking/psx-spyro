@@ -4,6 +4,7 @@
 // whose chain DrawOTag submits.
 #pragma once
 
+#include "guest_redraw.h"
 #include "replay_frame.h"
 
 #include <cstdint>
@@ -28,12 +29,14 @@ private:
   [[nodiscard]] static bool drawPlaying(Core &core, psx::present::GuestRedraw &redraw);
   // The current gamestate's draw.
   [[nodiscard]] static bool drawState(Core &core, psx::present::GuestRedraw &redraw);
-  // A state draw `entry` with no override of its own, from its start to `end`, stepping over the
-  // `appliedCalls` the real frame made.
+  // A state draw `entry` with no override of its own, from its start to `end`, stepping over
+  // `skips`.
   [[nodiscard]] static bool drawTo(psx::present::GuestRedraw &redraw,
                                    std::uint32_t entry,
                                    std::uint32_t end,
-                                   std::span<const std::uint32_t> appliedCalls = {});
+                                   std::span<const psx::present::GuestRedraw::Skip> skips = {});
+  // GS_Dragon's draw, its m_State 5 shrink scaled between the ticks.
+  [[nodiscard]] static bool drawDragon(Core &core, psx::present::GuestRedraw &redraw);
   // A state draw up to `fade`, where it loads g_Fade, then the fade at the replay's level.
   [[nodiscard]] static bool drawToFade(Core &core,
                                        psx::present::GuestRedraw &redraw,

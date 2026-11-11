@@ -7,6 +7,7 @@
 #include "render/field/moby_motion.h"
 #include "spyro1/core/effect/flame_block.h"
 #include "spyro1/core/effect/shadow_block.h"
+#include "spyro1/core/frame/dragon_shrink.h"
 #include "spyro1/core/frame/screen_fade.h"
 #include "spyro1/core/frame/texture_scroll.h"
 #include "spyro1/core/frame/title_slide.h"
@@ -110,6 +111,9 @@ public:
   }
   [[nodiscard]] const ScreenFade &screenFade() const {
     return screenFade_;
+  }
+  [[nodiscard]] const DragonShrink &dragonShrink() const {
+    return dragonShrink_;
   }
 
 private:
@@ -254,7 +258,9 @@ private:
   TextureScroll textureScroll_;
   TitleSlide titleSlide_;
   ScreenFade screenFade_;
-  std::array<psx::present::MotionSource *, 3> sources_{&textureScroll_, &titleSlide_, &screenFade_};
+  DragonShrink dragonShrink_;
+  std::array<psx::present::MotionSource *, 4> sources_{
+      &textureScroll_, &titleSlide_, &screenFade_, &dragonShrink_};
   std::array<psx::present::MotionTrack, 16> tracks_{{
       {.name = "camera", .address = guest::kCamera, .fields = kCamera, .rule = &camera_},
       {.name = "spyro", .address = guest::kSpyro, .fields = kSpyro},

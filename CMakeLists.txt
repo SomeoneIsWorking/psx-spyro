@@ -83,6 +83,7 @@ set(SPYRO_RUNTIME_SOURCES
   titles/spyro1/core/frame/draw_motion.cpp
   titles/spyro1/core/frame/texture_scroll.cpp
   titles/spyro1/core/frame/screen_fade.cpp
+  titles/spyro1/core/frame/dragon_shrink.cpp
   titles/spyro1/core/frame/title_slide.cpp
   titles/spyro1/core/frame/draw_cuts.cpp
   titles/spyro1/core/frame/frame_driver.cpp

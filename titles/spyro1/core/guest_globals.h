@@ -155,6 +155,7 @@ inline constexpr std::uint32_t kCheatHomeworldSelected = 0x800758ECu;
 inline constexpr std::uint32_t kDragonCutscene = 0x80077030u;
 inline constexpr std::uint32_t kDragonCutsceneState = kDragonCutscene + 0x28u; // m_State
 inline constexpr std::uint32_t kDragonCutsceneFade = kDragonCutscene + 0x44u;  // m_Fade
+inline constexpr std::uint32_t kDragonCutsceneTicks = kDragonCutscene + 0x3Cu; // m_CutsceneTicks
 
 // D_80075744: the inventory page shown; D_800757CC slides between pages and jumps by 0x380 as this
 // changes.
