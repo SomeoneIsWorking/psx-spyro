@@ -23,8 +23,6 @@ namespace {
 
 // g_DB[2] and the globals the draw's preamble sets from the buffer it flips to
 // (src/gamestates/draw.c).
-constexpr std::uint32_t kDb0 = 0x80076EE0u;
-constexpr std::uint32_t kDb1 = 0x80076F64u;
 constexpr std::uint32_t kDbSize = 0x84u;
 constexpr std::uint32_t kDbWorldOt = 0x74u;
 constexpr std::uint32_t kDbHudOt = 0x78u;
@@ -241,7 +239,7 @@ bool DrawSection::drawState(Core &core, psx::present::GuestRedraw &redraw) {
 std::optional<std::uint32_t> DrawSection::draw(Core &core,
                                                psx::present::GuestRedraw &redraw) const {
   const ReplayScope scope(nativeState(core));
-  const std::uint32_t db = core.mem_r32(guest::kCurDb) == kDb0 ? kDb1 : kDb0;
+  const std::uint32_t db = core.mem_r32(guest::kCurDb) == guest::kDb0 ? guest::kDb1 : guest::kDb0;
   const std::uint32_t poly = core.mem_r32(db + guest::kDbPolyBuffer);
   redraw.writeWord(guest::kCurDb, db);
   redraw.writeWord(kUnread, 0);
@@ -273,8 +271,8 @@ std::optional<std::uint32_t> DrawSection::draw(Core &core,
 bool DrawSection::linked(std::uint32_t head) const {
   // The frame's other chain is PutDrawEnv's packet inside g_DB.
   const std::uint32_t offset = psx::gpu::mainRamOffsetOf(head);
-  return offset < psx::gpu::mainRamOffsetOf(kDb0) ||
-         offset >= psx::gpu::mainRamOffsetOf(kDb1 + kDbSize);
+  return offset < psx::gpu::mainRamOffsetOf(guest::kDb0) ||
+         offset >= psx::gpu::mainRamOffsetOf(guest::kDb1 + kDbSize);
 }
 
 } // namespace spyro1

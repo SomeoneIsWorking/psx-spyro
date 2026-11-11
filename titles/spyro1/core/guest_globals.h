@@ -29,8 +29,10 @@ inline constexpr std::uint32_t kModels = 0x80076378u;
 // packets.
 inline constexpr std::uint32_t kHudMobys = 0x80075710u;
 inline constexpr std::uint32_t kHudMobyArenaEnd = 0x800756FCu;
-// The current draw buffer (g_DB[0] or [1]) and its packet pool pointer; the arena end starts
-// terrain::kPacketPoolBytes past the pool.
+// g_DB[2], the current one (g_CurDB) and each one's packet pool pointer; a frame's built mobys are
+// taken down from terrain::kPacketPoolBytes past a pool.
+inline constexpr std::uint32_t kDb0 = 0x80076EE0u;
+inline constexpr std::uint32_t kDb1 = 0x80076F64u;
 inline constexpr std::uint32_t kCurDb = 0x80075888u;
 inline constexpr std::uint32_t kDbPolyBuffer = 0x70u;
 // Per collision region, the head of its moby chain.

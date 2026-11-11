@@ -725,6 +725,18 @@ void SpriteQueue::end() {
 
 namespace {
 
+// A moby the frame built is taken down from the end of a draw buffer's packet pool; its slot is
+// how far below that end it lies.
+std::optional<std::uint32_t> builtSlot(Core &core, std::uint32_t record) {
+  for (const std::uint32_t db : {guest::kDb0, guest::kDb1}) {
+    const std::uint32_t end = core.mem_r32(db + guest::kDbPolyBuffer) + terrain::kPacketPoolBytes;
+    if (record < end && end - record <= terrain::kPacketPoolBytes) {
+      return end - record;
+    }
+  }
+  return std::nullopt;
+}
+
 void drawQueue(Core *core) {
   Core &guest = *core;
   spyro::guest_render_globals::spillBorrowedRegisters(guest, terrain::kRenderGlobals);
@@ -732,10 +744,6 @@ void drawQueue(Core *core) {
   SpriteQueue queue(guest, memory, presentedQueueView(guest));
   hud_anchor::QueueAnchors anchors;
   NativeState &state = nativeState(guest);
-  // The mobys this draw built: taken down from the end of the current buffer's packet pool.
-  const std::uint32_t builtFrom =
-      guest.mem_r32(guest.mem_r32(guest::kCurDb) + guest::kDbPolyBuffer);
-  const std::uint32_t builtTo = builtFrom + terrain::kPacketPoolBytes;
   queue.begin();
   for (std::uint32_t input = kSpriteQueue;; input += 4) {
     const std::uint32_t record = guest.mem_r32(input);
@@ -749,10 +757,9 @@ void drawQueue(Core *core) {
                                                    {.name = "spyro1-hud-record", .index = record},
                                                    anchors.next(record))
                     : 0;
+    const std::optional<std::uint32_t> slot = builtSlot(guest, record);
     const std::optional<std::uint32_t> drawn =
-        record >= builtFrom && record < builtTo
-            ? state.drawnRecords.queued(guest, record, builtTo - record)
-            : std::nullopt;
+        slot ? state.drawnRecords.queued(guest, record, *slot) : std::nullopt;
     const std::uint32_t fractions = drawn.value_or(state.replayAngles.at(record));
     if (const auto chain =
             queue.draw({.record = record, .hudShift = hudShift, .angleFractions = fractions})) {
