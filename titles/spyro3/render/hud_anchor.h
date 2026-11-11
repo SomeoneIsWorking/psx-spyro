@@ -1,6 +1,6 @@
-// hud_anchor.h — Spyro 3's HUD widgets anchored by the element their drawer was called with, applied to
-// the x argument of the icon (FUN_800289C8) and value (FUN_800291B8) emitters; the value emitter's own
-// icon calls (ra 0x80029378) are not shifted again.
+// hud_anchor.h — Spyro 3's HUD widgets anchored by the element their drawer was called with,
+// applied to the x argument of the icon (FUN_800289C8) and value (FUN_800291B8) emitters; the value
+// emitter's own icon calls (ra 0x80029378) are not shifted again.
 #pragma once
 
 #include "core/session.h"
@@ -8,6 +8,7 @@
 
 #include <cstdint>
 #include <optional>
+#include <utility>
 
 class Core;
 
@@ -67,9 +68,33 @@ public:
     return inValue_;
   }
 
+  // The earlier tick's slide FUN_80029708 handed on, for the digit drawer its caller (at `sp`)
+  // calls next inside the same replay run with the slide `handed`.
+  struct SlideCarry {
+    std::uint32_t run = 0;
+    std::uint32_t sp = 0;
+    std::int32_t handed = 0;
+    std::int32_t earlier = 0;
+  };
+  void carry(const SlideCarry &carry) {
+    carry_ = carry;
+  }
+  void dropCarry() {
+    carry_.reset();
+  }
+  [[nodiscard]] std::optional<std::int32_t>
+  takeCarry(std::uint32_t run, std::uint32_t sp, std::int32_t handed) {
+    const std::optional<SlideCarry> taken = std::exchange(carry_, std::nullopt);
+    if (!taken || taken->run != run || taken->sp != sp || taken->handed != handed) {
+      return std::nullopt;
+    }
+    return taken->earlier;
+  }
+
 private:
   std::uint32_t element_ = 0;
   bool inValue_ = false;
+  std::optional<SlideCarry> carry_;
 };
 
 // Install the drawer and emitter overrides for this Core's resident SCUS_944.67 image.

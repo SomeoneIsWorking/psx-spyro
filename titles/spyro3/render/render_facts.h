@@ -154,6 +154,18 @@ inline constexpr spyro::guest_moby::Facts kMobyFacts{
 //   8001E460  the dispatcher draws the fades 0x8006C598, 0x8006C7C0 and the red flash 0x8006C6D4,
 //             which it lowers by 0x20 per draw; 8004B324 sets the flash to 0xFF at once, and the
 //             subtractive fade ramps 0x10 a tick both ways (80053374, 800144B4)
+// The HUD widgets FUN_800285A4 steps (0x80028700..0x80028988): eight of 0x54 bytes from 0x80067248,
+// direction flags +0x18, slide +0x3F stepped by the field delta 0x8006C648 (0x80028830,
+// 0x800288F0).
+inline constexpr spyro::HudSlots kHudSlots{
+    .firstSlot = 0x80067248u,
+    .slotBytes = 0x54u,
+    .slotCount = 8u,
+    .stateOffset = 0x18u,
+    .slideOffset = 0x3Fu,
+    .slideIsByte = true,
+};
+
 inline constexpr spyro::DrawMotionFacts kDrawMotion{
     .cameraAngles = kRenderGlobals.cameraAngles,
     .cameraPosition = kRenderGlobals.cameraPosition,
@@ -176,6 +188,7 @@ inline constexpr spyro::DrawMotionFacts kDrawMotion{
                {"additive fade", 0x8006C7C0u},
                {"red flash", 0x8006C6D4u, {0x00u, psx::present::Motion::Countdown}}}},
     .fadeCount = 3,
+    .hudSlide = &kHudSlots,
 };
 
 // The flatten, FUN_8004E664: FUN_8001B2A8's body over this image's table (8006C634) and mark

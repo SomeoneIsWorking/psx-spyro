@@ -13,9 +13,6 @@ draw body 0x800156FC / 0x8001E638. Gameplay moves halfway (Glimmer `warp 0/1/0`,
    refusals before `declinesState` named the state; each declined frame is reported at run end by reason). A state the switch has no case for (S3 8, 0x11) is not
    replayed either.
 2. **Inputs that still step at 30 Hz**:
-   - Spyro 3's HUD slides (plan Open 8): its widgets keep the slide in byte +0x3F and read the table `0x800674E8`
-     inline in `0x80029708` and per digit in `0x800291B8` / `0x800293C4`; shown stepping in its pause
-     (`scratch/spyro23-tracks/pause3_hud.png`: each in-between equals the next real). Spyro 2's are fixed (below).
    - Sky object wave (plan Open 7): the draw reads the shared sine table at `tick * 4 + object * 0x40` into
      `0x80068C08`/`0C0A` for `0x800296D0`; the table cannot be rewritten (other drawers of the section read it) and
      the consumer would need the object index from `0x8004C66C`'s frame. The objects are level data and do not move.
@@ -23,6 +20,20 @@ draw body 0x800156FC / 0x8001E638. Gameplay moves halfway (Glimmer `warp 0/1/0`,
 3. **Not shown since the change**: cutscenes (S2 6, S3 0x12) and the scene states: no warp reaches them yet. Spyro 2's
    tint and reflection shift (`SpyroSurface`) stayed 0 on every route tried; Spyro 3's letterbox and water were not
    reached (Spyro 3 has no `moby-teleport`).
+
+## Fixed (2026-11-11, shown in frames, `scratch/hudslide3`)
+- Spyro 3's HUD slides. Cause: `0x80029708` (the widget's icon) and the digit drawers `0x800291B8` / `0x800293C4`
+  read the slide table `0x800674E8` at the widget's slide byte +0x3F inline, and the replay blended nothing they
+  read, so each in-between drew the later tick's slide. All three are native (`titles/spyro3/render/hud_slide.*`):
+  inside a replay the icon and each digit are placed between where the two ticks' slides put them (`HudSlide`,
+  widget records `0x80067248`, 8 of 0x54, flags +0x18, slide +0x3F); the slide the icon step hands its digit
+  drawer is carried with the earlier tick's, keyed by the caller's $sp and the replay run. The 1.5-row half step
+  is kept: the icon emitter `0x800289C8`'s POLY_FT4 corners are stored that far below their rows. Sunrise Spring
+  `0/0/0`, Start tapped (`p3hud.png`, `edges.py`): the gem count's and the lives digit's lowest rows move 12 of
+  2160 rows every present (the tick's 3 native rows at 8x, halved), reals and in-betweens alike, through the bounce.
+  Real frames (fps60 off, 4:3, `PSXPORT_OVERRIDE_DIFF`, every call): `0x80029708` 1020 of 1020 and `0x800291B8`
+  1020 of 1020 match the guest (`diff3.json`); `0x800293C4` was called by no screen reached and is matched to the
+  binary by reading. Leak: same route, fps60 on (678 in-betweens) and off, `fielddigest` identical over 2680 fields.
 
 ## Fixed (2026-11-11, shown in frames, `scratch/hudslide`)
 - Spyro 2's HUD slide: `HudSlide` (`game/core/hud_slide.*`) is `0x80052498`'s override and blends each call's

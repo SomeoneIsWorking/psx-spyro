@@ -182,11 +182,17 @@ inline constexpr spyro::ConversationFacts kConversation{
 // 0x80063448 at (slide + offset) / 2, clamped to 0..0x2F, others 0x28, negated below y 0x78. The
 // six slots from 0x8006765C step their slide by the field delta in 0x8005199C (0x80051D18 clears
 // them).
-inline constexpr spyro::HudSlideFacts kHudSlide{
-    .function = 0x80052498u,
+inline constexpr spyro::HudSlots kHudSlots{
     .firstSlot = 0x8006765Cu,
     .slotBytes = 8u,
     .slotCount = 6u,
+    .stateOffset = 0u,
+    .slideOffset = 2u,
+};
+
+inline constexpr spyro::HudSlideFacts kHudSlide{
+    .slots = &kHudSlots,
+    .function = 0x80052498u,
     .slidingIn = 1u,
     .slidingOut = 4u,
     .inTable = 0x80063430u,
@@ -235,7 +241,7 @@ inline constexpr spyro::DrawMotionFacts kDrawMotion{
     .fades = {{{"subtractive fade", 0x80066F68u}, {"additive fade", 0x80067150u}}},
     .fadeCount = 2,
     .conversation = &kConversation,
-    .hudSlide = &kHudSlide,
+    .hudSlide = &kHudSlots,
     .skyWave = &kSkyWave,
 };
 

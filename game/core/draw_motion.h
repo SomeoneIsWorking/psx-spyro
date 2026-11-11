@@ -62,7 +62,7 @@ struct DrawMotionFacts {
   std::array<FadeWord, kMaxFades> fades{};
   std::size_t fadeCount = 0;
   const ConversationFacts *conversation = nullptr;
-  const HudSlideFacts *hudSlide = nullptr;
+  const HudSlots *hudSlide = nullptr;
   const SkyWaveFacts *skyWave = nullptr;
 };
 

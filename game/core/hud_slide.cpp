@@ -5,6 +5,7 @@
 #include "core/boot_prefix_frame_driver.h"
 #include "game.h"
 #include "native_dispatch.h"
+#include "r3000.h"
 #include "replay_frame.h"
 
 #include <algorithm>
@@ -13,53 +14,80 @@
 namespace spyro {
 namespace {
 
-std::uint8_t stateOf(std::uint32_t slotWord) {
-  return static_cast<std::uint8_t>(slotWord);
-}
-
 // Every drawer skips a slot whose state is 0.
-bool drawn(std::uint32_t slotWord) {
-  return stateOf(slotWord) != 0;
+bool drawn(const HudSlide::Sample &sample) {
+  return sample.state != 0;
 }
 
-// f(slot $a0, offset $a1, y $a2) -> $v0; it leaves the result in $v1 too (0x80052514).
-void slideFunction(Core *core) {
-  BootPrefixFrameDriver &driver = core->game->frameDriverAs<BootPrefixFrameDriver>();
-  const HudSlide::Call call{.slot = core->r[4],
-                            .index = static_cast<std::int32_t>(core->r[5]),
-                            .y = static_cast<std::int32_t>(core->r[6])};
-  const auto shown = static_cast<std::uint32_t>(driver.motion().hudSlide().offset(
-      *core, call, core->runtime.replayFrame(*core)->replaying()));
-  core->r[2] = shown;
-  core->r[3] = shown;
+// One call's element: its index offset and its y.
+struct Call {
+  std::int32_t index = 0;
+  std::int32_t y = 0;
+};
+
+// Spyro 2's slide function at one sample of the slot.
+std::int32_t
+offsetOf(Core &core, const HudSlideFacts &facts, const HudSlide::Sample &sample, Call call) {
+  std::int32_t shown = facts.restOffset;
+  if (sample.state == facts.slidingIn || sample.state == facts.slidingOut) {
+    const std::int32_t at = std::clamp(sample.slide + call.index, 0, facts.lastIndex);
+    const std::uint32_t table = sample.state == facts.slidingIn ? facts.inTable : facts.outTable;
+    shown = core.mem_r8(table + static_cast<std::uint32_t>(at >> 1));
+  }
+  return call.y > facts.lowerHalfY ? -shown : shown;
 }
 
 } // namespace
 
+// f(slot $a0, offset $a1, y $a2) -> $v0; it leaves the result in $v1 too (0x80052514).
+void slideFunction(Core *core, const HudSlideFacts &facts) {
+  HudSlide &slide = core->game->frameDriverAs<BootPrefixFrameDriver>().motion().hudSlide();
+  const std::uint32_t slot = core->r[4];
+  const Call call{.index = static_cast<std::int32_t>(core->r[5]),
+                  .y = static_cast<std::int32_t>(core->r[6])};
+  std::int32_t shown = offsetOf(*core, facts, slide.now(*core, slot), call);
+  slide.settle();
+  const std::optional<float> t = core->runtime.replayFrame(*core)->replaying();
+  if (const std::optional<HudSlide::Sample> earlier =
+          t ? slide.earlier(*core, slot) : std::nullopt) {
+    const std::int32_t from = offsetOf(*core, facts, *earlier, call);
+    shown = slide.between(*core, {.y = from}, {.y = shown}, *t).y;
+  }
+  core->r[2] = static_cast<std::uint32_t>(shown);
+  core->r[3] = static_cast<std::uint32_t>(shown);
+}
+
 std::optional<std::size_t> HudSlide::slotIndex(std::uint32_t slot) const {
-  if (slot < facts_->firstSlot || (slot - facts_->firstSlot) % facts_->slotBytes != 0) {
+  if (slot < slots_->firstSlot || (slot - slots_->firstSlot) % slots_->slotBytes != 0) {
     return std::nullopt;
   }
-  const std::size_t index = (slot - facts_->firstSlot) / facts_->slotBytes;
-  return index < facts_->slotCount ? std::optional(index) : std::nullopt;
+  const std::size_t index = (slot - slots_->firstSlot) / slots_->slotBytes;
+  return index < slots_->slotCount ? std::optional(index) : std::nullopt;
+}
+
+HudSlide::Sample HudSlide::read(Core &core, std::uint32_t slot) const {
+  const std::uint32_t slide = slot + slots_->slideOffset;
+  return {.state = core.mem_r8(slot + slots_->stateOffset),
+          .slide = slots_->slideIsByte ? core.mem_r8(slide)
+                                       : static_cast<std::int16_t>(core.mem_r16(slide))};
 }
 
 void HudSlide::sample(Core &core) {
-  if (facts_ == nullptr) {
+  if (slots_ == nullptr) {
     return;
   }
   from_ = to_;
-  for (std::size_t i = 0; i < facts_->slotCount; ++i) {
-    to_[i] = core.mem_r32(facts_->firstSlot + static_cast<std::uint32_t>(i) * facts_->slotBytes);
+  for (std::size_t i = 0; i < slots_->slotCount; ++i) {
+    to_[i] = read(core, slots_->firstSlot + static_cast<std::uint32_t>(i) * slots_->slotBytes);
   }
 }
 
 psx::present::MotionCount HudSlide::write(psx::present::GuestRedraw &, float) const {
-  if (facts_ == nullptr) {
+  if (slots_ == nullptr) {
     return {};
   }
   psx::present::MotionCount count;
-  for (std::size_t i = 0; i < facts_->slotCount; ++i) {
+  for (std::size_t i = 0; i < slots_->slotCount; ++i) {
     if (drawn(to_[i])) {
       ++count.drawn;
       count.unpaired += drawn(from_[i]) ? 0u : 1u;
@@ -68,40 +96,37 @@ psx::present::MotionCount HudSlide::write(psx::present::GuestRedraw &, float) co
   return count;
 }
 
-std::int32_t HudSlide::offsetOf(Core &core, std::uint32_t slotWord, const Call &call) const {
-  const std::uint8_t state = stateOf(slotWord);
-  std::int32_t shown = facts_->restOffset;
-  if (state == facts_->slidingIn || state == facts_->slidingOut) {
-    const auto slide = static_cast<std::int16_t>(slotWord >> 16);
-    const std::int32_t at = std::clamp(slide + call.index, 0, facts_->lastIndex);
-    const std::uint32_t table = state == facts_->slidingIn ? facts_->inTable : facts_->outTable;
-    shown = core.mem_r8(table + static_cast<std::uint32_t>(at >> 1));
-  }
-  return call.y > facts_->lowerHalfY ? -shown : shown;
+HudSlide::Sample HudSlide::now(Core &core, std::uint32_t slot) const {
+  return read(core, slot);
 }
 
-std::int32_t HudSlide::offset(Core &core, const Call &call, std::optional<float> t) {
-  const std::uint32_t slotWord = core.mem_r32(call.slot);
-  const std::int32_t now = offsetOf(core, slotWord, call);
-  const std::optional<std::size_t> sampled = slotIndex(call.slot);
-  remainder_ = {};
-  if (!t || !sampled || !drawn(from_[*sampled]) || !drawn(slotWord)) {
-    return now;
+std::optional<HudSlide::Sample> HudSlide::earlier(Core &core, std::uint32_t slot) const {
+  const std::optional<std::size_t> sampled = slots_ != nullptr ? slotIndex(slot) : std::nullopt;
+  if (!sampled || !drawn(from_[*sampled]) || !drawn(read(core, slot))) {
+    return std::nullopt;
   }
-  const std::int32_t earlier = offsetOf(core, from_[*sampled], call);
-  const std::int32_t shown = psx::present::lerpInt(earlier, now, *t);
-  remainder_ = {.rows = static_cast<float>(psx::present::lerpExact(earlier, now, *t) - shown),
-                .run = core.writeRollback.run()};
+  return from_[*sampled];
+}
+
+HudSlide::Place HudSlide::between(const Core &core, Place from, Place to, float t) {
+  const Place shown{.x = psx::present::lerpInt(from.x, to.x, t),
+                    .y = psx::present::lerpInt(from.y, to.y, t)};
+  kept_ = {.place = {.x = static_cast<float>(psx::present::lerpExact(from.x, to.x, t) - shown.x),
+                     .y = static_cast<float>(psx::present::lerpExact(from.y, to.y, t) - shown.y)},
+           .run = core.writeRollback.run(),
+           .sp = core.r[psx::cpu::kSp]};
   return shown;
 }
 
-float HudSlide::takeRemainder(const Core &core) {
-  const Remainder taken = std::exchange(remainder_, {});
-  return core.writeRollback.armed() && taken.run == core.writeRollback.run() ? taken.rows : 0.0f;
+void HudSlide::settle() {
+  kept_ = {};
 }
 
-void installHudSlide(Core &core, const HudSlideFacts &facts) {
-  psx::cpu::installNativeOverride(core, facts.function, "spyro-hud-slide", slideFunction);
+HudSlide::Remainder HudSlide::takeRemainder(const Core &core) {
+  const Kept taken = std::exchange(kept_, {});
+  const bool same = core.writeRollback.armed() && taken.run == core.writeRollback.run() &&
+                    taken.sp == core.r[psx::cpu::kSp];
+  return same ? taken.place : Remainder{};
 }
 
 } // namespace spyro

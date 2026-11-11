@@ -339,13 +339,13 @@ Spyro 3 Sunrise Spring, Up and Left (746 in-betweens), identical over 2813.
    (`scratch/hudfrac/skywave_values.log`, `sky_wave.png`): at t = 1 the blended value equals the guest's stored one,
    in-betweens lie between the ticks', and the hexagon light's 5-bit colour steps on in-betweens. Spyro 3 (tick
    `0x8006C644`, drawer `0x8001EDEC`) still steps: its facts are not found.
-8. HUD slides: Spyro 2 done (`HudSlide`). Spyro 3's still step (`scratch/spyro23-tracks/pause3_hud.png`): its widgets
+8. HUD slides: done in both (`HudSlide`). Spyro 3 (`titles/spyro3/render/hud_slide.*`): its widgets
    (`0x80029E48`, drawers `0x8002982C`, `0x80029904`, `0x80029A00`, `0x80029AA0`, `0x80029BB0`, `0x80029CF8`) keep
-   the slide in byte +0x3F, and the table `0x800674E8` is read inline in `0x80029708` (icon, index
-   `(slide + 10) / 2` clamped to 0..0x3B) and per digit in `0x800291B8` / `0x800293C4` (from the value `0x80029708`
-   leaves in its index argument). There is no one function whose result is the offset, so the blend needs overrides
-   of `0x80029708` and the two digit drawers that carry the earlier sample's slide from the widget down to the digits.
-   Spyro 3's HUD tick `0x8006C640` is matched to Spyro 2's by use only (writers `0x80053374`, `0x80050F18`).
+   the slide in byte +0x3F; every drawer hands `0x80029708` the index `(slide + 10) / 2` (0 at slide 0), which it
+   clamps to 0..0x3B, reads `0x800674E8` there for the icon and hands on the signed slide (`+0x3C` on the x arms);
+   `0x800291B8` / `0x800293C4` read the table per digit from it. The three are native: the icon and each digit are
+   placed `t` of the way from the earlier tick's slide's place, the earlier handed slide carried from the icon step
+   to the digit drawer its caller calls next (same $sp, same replay run).
    Spyro 2's in-betweens are placed between rows: the callers (`0x80052690`, `0x8005251C`, `0x80052B88`, the
    only callers of the slide) add each slide result to the y of the one element they draw next with
    `0x800520CC`, with no call between (in `0x80052690` the slide at `0x8005276C` jumps to its element at

@@ -4,6 +4,7 @@
 #include "core/session.h"
 #include "native_dispatch.h"
 #include "render/hud/ui_anchor.h"
+#include "spyro3/render/hud_slide.h"
 
 #include <cstdint>
 
@@ -34,22 +35,27 @@ void iconEmitter(Core *core) {
   if (!drawState(*core).insideValue()) {
     shiftEmitterArgument(*core);
   }
-  (void)psx::cpu::callOriginalOrPropagate(*core, kIconEmitter);
+  const std::uint32_t firstPacket = hud_slide::primitiveCursor(*core);
+  if (psx::cpu::callOriginalOrPropagate(*core, kIconEmitter)) {
+    hud_slide::placeEmitted(*core, firstPacket);
+  }
 }
 
 // The glyph xs it hands the icon emitter already carry this correction.
 void valueEmitter(Core *core) {
   shiftEmitterArgument(*core);
   drawState(*core).beginValue();
-  (void)psx::cpu::callOriginalOrPropagate(*core, kValueEmitter);
+  hud_slide::drawValue(*core);
   drawState(*core).endValue();
 }
 
 } // namespace
 
 void registerOverrides(Core &core) {
-  psx::cpu::installNativeOverride(core, kCounterDrawer, "spyro3-hud-counter", widgetDrawer<kCounterDrawer>);
-  psx::cpu::installNativeOverride(core, kLivesDrawer, "spyro3-hud-lives", widgetDrawer<kLivesDrawer>);
+  psx::cpu::installNativeOverride(
+      core, kCounterDrawer, "spyro3-hud-counter", widgetDrawer<kCounterDrawer>);
+  psx::cpu::installNativeOverride(
+      core, kLivesDrawer, "spyro3-hud-lives", widgetDrawer<kLivesDrawer>);
   psx::cpu::installNativeOverride(core, kIconEmitter, "spyro3-hud-icon", iconEmitter);
   psx::cpu::installNativeOverride(core, kValueEmitter, "spyro3-hud-value", valueEmitter);
 }

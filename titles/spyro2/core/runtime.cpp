@@ -90,7 +90,7 @@ void Runtime::registerOverrides(Game &game) {
                                   kIntroCard.overrideName,
                                   spyro::intro_card::drawOverride<kIntroCard, kRenderGlobals>);
   hud_anchor::registerOverrides(game.core);
-  spyro::installHudSlide(game.core, kHudSlide);
+  spyro::installHudSlide<kHudSlide>(game.core);
   spyro::installSkyWave(game.core, kSkyWave);
   lucent::info(
       "boot",

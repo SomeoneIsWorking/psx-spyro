@@ -1,10 +1,11 @@
-// hud_slide.h — the HUD counters' slide as a motion source. Each counter is an 8-byte slot (state
-// byte, slide halfword +2); its drawers place every icon and digit at the offset the guest's
-// slide function returns for the slot at that element's own index offset, so an in-between blends
-// the returned offset per call, through the function's native override.
+// hud_slide.h — the HUD widgets' slide as a motion source. Each widget's record keeps a state byte
+// and a slide value its drawers turn into the place of every icon and digit; an in-between places
+// each element `t` of the way from where the earlier tick's slide put it to where the later's does,
+// through the native overrides that compute those places.
 #pragma once
 
 #include "motion_set.h"
+#include "native_dispatch.h"
 
 #include <array>
 #include <cstdint>
@@ -14,14 +15,24 @@ class Core;
 
 namespace spyro {
 
-// The slide function f(slot, offset, y): while the slot's state is `slidingIn` or `slidingOut` it
-// returns that state's byte table at (slide + offset) / 2, the sum clamped to 0..`lastIndex`;
-// otherwise `restOffset`. Below `lowerHalfY` (y greater) the result is negated.
-struct HudSlideFacts {
-  std::uint32_t function = 0;
+// The widget records: `slotCount` of `slotBytes` from `firstSlot`, each with its state byte at
+// `stateOffset` (0 is not drawn) and its slide at `slideOffset`, a signed halfword or an unsigned
+// byte.
+struct HudSlots {
   std::uint32_t firstSlot = 0;
   std::uint32_t slotBytes = 0;
   std::uint32_t slotCount = 0;
+  std::uint32_t stateOffset = 0;
+  std::uint32_t slideOffset = 0;
+  bool slideIsByte = false;
+};
+
+// Spyro 2's slide function f(slot, offset, y): while the slot's state is `slidingIn` or
+// `slidingOut` it returns that state's byte table at (slide + offset) / 2, the sum clamped to
+// 0..`lastIndex`; otherwise `restOffset`. Below `lowerHalfY` (y greater) the result is negated.
+struct HudSlideFacts {
+  const HudSlots *slots = nullptr;
+  std::uint32_t function = 0;
   std::uint8_t slidingIn = 0;
   std::uint8_t slidingOut = 0;
   std::uint32_t inTable = 0;
@@ -35,47 +46,63 @@ class HudSlide final : public psx::present::MotionSource {
 public:
   static constexpr std::size_t kMaxSlots = 8;
 
-  explicit HudSlide(const HudSlideFacts *facts) : facts_(facts) {}
+  explicit HudSlide(const HudSlots *slots) : slots_(slots) {}
 
   [[nodiscard]] const char *name() const override {
     return "hud slides";
   }
   void sample(Core &core) override;
-  // Counts the drawn and unpaired slots; the override blends them.
+  // Counts the drawn and unpaired slots; the overrides blend them.
   psx::present::MotionCount write(psx::present::GuestRedraw &redraw, float t) const override;
 
-  // One call's arguments: the slot, the element's index offset and its y.
-  struct Call {
-    std::uint32_t slot = 0;
-    std::int32_t index = 0;
+  struct Sample {
+    std::uint8_t state = 0;
+    std::int32_t slide = 0;
+  };
+  // The record at `slot` as it is now.
+  [[nodiscard]] Sample now(Core &core, std::uint32_t slot) const;
+  // The earlier tick's sample of `slot` while it is drawn in both samples and now.
+  [[nodiscard]] std::optional<Sample> earlier(Core &core, std::uint32_t slot) const;
+
+  struct Place {
+    std::int32_t x = 0;
     std::int32_t y = 0;
   };
-  // What the slide function returns for the call now, or, inside a replay at `t` with the slot
-  // drawn in both samples, `t` of the way from what it returned for the earlier sample, rounded;
-  // what the rounding dropped is kept for the element the caller draws next.
-  [[nodiscard]] std::int32_t offset(Core &core, const Call &call, std::optional<float> t);
-  // The rows the last offset's rounding dropped, once, inside the replay run that took it: each
-  // caller adds the offset to the y of the one element it draws next (0x8005251C, 0x80052690,
-  // 0x80052B88), with no call between.
-  [[nodiscard]] float takeRemainder(const Core &core);
+  struct Remainder {
+    float x = 0.0f;
+    float y = 0.0f;
+  };
+  // `t` of the way from `from` to `to`, rounded; what the rounding dropped is kept for the one
+  // element the caller at this $sp draws next inside this replay run.
+  [[nodiscard]] Place between(const Core &core, Place from, Place to, float t);
+  // Drops any kept remainder: the caller's next element lies on its whole place.
+  void settle();
+  // The remainder kept for the element drawn now, once, when the emitter runs at the $sp of the
+  // call that kept it inside the same replay run; zero otherwise.
+  [[nodiscard]] Remainder takeRemainder(const Core &core);
 
 private:
-  using Slots = std::array<std::uint32_t, kMaxSlots>; // each slot's first word
-  [[nodiscard]] std::int32_t offsetOf(Core &core, std::uint32_t slotWord, const Call &call) const;
   [[nodiscard]] std::optional<std::size_t> slotIndex(std::uint32_t slot) const;
+  [[nodiscard]] Sample read(Core &core, std::uint32_t slot) const;
 
-  const HudSlideFacts *facts_;
-  Slots from_{};
-  Slots to_{};
-  struct Remainder {
-    float rows = 0.0f;
+  const HudSlots *slots_;
+  std::array<Sample, kMaxSlots> from_{};
+  std::array<Sample, kMaxSlots> to_{};
+  struct Kept {
+    Remainder place;
     std::uint32_t run = 0; // the replay's rollback run
+    std::uint32_t sp = 0;
   };
-  Remainder remainder_;
+  Kept kept_;
 };
 
-// Installs the slide function's override, which returns the frame driver's HudSlide::offset at the
-// replay's fraction.
-void installHudSlide(Core &core, const HudSlideFacts &facts);
+// Spyro 2's slide function override: the frame driver's HudSlide blend at the replay's fraction.
+void slideFunction(Core *core, const HudSlideFacts &facts);
+
+template <const HudSlideFacts &Facts> void installHudSlide(Core &core) {
+  psx::cpu::installNativeOverride(core, Facts.function, "spyro-hud-slide", [](Core *c) {
+    slideFunction(c, Facts);
+  });
+}
 
 } // namespace spyro

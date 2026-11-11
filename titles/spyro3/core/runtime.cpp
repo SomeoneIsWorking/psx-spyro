@@ -6,6 +6,7 @@
 #include "spyro3/core/logo_facts.h"
 #include "spyro3/core/warp.h"
 #include "spyro3/render/hud_anchor.h"
+#include "spyro3/render/hud_slide.h"
 #include "spyro3/render/intro_card_facts.h"
 #include "spyro3/render/render_facts.h"
 
@@ -59,6 +60,7 @@ void Runtime::registerOverrides(Game &game) {
   libcd_.bind(game);
   // HUD edge widgets keep their distance from the frame edges.
   spyro3::hud_anchor::registerOverrides(game.core);
+  spyro3::hud_slide::registerOverrides(game.core);
   libgte_.bind(game);
   spyro::registerEngineRenderOverrides<kRenderFacts>(game.core);
   psx::cpu::installNativeOverride(game.core,
