@@ -36,35 +36,50 @@ template <std::uint32_t entry> void builder(Core *core) {
 
 void DrawnRecords::beginDraw(Draw draw) {
   built_.clear();
-  caller_ = 0;
+  calls_.clear();
+  call_ = {};
   if (draw == Draw::Real) {
     drawn_.clear();
   }
 }
 
 DrawnRecords::Builder DrawnRecords::enterBuilder(std::uint32_t caller) {
-  const Builder outer{caller_};
-  if (caller_ == 0) {
-    caller_ = caller;
+  const Builder outer{call_};
+  if (call_.caller == 0) {
+    const auto found =
+        std::ranges::find(calls_, caller, &std::pair<std::uint32_t, std::uint32_t>::first);
+    std::uint32_t turn = 0;
+    if (found == calls_.end()) {
+      calls_.emplace_back(caller, 1u);
+    } else {
+      turn = found->second++;
+    }
+    call_ = {.caller = caller, .turn = turn, .built = 0};
   }
   return outer;
 }
 
 void DrawnRecords::leaveBuilder(Builder outer) {
-  caller_ = outer.caller;
+  call_ = outer.call;
 }
 
 void DrawnRecords::filled(Core &core, const Fill &fill) {
-  const std::uint32_t address = fill.address;
-  const std::uint32_t site = fill.site;
-  if (fill.bytes != moby_record::kBytes || address != core.mem_r32(guest::kHudMobys)) {
+  if (fill.bytes != moby_record::kBytes || fill.address != core.mem_r32(guest::kHudMobys)) {
     return;
   }
-  const auto ordinal =
+  if (call_.caller != 0) {
+    built_.emplace_back(
+        fill.address,
+        Name{
+            .site = fill.site, .caller = call_.caller, .turn = call_.turn, .index = call_.built++});
+    return;
+  }
+  // A draw's own build: its loop's index is its turn at the site.
+  const auto turn =
       static_cast<std::uint32_t>(std::ranges::count_if(built_, [&](const auto &entry) {
-        return entry.second.site == site && entry.second.caller == caller_;
+        return entry.second.site == fill.site && entry.second.caller == 0;
       }));
-  built_.emplace_back(address, Name{.site = site, .caller = caller_, .ordinal = ordinal});
+  built_.emplace_back(fill.address, Name{.site = fill.site, .turn = turn});
 }
 
 std::optional<DrawnRecords::Name> DrawnRecords::nameOf(std::uint32_t record) const {
