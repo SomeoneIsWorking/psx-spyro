@@ -54,6 +54,13 @@ constexpr std::uint32_t kTitlescreenFade = 0x8007DCE8u;
 // func_8001E9C8, GS_Cutscene: 0x8001EA88 loads g_Fade for its DrawFade(2, g_Fade * 16, ...).
 constexpr std::uint32_t kCutsceneDraw = 0x8001E9C8u;
 constexpr std::uint32_t kCutsceneFade = 0x8001EA88u;
+// func_8001A40C, the menus: D_800758B8 counts its draws; the first stores the scene greyed into
+// VRAM, every later one opens with PutDrawEnv, which the real frame applied, and ends with
+// DrawOTag(func_80016784(0)) at 0x8001C598.
+constexpr std::uint32_t kMenuDraw = 0x8001A40Cu;
+constexpr std::uint32_t kMenuDraws = 0x800758B8u;
+constexpr std::array<std::uint32_t, 1> kMenuAppliedCalls{0x8005FDD8u}; // PutDrawEnv
+constexpr std::uint32_t kMenuFlatten = 0x8001C598u;
 // func_8001CFDC, GS_Dragon: every m_State's drawers, fade and border join at its DrawSync,
 // 0x8001D644.
 constexpr std::uint32_t kDragonDraw = 0x8001CFDCu;
@@ -120,6 +127,7 @@ bool DrawSection::replays(Core &core) const {
   // TSM_Demo's card 0x8001E6B8 waits one VSync, so it presents every field and has no in-betweens.
   return state == guest::kGamestatePlaying || state == guest::kGamestateDragon ||
          state == guest::kGamestateCutscene ||
+         (guest::menuDraw(state) && core.mem_r32(kMenuDraws) != 0) ||
          (state == guest::kGamestateTitleScreen &&
           core.mem_r32(guest::kTitlescreenMode) != guest::kTitleModeDemo);
 }
@@ -160,8 +168,9 @@ bool DrawSection::drawPlaying(Core &core, psx::present::GuestRedraw &redraw) {
 
 bool DrawSection::drawTo(psx::present::GuestRedraw &redraw,
                          std::uint32_t entry,
-                         std::uint32_t end) {
-  const bool reached = redraw.dispatchTo(entry, end, {});
+                         std::uint32_t end,
+                         std::span<const std::uint32_t> appliedCalls) {
+  const bool reached = redraw.dispatchTo(entry, end, {}, appliedCalls);
   lucent::debug("replay",
                 "spyro1 section step 0x{:08X} to 0x{:08X}: {}",
                 entry,
@@ -185,6 +194,9 @@ bool DrawSection::drawToFade(Core &core,
 }
 
 bool DrawSection::drawState(Core &core, psx::present::GuestRedraw &redraw) {
+  if (guest::menuDraw(core.mem_r32(guest::kGamestate))) {
+    return drawTo(redraw, kMenuDraw, kMenuFlatten, kMenuAppliedCalls);
+  }
   switch (core.mem_r32(guest::kGamestate)) {
   case guest::kGamestatePlaying:
     return drawPlaying(core, redraw);
@@ -220,7 +232,9 @@ std::optional<std::uint32_t> DrawSection::draw(Core &core,
     writeMatrix(redraw, kViewMatrix, matrices.view);
   }
   const bool drawn = drawState(core, redraw);
-  const std::array<std::uint32_t, 1> bins{kBinCount};
+  // The menu draw links its packets straight into the overlay pair and flattens no bins.
+  const std::array<std::uint32_t, 1> bins{
+      guest::menuDraw(core.mem_r32(guest::kGamestate)) ? 0u : kBinCount};
   if (!drawn || !step(redraw, kFlattenBins, bins)) {
     return std::nullopt;
   }

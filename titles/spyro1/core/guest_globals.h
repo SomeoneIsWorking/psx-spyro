@@ -59,6 +59,8 @@ inline constexpr std::uint32_t kTitlescreenSubState = kTitlescreenState + 0x10u;
 inline constexpr std::uint32_t kTitlescreenDemoType = kTitlescreenState + 0x1Cu; // m_DemoType
 inline constexpr std::uint32_t kGamestateTitleScreen = 13u;                      // GS_TitleScreen
 inline constexpr std::uint32_t kGamestatePauseMenu = 2u;                         // GS_PauseMenu
+inline constexpr std::uint32_t kGamestateInventoryMenu = 3u;                     // GS_InventoryMenu
+inline constexpr std::uint32_t kGamestateOldDragon = 6u;                         // GS_OldDragon
 inline constexpr std::uint32_t kGamestatePlaying = 0u;                           // GS_Playing
 inline constexpr std::uint32_t kGamestateDragon = 8u;                            // GS_Dragon
 inline constexpr std::uint32_t kGamestateCutscene = 14u;                         // GS_Cutscene
@@ -157,5 +159,12 @@ inline constexpr std::uint32_t kDragonCutsceneFade = kDragonCutscene + 0x44u;  /
 // D_80075744: the inventory page shown; D_800757CC slides between pages and jumps by 0x380 as this
 // changes.
 inline constexpr std::uint32_t kInventoryPage = 0x80075744u;
+
+// GS_PauseMenu, GS_InventoryMenu and GS_OldDragon share the menu draw 0x8001A40C, which builds its
+// mobys in g_HudMobys each draw.
+inline bool menuDraw(std::uint32_t gamestate) {
+  return gamestate == kGamestatePauseMenu || gamestate == kGamestateInventoryMenu ||
+         gamestate == kGamestateOldDragon;
+}
 
 } // namespace spyro1::guest

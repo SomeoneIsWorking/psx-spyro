@@ -19,14 +19,11 @@ flat rectangle into the margins only when it reaches both (psxport `RecordPlanne
 the tint continued and the band did not.
 
 ## Fix
-`inventory_band` is a state producer keyed at the band's `0x800168DC` call (return address `0x8001BEC8`, seen by the
-native `dl_link_native`) with the shaded line's call key (site, turn, inventory page; `shaded_line::callObject`),
-emitting into `kOverlaySlot` as the guest links it. It saves the band's colour, corners, and whether the canvas is
-widened (`psx::present::widePresentation`) and renders the guest's quad, with corners and colour moving with `t`
-between saves. The widescreen decision is the producer's: on a widened canvas a band whose left edge is column 0 has
-its right edge on the buffer's edge (x 0x200), so the margin rule continues it across the canvas without an unbanded
-column at 511 between the band and its right margin. At 4:3, and whenever the band does not start at column 0 (a
-page slide), it is exactly the guest's quad. The guest's packet and VRAM are unchanged.
+`inventory_band`'s native link body (return address `0x8001BEC8`, seen by the native `dl_link_native`) decides it:
+on a widened canvas (`psx::present::widePresentation`) a band whose left edge is column 0 has its right edge moved
+onto the buffer's edge (x 0x200), so the margin rule continues it across the canvas without an unbanded column at
+511. At 4:3, and whenever the band does not start at column 0 (a page slide), it is exactly the guest's quad. Its
+in-betweens are the menu draw's replay (issue 0244).
 
 ## Shown
 `scratch/player-bugs-8/r2-aspect1` and `r2-aspect0` (unpaced, ires 0 at 8x, fps60, sink 3840x2160,

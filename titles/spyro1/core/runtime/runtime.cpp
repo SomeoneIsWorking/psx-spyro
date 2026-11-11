@@ -44,7 +44,6 @@
 #include "spyro1/render/glow_pools.h"
 #include "spyro1/render/glows.h"
 #include "spyro1/render/hud_anchor.h"
-#include "spyro1/render/inventory_band.h"
 #include "spyro1/render/moby_shadows.h"
 #include "spyro1/render/ordering_table.h"
 #include "spyro1/render/paired_actor.h"
@@ -177,7 +176,6 @@ void Runtime::registerOverrides(Game &game) {
   particles::registerOverrides(game.core);
   pause_backdrop::registerOverrides(game.core);
   shaded_line::registerOverrides(game.core);
-  inventory_band::registerProducer(game.core);
   hud_anchor::registerOverrides(game.core);
   lucent::info("boot", "installed Spyro 1's verified image-scoped native overrides");
 }

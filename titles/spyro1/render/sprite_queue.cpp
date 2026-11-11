@@ -19,6 +19,7 @@
 #include "spyro1/render/terrain_facts.h"
 
 #include <cstdlib>
+#include <optional>
 
 namespace spyro1::actors {
 namespace {
@@ -730,6 +731,8 @@ void drawQueue(Core *core) {
   const psx::present::EmitMemory memory(guest);
   SpriteQueue queue(guest, memory, presentedQueueView(guest));
   hud_anchor::QueueAnchors anchors;
+  NativeState &state = nativeState(guest);
+  const bool built = guest::menuDraw(guest.mem_r32(guest::kGamestate));
   queue.begin();
   for (std::uint32_t input = kSpriteQueue;; input += 4) {
     const std::uint32_t record = guest.mem_r32(input);
@@ -743,10 +746,11 @@ void drawQueue(Core *core) {
                                                    {.name = "spyro1-hud-record", .index = record},
                                                    anchors.next(record))
                     : 0;
+    const std::optional<std::uint32_t> drawn =
+        built ? state.drawnRecords.queued(guest, record) : std::nullopt;
+    const std::uint32_t fractions = drawn.value_or(state.replayAngles.at(record));
     if (const auto chain =
-            queue.draw({.record = record,
-                        .hudShift = hudShift,
-                        .angleFractions = nativeState(guest).replayAngles.at(record)})) {
+            queue.draw({.record = record, .hudShift = hudShift, .angleFractions = fractions})) {
       queue.link(*chain);
     }
   }

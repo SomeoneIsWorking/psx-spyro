@@ -188,6 +188,7 @@ set(SPYRO_RUNTIME_SOURCES
   titles/spyro1/render/portals.cpp
   titles/spyro1/render/sky.cpp
   titles/spyro1/render/sprite_queue.cpp
+  titles/spyro1/render/drawn_records.cpp
   titles/spyro1/render/terrain_coarse.cpp
   titles/spyro1/render/terrain_detail.cpp
   titles/spyro1/render/terrain_far.cpp

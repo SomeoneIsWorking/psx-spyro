@@ -1,5 +1,5 @@
-// draw_section.h — GamestateDraw 0x8001ED5C as a replay for GS_Playing, GS_Dragon, GS_Cutscene
-// and the title screen: the buffer flip it opens with, CameraUpdateMatrices,
+// draw_section.h — GamestateDraw 0x8001ED5C as a replay for GS_Playing, the menus, GS_Dragon,
+// GS_Cutscene and the title screen: the buffer flip it opens with, CameraUpdateMatrices,
 // GS_Playing's drawers in order or the state's own draw to its device tail, and the bin flatten
 // whose chain DrawOTag submits.
 #pragma once
@@ -8,6 +8,7 @@
 
 #include <cstdint>
 #include <optional>
+#include <span>
 
 namespace spyro1 {
 
@@ -27,9 +28,12 @@ private:
   [[nodiscard]] static bool drawPlaying(Core &core, psx::present::GuestRedraw &redraw);
   // The current gamestate's draw.
   [[nodiscard]] static bool drawState(Core &core, psx::present::GuestRedraw &redraw);
-  // A state draw `entry` with no override of its own, from its start to `end`.
-  [[nodiscard]] static bool
-  drawTo(psx::present::GuestRedraw &redraw, std::uint32_t entry, std::uint32_t end);
+  // A state draw `entry` with no override of its own, from its start to `end`, stepping over the
+  // `appliedCalls` the real frame made.
+  [[nodiscard]] static bool drawTo(psx::present::GuestRedraw &redraw,
+                                   std::uint32_t entry,
+                                   std::uint32_t end,
+                                   std::span<const std::uint32_t> appliedCalls = {});
   // A state draw up to `fade`, where it loads g_Fade, then the fade at the replay's level.
   [[nodiscard]] static bool drawToFade(Core &core,
                                        psx::present::GuestRedraw &redraw,

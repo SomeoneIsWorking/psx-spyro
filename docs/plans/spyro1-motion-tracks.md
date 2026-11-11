@@ -50,11 +50,13 @@ Nothing leaks (2026-11-11, `scratch/review5/leak-spyro1-{0,1}.dig`): boot throug
 
 ## Other state draws
 
-`spyro1::DrawSection::replays` also takes GS_Dragon and GS_Cutscene. Each runs as a `dispatchTo` step after the
+`spyro1::DrawSection::replays` also takes GS_Dragon, GS_Cutscene and the menus (GS 2 and 3). Each runs as a `dispatchTo` step after the
 shared preamble: the dragon draw `0x8001CFDC` to `0x8001D644`, where every `m_State`'s drawers, fade and border
 join at its DrawSync; the cutscene draw `0x8001E9C8` to `0x8001EA88`, then its fade `g_Fade * 16` through
 `ScreenFade`. `DrawSection::stage` (gamestate, and the dragon's `m_State`) is a cut when it changes: each dragon
-step re-places the camera.
+step re-places the camera. The menus run `0x8001A40C` to `0x8001C598` with PutDrawEnv stepped over as already
+applied; their mobys are rebuilt from the whole draw count, so the sprite queue moves each built record from the
+last real draw's (`actors::DrawnRecords`, same mesh at the same address).
 
 | track | address / layout | kind | identity | read by |
 |---|---|---|---|---|
