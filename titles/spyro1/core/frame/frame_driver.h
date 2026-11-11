@@ -74,6 +74,7 @@ private:
   psx::present::ReplayFrame replay_{section_, motion_.tracks(), motion_.sources()};
   spyro::FrameCut cut_;
   std::uint32_t gameplayFrame_ = 0;
+  std::uint32_t stage_ = 0; // DrawSection::stage at the last draw
   std::optional<std::uint32_t>
       stagedFrame_; // a loaded state's gameplay frame until every section is in
 };

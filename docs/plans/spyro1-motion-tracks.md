@@ -48,6 +48,33 @@ the draw adds one step before reading).
 
 Nothing leaks (2026-11-11, `scratch/review5/leak-spyro1-{0,1}.dig`): boot through the title, warp `0/1/0`, Up held 600 steps, run with fps60 on (1878 in-betweens replayed, 0 refused) and off (0 replayed: psxport replays nothing without fps60); the `fielddigest` main-RAM hash, I_STAT, I_MASK and pad match on all 4576 fields. Paced on a quiet host (load 2.2, same warp, Up held): 698 of 701 simulated 60 Hz vblanks advance 0.5 tick, 3 repeat (`scratch/review5/paced.log`, `vblank.py`).
 
+## Other state draws
+
+`spyro1::DrawSection::replays` also takes GS_Dragon and GS_Cutscene. Each runs as a `dispatchTo` step after the
+shared preamble: the dragon draw `0x8001CFDC` to `0x8001D644`, where every `m_State`'s drawers, fade and border
+join at its DrawSync; the cutscene draw `0x8001E9C8` to `0x8001EA88`, then its fade `g_Fade * 16` through
+`ScreenFade`. `DrawSection::stage` (gamestate, and the dragon's `m_State`) is a cut when it changes: each dragon
+step re-places the camera.
+
+| track | address / layout | kind | identity | read by |
+|---|---|---|---|---|
+| dragon fade | `g_DragonCutscene.m_Fade` `0x80077074` | Scalar (DrawFade(1, f, f, f) takes it whole) | single | `0x8001CFDC` |
+| rescue star | `D_80076248`: +0x04 position, +0x24 scale, +0x28 angles (byte 3 the colour) | Vector, Scalar, Angle8x3 | drawn while +0x00 is set | `0x8001CFDC` (RotVec8ToMatrix), `0x80058864` |
+
+The cutscene Spyro and dragon (`m_CutsceneSpyro`/`m_CutsceneDragon`, +0x88/+0x8C) are `g_LevelMobys` slots
+`0x800524C4` hands out, classes 511 and 510 at +0x36, so the moby track keys them by its own class key.
+
+Not replayed:
+- The menus (GS 2, 3, 6), `0x8001A40C`: every animation is the draw's own count `D_800758B8`, read whole
+  (`COSINE_8(D_800758B8 * 8 + i * 12)`, `func_80018534(.., D_800758B8 * 2, ..)`), and the draw opens with
+  PutDrawEnv. A replay past the PutDrawEnv runs (0 refusals with it stood in), but every in-between equals the
+  earlier tick (luma 0.01 to it); issue 0244.
+- Respawn and game over (GS 4, 5), `0x8001CA38`: after a MoveImage copies the last frame into both buffers it
+  clears `isbg` and each frame tints over the image the frame before left, so a frame's picture is the sum of
+  every earlier draw and an in-between replayed over S would tint twice.
+- Fairy (GS 11) and balloonist (GS 12): not reached; a moby teleport onto Artisans' single-instance classes
+  with Triangle did not enter either.
+
 ## Camera
 
 `g_Camera` = `0x80076DD0` (ext `camera.h`).

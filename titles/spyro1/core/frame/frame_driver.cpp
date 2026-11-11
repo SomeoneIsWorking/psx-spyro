@@ -105,9 +105,12 @@ void FrameDriver::stepFrame(Core &core, std::uint32_t) {
   perf.phaseEnd(GpuPerf::Phase::GameLogic);
 
   perf.phaseBegin(GpuPerf::Phase::Present);
-  if (switched) {
+  // A new draw stage re-placed the scene as a state switch does.
+  const std::uint32_t stage = DrawSection::stage(core);
+  if (switched || stage != stage_) {
     replay_.forget();
   }
+  stage_ = stage;
   if (section_.replays(core)) {
     replay_.beforeDraw(core);
   } else {
@@ -145,6 +148,10 @@ void FrameDriver::restored(Core &) {
     boot_.adoptCompleted();
   }
   transitions_.dropHeldPress();
+  if (!stagedFrame_) {
+    lucent::error("frameloop", "{}: restored without a loaded gameplay frame", sectionName());
+    std::abort();
+  }
   gameplayFrame_ = *stagedFrame_;
   stagedFrame_.reset();
   replay_.forget();

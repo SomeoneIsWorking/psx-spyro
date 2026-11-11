@@ -7,22 +7,30 @@
 namespace spyro1 {
 namespace {
 
-// 0x8001ED5C: g_Fade * 8 in play; 0x8007DCFC: g_Fade << 4 on the title screen.
+// 0x8001ED5C: g_Fade * 8 in play; 0x8007DCFC: g_Fade << 4 on the title screen; 0x8001EA9C:
+// g_Fade * 16 in GS_Cutscene.
 constexpr unsigned kPlayingShift = 3;
 constexpr unsigned kTitleShift = 4;
+constexpr unsigned kCutsceneShift = 4;
 constexpr unsigned kGamestateShift = 16;
 constexpr unsigned kModeShift = 8;
 
 unsigned levelShift(Core &core) {
-  return core.mem_r32(guest::kGamestate) == guest::kGamestateTitleScreen ? kTitleShift
-                                                                         : kPlayingShift;
+  switch (core.mem_r32(guest::kGamestate)) {
+  case guest::kGamestateTitleScreen:
+    return kTitleShift;
+  case guest::kGamestateCutscene:
+    return kCutsceneShift;
+  default:
+    return kPlayingShift;
+  }
 }
 
 } // namespace
 
 std::optional<ScreenFade::Read> ScreenFade::readOf(Core &core) {
   const std::uint32_t state = core.mem_r32(guest::kGamestate);
-  if (state == guest::kGamestatePlaying) {
+  if (state == guest::kGamestatePlaying || state == guest::kGamestateCutscene) {
     return Read{.phase = state << kGamestateShift, .fade = core.mem_r32(guest::kFade)};
   }
   if (state != guest::kGamestateTitleScreen) {

@@ -51,6 +51,13 @@ constexpr std::uint32_t kDrawHud = 0x800189F0u;
 // calls DrawFade with it before the device tail at 0x8007DD0C.
 constexpr std::uint32_t kTitlescreenDraw = 0x8007CEE4u;
 constexpr std::uint32_t kTitlescreenFade = 0x8007DCE8u;
+// func_8001E9C8, GS_Cutscene: 0x8001EA88 loads g_Fade for its DrawFade(2, g_Fade * 16, ...).
+constexpr std::uint32_t kCutsceneDraw = 0x8001E9C8u;
+constexpr std::uint32_t kCutsceneFade = 0x8001EA88u;
+// func_8001CFDC, GS_Dragon: every m_State's drawers, fade and border join at its DrawSync,
+// 0x8001D644.
+constexpr std::uint32_t kDragonDraw = 0x8001CFDCu;
+constexpr std::uint32_t kDragonTail = 0x8001D644u;
 
 // func_80016784(0x800): links the bins into one chain and returns its head, DrawOTag's argument.
 constexpr std::uint32_t kFlattenBins = 0x80016784u;
@@ -111,9 +118,16 @@ std::optional<std::uint32_t> fadeLevel(Core &core) {
 bool DrawSection::replays(Core &core) const {
   const std::uint32_t state = core.mem_r32(guest::kGamestate);
   // TSM_Demo's card 0x8001E6B8 waits one VSync, so it presents every field and has no in-betweens.
-  return state == guest::kGamestatePlaying ||
+  return state == guest::kGamestatePlaying || state == guest::kGamestateDragon ||
+         state == guest::kGamestateCutscene ||
          (state == guest::kGamestateTitleScreen &&
           core.mem_r32(guest::kTitlescreenMode) != guest::kTitleModeDemo);
+}
+
+std::uint32_t DrawSection::stage(Core &core) {
+  const std::uint32_t state = core.mem_r32(guest::kGamestate);
+  return state == guest::kGamestateDragon ? state << 16u | core.mem_r32(guest::kDragonCutsceneState)
+                                          : state << 16u;
 }
 
 bool DrawSection::drawPlaying(Core &core, psx::present::GuestRedraw &redraw) {
@@ -144,14 +158,23 @@ bool DrawSection::drawPlaying(Core &core, psx::present::GuestRedraw &redraw) {
   return step(redraw, kDrawHud);
 }
 
-bool DrawSection::drawTitle(Core &core, psx::present::GuestRedraw &redraw) {
-  const bool reached = redraw.dispatchTo(kTitlescreenDraw, kTitlescreenFade, {});
+bool DrawSection::drawTo(psx::present::GuestRedraw &redraw,
+                         std::uint32_t entry,
+                         std::uint32_t end) {
+  const bool reached = redraw.dispatchTo(entry, end, {});
   lucent::debug("replay",
                 "spyro1 section step 0x{:08X} to 0x{:08X}: {}",
-                kTitlescreenDraw,
-                kTitlescreenFade,
+                entry,
+                end,
                 reached ? "reached" : "refused");
-  if (!reached) {
+  return reached;
+}
+
+bool DrawSection::drawToFade(Core &core,
+                             psx::present::GuestRedraw &redraw,
+                             std::uint32_t entry,
+                             std::uint32_t fade) {
+  if (!drawTo(redraw, entry, fade)) {
     return false;
   }
   if (const std::optional<std::uint32_t> level = fadeLevel(core)) {
@@ -159,6 +182,19 @@ bool DrawSection::drawTitle(Core &core, psx::present::GuestRedraw &redraw) {
     return step(redraw, kDrawFade, args);
   }
   return true;
+}
+
+bool DrawSection::drawState(Core &core, psx::present::GuestRedraw &redraw) {
+  switch (core.mem_r32(guest::kGamestate)) {
+  case guest::kGamestatePlaying:
+    return drawPlaying(core, redraw);
+  case guest::kGamestateDragon:
+    return drawTo(redraw, kDragonDraw, kDragonTail);
+  case guest::kGamestateCutscene:
+    return drawToFade(core, redraw, kCutsceneDraw, kCutsceneFade);
+  default:
+    return drawToFade(core, redraw, kTitlescreenDraw, kTitlescreenFade);
+  }
 }
 
 std::optional<std::uint32_t> DrawSection::draw(Core &core,
@@ -183,9 +219,7 @@ std::optional<std::uint32_t> DrawSection::draw(Core &core,
     writeMatrix(redraw, kProjectionMatrix, matrices.projection);
     writeMatrix(redraw, kViewMatrix, matrices.view);
   }
-  const bool drawn = core.mem_r32(guest::kGamestate) == guest::kGamestatePlaying
-                         ? drawPlaying(core, redraw)
-                         : drawTitle(core, redraw);
+  const bool drawn = drawState(core, redraw);
   const std::array<std::uint32_t, 1> bins{kBinCount};
   if (!drawn || !step(redraw, kFlattenBins, bins)) {
     return std::nullopt;

@@ -15,6 +15,7 @@
 #include "spyro1/render/glows.h"
 #include "spyro1/render/particles.h"
 #include "spyro1/render/replay_angles.h"
+#include "spyro1/render/rescue_star.h"
 
 #include <array>
 #include <cstdint>
@@ -233,6 +234,17 @@ private:
   static constexpr std::array<Field, 1> kAngle12{{{0x00u, psx::present::Motion::Angle12Low}}};
   static constexpr std::array<Field, 1> kAngle8{{{0x00u, psx::present::Motion::Angle8x3}}};
 
+  // The rescue star over a freed dragon, drawn while +0x00 is set: its centre, scale, and the
+  // angles 0x8001CFDC turns into its matrix (the colour byte after them steps).
+  static constexpr Records kRescueStarRecords{.live = RecordByte{0x00u, 0x01u, 0xFFu}};
+  static constexpr std::array<Field, 5> kRescueStar{{
+      {0x04u, kLinear},
+      {0x08u, kLinear},
+      {0x0Cu, kLinear},
+      {0x24u, kLinear},
+      {0x28u, psx::present::Motion::Angle8x3},
+  }};
+
   CameraMotion camera_;
   SpyroPoses poses_;
   MobyMotion moby_;
@@ -243,7 +255,7 @@ private:
   TitleSlide titleSlide_;
   ScreenFade screenFade_;
   std::array<psx::present::MotionSource *, 3> sources_{&textureScroll_, &titleSlide_, &screenFade_};
-  std::array<psx::present::MotionTrack, 14> tracks_{{
+  std::array<psx::present::MotionTrack, 16> tracks_{{
       {.name = "camera", .address = guest::kCamera, .fields = kCamera, .rule = &camera_},
       {.name = "spyro", .address = guest::kSpyro, .fields = kSpyro},
       {.name = "spyro poses", .address = guest::kSpyro, .fields = kSpyroPoses, .rule = &poses_},
@@ -280,6 +292,11 @@ private:
       {.name = "portal yaw", .address = kPortalYaw, .fields = kAngle12},
       {.name = "level ticks", .address = guest::kLevelTicks, .fields = kScalar},
       {.name = "specular time", .address = guest::kSpecularTime, .fields = kAngle8},
+      {.name = "dragon fade", .address = guest::kDragonCutsceneFade, .fields = kScalar},
+      {.name = "rescue star",
+       .address = rescue_star::kBlock,
+       .fields = kRescueStar,
+       .records = kRescueStarRecords},
   }};
 };
 

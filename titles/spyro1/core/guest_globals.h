@@ -60,6 +60,8 @@ inline constexpr std::uint32_t kTitlescreenDemoType = kTitlescreenState + 0x1Cu;
 inline constexpr std::uint32_t kGamestateTitleScreen = 13u;                      // GS_TitleScreen
 inline constexpr std::uint32_t kGamestatePauseMenu = 2u;                         // GS_PauseMenu
 inline constexpr std::uint32_t kGamestatePlaying = 0u;                           // GS_Playing
+inline constexpr std::uint32_t kGamestateDragon = 8u;                            // GS_Dragon
+inline constexpr std::uint32_t kGamestateCutscene = 14u;                         // GS_Cutscene
 inline constexpr std::uint32_t kTitleModeInit = 0u;                              // TSM_Init
 inline constexpr std::uint32_t kTitleModeLoading = 2u;                           // TSM_Loading
 inline constexpr std::uint32_t kTitleModeDemo = 3u;                              // TSM_Demo
@@ -149,6 +151,8 @@ inline constexpr std::uint32_t kCheatHomeworldSelected = 0x800758ECu;
 
 // g_DragonCutscene (dragon.h): state machine after 0x24-byte WAD header.
 inline constexpr std::uint32_t kDragonCutscene = 0x80077030u;
+inline constexpr std::uint32_t kDragonCutsceneState = kDragonCutscene + 0x28u; // m_State
+inline constexpr std::uint32_t kDragonCutsceneFade = kDragonCutscene + 0x44u;  // m_Fade
 
 // D_80075744: the inventory page shown; D_800757CC slides between pages and jumps by 0x380 as this
 // changes.
