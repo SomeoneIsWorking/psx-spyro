@@ -7,8 +7,8 @@
 #include "render/field/moby_motion.h"
 #include "spyro1/core/effect/flame_block.h"
 #include "spyro1/core/effect/shadow_block.h"
+#include "spyro1/core/frame/screen_fade.h"
 #include "spyro1/core/frame/texture_scroll.h"
-#include "spyro1/core/frame/title_fade.h"
 #include "spyro1/core/frame/title_slide.h"
 #include "spyro1/core/guest_globals.h"
 #include "spyro1/core/native_state.h"
@@ -107,8 +107,8 @@ public:
   [[nodiscard]] std::span<psx::present::MotionSource *const> sources() const {
     return sources_;
   }
-  [[nodiscard]] const TitleFade &titleFade() const {
-    return titleFade_;
+  [[nodiscard]] const ScreenFade &screenFade() const {
+    return screenFade_;
   }
 
 private:
@@ -225,12 +225,10 @@ private:
       {0x2Cu, kStep},
   }};
 
-  // The section's own counters: the fade it draws (counts down; a raise is a new fade), the
-  // border height and portal yaw it ages before reading, the field tick the portal pulse reads and
-  // the specular time the life orbs pulse with (& 0xFF).
+  // The section's own counters: the border height and portal yaw it ages before reading, the field
+  // tick the portal pulse reads and the specular time the life orbs pulse with (& 0xFF).
   static constexpr std::uint32_t kBorderSize = 0x800756C0u;
   static constexpr std::uint32_t kPortalYaw = 0x80075858u;
-  static constexpr std::array<Field, 1> kCountdown{{{0x00u, psx::present::Motion::Countdown}}};
   static constexpr std::array<Field, 1> kScalar{{{0x00u, kLinear}}};
   static constexpr std::array<Field, 1> kAngle12{{{0x00u, psx::present::Motion::Angle12Low}}};
   static constexpr std::array<Field, 1> kAngle8{{{0x00u, psx::present::Motion::Angle8x3}}};
@@ -243,9 +241,9 @@ private:
   FlameMotion flame_;
   TextureScroll textureScroll_;
   TitleSlide titleSlide_;
-  TitleFade titleFade_;
-  std::array<psx::present::MotionSource *, 3> sources_{&textureScroll_, &titleSlide_, &titleFade_};
-  std::array<psx::present::MotionTrack, 15> tracks_{{
+  ScreenFade screenFade_;
+  std::array<psx::present::MotionSource *, 3> sources_{&textureScroll_, &titleSlide_, &screenFade_};
+  std::array<psx::present::MotionTrack, 14> tracks_{{
       {.name = "camera", .address = guest::kCamera, .fields = kCamera, .rule = &camera_},
       {.name = "spyro", .address = guest::kSpyro, .fields = kSpyro},
       {.name = "spyro poses", .address = guest::kSpyro, .fields = kSpyroPoses, .rule = &poses_},
@@ -278,7 +276,6 @@ private:
        .fields = kFlameFields,
        .rule = &flame_,
        .records = kFlameRecords},
-      {.name = "fade", .address = guest::kFade, .fields = kCountdown},
       {.name = "border", .address = kBorderSize, .fields = kScalar},
       {.name = "portal yaw", .address = kPortalYaw, .fields = kAngle12},
       {.name = "level ticks", .address = guest::kLevelTicks, .fields = kScalar},

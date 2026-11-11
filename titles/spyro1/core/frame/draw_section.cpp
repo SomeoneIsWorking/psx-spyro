@@ -5,6 +5,7 @@
 #include "guest_redraw.h"
 #include "ordering_table.h"
 #include "spyro1/core/frame/frame_driver.h"
+#include "spyro1/core/frame/screen_fade.h"
 #include "spyro1/core/guest_globals.h"
 #include "spyro1/core/native_state.h"
 #include "spyro1/render/terrain_facts.h"
@@ -99,6 +100,12 @@ bool step(psx::present::GuestRedraw &redraw,
   return returned;
 }
 
+// The fade level this replay draws, `t` of the way between the ticks' levels.
+std::optional<std::uint32_t> fadeLevel(Core &core) {
+  const ScreenFade &fade = core.game->frameDriverAs<FrameDriver>().motion().screenFade();
+  return fade.level(core, core.runtime.replayFrame(core)->replaying());
+}
+
 } // namespace
 
 bool DrawSection::replays(Core &core) const {
@@ -124,8 +131,8 @@ bool DrawSection::drawPlaying(Core &core, psx::present::GuestRedraw &redraw) {
       return false;
     }
   }
-  if (const std::uint32_t fade = core.mem_r32(guest::kFade); fade != 0) {
-    const std::array<std::uint32_t, 4> args{2u, fade << 3, fade << 3, fade << 3};
+  if (const std::optional<std::uint32_t> level = fadeLevel(core)) {
+    const std::array<std::uint32_t, 4> args{2u, *level, *level, *level};
     if (!step(redraw, kDrawFade, args)) {
       return false;
     }
@@ -147,9 +154,7 @@ bool DrawSection::drawTitle(Core &core, psx::present::GuestRedraw &redraw) {
   if (!reached) {
     return false;
   }
-  const TitleFade &fade = core.game->frameDriverAs<FrameDriver>().motion().titleFade();
-  if (const std::optional<std::uint32_t> level =
-          fade.level(core, core.runtime.replayFrame(core)->replaying())) {
+  if (const std::optional<std::uint32_t> level = fadeLevel(core)) {
     const std::array<std::uint32_t, 4> args{2u, *level, *level, *level};
     return step(redraw, kDrawFade, args);
   }

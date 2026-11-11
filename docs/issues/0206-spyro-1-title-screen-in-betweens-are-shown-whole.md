@@ -31,7 +31,7 @@ card presents all `fields=1/1`). The section declines it.
 The title's fade-outs (TSM_Init sub-state 5, the picker's m_State 5) raise `g_Fade` one a tick and
 TitlescreenDraw draws `DrawFade(2, l, l, l)` with `l = g_Fade << 4` (0x8007DCE8..0x8007DD04), so the replay,
 which read the whole `g_Fade`, drew each in-between at the later tick's level. `DrawSection::drawTitle` now runs
-TitlescreenDraw to 0x8007DCE8 and draws the fade itself at `TitleFade::level` (`title_fade.*`): `t` of the way
+TitlescreenDraw to 0x8007DCE8 and draws the fade itself at `ScreenFade::level` (`screen_fade.*`): `t` of the way
 between the two ticks' levels while both are in one title phase (m_Mode, m_SubState). Boot with no input to the
 idle timeout (`run.py fo +1900 w5 @40`, hidden, unpaced, judgement settings): 30 presents of the fade, every
 in-between composed, mean brightness 114.7 / 107.1 / 99.4 / 91.8 / 84.2 / ... / 1.3 / 0, each in-between at its
