@@ -58,7 +58,7 @@ The host picture differs from it on purpose: it is not dithered (issue 0200), an
 ## Current focus
 
 Goal work in this order: Spyro 2 and 3 loading removal (S034, S035; Spyro 1's S033 is the
-model): the card before the new-game cutscene, then Spyro 1's loading presentation (S033 M4).
+model): Spyro 2/3 16:9 margin mobys, then Spyro 1's loading presentation (S033 M4).
 
 All three titles present on the Record path, with 60 fps as psxport F-FPS60's replay of each title's
 draw (`docs/features.md`; S020, S028, S029).
@@ -548,8 +548,7 @@ then 0xB4 from one start, Insomniac 0xB4. `spyro::LogoHoldSkip` takes a Start/Cr
 field at the next hold's VSync return and stores `0x80067E00` as the vblank count `0x80066618` less that
 hold's n, so the hold's own test exits and the card's own fade-out `0x8004D810` runs at normal speed; a press
 ends one hold. `scratch/logos2/` (a tap every 40 steps): four holds end, 576 -> 168 fields, paced boot
-9.62 s -> 2.80 s at p50 16.75 ms per present, each card fading out (`s2_tap_sheet.png`). Remaining: the
-card before the new-game cutscene ignores Start.
+9.62 s -> 2.80 s at p50 16.75 ms per present, each card fading out (`s2_tap_sheet.png`). The card before the new-game cutscene is this load's picture (issue 0248).
 
 ### S035 — Spyro 3 loading removal
 
@@ -565,4 +564,4 @@ The boot logos: the boot overlay (WAD `0x23000` at `0x800742D0`; decomp manifest
 sets that register in the suspended boot call (`ResumableGuestCall::setSuspendedRegister`) from the vblank
 count `0x8006B480`. `scratch/logos2/`: four holds end, 677 -> 265 fields, paced boot 11.31 s -> 4.43 s, each
 card fading out (`s3_tap_sheet.png`); the Insomniac card stays up about 90 steps after its hold while the boot
-loads and checksums its code. Remaining: the card before the new-game cutscene ignores Start.
+loads and checksums its code. The card before the new-game cutscene is this load's picture (issue 0248).
