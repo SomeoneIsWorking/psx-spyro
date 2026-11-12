@@ -30,9 +30,10 @@
 // the canvas shows margins past the authored window and retail culls the mobys in them. The guest's
 // call takes retail's selection: the 4:3 slope and the guest group bytes, so every guest write is
 // retail's at any aspect. The moby drawer's margin pass (guest_moby_drawer.h) calls it again with
-// the margin selection inside a rolled-back run: only spheres wholly past the 4:3 window and inside
-// the presented one, in a group the guest shows or a margin-only sector (margin_sectors.h), with no
-// deferral and no close list. The drawers' edge tests stay 4:3, so a widened view lists a moby that
+// the margin selection inside a rolled-back run: spheres inside the presented window that retail
+// leaves out, wholly past the 4:3 window in a group the guest shows, or anywhere in a margin-only
+// sector (margin_sectors.h), whose groups retail draws nowhere; close ones go on the close list for
+// the shadow drawer, and nothing is deferred. The drawers' edge tests stay 4:3, so a widened view lists a moby that
 // reaches past that window and is clear of the eye as inside (2) in its entry; its record keeps the
 // frustum class.
 //

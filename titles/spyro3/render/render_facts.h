@@ -272,6 +272,11 @@ inline constexpr spyro::EngineRenderFacts kRenderFacts{
                    .overrideName = "spyro3-moby-drawer",
                    .fieldPassReturn = 0x8001EC94u,
                    .introCard = kIntroCard},
+    // The close list's drawer, the object pass's fourth call; its texture words sit at the
+    // walk's v0 on return.
+    .mobyShadows = {.entry = 0x8002DDA8u,
+                    .overrideName = "spyro3-moby-shadows",
+                    .texture = kMobyFacts.exitV0},
     .spyroDrawer = kSpyroDrawer,
     .sky = kSkyFacts,
     .flatten = kFlatten,

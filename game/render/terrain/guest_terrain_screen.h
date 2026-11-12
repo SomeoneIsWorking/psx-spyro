@@ -75,14 +75,24 @@ public:
     return x < left_ || x >= right_;
   }
 
+  // `sxy << 16`: x - left in the high halfword, for tests that combine several vertices' words.
+  [[nodiscard]] constexpr std::uint32_t fromLeft(std::uint32_t sxy) const {
+    return (sxy << 16) - (static_cast<std::uint32_t>(left_) << 16);
+  }
+
+  // `(sxy << 16) - 0x2000000`: x - right in the high halfword.
+  [[nodiscard]] constexpr std::uint32_t fromRight(std::uint32_t sxy) const {
+    return (sxy << 16) - (static_cast<std::uint32_t>(right_) << 16);
+  }
+
   // `(int32)(sxy << 16) <= 0`: x <= left.
   [[nodiscard]] constexpr bool atOrLeftOfLeft(std::uint32_t sxy) const {
-    return static_cast<std::int32_t>((sxy << 16) - (static_cast<std::uint32_t>(left_) << 16)) <= 0;
+    return static_cast<std::int32_t>(fromLeft(sxy)) <= 0;
   }
 
   // `(int32)((sxy << 16) - 0x2000000) >= 0`: x >= right.
   [[nodiscard]] constexpr bool atOrRightOfRight(std::uint32_t sxy) const {
-    return static_cast<std::int32_t>((sxy << 16) - (static_cast<std::uint32_t>(right_) << 16)) >= 0;
+    return static_cast<std::int32_t>(fromRight(sxy)) >= 0;
   }
 
   [[nodiscard]] constexpr bool aboveTop(std::uint32_t sxy) const {

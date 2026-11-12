@@ -113,13 +113,18 @@ private:
     MeshSlots slots;
   };
 
+  // How a margin call reached the record: through a group the guest shows, or a margin-only
+  // sector, which retail draws nowhere.
+  enum class Reach : std::uint8_t { Shown, MarginOnly };
+
   Step visit(std::uint32_t rec);
   MeshSlots slotsOf(std::uint32_t rec);
   void defer(const Deferred &deferred);
   Step drawCandidate(std::uint32_t rec,
                      const CameraOffset &offset,
                      std::int32_t drawDistance,
-                     const MeshSlots &slots);
+                     const MeshSlots &slots,
+                     Reach reach);
   void listClose(const Candidate &candidate, std::int32_t depth);
   RotationWords orient(std::uint32_t rec);
   [[nodiscard]] bool subSphereRejects(std::uint32_t mesh);
@@ -225,8 +230,8 @@ MobyWalk::Step MobyWalk::visit(std::uint32_t rec) {
     return Step::Next;
   }
   const std::uint32_t group = core_.mem_r8(rec + record::kGroup);
-  if (group < 0xFE && core_.mem_r8(globals_.visibilityGroups + group) == 0 &&
-      !(margin() && selection_.margin->lists(selection_.level, group))) {
+  const bool shown = group >= 0xFE || core_.mem_r8(globals_.visibilityGroups + group) != 0;
+  if (!shown && !(margin() && selection_.margin->lists(selection_.level, group))) {
     return Step::Next;
   }
   const MeshSlots mesh = slotsOf(rec);
@@ -243,7 +248,11 @@ MobyWalk::Step MobyWalk::visit(std::uint32_t rec) {
            .slot = mesh.slot()});
     return Step::Next;
   }
-  return drawCandidate(rec, {.dx = dx, .dy = dy, .dz = dz}, drawDistance, mesh);
+  return drawCandidate(rec,
+                       {.dx = dx, .dy = dy, .dz = dz},
+                       drawDistance,
+                       mesh,
+                       shown ? Reach::Shown : Reach::MarginOnly);
 }
 
 MeshSlots MobyWalk::slotsOf(std::uint32_t rec) {
@@ -273,7 +282,8 @@ void MobyWalk::defer(const Deferred &deferred) {
 MobyWalk::Step MobyWalk::drawCandidate(std::uint32_t rec,
                                        const CameraOffset &offset,
                                        std::int32_t drawDistance,
-                                       const MeshSlots &slots) {
+                                       const MeshSlots &slots,
+                                       Reach reach) {
   const Candidate candidate{.rec = rec, .mesh = slotMesh(core_, slots.slot()), .slots = slots};
   const std::uint32_t mesh = candidate.mesh;
   core_.gte().loadRotation(camera_);
@@ -293,14 +303,15 @@ MobyWalk::Step MobyWalk::drawCandidate(std::uint32_t rec,
   if (guest_moby_frustum::outsideHorizontal(view, margins, slope_)) {
     return Step::Next;
   }
-  // The margin lists only spheres wholly past retail's window, which draw no pixel inside it.
+  // Of the mobys retail shows, the margin lists only spheres wholly past its window; retail drew
+  // the rest. A margin-only sector's moby is listed whole wherever it reaches.
   if (margin()) {
-    if (!guest_moby_frustum::outsideHorizontal(view, margins, guest_moby_frustum::kRetailSlope)) {
+    if (reach == Reach::Shown &&
+        !guest_moby_frustum::outsideHorizontal(view, margins, guest_moby_frustum::kRetailSlope)) {
       return Step::Next;
     }
-  } else {
-    listClose(candidate, view.z);
   }
+  listClose(candidate, view.z);
   if (guest_moby_frustum::outsideVertical(view, margins)) {
     return Step::Next;
   }

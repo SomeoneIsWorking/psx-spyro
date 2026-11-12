@@ -58,7 +58,7 @@ public:
                      globals,
                      {.margin = &sectors, .level = core_.mem_r32(image_.sectorTable)});
     const std::uint32_t listed = listedEntries(scratch + guest_moby::kRenderListAboveScratch);
-    if (!redraw.run(image_.drawer.entry, {})) {
+    if (!redraw.run(image_.drawer.entry, {}) || !redraw.dispatch(image_.shadowDrawer, {})) {
       redraw.keepNothing();
       return;
     }

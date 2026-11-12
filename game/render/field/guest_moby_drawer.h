@@ -3,13 +3,15 @@
 // adds after it.
 //
 // The guest's call draws retail's list. At a widened aspect the field's object pass (8004C534 /
-// 8001EC5C) then draws the margin: inside a rolled-back run the walk lists only the mobys wholly
-// past the 4:3 window (guest_moby_visibility.h), over the list region the drawer just consumed, and
-// the original drawer draws them into the idle draw buffer's pool (DrawSection::idlePool), so the
-// guest's cursor and the pool room it tests stay retail's. The run keeps what the frame needs of
-// it: those packets, the ordering-table bins and the packets they link after, and the far-bin mark
-// the flatten reads (SCUS_944.25 8001B2B8). Every other byte, the cursor, class bytes and lists
-// among them, goes back. Last, the title intro card's extension (intro_card.h).
+// 8001EC5C) then draws the margin: inside a rolled-back run the walk lists only the mobys retail
+// leaves out, wholly past the 4:3 window or in a margin-only sector (guest_moby_visibility.h), over
+// the list region the drawer just consumed; the original drawer draws them, and the shadow drawer
+// the close ones among them (guest_moby_shadows.h), into the idle draw buffer's pool
+// (DrawSection::idlePool), so the guest's cursor and the pool room it tests stay retail's. The run
+// keeps what the frame needs of it: those packets, the ordering-table
+// bins and the packets they link after, and the far-bin mark the flatten reads (SCUS_944.25
+// 8001B2B8). Every other byte, the cursor, class bytes and lists among them, goes back. Last, the
+// title intro card's extension (intro_card.h).
 #pragma once
 
 #include "core.h"
@@ -25,7 +27,7 @@ struct Facts {
   std::uint32_t entry = 0;
   const char *overrideName = "";
   // The return address of the field object pass's call (SCUS_944.25 jal at 8004C564, SCUS_944.67
-  // at 8001EC8C); Spyro 3's Sparx pass (8001EA28) draws no margin.
+  // at 8001EC8C).
   std::uint32_t fieldPassReturn = 0;
   intro_card::Facts introCard;
 };
@@ -35,7 +37,8 @@ struct Image {
   const Facts &drawer;
   const guest_moby::Facts &walk;
   const guest_render_globals::Globals &globals;
-  std::uint32_t sectorTable = 0; // the word holding the level's terrain sector table
+  std::uint32_t sectorTable = 0;  // the word holding the level's terrain sector table
+  std::uint32_t shadowDrawer = 0; // the close list's drawer (guest_moby_shadows.h)
 };
 
 void draw(Core &core, const Image &image);

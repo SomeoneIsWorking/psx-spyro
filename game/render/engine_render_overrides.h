@@ -6,6 +6,7 @@
 #include "core.h"
 #include "native_dispatch.h"
 #include "render/field/guest_moby_drawer.h"
+#include "render/field/guest_moby_shadows.h"
 #include "render/field/guest_moby_visibility.h"
 #include "render/field/guest_render_globals.h"
 #include "render/field/guest_sky_drawer.h"
@@ -30,6 +31,7 @@ struct EngineRenderFacts {
   // The drawer of the walk's render list (SCUS_944.25 0x80044504, SCUS_944.67 0x80031124): each
   // entry's faces under the translation the walk tagged with its view unit and bucket.
   guest_moby_drawer::Facts mobyDrawer;
+  guest_moby_shadows::Facts mobyShadows;
   spyro_drawer_depth::Facts spyroDrawer;
   guest_sky::Facts sky;
   std::uint32_t flatten = 0;
@@ -62,7 +64,13 @@ template <const EngineRenderFacts &facts> void drawMobys(Core *core) {
                           {.drawer = facts.mobyDrawer,
                            .walk = facts.moby,
                            .globals = facts.globals,
-                           .sectorTable = facts.terrain.classify.sectorTable});
+                           .sectorTable = facts.terrain.classify.sectorTable,
+                           .shadowDrawer = facts.mobyShadows.entry});
+}
+
+template <const EngineRenderFacts &facts> void drawMobyShadows(Core *core) {
+  guest_moby_shadows::draw(
+      *core, {.shadows = facts.mobyShadows, .terrain = facts.terrain, .globals = facts.globals});
 }
 
 template <const EngineRenderFacts &facts> void drawSpyro(Core *core) {
@@ -87,6 +95,10 @@ template <const EngineRenderFacts &facts> void registerEngineRenderOverrides(Cor
       core, facts.moby.entry, facts.moby.overrideName, engine_render::walkMobys<facts>);
   psx::cpu::installNativeOverride(
       core, facts.mobyDrawer.entry, facts.mobyDrawer.overrideName, engine_render::drawMobys<facts>);
+  psx::cpu::installNativeOverride(core,
+                                  facts.mobyShadows.entry,
+                                  facts.mobyShadows.overrideName,
+                                  engine_render::drawMobyShadows<facts>);
   psx::cpu::installNativeOverride(
       core, facts.sky.entry, facts.sky.overrideName, engine_render::drawSky<facts>);
   psx::cpu::installNativeOverride(

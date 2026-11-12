@@ -57,11 +57,13 @@ inline constexpr std::array<std::uint32_t, 12> kSavedRegisters = {
     16, 17, 18, 19, 20, 21, 22, 23, 28, 29, 30, 31};
 
 // Retail's prologue; the native bodies never change these, so the epilogue needs no counterpart.
-inline void spillBorrowedRegisters(Core &core, const Globals &globals) {
+inline void spillBorrowedRegisters(Core &core, std::uint32_t saveArea) {
   for (std::size_t i = 0; i < kSavedRegisters.size(); ++i) {
-    core.mem_w32(globals.registerSaveArea + static_cast<std::uint32_t>(4 * i),
-                 core.r[kSavedRegisters[i]]);
+    core.mem_w32(saveArea + static_cast<std::uint32_t>(4 * i), core.r[kSavedRegisters[i]]);
   }
+}
+inline void spillBorrowedRegisters(Core &core, const Globals &globals) {
+  spillBorrowedRegisters(core, globals.registerSaveArea);
 }
 
 } // namespace spyro::guest_render_globals
