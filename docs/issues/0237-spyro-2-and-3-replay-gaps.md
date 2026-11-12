@@ -19,18 +19,30 @@ draw body 0x800156FC / 0x8001E638. Gameplay moves halfway (Glimmer `warp 0/1/0`,
      `0x8006A1CC`, `0x8006A1D4`, `0x8006A1D8` and the power-up byte `0x800698CC`; the reflection shift (+0x2C) by
      `0x8002A4C8` only on a floor of surface type 4 (`0x8002B078`). Neither was reached: Colossus `start` held Up,
      Glimmer `moby-teleport 554 2`, the story walk; all read 0. The pulsing tints colour (byte 1) from a sine of the
-     timer, which `SpyroSurface` steps: expected to step at 30 Hz once reached.
+     timer, which `SpyroSurface` steps: expected to step at 30 Hz once reached. 2026-11-12 (`scratch/unreached23`):
+     `0x8002B078` returns the first byte of `[0x800673E8][floor & 0x3F]`, 0x3F meaning none; type 4 is entry 0 in
+     Colossus (13), Winter Tundra (50) and Metropolis (62) (`surf2/surfaces.txt`). `moby-teleport` onto the first
+     moby of every class in Colossus and Winter Tundra (`ice-col`, `ice-wt`) never stood Spyro on a floor other than
+     0x3F, and some placements changed the game state (to 9 in Colossus, 1 in Winter Tundra). The four boss runs
+     below read 0 in `0x8006A010`, `0x8006A01C` and `0x8006A1C4` at every sample.
    - Spyro 3's letterbox (`0x8006C64C`, set from the camera controller `0x800144B4` modes 9/10 in state 0xE): not
      reached. Tried the new-game story (states 5/6, word stays 0), Sunny Villa `0/1/0` entry, and `moby-teleport`
-     onto every single-instance class in Sunrise Spring `0/0/0` (35, 120, 198, 325, 425, 432, 434, 435, 436, 460, 498,
-     514, 516, 527, 561, 651, 683, 942, 983, 1002, 1023; 211, 416, 563 by index), with and without Triangle: none
-     opened a conversation (436 and 460 are portals into a level load).
+     onto every single-instance class in Sunrise Spring `0/0/0`; shown since through the boss warps (plan Open 1).
    - Spyro 3's story (state 6, handler `0x8001E2A8`): shown. Three real-time shots (`s3cut.py s3c3 12 6 60 4700`,
      dumps at steps 2850, 3550, 4330): every in-between composed with all tracks paired, each in-between 0.55-0.65 of
      its neighbours' distance from each (`between.py`), Bianca and the egg moving in steps through the run
      (`s3c3-3550-bianca.png`).
    - Spyro 2's story (state 6): its rain steps (issue 0242); the rest of the shot is still.
-   - S2 0x12 and S3 0x12 scene states and the S3 bosses: no route reached them.
+   - S2 0x12 and S3 0x12 scene states: no route reached them.
+   - Bosses (2026-11-12, `scratch/unreached23`, judgement settings, fps60 on and off on the same frame-exact plan,
+     `fielddigest` joined on `ticks=`): Gulp's Overlook `1/11/0` (level 0x2E, state 0, Gulp in the fight) 2062
+     replayed, 0 refused, mobys 8 of 17314 unpaired, leak 5129 shared / 0 differ; Gulp moves at every present
+     (`gulp-1/gulp_body.png.png`; an edge on his machine 2212.5 / 2210.5 / 2211 / 2209 / 2207.5 / 2207 / 2205 / 2203).
+     Ripto's Arena `2/7/0`, Buzz's Dungeon `0/7/0` and Sorceress' Lair `3/7/0` stop in the pre-fight conversation
+     (state 1), which waits for a button: 2000 / 2007 / 1968 replayed, 0 refused, leak 5068 / 5224 / 5224 shared,
+     0 differ. The fights behind those conversations were not reached. Effects run 13% (Gulp) to 37% (Ripto) unpaired, drawn
+     as they are; which pools make up the count (particles the allocator handed out, new sprite or glow slots) is not
+     broken down.
 ## Fixed (2026-11-12, shown in frames, `scratch/unreached23`)
 - Spyro 2/3 credits (state 10). Reached by the shared `credits` verb, which runs the credits cheat's effect (S2
   `0x80054518`, S3 `0x80017B7C`, argument 1) from the frame driver before the update. Cause of the 30 Hz letters:

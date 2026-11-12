@@ -349,7 +349,13 @@ Spyro 3 6592 shared, 0 differ. Spyro 1's `credits` takes the same entry and reac
 ## Open
 
 1. Done: the letterbox edge (Screen and HUD). A bar that shrinks to 0 is not drawn by S, so its last half row is not
-   shown. Spyro 3's facts share the body's shape (G3:8001FF44) but no warp reached a Spyro 3 letterbox.
+   shown. Spyro 3 (G3:8001FF44): every boss arena's warp (`0/7/0` Buzz's Dungeon, `3/7/0` Sorceress' Lair)
+   enters the pre-fight conversation, state 1 with camera mode 0x12 in `0x8006E044`, which opens the bars
+   (`0x8006C74C` set; its writer in this state is not identified). Buzz `0/7/0`, presents 1362-1377
+   (`scratch/unreached23/lbox_bars.txt`, `lbox-1/lbox_top.png`): the top edge 96 / 100 / 104 ... 184 of 1920 and
+   the bottom 1823 / 1819 ... 1735, 4 rows (half an 8-row native row) per present, all 21 in-betweens at 0.50;
+   the state 3 to 1 change at present 1364 is held as a cut. The death fall below the level's kill height
+   (`0x800676E8` table) enters camera mode 9 with `0x8006E048` = 2, so `0x800144B4` does not open the bars there.
 2. Angle8 quantisation of moby and Spyro angle bytes, as Spyro 1 Open 2; mobys flagged with bit 30 have
    fractions, Spyro and the shadow have none.
 3. Whether any gameplay chain bakes a VRAM upload (`ReplayFrame::at` refuses such a record); none reached by the
