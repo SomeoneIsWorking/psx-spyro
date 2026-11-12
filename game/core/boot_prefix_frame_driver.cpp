@@ -29,7 +29,7 @@ BootPrefixFrameDriver::BootPrefixFrameDriver(Game &game,
                                              const DrawSection &section,
                                              const DrawMotionFacts &motion)
     : core_(game.core), facts_(facts), fields_(game, facts.field), cut_(facts.cut),
-      logoHolds_(facts.logoHolds), loadingPicture_(facts.loadingPicture), section_(section),
+      logoHolds_(facts.logoHolds), countedScreens_(facts.countedScreens), section_(section),
       motion_(game.core, motion), replay_(section_, motion_.tracks(), motion_.sources()) {}
 
 void BootPrefixFrameDriver::initialize() {
@@ -199,7 +199,7 @@ void BootPrefixFrameDriver::stepMainLoop(Core &core) {
     if (!call_.pending()) {
       if (loopCall_ == LoopCall::Update) {
         fields_.beginLogicFrame();
-        loadingPicture_.observe(core, fields_.takePresentationSkip());
+        countedScreens_.observe(core, fields_.takePresentationSkip());
         Warp &warp = *session(core).warp;
         warp.applyArmed(core, static_cast<std::uint32_t>(steps_));
         if (const std::optional<Warp::Entry> entry = warp.takeEntry()) {

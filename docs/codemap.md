@@ -16,7 +16,7 @@ Frame loop: each title's driver runs one logic frame per step, update then draw 
 - `game/core/table_slide.*` — a slide the draw reads from one table entry per tick, as a `MotionSource` (S1 title logo, S2 conversation box)
 - `game/core/press_latch.h` — one held Start/Cross edge until a skip that can act on it takes it
 - `game/core/logo_hold.*` — S2/S3 boot logos: a Start/Cross press dates the held card's start back by its hold, so the guest's own test ends it and its fade-out plays
-- `game/core/loading_picture_skip.*` — S2/S3 loading picture (state 5 sub-state 0): a Start/Cross press brings its count to the end, two full frames before the guest's own exit, the buffer parity kept
+- `game/core/counted_screen_skip.*`, `even_skip.h` — S2/S3 screens that end on their own count (loading picture, level fades, load hold): a Start/Cross press moves the count to where the guest's own test ends it, the last draws and the buffer parity kept
 - `titles/spyro3/core/loader_checksum.*` — Spyro 3's loader 0x8002CA50 with the code checksum its reads used to run under, completed before it
 - `game/core/frame_cut.*` — cut detection for 60 fps in-betweens: gamestate, level, camera placement, a cutscene camera track's shot change
 - `game/core/native_execution.h` — nested guest call return address `$ra` and lowered stack frame

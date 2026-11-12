@@ -32,6 +32,42 @@ inline constexpr std::uint32_t kVSyncQueryCounter = 0x80066618u;
 inline constexpr std::array<spyro::LogoHold, 4> kLogoHolds{
     {{0x8007750Cu, 0xA4u}, {0x800776A4u, 0x3Cu}, {0x800778ECu, 0xB4u}, {0x80077BA0u, 0xB4u}}};
 
+// The screens a Start/Cross press ends (spyro::CountedScreenSkip): counter 0x800698EC, fade
+// 0x80066F68.
+inline constexpr std::array<spyro::CountedScreen, 3> kCountedScreens{{
+    // FUN_80019364: ++ and leave at 0xE; at 0xB it finishes the autosave 0x80063278[0x800698F4]
+    // asks for. Its draw FUN_800151F0 lights the picture count * 16 until 8.
+    {.name = "the loading picture",
+     .state = 5u,
+     .subState = 0u,
+     .word = 0x800698ECu,
+     .step = 1,
+     .limit = 0xD,
+     .minimumKept = 3u,
+     .zeroIsBefore = true,
+     .mustReach = 0xB,
+     .mustReachFlags = 0x80063278u,
+     .mustReachKind = 0x800698F4u},
+    // FUN_8001722C sub-state 1, behind black: ++ once the load is issued and leave past 5. A
+    // respawn sets 0x800698F8 and holds to 0x4F instead.
+    {.name = "the level load hold",
+     .state = 3u,
+     .subState = 1u,
+     .word = 0x800698ECu,
+     .step = 1,
+     .limit = 5,
+     .minimumKept = 1u,
+     .zeroIsBefore = true,
+     .exceptWhile = 0x800698F8u},
+    // Sub-state 2: the field fades in, -0x10 until below 1.
+    {.name = "the level fade-in",
+     .state = 3u,
+     .subState = 2u,
+     .word = 0x80066F68u,
+     .step = -0x10,
+     .limit = 1},
+}};
+
 // Game main 0x80011ADC: boot prefix 0x80011E9C (jal at 0x80011AE4), then the loop jal 0x8001B140 /
 // jal 0x800156FC. Bound measurements: docs/issues/0156.
 inline constexpr spyro::BootPrefixFacts kBootPrefixFacts{
@@ -46,16 +82,9 @@ inline constexpr spyro::BootPrefixFacts kBootPrefixFacts{
     .logoHolds = {.holds = kLogoHolds,
                   .start = {.word = 0x80067E00u},
                   .vsyncCounter = kVSyncQueryCounter},
-    // FUN_80019364 counts 0x800698EC from 0 and leaves sub-state 0x800698F0 0 once its ++ reaches
-    // 0xE; at 0xB it finishes the autosave 0x80063278[0x800698F4] asks for. Its draw FUN_800151F0.
-    .loadingPicture = {.gameState = kGameState,
-                       .loadingState = 5u,
-                       .subState = 0x800698F0u,
-                       .counter = 0x800698ECu,
-                       .landingCount = 0xBu,
-                       .autosaveCount = 0xBu,
-                       .autosaveFlags = 0x80063278u,
-                       .kind = 0x800698F4u},
+    .countedScreens = {.gameState = kGameState,
+                       .subState = kGameSubState,
+                       .screens = kCountedScreens},
     .field =
         {
             .titleName = "Spyro 2",

@@ -37,6 +37,28 @@ inline constexpr std::uint32_t kVSyncQueryCounter = 0x8006B480u;
 inline constexpr std::array<spyro::LogoHold, 4> kLogoHolds{
     {{0x80074FD8u, 0xA4u}, {0x800750B4u, 0x3Cu}, {0x800751E8u, 0xB4u}, {0x800755E0u, 0xB4u}}};
 
+// The screens a Start/Cross press ends (spyro::CountedScreenSkip): counter 0x8006FBC4, fade
+// 0x8006C598.
+inline constexpr std::array<spyro::CountedScreen, 2> kCountedScreens{{
+    // FUN_80058778 leaves when it reads 0xD, then ++; its draw FUN_80059038 lights the picture
+    // count * 16 until 8 and adds the caption past 7; sub-states 1 and 4 draw only bars.
+    {.name = "the loading picture",
+     .state = 5u,
+     .subState = 0u,
+     .word = 0x8006FBC4u,
+     .step = 1,
+     .limit = 0xD,
+     .minimumKept = 3u,
+     .zeroIsBefore = true},
+    // FUN_80053A10 sub-state 4: the field fades in, -0x10 until below 1.
+    {.name = "the level fade-in",
+     .state = 3u,
+     .subState = 4u,
+     .word = 0x8006C598u,
+     .step = -0x10,
+     .limit = 1},
+}};
+
 // Game main 0x8001200C: boot prefix 0x8002AB38 (jal at 0x8001201C), then the loop jal 0x80055400 /
 // jal 0x8001E638. Bound measurements: docs/issues/0156.
 inline constexpr spyro::BootPrefixFacts kBootPrefixFacts{
@@ -49,13 +71,9 @@ inline constexpr spyro::BootPrefixFacts kBootPrefixFacts{
     // FUN_80020168 waits at 0x80020268.
     .fadeFrameWait = 0x80020270u,
     .logoHolds = {.holds = kLogoHolds, .start = {.reg = 21}, .vsyncCounter = kVSyncQueryCounter},
-    // FUN_80058778 leaves sub-state 0x8006FBC8 0 when 0x8006FBC4 is 0xD, then ++; its draw
-    // FUN_80059038 adds the caption past count 7; sub-states 1 and 4 draw only bars.
-    .loadingPicture = {.gameState = kGameState,
-                       .loadingState = 5u,
-                       .subState = 0x8006FBC8u,
-                       .counter = 0x8006FBC4u,
-                       .landingCount = 0xBu},
+    .countedScreens = {.gameState = kGameState,
+                       .subState = kGameSubState,
+                       .screens = kCountedScreens},
     .field =
         {
             .titleName = "Spyro 3",

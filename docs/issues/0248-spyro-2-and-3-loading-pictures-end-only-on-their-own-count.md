@@ -1,7 +1,7 @@
 # 0248 — Spyro 2 and 3 loading pictures, the new-game card among them, end only on their own count
 
-Status: open; a press ends the picture's count. Owner: `game/core/loading_picture_skip.cpp`, facts in each
-title's `core/boot_facts.h`.
+Status: open; a press ends the picture's count. Owner: `game/core/counted_screen_skip.cpp`, the screens in each
+title's `core/boot_facts.h` (`kCountedScreens`).
 
 ## Observed
 With reads due at once, entering a level still shows the loading picture: Spyro 2's `warp 0/1/0` fades the
@@ -27,8 +27,8 @@ cutscene frame (state 6) at 1363. Spyro 3's "An Evil Plot Unfolds..." caption is
 Nothing changes; the count is the picture's own time.
 
 ## Press skip
-`spyro::LoadingPictureSkip` latches a Start/Cross edge while sub-state 0 shows the picture (count 1 on; at
-count 0 the previous screen is still fading out and a press there is dropped) and, before the next update, writes the count to the title's landing: 0xB, or one below it, so the update still draws two
+`spyro::CountedScreenSkip` latches a Start/Cross edge while sub-state 0 shows the picture (count 1 on; at
+count 0 the previous screen is still fading out and a press there is dropped) and, before the next update, writes the count to 0xB, or one below it (`spyro::keptUpdates`, `game/core/even_skip.h`), so the update still draws two
 full-brightness frames, one into each display buffer, and leaves through its own test. Spyro 2 lands at most
 at 0xA while a pending autosave has not run, so the autosave at 0xB still runs. The landing keeps the
 number of dropped updates even. Each update draws into the other buffer, and the load's last frame clears

@@ -63,7 +63,7 @@ set(SPYRO_RUNTIME_SOURCES
   game/core/table_slide.cpp
   game/core/field_owner.cpp
   game/core/logo_hold.cpp
-  game/core/loading_picture_skip.cpp
+  game/core/counted_screen_skip.cpp
   game/core/frame_cut.cpp
   game/core/guest_magnitude.cpp
   game/core/hud_slide.cpp
