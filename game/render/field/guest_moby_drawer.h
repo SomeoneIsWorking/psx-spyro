@@ -7,8 +7,9 @@
 // leaves out, wholly past the 4:3 window or in a margin-only sector (guest_moby_visibility.h), over
 // the list region the drawer just consumed; the original drawer draws them, and the shadow drawer
 // the close ones among them (guest_moby_shadows.h), into the idle draw buffer's pool
-// (DrawSection::idlePool), so the guest's cursor and the pool room it tests stay retail's. The run
-// keeps what the frame needs of it: those packets, the ordering-table
+// (DrawSection::idlePool), so the guest's cursor and the pool room it tests stay retail's. Spyro
+// 3's chained Sparx pass draws his margin the same way, after the field pass's packets
+// (margin_packets.h). The run keeps what the frame needs of it: those packets, the ordering-table
 // bins and the packets they link after, and the far-bin mark the flatten reads (SCUS_944.25
 // 8001B2B8). Every other byte, the cursor, class bytes and lists among them, goes back. Last, the
 // title intro card's extension (intro_card.h).
@@ -29,6 +30,9 @@ struct Facts {
   // The return address of the field object pass's call (SCUS_944.25 jal at 8004C564, SCUS_944.67
   // at 8001EC8C).
   std::uint32_t fieldPassReturn = 0;
+  // Spyro 3's chained pass (8001E638 from 8001EA28) draws Sparx after the flatten with the
+  // drawer's scratch block moved below the idle pool's end; it draws his margin there too.
+  bool chainedPass = false;
   intro_card::Facts introCard;
 };
 

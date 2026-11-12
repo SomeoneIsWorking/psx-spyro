@@ -305,6 +305,7 @@ void BootPrefixFrameDriver::restored(Core &) {
   staged_.reset();
   replay_.forget();
   marginSectors_.clear();
+  marginPackets_.clear();
   sampledState_.reset();
 }
 

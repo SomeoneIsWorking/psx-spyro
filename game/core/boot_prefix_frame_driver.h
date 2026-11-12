@@ -7,6 +7,7 @@
 #include "core/logo_hold.h"
 #include "game_runtime.h"
 #include "machine_state.h"
+#include "render/field/margin_packets.h"
 #include "render/field/margin_sectors.h"
 #include "replay_frame.h"
 #include "resumable_guest_call.h"
@@ -80,6 +81,10 @@ public:
   [[nodiscard]] MarginSectors &marginSectors() {
     return marginSectors_;
   }
+  // Where this draw's margin moby packets end in the idle pool.
+  [[nodiscard]] MarginPackets &marginPackets() {
+    return marginPackets_;
+  }
   [[nodiscard]] DrawMotion &motion() {
     return motion_;
   }
@@ -137,6 +142,7 @@ private:
   const DrawSection &section_;
   DrawMotion motion_;
   MarginSectors marginSectors_;
+  MarginPackets marginPackets_;
   psx::present::ReplayFrame replay_;
   std::optional<std::uint32_t> sampledState_;
   std::map<std::string_view, std::uint64_t> declined_;
