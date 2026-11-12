@@ -52,7 +52,7 @@ S2 and S3 take the BIOS pad path.
 | 1 | S1 | psxport F-CD.1 | `titles/spyro1/core/runtime/runtime.cpp:spyro1::Runtime` — stock `CdCommand` `0x80064CEC`, `CdControl`/`B`/`F`, `CdSync` `0x800647A0`, work area `0x80074E50` |
 | 2 | S1 | title | `game/core/cd_queue.cpp:registerCdQueue` — the cooperative WAD loader leaves over `ArchiveTransfer` |
 | 3 | S2 | psxport F-CD.1 | `titles/spyro2/core/runtime.cpp:spyro2::Runtime` — `GuestInterruptLibcd`, ready slot `0x800663B8`, status 2 per stock read |
-| 4 | S3 | psxport F-CD.1 | `titles/spyro3/core/runtime.cpp:spyro3::Runtime` — `GuestInterruptLibcd`, ready slot `0x8006B3D0`, status 2 per stock read |
+| 4 | S3 | psxport F-CD.1 | `titles/spyro3/core/runtime.cpp:spyro3::Runtime` — `GuestInterruptLibcd`, ready slot `0x8006B3D0`, status 2 per stock read, due at once; `titles/spyro3/core/loader_checksum.cpp` completes the loader's code checksum (issue 0247) |
 | 5 | S2, S3 | psxport F-CD.3 | `titles/spyro2/core/runtime.cpp:spyro2::Runtime::stockCdReadLanded` (and S3's) — the loader's code modules published as images |
 
 ## F-RENDER

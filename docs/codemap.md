@@ -15,6 +15,7 @@ Frame loop: each title's driver runs one logic frame per step, update then draw 
 - `game/core/sky_wave.*` — S2/S3 sky-object wave as a `MotionSource`: the consumer (S2 `0x800296D0`, S3 `0x8001C8C8`) overridden to write the wave word `t` of the way between ticks inside a replay (`SkyWave`)
 - `game/core/table_slide.*` — a slide the draw reads from one table entry per tick, as a `MotionSource` (S1 title logo, S2 conversation box)
 - `game/core/press_latch.h` — one held Start/Cross edge until a skip that can act on it takes it
+- `titles/spyro3/core/loader_checksum.*` — Spyro 3's loader 0x8002CA50 with the code checksum its reads used to run under, completed before it
 - `game/core/frame_cut.*` — cut detection for 60 fps in-betweens: gamestate, level, camera placement, a cutscene camera track's shot change
 - `game/core/native_execution.h` — nested guest call return address `$ra` and lowered stack frame
 - `game/core/archive_transfer*` — WAD archive / CD file transfer with per-Core completion and refusal

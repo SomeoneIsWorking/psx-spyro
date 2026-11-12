@@ -3,6 +3,7 @@
 #include "core.h"
 #include "game.h"
 #include "spyro3/core/boot_facts.h"
+#include "spyro3/core/loader_checksum.h"
 #include "spyro3/core/logo_facts.h"
 #include "spyro3/core/warp.h"
 #include "spyro3/render/hud_anchor.h"
@@ -41,9 +42,11 @@ constexpr std::uint32_t kCdCommand = 0x8005E0BCu;
 // libcd's CdReadyCallback word, defaulted by CdInit at 0x8005DB6C.
 constexpr std::uint32_t kCdReadyCallbackPointer = 0x8006B3D0u;
 
-// The per-sector reader 0x80050504 ends a read on `$a0 & 0xFF == 2`. Drive time stays: the loader
-// 0x8002CA50 checksums code only while a read is in flight (issue 0247).
-constexpr psx::cd::GuestInterruptLibcd::Completion kCdCompletion{.status = 2, .perStockRead = true};
+// The per-sector reader 0x80050504 ends a read on `$a0 & 0xFF == 2`. Its loads poll it, so the
+// drive's rate is a loading-only wait; the loader's checksum that ran in that time is
+// loader_checksum's.
+constexpr psx::cd::GuestInterruptLibcd::Completion kCdCompletion{
+    .status = 2, .perStockRead = true, .timing = psx::cd::ReadTiming::AtOnce};
 
 } // namespace
 
@@ -64,6 +67,7 @@ void Runtime::registerOverrides(Game &game) {
   spyro3::hud_slide::registerOverrides(game.core);
   spyro::installSkyWave(game.core, kSkyWave);
   spyro::installEffectSpawns(game.core, kDrawMotion.effects);
+  installLoaderChecksum(game.core);
   libgte_.bind(game);
   spyro::registerEngineRenderOverrides<kRenderFacts>(game.core);
   psx::cpu::installNativeOverride(game.core,

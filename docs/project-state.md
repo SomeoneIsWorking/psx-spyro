@@ -53,12 +53,12 @@ The host picture differs from it on purpose: it is not dithered (issue 0200), an
 | S036 | The zero-argument product opens on an in-window title selector; entries are enabled only for provisioned, authenticated executables; a title can return to the selector and another can start in the same process | partial — the selector is a screen of the host Game (psxport `PickerSession`): `PickerPanes` draws each panel's own present image 1:1, centred and cut by the seams, with the title's logo and gold dividers, into the host's present image through `DisplayPresenter::buildPanes`; nothing is cropped or magnified, so a title's own black border rows show as bands at a panel's top and bottom. Verified headless (issue 0197, `scratch/b3-review/run/`): D-pad Left/Right and `select left|right` step the selection, `pick spyro2` boots that title, a menu setting reaches the running panel (Internal Resolution Vanilla -> X2, finer raster). Title switching verified headless in both orders for all three pairs (1<->2, 2<->3, 1<->3) at frame 300: B's guest RAM and scratchpad after selector -> A -> `session return` -> selector -> B match two fresh-process B runs (issue 0169). Not recorded: the RmlUi menu drawn over the selector (it is drawn only onto the swapchain, which `pshot` does not read), real-time pacing in a real window, and a pad-driven pick of every title. Only the focused panel runs (psxport issue 0196): it boots on first focus and plays through its title screen into the title's own attract demo; unfocused panels are paused, execute no guest instructions and show their last frame greyed with their logo (`scratch/picker/walk3`); the logo is hidden while the panel's picture is the title screen drawing its own (`showsOwnLogo`, the logo gate plus game state 13; `scratch/picker2/s1`). Panel logos: snapshotted from the title's own VRAM while its title screen is up (`extractPanelLogo`, game/core/title_logo.cpp, from the sprite records the logo facts name). Spyro 1 verified: sprite record 0 at 0x8006FACC (tpage 0x0098 8-bit, clut 0x7FE0, 255x128) from the title overlay's 0x8007CEE4, gated on CutsceneLayout.m_CurrentTick >= 1170 via 0x80075680; its CLUT is 256 texels in one VRAM row (issue 0202). Spyro 2/3 logos blocked, so those panels draw no name: the MDEC/STR route is refuted for both, and Spyro 2's overlay bundle (WAD[0x237dc..0x35800] -> 0x8006DA40) holds no emitter; the measurements are in each title's logo-facts header | — | G001 |
 | S033 | Spyro 1: load operations complete without loading-only waits or presentation; logos cancel through the recovered route | partial — M1 and M2 measured against the full-console reference (28/28 payload digests identical; 0 hand-off field differences at 4 terminals) and R6 decided; M4 (absence of loading presentation) still open | S008, S011 | G005 |
 | S034 | Spyro 2: load operations complete without loading-only waits or presentation; logos cancel through the recovered route | partial — the loading screen's read poll no longer waits out drive time (stock read completions `ReadTiming::AtOnce`): Glimmer from state 5 to gameplay 522 -> 106 fields; the loading picture and fades remain, logos not done | S008, S024 | G005 |
-| S035 | Spyro 3: load operations complete without loading-only waits or presentation; logos cancel through the recovered route | blocked — the loader checksums code only while a read is in flight, so its drive wait stays (issue 0247) | S008, S025 | G005 |
+| S035 | Spyro 3: load operations complete without loading-only waits or presentation; logos cancel through the recovered route | partial — stock reads are due at once and the loader's code checksum, which ran in drive time, is completed by `spyro3::installLoaderChecksum` (issue 0247): state 5 entry to gameplay 663 -> 131 fields; the loading picture still shows; logos not done | S008, S025 | G005 |
 
 ## Current focus
 
 Goal work in this order: Spyro 2 and 3 loading removal (S034, S035; Spyro 1's S033 is the
-model): Spyro 2's loading-picture fades, the Spyro 2/3 logos, then Spyro 3's checksum wait (issue 0247).
+model): Spyro 2's loading-picture fades, then the Spyro 2/3 logos.
 
 All three titles present on the Record path, with 60 fps as psxport F-FPS60's replay of each title's
 draw (`docs/features.md`; S020, S028, S029).
@@ -544,8 +544,9 @@ and 16-frame fade-out, which have no skip yet; the logos; the card before the ne
 
 ### S035 — Spyro 3 loading removal
 
-Blocked (issue 0247). The level load is state 5 (update `0x80058778`, draw `0x80059038`), sub-state
-`0x8006FBC8`, loader `0x8002CA50` one stage `0x8006C518` per frame; it checksums code only while a read
-is in flight and stage 7 waits for the checksum, so Spyro 3 keeps the drive time. Its draw also waits
+Partial (issue 0247 fixed 2026-11-12: reads due at once, the checksum completed natively, 663 -> 131 fields
+from state 5 entry to gameplay). The level load is state 5 (update `0x80058778`, draw `0x80059038`), sub-state
+`0x8006FBC8`, loader `0x8002CA50` one stage `0x8006C518` per frame; stage 7 waits for a code checksum that ran only while a
+read was in flight, and `titles/spyro3/core/loader_checksum.cpp` now completes it first. Its draw also waits
 one more `VSync(0)` per frame at stages 2..7 (`0x80059038` case 1/4). Logos not done. The card before
 the new-game cutscene ignores Start.
