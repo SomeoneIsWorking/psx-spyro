@@ -11,7 +11,6 @@
 #include "host_turn.h"
 #include "irq_edge.h"
 
-#include <algorithm>
 #include <chrono>
 #include <cstdlib>
 #include <lucent/log.h>
@@ -100,11 +99,6 @@ int FieldOwner::takePacedFields(bool pace) {
   const int fields = static_cast<int>(fieldsSincePace_);
   fieldsSincePace_ = 0;
   return fields;
-}
-
-int FieldOwner::drawnFrameFields() const {
-  const bool flagWait = facts_.drawWaitFlag != 0 && game_.core.mem_r32(facts_.drawWaitFlag) != 0;
-  return std::max(2, fieldsSincePace() + (flagWait ? 1 : 0));
 }
 
 bool FieldOwner::deliver(FieldRequest request) {

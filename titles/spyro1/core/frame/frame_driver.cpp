@@ -33,9 +33,7 @@ FrameDriver::FrameDriver(Game &game)
     : fields_(game,
               spyro::FieldOwnerFacts{.titleName = "Spyro 1",
                                      .fieldCounter = kVblankCounter,
-                                     .rootHandlerSlot = kRootHandlers,
-                                     // lw at 0x8001F090 in the draw 0x8001ED5C.
-                                     .drawWaitFlag = 0x80075784u},
+                                     .rootHandlerSlot = kRootHandlers},
               &skipMap_),
       boot_(fields_, skipMap_), transitions_(fields_), motion_(game.core, nativeState(game.core)),
       cut_(kFrameCutFacts) {}

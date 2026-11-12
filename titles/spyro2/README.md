@@ -8,9 +8,10 @@ address, so Spyro 1's identical addresses never select this title's behaviour.
 
 The shared `spyro::BootPrefixFrameDriver` (facts in `core/boot_facts.h`) runs the retail boot
 prefix `0x80011E9C` to its return, then game main's pair each step: update `0x8001B140`, draw
-`0x800156FC`. Every guest VSync reaches the framework's libetc boundary (`0x80058EDC` never runs)
-and comes back as a frame-boundary exit the driver answers with one field; each step presents one
-field. The route `tools/title_route.py --title spyro2` reaches Glimmer gameplay at field 3950.
+`0x800156FC`. Fields follow the guest clock (`spyro::FieldOwner`'s host turn); a guest `VSync(0)`
+reaches the framework's libetc boundary (`0x80058EDC` never runs) and takes the next field. The
+draw's tail waits until two fields have passed since its stamp `0x80066F9C` (one more first while
+`0x80067044` is set; states 4 and 9 wait once), so a frame covers max(2, k + flag) fields. The route `tools/title_route.py --title spyro2` reaches Glimmer gameplay at field 3950.
 
 ## Native overrides
 

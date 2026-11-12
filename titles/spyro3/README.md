@@ -7,8 +7,10 @@ no Spyro 1 code, and its overrides are keyed by image identity plus address.
 
 The shared `spyro::BootPrefixFrameDriver` (facts in `core/boot_facts.h`) runs the retail boot
 prefix `0x8002AB38` to its return, then game main's pair each step: update `0x80055400`, draw
-`0x8001E638`. Every guest VSync reaches the framework's libetc boundary (`0x8005956C` never runs)
-and comes back as a frame-boundary exit the driver answers with one field. libcd is the framework's
+`0x8001E638`. Fields follow the guest clock (`spyro::FieldOwner`'s host turn); a guest `VSync(0)`
+reaches the framework's libetc boundary (`0x8005956C` never runs) and takes the next field. The
+draw's tail waits until two fields have passed since its stamp `0x8006C5D4` (one more first while
+`0x8006C678` is set; state 9 waits once), so a frame covers max(2, k + flag) fields. libcd is the framework's
 stock seam at its measured leaves (`CdRead 0x8005D96C`, `CdSync 0x8005E074`, `CdCommand 0x8005E0BC`).
 
 ## Native overrides

@@ -19,10 +19,8 @@ class Game;
 
 namespace spyro {
 
-// Two bounds catch different stalls: a guest that answers every display wait with another one
-// burns the field limit, a guest that never asks for a field only exhausts the turn budget.
-inline constexpr std::uint64_t kDefaultBootStepFieldLimit = 1024;
-inline constexpr std::uint64_t kDefaultBootStepLimit = 480;
+// The fields the boot prefix may take before the run calls it stalled.
+inline constexpr std::uint64_t kDefaultBootFieldLimit = 1024;
 
 // Titles whose retail executable IS their boot; each address is measured from that executable.
 struct BootPrefixFacts {
@@ -37,17 +35,17 @@ struct BootPrefixFacts {
   std::uint32_t fadeFrameWait = 0;
   FieldOwnerFacts field;
   FrameCutFacts cut;
-  std::uint64_t bootStepFieldLimit = kDefaultBootStepFieldLimit;
-  std::uint64_t bootStepLimit = kDefaultBootStepLimit;
+  std::uint64_t bootFieldLimit = kDefaultBootFieldLimit;
 };
 
-// One product step of a title whose retail executable IS its boot. The host owns the FIELD: every
-// guest VSync comes back as a frame-boundary exit this driver satisfies with one delivered field.
-// A boot step presents its last field. A main-loop step ends at a field or at the return of the
-// frame's draw, which presents the frame over its fields. The host-turn clock stays unarmed because
-// the guest's own VSync is the only field source the boot uses. The call in flight is machine
-// state: a save taken while it is suspended resumes it, not the live one. Before each draw the
-// replay samples what moves and replays the in-betweens of the frame it ends.
+// One product step of a title whose retail executable IS its boot. Fields come from the guest
+// clock: the host turn delivers one each time the guest's work crosses a field edge, and a guest
+// VSync wait (a frame-boundary exit) takes the next one. A boot step presents its field. A
+// main-loop step runs one logic frame, update then draw, and presents it over its fields when the
+// draw returns; the draw's own wait loop sets the cadence. A field of the fade loop before a load,
+// or of a logic frame past the guest's delta clamp, is a step of its own. The call in flight is
+// machine state: a save taken while it is suspended resumes it, not the live one. Before each draw
+// the replay samples what moves and replays the in-betweens of the frame it ends.
 class BootPrefixFrameDriver final : public psx::game::FrameDriver,
                                     public psx::state::NativeStatePort {
 public:
@@ -81,7 +79,7 @@ public:
     return "spyro.frame-driver";
   }
   [[nodiscard]] std::uint32_t version() const override {
-    return 1;
+    return 2;
   }
   bool save(psx::platform::BlobWriter &out, std::string &error) const override;
   bool load(psx::platform::BlobReader &in, std::string &error) override;
@@ -89,17 +87,8 @@ public:
 
 private:
   enum class Phase : std::uint8_t { Boot, MainLoop };
-  // Why one retail call ended: it returned, ran out of host turns, hit the field bound, or waits
-  // for the field that shows a frame of the fade loop.
-  enum class CallProgress : std::uint8_t {
-    Returned,
-    TurnBudgetReached,
-    FieldBoundReached,
-    FadeFrame
-  };
-  // Where a main-loop step stopped: at the return of the frame's draw, at a field inside the
-  // frame, or at a field of the fade loop.
-  enum class LoopStop : std::uint8_t { FrameDrawn, Field, FadeFrame };
+  // How one host turn of a retail call ended.
+  enum class TurnEnd : std::uint8_t { Returned, Ran, Waited, FadeFrame };
   // The two retail calls of one main-loop iteration, in the order game main runs them, and a debug
   // entry the warp armed, run before the update as one more call.
   enum class LoopCall : std::uint8_t { Update, Draw, Entry };
@@ -108,29 +97,21 @@ private:
     Phase phase = Phase::Boot;
     LoopCall loopCall = LoopCall::Update;
     bool bootStalled = false;
-    std::uint64_t bootSteps = 0;
     psx::cpu::ResumableGuestCall call;
   };
 
-  // Fields this ONE call may have the host deliver before the step calls it stalled; checked here,
-  // because a guest that never returns would never reach a bound checked after the loop.
-  CallProgress runCall(Core &core,
-                       psx::cpu::ResumableGuestCall &call,
-                       std::uint32_t maxTurns,
-                       const char *site,
-                       std::uint64_t fieldBound);
+  // One host turn of `call_`; a VSync wait takes its field here, the host turn the others.
+  TurnEnd advanceTurn(Core &core, const char *site);
+  // Aborts once the step has run more full turns than a running guest clock allows without a field.
+  void requireClock(Core &core, std::uint32_t turnsWithoutField) const;
   // False when `$r[31]` would end the call in the middle of itself; no guest work runs.
   bool enterCall(std::uint32_t entry);
-  void deliverField(const char *site, bool present, bool pace);
   void stepBoot(Core &core);
-  [[nodiscard]] LoopStop stepMainLoop(Core &core);
+  // Runs to the return of the frame's draw, or to a field the step presents on its own.
+  void stepMainLoop(Core &core);
   // The draw is about to run: the replay samples, or forgets when the body cannot be replayed or
   // the game state changed since the last sample.
   void beforeDraw(Core &core);
-  // The step's field shows the frame drawn so far.
-  void presentField(Core &core, std::uint32_t frame, const char *site);
-  // The step's field passes unpresented; the step still crosses its presentation fence.
-  void deferField(Core &core, const char *site);
   [[nodiscard]] std::uint32_t entryOf(LoopCall call) const;
   [[nodiscard]] const char *siteOf(LoopCall call) const;
   void reportStop(Core &core,
@@ -154,7 +135,6 @@ private:
   bool initialized_ = false;
   bool bootStalled_ = false;
   std::uint64_t steps_ = 0;
-  std::uint64_t bootSteps_ = 0;
   std::optional<Resume> staged_;
 };
 

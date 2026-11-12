@@ -23,9 +23,9 @@ Title hops only. Each row is where a Spyro title joins a psxport feature hop (`p
 | hop | title | joins | owner |
 |---|---|---|---|
 | 1 | S1 | psxport F-TURN.2 | `titles/spyro1/core/frame/frame_driver.cpp:spyro1::FrameDriver::stepFrame` — boot sequence, then the retail update, the draw and one present |
-| 2 | S1 | psxport F-TURN.2 | `titles/spyro1/core/frame/frame_draw.cpp:FrameDraw::run` — GamestateDraw `0x8001ED5C` to its return; each `VSync(0)` of its tail is one field |
+| 2 | S1 | psxport F-TURN.2 | `titles/spyro1/core/frame/frame_draw.cpp:FrameDraw::run` — GamestateDraw `0x8001ED5C` to its return; each `VSync(0)` of its tail takes the next field |
 | 3 | S1 | psxport F-TURN.2 | `game/core/field_owner.cpp:FieldOwner::presentFrame` — the drawn frame crosses the fence once |
-| 4 | S2, S3 | psxport F-TURN.2 | `game/core/boot_prefix_frame_driver.cpp:BootPrefixFrameDriver::stepFrame` — the retail boot prefix across steps, then update and draw; a guest VSync(0) delivers one field, and a logic frame's fields are presented when its draw returns, its fields deferred up to the title's delta clamp (`BootPrefixFacts::deltaClampFields`), and each later field of a stall presented; a save state carries the suspended call in its `spyro.frame-driver` section |
+| 4 | S2, S3 | psxport F-TURN.2 | `game/core/boot_prefix_frame_driver.cpp:BootPrefixFrameDriver::stepFrame` — the retail boot prefix one presented field per step, then one logic frame per step, update and draw; fields come from the host turn as the guest clock crosses each and from each VSync(0), a logic frame is presented over its fields when its draw returns, and a field of the fade loop or one past the title's delta clamp (`BootPrefixFacts::deltaClampFields`) is presented as its own step; a save state carries the suspended call in its `spyro.frame-driver` section |
 | 5 | all | title | `game/core/field_owner.cpp:FieldOwner::deliver` — the one delivery sequence of a display field |
 | 6 | S2, S3 | psxport F-TURN.4 | `game/core/boot_prefix_runtime.cpp:BootPrefixRuntime::reportRun` — the frames the replay declined, by reason |
 | 7 | all | psxport F-TURN.5 | `game/core/runtime.cpp:spyro::Runtime::presentDeadline` — fields are already delivered, so presentation only plans its deadline |

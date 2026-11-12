@@ -18,11 +18,9 @@ namespace {
 constexpr std::uint32_t kGuestRamLow = 0x80000000u;
 constexpr std::uint32_t kGuestRamHigh = 0x80200000u;
 
-constexpr std::uint32_t kBootTurnsPerStep = 4;
-constexpr std::uint32_t kFrameTurnsPerStep = 8;
-// A step ends at the first display wait a call stops at, so this only bounds a loop whose
-// iteration waits for nothing.
-constexpr int kMaxLoopCallsPerStep = 4;
+// A turn runs one field of guest cycles, so a running host clock delivers a field within two; more
+// full turns than this without one means the clock is held.
+constexpr std::uint32_t kTurnsWithoutField = 8;
 
 } // namespace
 
@@ -45,6 +43,7 @@ void BootPrefixFrameDriver::initialize() {
     std::abort();
   }
   fields_.publish();
+  fields_.armHostClock();
   if (!enterCall(facts_.bootPrefix)) {
     // Refused before any guest work; the run is stalled by name rather than aborted.
     bootStalled_ = true;
@@ -52,7 +51,7 @@ void BootPrefixFrameDriver::initialize() {
     return;
   }
   lucent::info("boot-native",
-               "{} enters the retail boot prefix 0x{:08X}; libetc VSync stays a frame boundary",
+               "{} enters the retail boot prefix 0x{:08X}; fields follow the guest clock",
                facts_.field.titleName,
                facts_.bootPrefix);
 }
@@ -80,14 +79,6 @@ bool BootPrefixFrameDriver::enterCall(std::uint32_t entry) {
   return true;
 }
 
-void BootPrefixFrameDriver::deliverField(const char *site, bool present, bool pace) {
-  if (!fields_.deliver({.site = site, .present = present, .pace = pace})) {
-    lucent::error(
-        "frameloop", "{}: field owner refused the field at {}", facts_.field.titleName, site);
-    std::abort();
-  }
-}
-
 void BootPrefixFrameDriver::reportStop(Core &core,
                                        const psx::cpu::ResumableGuestCall &call,
                                        const psx::cpu::CallStep &step) const {
@@ -109,92 +100,77 @@ void BootPrefixFrameDriver::reportStop(Core &core,
                 fields_.presents());
 }
 
-BootPrefixFrameDriver::CallProgress
-BootPrefixFrameDriver::runCall(Core &core,
-                               psx::cpu::ResumableGuestCall &call,
-                               std::uint32_t maxTurns,
-                               const char *site,
-                               std::uint64_t fieldBound) {
-  for (std::uint32_t turn = 0; turn < maxTurns;) {
-    const psx::cpu::CallStep step = call.advance();
-    if (step.outcome == psx::cpu::CallOutcome::Returned) {
-      return CallProgress::Returned;
-    }
-    if (step.outcome == psx::cpu::CallOutcome::Refused) {
-      reportStop(core, call, step);
-      std::abort();
-    }
-    if (step.reason == psx::cpu::ExecutionExitReason::FrameBoundary) {
-      // A guest display wait is one field. The one reaching the bound is the step's own, delivered
-      // by the step; the others are real time and the guest's own vblank work, not presented, and a
-      // boot call paces each. The fade loop draws a frame per field, so its wait is the step's own.
-      if (call.resumePc() == facts_.fadeFrameWait) {
-        return CallProgress::FadeFrame;
-      }
-      if (fields_.fields() + 1u >= fieldBound) {
-        return CallProgress::FieldBoundReached;
-      }
-      deliverField(site, false, phase_ == Phase::Boot);
-      continue;
-    }
-    // A suspension that is not a display wait is one host turn without a field: the step's turn
-    // budget, not the field bound.
-    return CallProgress::TurnBudgetReached;
+BootPrefixFrameDriver::TurnEnd BootPrefixFrameDriver::advanceTurn(Core &core, const char *site) {
+  const psx::cpu::CallStep step = call_.advance();
+  if (step.outcome == psx::cpu::CallOutcome::Returned) {
+    return TurnEnd::Returned;
   }
-  return CallProgress::TurnBudgetReached;
+  if (step.outcome == psx::cpu::CallOutcome::Refused) {
+    reportStop(core, call_, step);
+    std::abort();
+  }
+  if (step.reason != psx::cpu::ExecutionExitReason::FrameBoundary) {
+    return TurnEnd::Ran;
+  }
+  if (!fields_.deliver({.site = site, .present = false, .pace = false})) {
+    lucent::error("frameloop",
+                  "{}: field owner refused the wait's field at {}",
+                  facts_.field.titleName,
+                  site);
+    std::abort();
+  }
+  return call_.resumePc() == facts_.fadeFrameWait ? TurnEnd::FadeFrame : TurnEnd::Waited;
+}
+
+void BootPrefixFrameDriver::requireClock(Core &core, std::uint32_t turnsWithoutField) const {
+  if (turnsWithoutField <= kTurnsWithoutField) {
+    return;
+  }
+  lucent::error("frameloop",
+                "{} step {} ran {} full turns without a field at resume 0x{:08X} pc=0x{:08X}; the "
+                "host clock is held",
+                facts_.field.titleName,
+                steps_,
+                turnsWithoutField,
+                call_.resumePc(),
+                core.pc);
+  std::abort();
 }
 
 void BootPrefixFrameDriver::stepBoot(Core &core) {
-  const std::uint64_t fieldsBefore = fields_.fields();
-  // Checked first, before any guest work, because a guest that polls instead of asking for fields
-  // never reaches the delivery site the field bound lives on.
-  if (bootSteps_ >= facts_.bootStepLimit) {
-    bootStalled_ = true;
-    lucent::error("frameloop",
-                  "{}'s boot prefix ran {} step(s) without returning and delivered {} "
-                  "field(s) in total (step bound {}); it is polling rather than waiting, so the "
-                  "field bound cannot see it -- ending the run at resume 0x{:08X}",
-                  facts_.field.titleName,
-                  bootSteps_,
-                  fields_.fields(),
-                  facts_.bootStepLimit,
-                  call_.resumePc());
-    core.game->run.requestEnd();
-    // Not an early return: a step presents its one field whatever the guest did.
-  }
-  // The bound is a budget for THIS call, not the step's running total: a boot that legitimately
-  // delivers 200 fields across ten steps must not be refused at step ten for having delivered 200.
-  // A refused-at-entry boot holds no call at all, which is what distinguishes it here.
-  if (bootStalled_ && call_.entry() == 0u) {
+  if (bootStalled_) {
     return;
   }
-  const auto progress =
-      bootStalled_ ? CallProgress::TurnBudgetReached
-                   : runCall(core, call_, kBootTurnsPerStep, "boot", facts_.bootStepFieldLimit);
-  if (progress == CallProgress::Returned) {
-    phase_ = Phase::MainLoop;
-    lucent::info("boot-native",
-                 "{}'s retail boot prefix returned after {} step(s) and {} field(s); the "
-                 "per-frame update 0x{:08X} and draw 0x{:08X} now own each step",
-                 facts_.field.titleName,
-                 steps_,
-                 fields_.fields(),
-                 facts_.frameUpdate,
-                 facts_.frameDraw);
-  } else if (progress == CallProgress::FieldBoundReached) {
+  const std::uint64_t fieldsBefore = fields_.fields();
+  for (std::uint32_t idle = 0; fields_.fields() == fieldsBefore;) {
+    const std::uint64_t fieldsAtTurn = fields_.fields();
+    const TurnEnd end = advanceTurn(core, "boot");
+    if (end == TurnEnd::Returned) {
+      phase_ = Phase::MainLoop;
+      lucent::info("boot-native",
+                   "{}'s retail boot prefix returned after {} field(s); the per-frame update "
+                   "0x{:08X} and draw 0x{:08X} now own each step",
+                   facts_.field.titleName,
+                   fields_.fields(),
+                   facts_.frameUpdate,
+                   facts_.frameDraw);
+      return;
+    }
+    idle = fields_.fields() != fieldsAtTurn ? 0u : idle + (end == TurnEnd::Ran ? 1u : 0u);
+    requireClock(core, idle);
+  }
+  if (fields_.fields() >= facts_.bootFieldLimit) {
     // A boot prefix that spends its whole field budget without returning is not making progress, so
     // the run ends by name instead of spinning on it.
     bootStalled_ = true;
     lucent::error("frameloop",
-                  "{}'s boot prefix delivered {} field(s) in one call without returning and "
-                  "gave up on the guest at resume 0x{:08X} (bound {}); ending the run",
+                  "{}'s boot prefix took {} field(s) without returning (bound {}) at resume "
+                  "0x{:08X}; ending the run",
                   facts_.field.titleName,
-                  fields_.fields() - fieldsBefore,
-                  call_.resumePc(),
-                  facts_.bootStepFieldLimit);
+                  fields_.fields(),
+                  facts_.bootFieldLimit,
+                  call_.resumePc());
     core.game->run.requestEnd();
-  } else {
-    ++bootSteps_;
   }
 }
 
@@ -214,53 +190,58 @@ const char *BootPrefixFrameDriver::siteOf(LoopCall call) const {
   return "frame-update";
 }
 
-BootPrefixFrameDriver::LoopStop BootPrefixFrameDriver::stepMainLoop(Core &core) {
-  // One step advances the retail loop to its next field or to the return of the frame's draw,
-  // resuming whichever call the previous step left suspended. Resuming a suspended draw as the
+void BootPrefixFrameDriver::stepMainLoop(Core &core) {
+  // Resumes whichever call the previous step left suspended: resuming a suspended draw as the
   // update would leave the update unreachable after its first iteration.
-  for (int calls = 0; calls < kMaxLoopCallsPerStep; ++calls) {
-    if (!call_.pending() && loopCall_ == LoopCall::Update) {
-      fields_.beginLogicFrame();
-      Warp &warp = *session(core).warp;
-      warp.applyArmed(core, static_cast<std::uint32_t>(steps_));
-      if (const std::optional<Warp::Entry> entry = warp.takeEntry()) {
-        core.r[4] = entry->argument;
-        if (!enterCall(entry->function)) {
-          return LoopStop::Field;
+  const std::uint64_t fieldsBefore = fields_.fields();
+  for (std::uint32_t idle = 0;;) {
+    if (!call_.pending()) {
+      if (loopCall_ == LoopCall::Update) {
+        fields_.beginLogicFrame();
+        Warp &warp = *session(core).warp;
+        warp.applyArmed(core, static_cast<std::uint32_t>(steps_));
+        if (const std::optional<Warp::Entry> entry = warp.takeEntry()) {
+          core.r[4] = entry->argument;
+          loopCall_ = LoopCall::Entry;
+          if (!enterCall(entry->function)) {
+            std::abort();
+          }
         }
-        loopCall_ = LoopCall::Entry;
+      }
+      if (loopCall_ == LoopCall::Draw) {
+        beforeDraw(core);
+      }
+      if (!call_.pending() && !enterCall(entryOf(loopCall_))) {
+        std::abort();
       }
     }
-    if (!call_.pending() && loopCall_ == LoopCall::Draw) {
-      beforeDraw(core);
-    }
-    if (!call_.pending() && !enterCall(entryOf(loopCall_))) {
-      return LoopStop::Field;
-    }
-    const CallProgress progress =
-        runCall(core, call_, kFrameTurnsPerStep, siteOf(loopCall_), fields_.fields() + 1u);
-    if (progress == CallProgress::FadeFrame) {
-      return LoopStop::FadeFrame;
-    }
-    if (progress != CallProgress::Returned) {
-      return LoopStop::Field;
-    }
-    if (loopCall_ == LoopCall::Draw) {
-      cut_.onFrameDrawn(core);
-      loopCall_ = LoopCall::Update;
-      return LoopStop::FrameDrawn;
-    }
-    if (loopCall_ == LoopCall::Entry) {
-      // The update of the same logic frame follows, without a second frame begin.
-      loopCall_ = LoopCall::Update;
-      if (!enterCall(facts_.frameUpdate)) {
-        return LoopStop::Field;
+    const std::uint64_t fieldsAtTurn = fields_.fields();
+    const TurnEnd end = advanceTurn(core, siteOf(loopCall_));
+    switch (end) {
+    case TurnEnd::Returned:
+      if (loopCall_ == LoopCall::Draw) {
+        cut_.onFrameDrawn(core);
+        loopCall_ = LoopCall::Update;
+        return;
       }
-      continue;
+      // The update of the same logic frame follows an entry, without a second frame begin.
+      loopCall_ = loopCall_ == LoopCall::Entry ? LoopCall::Update : LoopCall::Draw;
+      break;
+    case TurnEnd::FadeFrame:
+      return;
+    case TurnEnd::Ran:
+    case TurnEnd::Waited:
+      break;
     }
-    loopCall_ = LoopCall::Draw;
+    // Past the guest's delta clamp the frame is a stall, and each further field shows what VRAM
+    // holds, as the display would.
+    if (fields_.fields() != fieldsBefore &&
+        static_cast<int>(fields_.fieldsThisLogicFrame()) > facts_.deltaClampFields) {
+      return;
+    }
+    idle = fields_.fields() != fieldsAtTurn ? 0u : idle + (end == TurnEnd::Ran ? 1u : 0u);
+    requireClock(core, idle);
   }
-  return LoopStop::Field;
 }
 
 void BootPrefixFrameDriver::beforeDraw(Core &core) {
@@ -284,25 +265,10 @@ void BootPrefixFrameDriver::reportDeclined() const {
   }
 }
 
-void BootPrefixFrameDriver::presentField(Core &core, std::uint32_t frame, const char *site) {
-  // The guest's last command of the step has executed; the record is sealed next.
-  cut_.onFrameTail(core);
-  deliverField(site, true, true);
-  // Without a logic-frame clock OtAttr never drops its packet spans and attributes reused pool
-  // words to stale writers.
-  core.rsub.otAttr.beginLogicFrame(frame);
-}
-
-void BootPrefixFrameDriver::deferField(Core &core, const char *site) {
-  deliverField(site, false, false);
-  core.game->presentation.commitUnpresented();
-}
-
 bool BootPrefixFrameDriver::save(psx::platform::BlobWriter &out, std::string &) const {
   out.u8(static_cast<std::uint8_t>(phase_));
   out.u8(static_cast<std::uint8_t>(loopCall_));
   out.boolean(bootStalled_);
-  out.u64(bootSteps_);
   call_.save(out);
   return true;
 }
@@ -310,7 +276,7 @@ bool BootPrefixFrameDriver::save(psx::platform::BlobWriter &out, std::string &) 
 bool BootPrefixFrameDriver::load(psx::platform::BlobReader &in, std::string &error) {
   const std::uint8_t phase = in.u8();
   const std::uint8_t loopCall = in.u8();
-  Resume resume{.bootStalled = in.boolean(), .bootSteps = in.u64()};
+  Resume resume{.bootStalled = in.boolean()};
   if (!resume.call.load(core_, in, error)) {
     return false;
   }
@@ -334,7 +300,6 @@ void BootPrefixFrameDriver::restored(Core &) {
   phase_ = staged_->phase;
   loopCall_ = staged_->loopCall;
   bootStalled_ = staged_->bootStalled;
-  bootSteps_ = staged_->bootSteps;
   call_ = std::move(staged_->call);
   staged_.reset();
   replay_.forget();
@@ -350,29 +315,17 @@ void BootPrefixFrameDriver::stepFrame(Core &core, std::uint32_t frame) {
   ++steps_;
   if (phase_ == Phase::Boot) {
     stepBoot(core);
-    presentField(core, frame, "boot-tail");
-  } else {
-    switch (stepMainLoop(core)) {
-    case LoopStop::FrameDrawn:
-      cut_.onFrameTail(core);
-      fields_.presentFrame();
-      core.rsub.otAttr.beginLogicFrame(frame);
-      break;
-    case LoopStop::Field:
-      // A field inside a logic frame passes unpresented, so the frame is presented over all its
-      // fields with in-betweens. Past the guest's delta clamp the frame is a stall, and each
-      // further field shows what VRAM holds, as the display would.
-      if (static_cast<int>(fields_.fieldsThisLogicFrame()) < facts_.deltaClampFields) {
-        deferField(core, siteOf(loopCall_));
-      } else {
-        presentField(core, frame, siteOf(loopCall_));
-      }
-      break;
-    case LoopStop::FadeFrame:
-      presentField(core, frame, siteOf(loopCall_));
-      break;
-    }
   }
+  // The boot's last field and the first logic frame share a step.
+  if (phase_ == Phase::MainLoop) {
+    stepMainLoop(core);
+  }
+  // The guest's last command of the step has executed; the record is sealed next.
+  cut_.onFrameTail(core);
+  fields_.presentFrame();
+  // Without a logic-frame clock OtAttr never drops its packet spans and attributes reused pool
+  // words to stale writers.
+  core.rsub.otAttr.beginLogicFrame(frame);
 
   lucent::debug("boot",
                 "{} step {} phase={} call_active={} resume=0x{:08X} turns={} cycles={} "

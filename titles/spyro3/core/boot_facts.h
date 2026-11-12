@@ -47,8 +47,6 @@ inline constexpr spyro::BootPrefixFacts kBootPrefixFacts{
             .fieldCounter = 0,
             // No vblank root slot is measured; the framework's interrupt path owns the callback.
             .rootHandlerSlot = 0,
-            // lw at 0x8001E87C in the draw 0x8001E638.
-            .drawWaitFlag = 0x8006C678u,
         },
     .cut =
         {
@@ -63,7 +61,6 @@ inline constexpr spyro::BootPrefixFacts kBootPrefixFacts{
                 },
             .levelLoad = kLevelLoad,
         },
-    .bootStepLimit = 1024,
 };
 
 } // namespace spyro3

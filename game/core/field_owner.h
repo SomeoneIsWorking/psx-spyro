@@ -25,9 +25,6 @@ struct FieldOwnerFacts {
   // copy, so a title that reads it sees delivered fields.
   std::uint32_t fieldCounter = 0;
   std::uint32_t rootHandlerSlot = 0;
-  // The word whose nonzero value makes the frame draw wait one field before its two-field loop; 0
-  // when none.
-  std::uint32_t drawWaitFlag = 0;
 };
 
 // The shared owner runs every title-neutral effect of a field, then asks the title to observe it.
@@ -90,15 +87,6 @@ public:
   std::uint64_t presents() const {
     return presents_;
   }
-
-  // Fields delivered since the last paced one: the logic frame's so far.
-  int fieldsSincePace() const {
-    return static_cast<int>(fieldsSincePace_);
-  }
-
-  // The fields the frame being drawn is presented over: its draw waits until two have passed since
-  // the last frame, after a wait of its own while the draw-wait flag is set.
-  int drawnFrameFields() const;
 
   // The host-turn entry point: one more physical field, never a second presentation fence.
   static void hostTurnThunk(Core *core);
