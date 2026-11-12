@@ -1,6 +1,6 @@
 #pragma once
 
-#include "spyro1/core/frame/press_latch.h"
+#include "core/press_latch.h"
 
 #include <cstdint>
 
@@ -61,7 +61,7 @@ private:
   std::uint32_t cancellations_ = 0;
   // A press while a flyby card's load streams, held until its load gate opens; dropped with the
   // card.
-  PressLatch flybyPress_;
+  spyro::PressLatch flybyPress_;
 };
 
 } // namespace spyro1

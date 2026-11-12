@@ -1,6 +1,6 @@
 #pragma once
 
-#include "spyro1/core/frame/press_latch.h"
+#include "core/press_latch.h"
 
 #include <cstdint>
 
@@ -58,7 +58,7 @@ private:
   std::uint32_t logoSource_ = 0;
   std::uint32_t logoDestination_ = 0;
   // An edge from a fade or the stage 3->10 loader, held for the next hold phase to take.
-  PressLatch pressLatch_;
+  spyro::PressLatch pressLatch_;
   int iteration_ = 0;
   bool initialized_ = false;
 };

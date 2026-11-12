@@ -1,6 +1,6 @@
 #pragma once
 
-namespace spyro1 {
+namespace spyro {
 
 // Holds one per-field Start/Cross edge until a consumer that can act on it takes it.
 class PressLatch {
@@ -28,4 +28,4 @@ private:
   bool held_ = false;
 };
 
-} // namespace spyro1
+} // namespace spyro
