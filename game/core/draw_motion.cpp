@@ -137,6 +137,26 @@ void MobyMotion::finish(const Samples &,
   record_blend::store(shown, record::kFlags, flags);
 }
 
+void CreditLetterMotion::blend(const Samples &samples, float t, std::span<std::uint32_t> out) const {
+  std::copy(samples.to.begin(), samples.to.end(), out.begin());
+  std::uint32_t angles = samples.to[0] & 0xFFu;
+  for (std::uint32_t shift = 8; shift < 32; shift += 8) {
+    angles |= psx::present::lerpTurn(samples.from[0] >> shift, samples.to[0] >> shift, 8, t)
+              << shift;
+  }
+  out[0] = angles;
+  const auto x = static_cast<std::uint32_t>(
+      psx::present::lerpInt(static_cast<std::int16_t>(samples.from[1] >> 16),
+                            static_cast<std::int16_t>(samples.to[1] >> 16),
+                            t));
+  out[1] = (samples.to[1] & 0xFFFFu) | (x << 16);
+  out[2] = psx::present::blendedWord(psx::present::Motion::Halves, samples.from[2], samples.to[2], t);
+}
+
+void CreditLetterLiveness::sample(Core &core) {
+  inCredits_ = core.mem_r32(facts_->gameState) == facts_->credits;
+}
+
 void FlameMotion::blend(const Samples &samples, float t, std::span<std::uint32_t> out) const {
   std::copy(samples.to.begin(), samples.to.end(), out.begin());
   const auto lit = [](std::uint32_t state) {
@@ -166,7 +186,7 @@ psx::present::MotionCount EffectMotion::write(psx::present::GuestRedraw &redraw,
 }
 
 DrawMotion::DrawMotion(Core &core, const DrawMotionFacts &facts)
-    : moby_(core, *facts.moby), effects_(facts.effects), conversation_(facts.conversation),
+    : creditLetterLive_(facts.creditLetters), moby_(core, *facts.moby), effects_(facts.effects), conversation_(facts.conversation),
       hudSlide_(facts.hudSlide), skyWave_(facts.skyWave),
       tracks_{{
           {.name = "camera angles", .address = facts.cameraAngles, .fields = kCameraAngles},
@@ -191,6 +211,18 @@ DrawMotion::DrawMotion(Core &core, const DrawMotionFacts &facts)
            .keys = kMobyKeys,
            .records = kMobyRecords},
       }} {
+  if (facts.creditLetters != nullptr) {
+    tracks_.push_back({.name = "credit letters",
+                       .address = facts.creditLetters->pool,
+                       .fields = kCreditLetter,
+                       .rule = &creditLetter_,
+                       .keys = kCreditLetterKeys,
+                       .records = {.throughPointer = true,
+                                   .stride = kCreditLetterBytes,
+                                   .count = kCreditLetters,
+                                   .live = kCreditLetterLive,
+                                   .liveness = &creditLetterLive_}});
+  }
   for (std::size_t i = 0; i < facts.fadeCount; ++i) {
     tracks_.push_back({.name = facts.fades[i].name,
                        .address = facts.fades[i].address,

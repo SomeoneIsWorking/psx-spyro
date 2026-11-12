@@ -64,7 +64,8 @@ std::vector<WarpWorld> groupByHomeworld(std::vector<HomeworldLevel> levels) {
 DebugMenu::DebugMenu(WarpWorlds worlds,
                      const MobyTeleport *mobys,
                      const FrameCutFacts &scene,
-                     const ScreenStates &states) {
+                     const ScreenStates &states,
+                     const CreditsCheat &credits) {
   // Route steps run in order, each once the screen the one before it reaches is shown.
   screen(
       [scene](Core &core) {
@@ -143,6 +144,26 @@ DebugMenu::DebugMenu(WarpWorlds worlds,
       .run =
           [mobys](const DebugCall &call) {
             call.reply = mobys->teleport(call.core, call.values.u32(0), call.values.u32(1));
+          },
+      .refusal = refusal,
+      .inMenu = false,
+  });
+  verb({
+      .name = "credits",
+      .summary = "Roll the credits as the credits cheat does",
+      .run =
+          [mobys, credits, levelId = scene.levelId](const DebugCall &call) {
+            call.reply = session(call.core)
+                             .warp->arm(call.core,
+                                        call.core.mem_r32(levelId),
+                                        {
+                                            .ready =
+                                                [mobys](Core &core) {
+                                                  return mobys->inActiveField(core);
+                                                },
+                                            .enter = Warp::Entry{.function = credits.effect,
+                                                                 .argument = credits.credits},
+                                        });
           },
       .refusal = refusal,
       .inMenu = false,

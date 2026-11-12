@@ -7,7 +7,6 @@
 
 #include "core.h"
 #include "core/session.h"
-#include "guest_call.h"
 
 #include <lucent/log.h>
 
@@ -51,7 +50,8 @@ DebugMenu::DebugMenu()
           },
           &mobys_,
           kFrameCutFacts,
-          {.title = guest::kGamestateTitleScreen, .pause = guest::kGamestatePauseMenu}) {
+          {.title = guest::kGamestateTitleScreen, .pause = guest::kGamestatePauseMenu},
+          {.effect = guest::kCheatApplyEffect, .credits = guest::kCheatCredits}) {
   section("Portals and Dragons");
   verb({
       .name = "gates",
@@ -86,22 +86,6 @@ DebugMenu::DebugMenu()
                                       .y = static_cast<std::int32_t>(call.values.value(1)),
                                       .z = static_cast<std::int32_t>(call.values.value(2))},
                                      static_cast<std::uint32_t>(call.values.value(3)));
-          },
-      .refusal =
-          [](Core &core) {
-            return teleport::inActiveField(core) ? std::string()
-                                                 : "gameplay is not in an active field";
-          },
-      .inMenu = false,
-  });
-  verb({
-      .name = "credits",
-      .summary = "Roll the credits as the credits cheat does",
-      .run =
-          [](const DebugCall &call) {
-            psx::cpu::callGuestNow(
-                call.core, "debug-credits", guest::kCheatApplyEffect, guest::kCheatCredits);
-            call.reply = "ok: credits";
           },
       .refusal =
           [](Core &core) {

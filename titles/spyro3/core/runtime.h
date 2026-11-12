@@ -41,8 +41,13 @@ private:
   spyro::RecordMobyTeleport mobys_{{.gameState = kGameState,
                                     .mobysWord = kMobyFacts.firstRecordWord,
                                     .spyro = kDrawMotion.spyro}};
-  spyro::DebugMenu debugMenu_{
-      &Warp::worlds, &mobys_, kBootPrefixFacts.cut, {.title = kTitleScreenGameState}};
+  // The cheat matcher 0x80017A40 calls the effect with the matched row; row 1 rolls the credits
+  // (0x80054CD8, state 10).
+  spyro::DebugMenu debugMenu_{&Warp::worlds,
+                              &mobys_,
+                              kBootPrefixFacts.cut,
+                              {.title = kTitleScreenGameState},
+                              {.effect = 0x80017B7Cu, .credits = 1u}};
 };
 
 } // namespace spyro3

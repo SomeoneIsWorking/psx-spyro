@@ -24,6 +24,13 @@ struct ScreenStates {
   std::optional<std::uint32_t> pause;
 };
 
+// The cheat effect function the pause menu's cheat matcher calls, and the case that rolls the
+// credits.
+struct CreditsCheat {
+  std::uint32_t effect = 0;
+  std::uint32_t credits = 0;
+};
+
 // One level the warp reaches, named as the guest names it, with the arrivals after its start.
 struct WarpLevel {
   std::uint32_t id = 0;
@@ -55,12 +62,14 @@ std::string guestName(Core &core, std::uint32_t pointerWord);
 class DebugMenu : public psx::game::TitleDebugMenu {
 public:
   // `warp <homeworld>/<level>/<arrival>` over `worlds`, each level's first arrival its start;
-  // `mobys` and `moby-teleport` when `mobys` is given. A screen is the game state and level id
+  // `mobys` and `moby-teleport` when `mobys` is given, and `credits` with it, armed for the next
+  // frame of an active field as the warp's placements are. A screen is the game state and level id
   // `scene` names; `states` says which a route reaches.
   DebugMenu(WarpWorlds worlds,
             const MobyTeleport *mobys,
             const FrameCutFacts &scene,
-            const ScreenStates &states);
+            const ScreenStates &states,
+            const CreditsCheat &credits);
 
 private:
   // "w/l/0" for each level id the catalogue holds.

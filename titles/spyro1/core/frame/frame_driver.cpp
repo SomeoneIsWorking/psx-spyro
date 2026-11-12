@@ -88,7 +88,11 @@ void FrameDriver::stepFrame(Core &core, std::uint32_t) {
   // main.c draws only when g_StateSwitch is clear; a product step is one drawn iteration plus the
   // draw-less ones the guest chains before it.
   perf.phaseBegin(GpuPerf::Phase::GameLogic);
-  spyro::session(core).warp->applyArmed(core, frame);
+  spyro::Warp &warp = *spyro::session(core).warp;
+  warp.applyArmed(core, frame);
+  if (const std::optional<spyro::Warp::Entry> entry = warp.takeEntry()) {
+    psx::cpu::callGuestNow(core, "debug-entry", entry->function, entry->argument);
+  }
   bool switched = false;
   while (runGuestUpdate(core)) {
     // g_StateSwitch: a load, respawn, exit or cutscene start re-placed the scene.

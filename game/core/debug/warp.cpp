@@ -25,11 +25,16 @@ void Warp::applyArmed(Core &core, std::uint32_t frame) {
     enterArmed(core, frame);
     return;
   }
-  if (!placement_.apply) {
+  if (!placement_.apply && !placement_.enter) {
     return;
   }
   if (placement_.ready(core)) {
-    const std::string result = placement_.apply(core);
+    entry_ = placement_.enter;
+    const std::string result =
+        placement_.apply ? placement_.apply(core)
+                         : lucent::format("entry 0x{:08X}({}) before the update",
+                                          placement_.enter->function,
+                                          placement_.enter->argument);
     placement_ = {};
     lucent::info("warp", "placement at f{}: {}", frame, result);
     return;

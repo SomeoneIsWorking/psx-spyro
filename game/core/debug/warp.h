@@ -4,6 +4,7 @@
 #include <functional>
 #include <optional>
 #include <string>
+#include <utility>
 
 class Core;
 
@@ -16,10 +17,19 @@ namespace spyro {
 // change from where gameplay resumes, until the level is reached; then the placement runs.
 class Warp {
 public:
-  // Runs once `ready` holds, after the level is reached.
+  // A guest function the frame driver runs as its own call before the next update, for an effect
+  // that waits on devices across fields as the guest call that reaches it does.
+  struct Entry {
+    std::uint32_t function = 0;
+    std::uint32_t argument = 0;
+  };
+
+  // Runs once `ready` holds, after the level is reached: `apply` at once, or `enter` handed to the
+  // frame driver.
   struct Placement {
     std::function<bool(Core &)> ready;
     std::function<std::string(Core &)> apply;
+    std::optional<Entry> enter;
   };
 
   Warp() = default;
@@ -35,6 +45,10 @@ public:
   // At a frame boundary: enters the armed level once the title screen or gameplay takes it, then
   // the placement.
   void applyArmed(Core &core, std::uint32_t frame);
+  // The entry a placement armed at this boundary, once; the frame driver runs it before the update.
+  [[nodiscard]] std::optional<Entry> takeEntry() {
+    return std::exchange(entry_, std::nullopt);
+  }
 
 protected:
   // The title screen is idle and takes a level start.
@@ -66,6 +80,7 @@ private:
   bool left_ = false;
   std::uint32_t changes_ = 0;
   Placement placement_;
+  std::optional<Entry> entry_;
 };
 
 } // namespace spyro

@@ -181,6 +181,11 @@ inline constexpr spyro::SkyWaveFacts kSkyWave{
     .base = 0xE00,
 };
 
+// The credits overlay's letters: its update 0x80074BA0 moves them, its draw 0x80076118 copies them into the
+// moby array; game state 10 is the credits'.
+inline constexpr spyro::CreditLetterFacts kCreditLetters{
+    .pool = 0x8006C5F0u, .gameState = 0x8006E344u, .credits = 10u};
+
 inline constexpr spyro::DrawMotionFacts kDrawMotion{
     .cameraAngles = kRenderGlobals.cameraAngles,
     .cameraPosition = kRenderGlobals.cameraPosition,
@@ -206,6 +211,7 @@ inline constexpr spyro::DrawMotionFacts kDrawMotion{
     .fadeCount = 3,
     .hudSlide = &kHudSlots,
     .skyWave = &kSkyWave,
+    .creditLetters = &kCreditLetters,
 };
 
 // The flatten, FUN_8004E664: FUN_8001B2A8's body over this image's table (8006C634) and mark

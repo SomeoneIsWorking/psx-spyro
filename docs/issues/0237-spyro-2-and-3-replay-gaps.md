@@ -31,6 +31,13 @@ draw body 0x800156FC / 0x8001E638. Gameplay moves halfway (Glimmer `warp 0/1/0`,
      (`s3c3-3550-bianca.png`).
    - Spyro 2's story (state 6): its rain steps (issue 0242); the rest of the shot is still.
    - S2 0x12 and S3 0x12 scene states and the S3 bosses: no route reached them.
+## Fixed (2026-11-12, shown in frames, `scratch/unreached23`)
+- Spyro 2/3 credits (state 10). Reached by the shared `credits` verb, which runs the credits cheat's effect (S2
+  `0x80054518`, S3 `0x80017B7C`, argument 1) from the frame driver before the update. Cause of the 30 Hz letters:
+  the overlay draw (`0x8006EE18` / `0x80076118`) rebuilds the moby array from the letter pool (`0x80066FB8` /
+  `0x8006C5F0`), which no track sampled; `CreditLetterMotion` tracks it. Run-end S2 2134 / S3 2515 intervals
+  replayed, 0 refused; letters halfway (`cred2b-1/cred2_letters.png`, `cred3b-1/cred3_letters.png`); leak 0 differ
+  on 5605 / 6592 shared ticks. Plan section Credits.
 ## Fixed (2026-11-11, shown in frames, `scratch/hudslide3`)
 - Spyro 3's sky object wave. Cause: `titles/spyro3` gave `SkyWave` no facts, so the far colour `0x8001EDEC` stores
   in `0x8006EDA0` for `0x8001C8C8` was the later tick's in every in-between. `kSkyWave` installs the shared

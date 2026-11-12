@@ -199,11 +199,19 @@ void BootPrefixFrameDriver::stepBoot(Core &core) {
 }
 
 std::uint32_t BootPrefixFrameDriver::entryOf(LoopCall call) const {
-  return call == LoopCall::Update ? facts_.frameUpdate : facts_.frameDraw;
+  return call == LoopCall::Draw ? facts_.frameDraw : facts_.frameUpdate;
 }
 
 const char *BootPrefixFrameDriver::siteOf(LoopCall call) const {
-  return call == LoopCall::Update ? "frame-update" : "frame-draw";
+  switch (call) {
+  case LoopCall::Update:
+    return "frame-update";
+  case LoopCall::Draw:
+    return "frame-draw";
+  case LoopCall::Entry:
+    return "debug-entry";
+  }
+  return "frame-update";
 }
 
 BootPrefixFrameDriver::LoopStop BootPrefixFrameDriver::stepMainLoop(Core &core) {
@@ -213,7 +221,15 @@ BootPrefixFrameDriver::LoopStop BootPrefixFrameDriver::stepMainLoop(Core &core) 
   for (int calls = 0; calls < kMaxLoopCallsPerStep; ++calls) {
     if (!call_.pending() && loopCall_ == LoopCall::Update) {
       fields_.beginLogicFrame();
-      session(core).warp->applyArmed(core, static_cast<std::uint32_t>(steps_));
+      Warp &warp = *session(core).warp;
+      warp.applyArmed(core, static_cast<std::uint32_t>(steps_));
+      if (const std::optional<Warp::Entry> entry = warp.takeEntry()) {
+        core.r[4] = entry->argument;
+        if (!enterCall(entry->function)) {
+          return LoopStop::Field;
+        }
+        loopCall_ = LoopCall::Entry;
+      }
     }
     if (!call_.pending() && loopCall_ == LoopCall::Draw) {
       beforeDraw(core);
@@ -233,6 +249,14 @@ BootPrefixFrameDriver::LoopStop BootPrefixFrameDriver::stepMainLoop(Core &core) 
       cut_.onFrameDrawn(core);
       loopCall_ = LoopCall::Update;
       return LoopStop::FrameDrawn;
+    }
+    if (loopCall_ == LoopCall::Entry) {
+      // The update of the same logic frame follows, without a second frame begin.
+      loopCall_ = LoopCall::Update;
+      if (!enterCall(facts_.frameUpdate)) {
+        return LoopStop::Field;
+      }
+      continue;
     }
     loopCall_ = LoopCall::Draw;
   }
@@ -291,7 +315,7 @@ bool BootPrefixFrameDriver::load(psx::platform::BlobReader &in, std::string &err
     return false;
   }
   if (phase > static_cast<std::uint8_t>(Phase::MainLoop) ||
-      loopCall > static_cast<std::uint8_t>(LoopCall::Draw)) {
+      loopCall > static_cast<std::uint8_t>(LoopCall::Entry)) {
     error = lucent::format(
         "{}: phase {} and loop call {} name no driver state", sectionName(), phase, loopCall);
     return false;

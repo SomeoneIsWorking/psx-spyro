@@ -197,6 +197,25 @@ samples the six slots and is the function's native override: it returns the gues
 (`ReplayFrame::replaying`) `t` of the way from the result for the earlier sample's slot word while both samples draw
 the slot. Spyro 3's widgets slide by another path (Open 8).
 
+## Credits
+
+The credits cheat's effect (S2 `0x80054518`, S3 `0x80017B7C`, row 1 of the matcher's table: the pause update
+`0x800176A4` / its S3 counterpart runs the matcher `0x800543DC` / `0x80017A40`) saves the level, starts a sound and
+enters game state 10 (`0x8001A910` / `0x80054CD8`), which loads the credits overlay from WAD.WAD (S2 `0x80013810`,
+0x2000 bytes at WAD `0x002ED800` to `0x8006D264`; S3 `0x80050578`, 0x2800 bytes at `0x097A9000` to `0x800742D0`;
+decompiled as psxport manifest images `spyro2_credits`, `spyro3_credits`). State 10's update (`0x8001A9B0` /
+`0x80054D84`) runs the overlay (`0x8006D96C` / `0x80074BA0`) until its step word (`0x80066EE8` / `0x8006C510`)
+reaches 99, then reloads the saved level; the draw handler (`0x80015540` / `0x8001E374`) calls the overlay's draw
+(`0x8006EE18` / `0x80076118`), which flies the camera over the level with the usual camera tracks and rebuilds the
+moby array from the letter records, then runs the objects, terrain and sky passes.
+
+| track | S2 / S3 | kind | evidence |
+|---|---|---|---|
+| letters | pointer `0x80066FB8` / `0x8006C5F0` (set to `0x8006F018` / `0x80076318` by the overlay), 100 x 0x1C, count `0x80066F74` / `0x8006C5A4`; state +4 (0 free, 1 flying in, 2 held, 3 falling out, 4 gone; the draw copies 1..3), angles +5..+7, position halfwords +0x12/+0x14/+0x16, line +0x18 and glyph +0x1A | `CreditLetterMotion`: angles Angle8 the short way, position Linear, keyed by line and glyph; live only in game state 10 (`CreditLetterLiveness`) | overlay update allocates the first free slot (state 0) and steps each state; draw copies +0x12..+0x1A into the moby record |
+
+The moby track still samples the array the draw is about to overwrite, which is harmless: the draw writes every
+record it copies.
+
 ## Cuts
 
 `spyro::FrameCut` already decides them for these titles (`game/core/frame_cut.*`, through
@@ -313,6 +332,19 @@ neighbours (`sfwater_seq.png`); tint and reflection shift stayed 0 on every rout
 (`Summer Forest/Crush's Dungeon/start`, state 0): Crush and the camera move halfway (`boss_seq.png`). Leak: Select,
 `moby-teleport 554 2`, Up and Left, fps60 on (906 in-betweens) and off: `fielddigest` identical over 2888 fields;
 Spyro 3 Sunrise Spring, Up and Left (746 in-betweens), identical over 2813.
+
+Added (2026-11-12, `scratch/unreached23`, hidden, unpaced, judgement settings): the credits of both titles,
+reached by `credits` (the cheat's effect run by the frame driver before the update, as the pause update runs it;
+S3's overlay load waits on CD interrupts across fields, so the effect cannot be a one-shot host call). Spyro 2
+(`warp 0/1/0`, `credits` at present 1900): state 10 replays, run-end 2134 intervals replayed, 0 refused, letters 152 of
+29673 unpaired (letters born since the earlier sample); the camera flight is halfway to the native column
+(`cred2_edge.txt`: a wall edge 2163 / 2157 / 2152 / 2145.5 / 2139 ..., an in-between of a one-native-column step
+lands on one side), the flying letters move at every present (`cred2b-1/cred2_letters.png`). Spyro 3 (`warp 0/0/0`,
+`credits` at 2300): 2515 replayed, 0 refused, letters 169 of 31291 unpaired; before the letter track every in-between
+showed the later tick's letters (centroid fractions 0.00 / 1.00, `cred3-1/cred3_letters.png`), after it they lie
+between their neighbours (0.55 / 0.61 by centroid, `cred3b-1/cred3_letters.png`, `cred3_letters.txt`). Leak:
+the same frame-exact plan with fps60 on and off, `fielddigest` joined on `ticks=`: Spyro 2 5605 shared, 0 differ;
+Spyro 3 6592 shared, 0 differ. Spyro 1's `credits` takes the same entry and reaches `GS_Credits` (15).
 
 ## Open
 

@@ -220,6 +220,11 @@ inline constexpr spyro::SkyWaveFacts kSkyWave{
 //             0x8006AAB4 is set, lit by 8002FC20 only while it is clear; 0x80048F04 draws it
 //   800155A0  the dispatcher draws the subtractive fade 0x80066F68 and the additive 0x80067150
 //             (words) while non-zero; 8001FA58 ramps the subtractive fade both ways
+// The credits overlay's letters: its update 0x8006D96C moves them, its draw 0x8006EE18 copies them into the
+// moby array; game state 10 is the credits'.
+inline constexpr spyro::CreditLetterFacts kCreditLetters{
+    .pool = 0x80066FB8u, .gameState = 0x800681C8u, .credits = 10u};
+
 inline constexpr spyro::DrawMotionFacts kDrawMotion{
     .cameraAngles = kRenderGlobals.cameraAngles,
     .cameraPosition = kRenderGlobals.cameraPosition,
@@ -244,6 +249,7 @@ inline constexpr spyro::DrawMotionFacts kDrawMotion{
     .conversation = &kConversation,
     .hudSlide = &kHudSlots,
     .skyWave = &kSkyWave,
+    .creditLetters = &kCreditLetters,
 };
 
 // The flatten, FUN_8001B2A8, called by the draw at 800159A4 and by three other draws (800146AC,

@@ -37,6 +37,15 @@ struct ConversationFacts {
   std::array<SlideTable, 2> tables{};
 };
 
+// The credits overlay's letters ("moby tags"): the word holding the first of up to 100 0x1C-byte
+// records the update moves and the draw copies into the moby array, the overlay's only while the
+// game state is the credits'.
+struct CreditLetterFacts {
+  std::uint32_t pool = 0;
+  std::uint32_t gameState = 0;
+  std::uint32_t credits = 0;
+};
+
 inline constexpr std::size_t kMaxFades = 3;
 
 struct FadeWord {
@@ -65,6 +74,7 @@ struct DrawMotionFacts {
   const ConversationFacts *conversation = nullptr;
   const HudSlots *hudSlide = nullptr;
   const SkyWaveFacts *skyWave = nullptr;
+  const CreditLetterFacts *creditLetters = nullptr;
 };
 
 // Spyro's tint (+0x20), water floor (+0x28), reflection shift (+0x2C) and the body rotation the
@@ -72,6 +82,27 @@ struct DrawMotionFacts {
 class SpyroSurface final : public psx::present::MotionRule {
 public:
   void blend(const Samples &samples, float t, std::span<std::uint32_t> out) const override;
+};
+
+// A credits letter: its angle bytes (+5..+7, after the state byte +4) turn the short way and its
+// position halfwords (+0x12, +0x14, +0x16) move straight; the velocities beside them step.
+class CreditLetterMotion final : public psx::present::MotionRule {
+public:
+  void blend(const Samples &samples, float t, std::span<std::uint32_t> out) const override;
+};
+
+// The letter records hold letters only in the credits state; elsewhere the pool word is not theirs.
+class CreditLetterLiveness final : public psx::present::MotionLiveness {
+public:
+  explicit CreditLetterLiveness(const CreditLetterFacts *facts) : facts_(facts) {}
+  void sample(Core &core) override;
+  [[nodiscard]] bool live(std::uint32_t /*record*/) const override {
+    return inCredits_;
+  }
+
+private:
+  const CreditLetterFacts *facts_;
+  bool inCredits_ = false;
 };
 
 // The flame's anchor while one breath lasts: a breath begins with its lit count at 0, so a count
@@ -231,10 +262,25 @@ private:
   }};
   // One moby while the mesh (+0x36) holds.
   static constexpr std::array<psx::present::MotionKey, 1> kMobyKeys{{{0x34u, 0xFFFF0000u}}};
+  // CreditLetterMotion's words: state and angles, x (high half), y and z.
+  static constexpr std::array<Field, 3> kCreditLetter{{
+      {0x04u, kStep},
+      {0x10u, kStep},
+      {0x14u, kStep},
+  }};
+  // One letter while its line (+0x18) and glyph (+0x1A) hold.
+  static constexpr std::array<psx::present::MotionKey, 1> kCreditLetterKeys{{{0x18u}}};
+  // The update's states (S2 0x8006D96C, S3 0x80074BA0): 0 free, 1 flying in, 2 held, 3 falling
+  // out, 4 gone; the draw copies 1..3.
+  static constexpr psx::present::RecordByte kCreditLetterLive{0x04u, 0x01u, 0x03u};
+  static constexpr std::uint32_t kCreditLetterBytes = 0x1Cu;
+  static constexpr std::uint32_t kCreditLetters = 100u;
 
   SpyroPoses poses_;
   SpyroSurface surface_;
   FlameMotion flame_;
+  CreditLetterMotion creditLetter_;
+  CreditLetterLiveness creditLetterLive_;
   MobyMotion moby_;
   EffectMotion effects_;
   ConversationSlide conversation_;
