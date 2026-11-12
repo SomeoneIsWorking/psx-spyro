@@ -4,6 +4,7 @@
 #include "core/draw_section.h"
 #include "core/field_owner.h"
 #include "core/frame_cut.h"
+#include "core/loading_picture_skip.h"
 #include "core/logo_hold.h"
 #include "game_runtime.h"
 #include "machine_state.h"
@@ -38,6 +39,7 @@ struct BootPrefixFacts {
   std::uint32_t fadeFrameWait = 0;
   // The boot logos' holds a press ends; empty when none is recovered.
   LogoHoldFacts logoHolds;
+  LoadingPictureFacts loadingPicture;
   FieldOwnerFacts field;
   FrameCutFacts cut;
   std::uint64_t bootFieldLimit = kDefaultBootFieldLimit;
@@ -139,6 +141,7 @@ private:
   FieldOwner fields_;
   FrameCut cut_;
   LogoHoldSkip logoHolds_;
+  LoadingPictureSkip loadingPicture_;
   const DrawSection &section_;
   DrawMotion motion_;
   MarginSectors marginSectors_;

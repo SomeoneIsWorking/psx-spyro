@@ -46,6 +46,16 @@ inline constexpr spyro::BootPrefixFacts kBootPrefixFacts{
     .logoHolds = {.holds = kLogoHolds,
                   .start = {.word = 0x80067E00u},
                   .vsyncCounter = kVSyncQueryCounter},
+    // FUN_80019364 counts 0x800698EC from 0 and leaves sub-state 0x800698F0 0 once its ++ reaches
+    // 0xE; at 0xB it finishes the autosave 0x80063278[0x800698F4] asks for. Its draw FUN_800151F0.
+    .loadingPicture = {.gameState = kGameState,
+                       .loadingState = 5u,
+                       .subState = 0x800698F0u,
+                       .counter = 0x800698ECu,
+                       .landingCount = 0xBu,
+                       .autosaveCount = 0xBu,
+                       .autosaveFlags = 0x80063278u,
+                       .kind = 0x800698F4u},
     .field =
         {
             .titleName = "Spyro 2",

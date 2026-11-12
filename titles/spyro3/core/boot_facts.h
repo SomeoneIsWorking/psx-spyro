@@ -49,6 +49,13 @@ inline constexpr spyro::BootPrefixFacts kBootPrefixFacts{
     // FUN_80020168 waits at 0x80020268.
     .fadeFrameWait = 0x80020270u,
     .logoHolds = {.holds = kLogoHolds, .start = {.reg = 21}, .vsyncCounter = kVSyncQueryCounter},
+    // FUN_80058778 leaves sub-state 0x8006FBC8 0 when 0x8006FBC4 is 0xD, then ++; its draw
+    // FUN_80059038 adds the caption past count 7; sub-states 1 and 4 draw only bars.
+    .loadingPicture = {.gameState = kGameState,
+                       .loadingState = 5u,
+                       .subState = 0x8006FBC8u,
+                       .counter = 0x8006FBC4u,
+                       .landingCount = 0xBu},
     .field =
         {
             .titleName = "Spyro 3",
