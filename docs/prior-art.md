@@ -18,8 +18,11 @@ vendored references are used; this table is the inventory.
 | celophi/spyro-decompilation | https://github.com/celophi/spyro-decompilation | C reimplementation placed in extra RAM | none | Spyro 1 | not checked | nothing | Dormant since 2024-01. |
 | abjeni/spyro-decompiler | https://github.com/abjeni/spyro-decompiler | whole-game MIPS-to-C decompiler with SDL3 host | GPL-3.0 | Spyro 1 (disc `.bin`, no hash stated) | not checked: no addresses or hash published | nothing | Active (2026-09-22). |
 | wafflewizard1/Spyro-3-Recompiled | https://github.com/wafflewizard1/Spyro-3-Recompiled | static recompilation (psxrecomp) | none | Spyro 3 `SCUS-94467` | not checked: serial only | nothing | |
-| FranklyGD/Spyro-Scope | https://github.com/FranklyGD/Spyro-Scope | live RAM and data viewer | GPL-3.0 | Spyro 1 NTSC-U, Spyro 2 NTSC, Spyro 3 NTSC v1.1 | not checked; Spyro 3 v1.1 is not our rev 0 | evidence only | Data-format reference. |
+| FranklyGD/Spyro-Scope | https://github.com/FranklyGD/Spyro-Scope | live RAM and data viewer | GPL-3.0 | Spyro 1 NTSC-U, Spyro 2 NTSC, Spyro 3 NTSC v1.1 | not checked; Spyro 3 v1.1 is not our rev 0 | evidence only | Data-format reference; its terrain collision format (flag byte, water bit, slope) informs `docs/plans/more-vegetation.md`. |
 
 Not found (2026-10-13): a public OpenPete (Spyro 1 PC port) repository; any Spyro title on decomp.dev; named symbol maps
 for Spyro 2 or 3 beyond the TheMobyCollective splits and SpyroGhidra. Searched GitHub repositories (titles, serials,
 "decomp", "ghidra", "recomp"), decomp.dev, and the web.
+
+Not found (2026-11-12, for G006): any foliage, grass-density or vegetation mod for the PlayStation Spyro titles or
+Reignited, SpyroEdit's source or license, or a grass-density enhancement in a decomp-based port of another title.
