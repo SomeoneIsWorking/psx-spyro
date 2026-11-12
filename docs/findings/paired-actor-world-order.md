@@ -4,7 +4,7 @@ Spyro 1's paired actor renderer `0x80023AC4` coalesces its model's local face bu
 smaller global depth range before appending them to the world ordering table. A port that keys the
 local bucket straight into the world table draws the actor behind foreground terrain. The native
 renderer that made this mistake was deleted with the native path (2026-10-15); this contract is the
-input for the paired-actor producer (issue 0186).
+input for the paired-actor producer.
 
 ## Binary contract
 

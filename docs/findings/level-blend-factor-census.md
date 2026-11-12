@@ -1,6 +1,6 @@
-# Every level authors a nonzero environment-animation blend factor — the census 0134 could not make
+# Every level authors a nonzero environment-animation blend factor
 
-`docs/issues/0134-no-live-frame-exercises-the-blended-environment-animation.md` recorded, for
+An earlier census recorded, for
 Artisans, that "all 24 of their keyframes carry blend factor `0`", and named the unblocker as "a
 level that authors a nonzero blend factor byte". This is the measurement that finds them, across
 the whole game, statically, from the disc.

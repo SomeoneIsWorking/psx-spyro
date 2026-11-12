@@ -77,19 +77,19 @@ S2 and S3 take the BIOS pad path.
 | 9 | S1 | psxport F-WIDE.2 | `titles/spyro1/render/actor_emitter_vertices.cpp:ActorEmitter::keepScreen` — the moby emitters (`0x8001F798`, `0x80020F34`) outcode a straddling moby's vertices on `spyro::presentedBounds` (`guest_view_slope.h`) |
 | 10 | S1 | psxport F-WIDE.2 | `titles/spyro1/render/moby_shadows.cpp:MobyShadows::draw` — the moby shadows (`0x80059F8C`) cull the shadow centre on `spyro::presentedBounds` instead of retail's 512-wide window (`8005A330..8005A354`), so a shadow in a side margin is drawn |
 
-The portal fill and near sky of `0x80050BD0` stay on retail's 512-wide window: the fill covers the screen triangles at `0x8006CB8C` and the outline window is clamped to [0, 512] (issue 0186).
+The portal fill and near sky of `0x80050BD0` stay on retail's 512-wide window: the fill covers the screen triangles at `0x8006CB8C` and the outline window is clamped to [0, 512].
 
 ## F-FPS60
 
 | hop | title | joins | owner |
 |---|---|---|---|
-| 2 | S2, S3 | psxport F-FPS60.1 | `game/core/draw_section.cpp:spyro::DrawSection`, `titles/spyro2|3/core/draw_section.cpp`, `game/core/draw_motion.cpp:DrawMotion` — the per-field draw body (`0x800156FC`, `0x8001E638`) replayed for each in-between, its state switch whole and its device tail skipped, with the camera, Spyro, his poses and shadow, every moby slot and the effects pools written k/n of the way; the loading screen (state 5) is held (issue 0237) |
+| 2 | S2, S3 | psxport F-FPS60.1 | `game/core/draw_section.cpp:spyro::DrawSection`, `titles/spyro2|3/core/draw_section.cpp`, `game/core/draw_motion.cpp:DrawMotion` — the per-field draw body (`0x800156FC`, `0x8001E638`) replayed for each in-between, its state switch whole and its device tail skipped, with the camera, Spyro, his poses and shadow, every moby slot and the effects pools written k/n of the way; the loading screen (state 5) is held |
 | 3 | S2, S3 | psxport F-FPS60.1 | `game/render/engine_render_overrides.h:engine_render::flatten` — every packet's bin through `depth_bins::assignBins`, from the flatten (`0x8001B2A8`, `0x8004E664`) |
 | 5 | S1 | psxport F-FPS60.1 | `titles/spyro1/render/ordering_table.cpp:OrderingTable` — LinkOTPrimitives `0x80016784` gives each linked packet its slot |
 | 7 | S1 | psxport F-FPS60.1 | `titles/spyro1/core/frame/draw_section.cpp:DrawSection`, `draw_motion.cpp:DrawMotion` — GamestateDraw's GS_Playing section (`0x8001ED5C`), the menus, dragon, fairy, balloonist, cutscene, flight results and credits draws, and the title's TitlescreenDraw (`0x8007CEE4`, attract, menu, save picker) replayed for each in-between with its motion tracks written k/n of the way (camera with sub-unit angles rebuilt into both matrices, Spyro, mobys, HUD, particles, sparkles, flame, title slides); respawn and game over present every field |
 | 6 | all | psxport F-FPS60.2 | `game/core/frame_cut.cpp:FrameCut::isCut` — game state, level, or (S2, S3) a camera placement inside a scene, or (S2) a cutscene track's shot change by the track player's own blend test |
 
-S1's motion trails `0x800189F0` have no producer (unreached: only moby type 104 in levels 50 and 63 pushes them; issue 0186). No title registers a state producer: the fullscreen tint (S2 `0x8004D748`, S3 `0x800200A0`) is drawn by the replayed body or by the fade before a load (`0x8004D810`, `0x80020168`), which calls VSync once per draw and so has no in-betweens. In a replay the fades and conversation slide are tracks, the letterbox's edge is placed between the rows the body steps, and S2's HUD slide is blended by its override (issue 0237).
+S1's motion trails `0x800189F0` have no producer (unreached: only moby type 104 in levels 50 and 63 pushes them). No title registers a state producer: the fullscreen tint (S2 `0x8004D748`, S3 `0x800200A0`) is drawn by the replayed body or by the fade before a load (`0x8004D810`, `0x80020168`), which calls VSync once per draw and so has no in-betweens. In a replay the fades and conversation slide are tracks, the letterbox's edge is placed between the rows the body steps, and S2's HUD slide is blended by its override.
 
 ## F-DEBUG
 

@@ -1,10 +1,7 @@
 # Start-to-skip map
 
-**THE FULL INVENTORY IS `docs/issues/0151`.** This file remains the evidence boundary for the
+This file is the evidence boundary for the
 mechanism — what a cancellation is allowed to do, and which guest route each screen's press reaches.
-Issue 0151 carries all sixteen gamestates, what retail's own bytes say each one accepts, and where the
-port stands per screen. Read that one for "is this screen skippable"; read this one for "what does the
-press do when it lands".
 
 **A METHOD CORRECTION that came out of building that inventory, because it invalidates a scan-shaped
 claim in this file.** The census this document relies on — "the Start/Cross mask this map establishes
@@ -64,7 +61,7 @@ establish the two input shapes in the resident `OV_5B800` image:
 - `[0x80077380]` is held input; `0x8007AC48` tests Start while the title timer is armed.
 - `[0x80077378]` is newly-pressed input; `0x8007B88C` tests Start/X in the sub-state-1 arm.
 
-**CORRECTED 2026-09-28 by `docs/issues/0141` / claim C229, which read the overlay bytes.** The
+**CORRECTED 2026-09-28 by claim C229, which read the overlay bytes.** The
 second address is the `lw` of the EDGE word, and that word is loaded ONCE and then tested twice: the
 mask consumed first is `0xA000` at `0x8007B894` (`beqz` to `0x8007B8BC`), and only then the `0x840`
 at `0x8007B8BC`. The sub-state-1 arm therefore tests Circle-or-Start *before* it tests
@@ -209,28 +206,28 @@ Each of these has a named natural terminal writer but no exercised route, so non
   dispatched (it sits `0x10` bytes before an epilogue whose `lw $ra` clobbers the dispatcher's return
   address) and that, in the resident text, there is no guest acceleration route for it (the main
   image's only two Start/Cross-mask sites are the pause menu's confirm and stage 14's own skip).
-  **The WAD overlays have now been scanned too** — `docs/issues/0141`, claim C229, over 36 code
+  **The WAD overlays have now been scanned too** — claim C229, over 36 code
   entries and 501,760 words — and the answer there is the same: 44 `andi …,0x840` sites (22 of them
   on a pad word, all in the title overlay's menu or in a level's own card), 15 overlay sites storing
   stage 9's terminal value of which **none** is pad-reachable, 51 overlay writes to the camera
   rotation it is gated on of which **none** is pad-reachable, and 50 overlay reads of `g_Gamestate`
   whose consumers compare it against 7 or 8 and **never** 9. So "no guest acceleration route" is now
   a measurement over the whole overlay corpus rather than a scope limit. Recovered, measured and
-  written up in `docs/issues/0138`, extended in `docs/issues/0141`.
+  recorded as claim C229.
 - `GS_ExitLevel = 10` (`func_8002E084`, 42 instructions, no pad read): terminates through its own
   counter chain into `func_8002C664` (`0x8002C664`), which is a complete recovered route — a scoped
   original call to it is the shape a cancellation should take, and the port takes it. **Its one
   divergence is derived from the guest's own counter chain, not from a run** (the run that would show
-  it is queued — see `docs/issues/0151`): the chain zeroes `D_8007568C` and increments `D_800758B8`
+  it is queued): the chain zeroes `D_8007568C` and increments `D_800758B8`
   twice before the call, so the natural route leaves `D_800758B8 == 2` and a cancellation fired at an
   arbitrary point of the chain leaves it at 0 or 1. `D_800758B8` is the pause menu's frame counter
   (read by `func_8001A40C`, the gamestate 2/3 draw) and the gamestate 10 draw's case selector
-  (`func_8001C694`); nothing else writes it during the glide. See `docs/issues/0151`.
+  (`func_8001C694`); nothing else writes it during the glide.
 - `GS_Dragon = 8`: blocked earlier than input; it has no native producer at all (issue 0103). Its own
   update does read the pad — `0x80030CD4 andi $v0, $v0, 0x40` on `g_Pad.m_Down`, i.e. **Cross** — but
   that advances the cutscene's own dialogue script, it is not a skip.
 - `GS_GameOver = 5`: **retail skips this one itself, on held Start**, and no document here said so
-  until `docs/issues/0151`. `func_8002EDF0` at `0x8002F338` tests `g_Pad.m_Held & 0x800` once
+  until then. `func_8002EDF0` at `0x8002F338` tests `g_Pad.m_Held & 0x800` once
   `g_GameOverTicks >= 0x169` and `g_LoadStage >= 0xB`, then calls `0x8002F344 jal func_8003FDC8`, sets
   `D_80075940 = 2` and zeroes the tick counter. Guest-owned, so no native arm; the port's obligation
   is only that the held button arrives.

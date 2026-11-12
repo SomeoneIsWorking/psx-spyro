@@ -200,5 +200,5 @@ checkpoints = (
                    "GS_Playing becomes true during the level intro, whose phase is in no declared "
                    "range (docs/issues/0126); `settled_play` is the picture-comparable state")),
     Checkpoint("settled_play", reach_settled_play),
-    # No level-entry checkpoint: walking out is camera-relative and does not replay (issue 0114).
+    # No level-entry checkpoint: walking out is camera-relative and does not replay.
 )

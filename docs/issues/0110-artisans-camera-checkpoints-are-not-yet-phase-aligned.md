@@ -888,7 +888,7 @@ byte-identical; only the two rotation matrices and the Euler angles they come fr
 1.3 degrees of yaw. Held input for 477 frames does not move the player because of it, which is why
 this issue's decisive result stands. A camera-relative route does diverge because of it, which is
 why no route out of Artisans replays. That consequence is
-[issue 0114](0114-no-reproducible-route-out-of-artisans-so-level-entry-is-uncompared.md); closing it
+issue 0114; closing it
 means reproducing `g_DeltaTime` per update, which is this issue's cause rather than its symptom.
 
 ## RESOLVED 2026-09-28: retail's cadence rule, from bytes — and it is the DISK, not a phase convention
@@ -985,7 +985,7 @@ gameplay[3] hold ['left'] 26/45f : console g_DeltaTime=4  g_LevelTicks=837  g_Ga
                                     native  g_DeltaTime=2  (2 at all 485 other comparisons)
 ```
 
-That is the *first* `delta_time` inequality [issue 0114](0114-no-reproducible-route-out-of-artisans-so-level-entry-is-uncompared.md)
+That is the *first* `delta_time` inequality issue 0114
 recorded, and it is a CD read, not a phase.
 
 ### So the product's `setFrameStep` arithmetic is right and the CAUSE is elsewhere
@@ -1002,6 +1002,6 @@ product none.
 display time the console's read costs, so the count the main loop sees reaches the same 6. That is a
 change to the CD/archive owner's field accounting — the `notifyDisplayField` re-anchor and the field
 delivery a transfer implies — not to the pacing clamp, and it is registered as the next step in
-[issue 0114](0114-no-reproducible-route-out-of-artisans-so-level-entry-is-uncompared.md).
+issue 0114.
 **No code change is shipped for it here**, and the honest consequence is stated there: until it
 lands, a camera-relative route out of Artisans still does not replay.

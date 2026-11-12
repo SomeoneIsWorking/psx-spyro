@@ -1,7 +1,7 @@
 # RenderWorldChunks final stream
 
 What Spyro 1's world drawer `0x800258F0` actually hands the GPU, recorded for its future producer
-(issue 0186). The native world producer and the `PSXPORT_WORLD_SCENE_ORACLE` capture that measured
+The native world producer and the `PSXPORT_WORLD_SCENE_ORACLE` capture that measured
 this were deleted with the native path (2026-10-15).
 
 - The final linked stream is not the allocation stream. RenderWorldChunks first allocates and links

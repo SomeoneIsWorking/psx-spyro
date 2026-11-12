@@ -40,7 +40,7 @@ bool flybyCardUp(const TransitionState &state);
 Cancellation classify(const TransitionState &state);
 
 // Cancels a presentation-only transition screen on Start or Cross through the screen's own guest
-// terminal; a screen whose terminal cannot be dispatched (stage 9, docs/issues/0138) is absent.
+// terminal; a screen whose terminal cannot be dispatched (stage 9) is absent.
 class TransitionSkip {
 public:
   explicit TransitionSkip(spyro::FieldOwner &fields);

@@ -75,7 +75,7 @@ camera's own phase is unverified cannot separate "the model's parts are detached
 is framed differently".
 
 **That phase is now measured to a known cause, and it is one CD read.**
-[Issue 0114](0114-no-reproducible-route-out-of-artisans-so-level-entry-is-uncompared.md) and
+Issue 0114 and
 [0110](0110-artisans-camera-checkpoints-are-not-yet-phase-aligned.md) record it: the console spends
 6 display fields in one update waiting on a synchronous CD read (`g_CDMaxReadTime = 600`, live at
 that one iteration and 0 at all 496 others), `g_DeltaTime` clamps it to 4, and the camera's

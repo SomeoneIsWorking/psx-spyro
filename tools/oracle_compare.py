@@ -7,7 +7,7 @@ reference at title-owned state checkpoints (psxport docs/oracle.md, tools/oracle
 
 Two title policies share one lens (tools/oracle_spyro1.py): `artisans` drives the New Game menu into
 the homeworld, and `demo` hands the title screen to the attract demo so a LEVEL ENTRY is compared
-(tools/oracle_spyro1_demo.py, docs/issues/0114). The launch inputs and environment are tools/drive.py's.
+(tools/oracle_spyro1_demo.py). The launch inputs and environment are tools/drive.py's.
 """
 
 from __future__ import annotations

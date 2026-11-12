@@ -154,7 +154,7 @@ def _walk_until(port: ScenePort, what: str, targets, predicate, description: str
 
 
 def flight_level(port: ScenePort) -> Proof:
-    """Walk into Sunny Flight's portal and prove g_IsFlightLevel is set; docs/issues/0170 tracks the route."""
+    """Walk into Sunny Flight's portal and prove g_IsFlightLevel is set."""
     portals = spyro1_steering.portal_targets(port.words, level=FLIGHT_LEVEL_ID)
     if not portals:
         available = [target.what for target in spyro1_steering.portal_targets(port.words)]
@@ -205,7 +205,7 @@ def flight_level(port: ScenePort) -> Proof:
 
 
 def boss_level(port: ScenePort) -> Proof:
-    """Walk into the boss portal and prove the guest loaded Toasty; docs/issues/0170 tracks the route."""
+    """Walk into the boss portal and prove the guest loaded Toasty."""
     portals = spyro1_steering.portal_targets(port.words, level=BOSS_LEVEL_ID)
     if not portals:
         available = [target.what for target in spyro1_steering.portal_targets(port.words)]

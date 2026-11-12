@@ -2,7 +2,7 @@
 """Spyro 1's attract-demo oracle route: no pad input, through the title timeout into the level-11 demo.
 
 The title times out and plays a recorded input stream (titlescreen.c:179-210, gamepad.c:165-180), so both
-cores reach the level entry without steering (docs/issues/0114, 0132). During playback the guest owns
+cores reach the level entry without steering. During playback the guest owns
 the pad, so the pad ranges only discriminate input delivery in the title phase.
 """
 
@@ -42,7 +42,7 @@ Observation = base.Observation
 
 # One field per advance, except during demo playback, where g_UnprocessedFrames never moves
 # (gamepad.c:214, main.c:24-32): there wait for g_GameTick, the first statement of the GS_Playing
-# update (update.c:1094), so both cores park after the same number of updates (docs/issues/0132).
+# update (update.c:1094), so both cores park after the same number of updates.
 DEMO_MODE_PLAY = 1  # include/gamepad.h:41-43
 
 

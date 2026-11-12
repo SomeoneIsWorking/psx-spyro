@@ -137,8 +137,7 @@ tick (`0x8003CB24`): `progress += step`; past 15, `progress -= 16`, `anim = next
 frame`, `next frame += 1`, wrapped to the animation's loop start (`0x8006C4A0[anim*4]`) at its end
 (`0x8006C4A1[anim*4]`). Head (`0x80049660`) and tail (`0x80049E8C`) copy the body's pair and progress
 unless transitioning (head `+2`/`+4` per tick). Evidence: G:8003CB24, G:80049660, G:80049E8C. The guest
-cross-blends Spyro's own animation switches, so his pairs always continue
-(`docs/issues/0196-gameplay-in-betweens-judder.md`, "Spyro 1 poses").
+cross-blends Spyro's own animation switches, so his pairs always continue.
 
 Angle source: the bytes are `physics angle >> 4` (`func_8004AC24` sets `0x80078B74/78/7C = byte << 4`;
 decomp `m_SpeedAngle.{m_RotZ,m_RotY,m_RotX}`), so the 12-bit values exist at `0x80078B74..0x80078B7C` for
@@ -204,7 +203,7 @@ queue by `0x80019300`; text mobys are rebuilt each draw from the arena at `g_Hud
 | sparkles | `g_Sparkles` `0x80077108`, 8 x 0x18 | x, y, z s32 at +0, +4, +8; +0x0C fade; +0x0D full fade; +0x0E angle byte; +0x0F signed turn; +0x10 command word; +0x14 size and far depth | position Vector; angle Angle8; fade Scalar only while counting down; rest Step | slot address; alive while fade != 0 | `0x800584C4` (ages by `g_DeltaTime`, kills when outside retail's 4:3 view) | `port: glows.h`, `glow_producers.cpp:sparkleBetween` |
 | glow emitters | `D_80078800` `0x80078800`, 16 x 0x24 | +0 rim count (0 = free); +4 rim table; +8 pointer to a position vector; +0x0C colour; +0x10 size; +0x14 offset x, y, z; +0x20 depth bias | pointee Vector (blend the 3 words at the pointer, usually a moby +0x0C or the flame anchor); size Scalar; rest Step | slot address + position pointer | `0x800580F4` | `port: glows.h`, `glow_producers.cpp:drawEmitters`, ext `graphics.h Glow`; Sparx's glow is `MobySparxProps.glow` (`moby.h:395`) |
 | moby shadows | list of (record, size byte) pairs at `0x800724F4`, end in `0x80075F00` | see moby +0x1C | | moby slot | `0x80059F8C` | G:80059F8C |
-| tracers | `g_TracerCount` `0x80075684`; `g_TracerPointCount[4]` `0x800772C8`; `g_TracerLists[4]` pointers at `0x80078658`; points 0x1C bytes: WorldPos 3 x s32, ScreenPos (draw-written), age +0x18 | | WorldPos Vector, age Step | list index + age (inferred: the head point is new each tick, so pair by age + delta) | `0x800189F0` (draws points with age <= 80; width ramps by index; level 63 width `>> 2`) | ext `draw.c:305-330`, G:800189F0; adders are overlay code, not reached by a run (`docs/issues/0196` pass 9), so the pairing is untested |
+| tracers | `g_TracerCount` `0x80075684`; `g_TracerPointCount[4]` `0x800772C8`; `g_TracerLists[4]` pointers at `0x80078658`; points 0x1C bytes: WorldPos 3 x s32, ScreenPos (draw-written), age +0x18 | | WorldPos Vector, age Step | list index + age (inferred: the head point is new each tick, so pair by age + delta) | `0x800189F0` (draws points with age <= 80; width ramps by index; level 63 width `>> 2`) | ext `draw.c:305-330`, G:800189F0; adders are overlay code, not reached by a run, so the pairing is untested |
 
 ## Environment
 

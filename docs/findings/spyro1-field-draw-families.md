@@ -1,7 +1,7 @@
 # Spyro 1 field draw families
 
 Guest facts about Spyro 1's field draw routines, recovered while the native renderer drew them and
-kept for their producers (issue 0186). The native renderer was deleted on 2026-10-15; every fact
+kept for their producers. The native renderer was deleted on 2026-10-15; every fact
 below is about `SCUS_942.28`, not about port code.
 
 ## Which family matters most

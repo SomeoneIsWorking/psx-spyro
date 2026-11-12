@@ -295,8 +295,8 @@ loading picture and conversation producers, the screen-draw installs, the flatte
 Shown (hidden, unpaced, judgement settings, Up and Left held): Glimmer `warp 0/1/0` pans 40..41 px of 5472 at every
 present and pairs 218 of 218 moby records; Sunrise Spring `warp 0/0/0` pans 41..43 px and pairs 212 of 212; Spyro's
 wings and tail and Sparx land between their neighbours (`scratch/replay23/s2b/spyro.png`, `s3a/tail.png`). No replay
-refusal in gameplay. Open: issue 0237 (loading screen held, untracked fades and letterbox, other states unjudged,
-the terrain drawer's dead in-between mode, paced judgement on a quiet host).
+refusal in gameplay. Open: the loading screen is held; the terrain drawer's dead in-between mode and paced judgement on a quiet host
+are not done.
 
 Added (2026-11-10, second pass): `SpyroSurface`, the flame breath, the fades (S2 `0x80066F68`, `0x80067150`; S3
 `0x8006C598`, `0x8006C7C0`, red flash `0x8006C6D4`) and Spyro 2's conversation box slide. Shown (hidden, unpaced,

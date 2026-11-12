@@ -9,5 +9,4 @@ It presents on the Record path: `spyro1::FrameDriver` runs the retail update, th
 projection leaves (`0x80062618`, `0x80062638`) are stock bindings and the canvas widens through
 `spyro::Runtime::guestWidescreenProjection`. It has no 60 fps producers (psxport F-FPS60,
 `docs/features.md`): its draws are replayed, their packets slotted by the LinkOTPrimitives override
-(`titles/spyro1/render/ordering_table.*`); culls, HUD anchoring and the terrain, actor and
-sky producers are issue 0186.
+(`titles/spyro1/render/ordering_table.*`); culls and HUD anchoring are native overrides.
