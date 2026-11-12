@@ -1,10 +1,11 @@
 // engine_render_overrides.h — the render overrides Spyro 2 and 3 share: the terrain drawer, the
-// moby visibility walk, the sky drawer, the flatten's depth bins, the whole-screen overlays and the
-// world draws that test native depth, bound to one image's facts.
+// moby visibility walk and its drawer, the sky drawer, the flatten's depth bins, the whole-screen
+// overlays and the world draws that test native depth, bound to one image's facts.
 #pragma once
 
 #include "core.h"
 #include "native_dispatch.h"
+#include "render/field/guest_moby_drawer.h"
 #include "render/field/guest_moby_visibility.h"
 #include "render/field/guest_render_globals.h"
 #include "render/field/guest_sky_drawer.h"
@@ -28,7 +29,7 @@ struct EngineRenderFacts {
   guest_moby::Facts moby;
   // The drawer of the walk's render list (SCUS_944.25 0x80044504, SCUS_944.67 0x80031124): each
   // entry's faces under the translation the walk tagged with its view unit and bucket.
-  std::uint32_t mobyDrawer = 0;
+  guest_moby_drawer::Facts mobyDrawer;
   spyro_drawer_depth::Facts spyroDrawer;
   guest_sky::Facts sky;
   std::uint32_t flatten = 0;
@@ -53,7 +54,15 @@ template <const EngineRenderFacts &facts> void drawSky(Core *core) {
 }
 
 template <const EngineRenderFacts &facts> void walkMobys(Core *core) {
-  guest_moby::walk(*core, facts.moby, facts.globals);
+  guest_moby::walk(*core, facts.moby, facts.globals, {});
+}
+
+template <const EngineRenderFacts &facts> void drawMobys(Core *core) {
+  guest_moby_drawer::draw(*core,
+                          {.drawer = facts.mobyDrawer,
+                           .walk = facts.moby,
+                           .globals = facts.globals,
+                           .sectorTable = facts.terrain.classify.sectorTable});
 }
 
 template <const EngineRenderFacts &facts> void drawSpyro(Core *core) {
@@ -77,6 +86,8 @@ template <const EngineRenderFacts &facts> void registerEngineRenderOverrides(Cor
   psx::cpu::installNativeOverride(
       core, facts.moby.entry, facts.moby.overrideName, engine_render::walkMobys<facts>);
   psx::cpu::installNativeOverride(
+      core, facts.mobyDrawer.entry, facts.mobyDrawer.overrideName, engine_render::drawMobys<facts>);
+  psx::cpu::installNativeOverride(
       core, facts.sky.entry, facts.sky.overrideName, engine_render::drawSky<facts>);
   psx::cpu::installNativeOverride(
       core, facts.flatten, facts.flattenName, engine_render::flatten<facts>);
@@ -91,8 +102,8 @@ template <const EngineRenderFacts &facts> void registerEngineRenderOverrides(Cor
   core.depthTest.mark(facts.terrain.entry,
                       psx::present::DepthOrder::Polygon,
                       guest_render_globals::kDepthBinViewUnits);
-  core.depthTest.mark(facts.mobyDrawer, psx::present::DepthOrder::Model);
-  core.vertexPlaces.sortFaces({.function = facts.mobyDrawer,
+  core.depthTest.mark(facts.mobyDrawer.entry, psx::present::DepthOrder::Model);
+  core.vertexPlaces.sortFaces({.function = facts.mobyDrawer.entry,
                                .faceLoad = guest_moby::kDrawerFaceLoad,
                                .slots = guest_moby::drawerFaceSlots});
   spyro_drawer_depth::markDepth(core, facts.spyroDrawer);

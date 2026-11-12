@@ -75,7 +75,7 @@ The sandbox restores them; the in-between's pre-draw value of an aged input is `
 | rand seed | `0x8006D144` / `0x80073F3C` | advanced by the beams drawer and the lives counter (`0x8004B194`, `0x80052B88` / `0x8002F5B4`) | G2:80059D2C, G3:8005C644 |
 | clear colour | DB0 +0x19..1B, DB1 +0x19..1B (`0x80069941`, `0x800699B5` / `0x8006FC15`, `0x8006FC89`) | from the level colour `0x800681C0` / `0x8006E33C`, halved toward the fog colour `0x80067408` / `0x8006D07C` while the fog level `0x80067EC4` / `0x8006E038` is set | G2:80013A14, G3:8001D274 |
 | Spyro's y, depth byte | `+0x08`, `+0x1E` | moved by −2·`[+0x2C]` and set to 0xF4/0xFA for the second Spyro draw, then put back | G2:8004C534, G3:8001EC5C |
-| moby class byte, render and close lists, far-shade mark | record +0x4D; scratch; `0x80067168` / `0x8006C7D4` | the walk | `port: guest_moby_visibility.h` |
+| moby class byte, render and close lists, far-shade mark | record +0x4D; scratch; `0x80067168` / `0x8006C7D4` | the walk; the widened margin pass re-walks inside its own rolled-back run and keeps only the mark | `port: guest_moby_visibility.h`, `guest_moby_drawer.h` |
 | sector visibility, terrain animation | `0x8006B300` / `0x80072330`; level sector words | the classification pass | `port: guest_terrain_animation.*` |
 | `0x80048F04` scratch | `0x8006AA0C` = 0 | | G2:80048F04 |
 | second pass (S3) | `0x8006C550`, Sparx +0xA0, `0x8006C668` | set and put back by the tail | G3:8001E638 |

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/boot_prefix_frame_driver.h"
+#include "spyro2/core/game_state.h"
 #include "spyro2/render/render_facts.h"
 
 #include <array>
@@ -8,15 +9,11 @@
 
 namespace spyro2 {
 
-// The draw's switch operand (lw in 0x800156FC).
-inline constexpr std::uint32_t kGameState = 0x800681C8u;
 // The level FUN_80019230 stores at 0x800192E8.
 inline constexpr std::uint32_t kLevelId = 0x80066F90u;
 // Camera controller FUN_8001FA58's mode and sub-state.
 inline constexpr std::uint32_t kCameraMode = 0x80067ED0u;
 inline constexpr std::uint32_t kCameraSubState = 0x80067ED4u;
-// The title screen's state.
-inline constexpr std::uint32_t kTitleScreenGameState = 11u;
 // Level load FUN_8001722C: sub-state 0 fades out, 1 loads behind black, 2 fades in, then state 0.
 // Its draw FUN_80014504 draws the field (0x800155A0(0x3D), as state 0's FUN_80013A14) at sub-states
 // 0 and 2.
@@ -32,10 +29,8 @@ inline constexpr std::uint32_t kVSyncQueryCounter = 0x80066618u;
 // The boot overlay's logo sequence 0x80077374(1) (WAD 0x23000 at 0x8006D264): the Sony card's hold,
 // the Universal card's two (both from one start) and the Insomniac card's, each against the start
 // field it keeps at 0x80067E00.
-inline constexpr std::array<spyro::LogoHold, 4> kLogoHolds{{{0x8007750Cu, 0xA4u},
-                                                            {0x800776A4u, 0x3Cu},
-                                                            {0x800778ECu, 0xB4u},
-                                                            {0x80077BA0u, 0xB4u}}};
+inline constexpr std::array<spyro::LogoHold, 4> kLogoHolds{
+    {{0x8007750Cu, 0xA4u}, {0x800776A4u, 0x3Cu}, {0x800778ECu, 0xB4u}, {0x80077BA0u, 0xB4u}}};
 
 // Game main 0x80011ADC: boot prefix 0x80011E9C (jal at 0x80011AE4), then the loop jal 0x8001B140 /
 // jal 0x800156FC. Bound measurements: docs/issues/0156.

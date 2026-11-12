@@ -27,10 +27,14 @@
 //      matrix, the projected centre and the classification.
 //
 // WHY IT IS OWNED. Step 4's horizontal test is the 4:3 half-angle (guest_moby_frustum.h). At 16:9
-// the canvas shows margins past the authored window and retail culls the mobys in them, so the
-// routine applies the presentation plan's slope to every horizontal plane test; at 4:3 it is
-// retail's. The drawers' edge tests stay 4:3, so a widened view lists a moby that reaches past that
-// window and is clear of the eye as inside (2); its record keeps the frustum class.
+// the canvas shows margins past the authored window and retail culls the mobys in them. The guest's
+// call takes retail's selection: the 4:3 slope and the guest group bytes, so every guest write is
+// retail's at any aspect. The moby drawer's margin pass (guest_moby_drawer.h) calls it again with
+// the margin selection inside a rolled-back run: only spheres wholly past the 4:3 window and inside
+// the presented one, in a group the guest shows or a margin-only sector (margin_sectors.h), with no
+// deferral and no close list. The drawers' edge tests stay 4:3, so a widened view lists a moby that
+// reaches past that window and is clear of the eye as inside (2) in its entry; its record keeps the
+// frustum class.
 //
 // WHAT IT WRITES, all reproduced: the register save area, each visited record's classification byte
 // (+0x4D), the render list (zero-terminated), the deferred-moby buffer (zero-terminated), the close
@@ -46,6 +50,7 @@
 
 #include "core.h"
 #include "render/field/guest_render_globals.h"
+#include "render/field/margin_sectors.h"
 
 #include <cstdint>
 #include <optional>
@@ -121,8 +126,19 @@ struct Facts {
   std::uint32_t exitV0 = 0;          // v0 on return
 };
 
+// Which mobys a call lists: retail's (no margin set), or only what the presented view adds past
+// retail's 4:3 window, with `margin` naming the margin-only sectors of the level whose sector table
+// is `level`.
+struct Selection {
+  const MarginSectors *margin = nullptr;
+  std::uint32_t level = 0;
+};
+
 // Run one call of the walk against this image.
-void walk(Core &core, const Facts &facts, const guest_render_globals::Globals &globals);
+void walk(Core &core,
+          const Facts &facts,
+          const guest_render_globals::Globals &globals,
+          const Selection &selection);
 
 // The record's mesh in slots A and B of `keyframes` is resident and counts the same vertices: the
 // drawer (SCUS_944.25 80044504) walks frame B's stream with slot A's count.

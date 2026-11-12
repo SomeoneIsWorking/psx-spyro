@@ -17,8 +17,6 @@ struct Row {
 };
 
 struct Facts {
-  std::uint32_t drawer = 0; // the moby drawer the walk hands its render list to
-  const char *overrideName = "";
   std::uint32_t deltaTable = 0; // the drawer's byte-code delta words
   std::uint32_t gameState = 0;
   std::uint32_t titleGameState = 0;
@@ -26,13 +24,11 @@ struct Facts {
   std::span<const Row> rows{}; // top to bottom
 };
 
-// The drawer, then the card's extension when the title screen lists it on a widened canvas.
-void draw(Core &core, const Facts &facts, const guest_render_globals::Globals &globals);
-
-// An override is a plain `void (*)(Core *)`, so each image's facts are template arguments.
-template <const Facts &facts, const guest_render_globals::Globals &globals>
-void drawOverride(Core *core) {
-  draw(*core, facts, globals);
-}
+// After the moby drawer: the card's extension when the title screen lists it, in the render list at
+// `list`, on a widened canvas.
+void extend(Core &core,
+            const Facts &facts,
+            const guest_render_globals::Globals &globals,
+            std::uint32_t list);
 
 } // namespace spyro::intro_card

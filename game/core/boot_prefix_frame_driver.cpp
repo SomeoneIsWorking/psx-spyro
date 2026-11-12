@@ -28,8 +28,8 @@ BootPrefixFrameDriver::BootPrefixFrameDriver(Game &game,
                                              const BootPrefixFacts &facts,
                                              const DrawSection &section,
                                              const DrawMotionFacts &motion)
-    : core_(game.core), facts_(facts), fields_(game, facts.field), cut_(facts.cut), logoHolds_(facts.logoHolds),
-      section_(section), motion_(game.core, motion),
+    : core_(game.core), facts_(facts), fields_(game, facts.field), cut_(facts.cut),
+      logoHolds_(facts.logoHolds), section_(section), motion_(game.core, motion),
       replay_(section_, motion_.tracks(), motion_.sources()) {}
 
 void BootPrefixFrameDriver::initialize() {
@@ -304,6 +304,7 @@ void BootPrefixFrameDriver::restored(Core &) {
   call_ = std::move(staged_->call);
   staged_.reset();
   replay_.forget();
+  marginSectors_.clear();
   sampledState_.reset();
 }
 

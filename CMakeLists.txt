@@ -147,6 +147,7 @@ set(SPYRO_RUNTIME_SOURCES
   game/render/field/effect_pools.cpp
   game/render/field/keyframe_blend.cpp
   game/render/field/guest_moby_visibility.cpp
+  game/render/field/guest_moby_drawer.cpp
   game/render/field/intro_card.cpp
   game/render/field/moby_pose.cpp
   game/render/field/guest_view_slope.cpp

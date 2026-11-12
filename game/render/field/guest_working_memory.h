@@ -19,6 +19,9 @@
 
 namespace spyro::guest_memory {
 
+// The tag bytes a link writes.
+inline constexpr std::uint32_t kTagLinkBytes = 3;
+
 // The tag of `packet` linked to `next`: its low 24 bits, the word count kept.
 inline void
 linkAfter(const psx::present::EmitMemory &memory, std::uint32_t packet, std::uint32_t next) {

@@ -4,6 +4,7 @@
 
 #include "core/draw_motion.h"
 #include "render/engine_render_overrides.h"
+#include "spyro3/render/intro_card_facts.h"
 
 #include <array>
 #include <cstdint>
@@ -181,8 +182,8 @@ inline constexpr spyro::SkyWaveFacts kSkyWave{
     .base = 0xE00,
 };
 
-// The credits overlay's letters: its update 0x80074BA0 moves them, its draw 0x80076118 copies them into the
-// moby array; game state 10 is the credits'.
+// The credits overlay's letters: its update 0x80074BA0 moves them, its draw 0x80076118 copies them
+// into the moby array; game state 10 is the credits'.
 inline constexpr spyro::CreditLetterFacts kCreditLetters{
     .pool = 0x8006C5F0u, .gameState = 0x8006E344u, .credits = 10u};
 
@@ -267,7 +268,10 @@ inline constexpr spyro::EngineRenderFacts kRenderFacts{
     .terrain = kTerrainFacts,
     .moby = kMobyFacts,
     // jal at 8001EC8C; its translation is the entry's centre, loaded at 800311C8.
-    .mobyDrawer = 0x80031124u,
+    .mobyDrawer = {.entry = 0x80031124u,
+                   .overrideName = "spyro3-moby-drawer",
+                   .fieldPassReturn = 0x8001EC94u,
+                   .introCard = kIntroCard},
     .spyroDrawer = kSpyroDrawer,
     .sky = kSkyFacts,
     .flatten = kFlatten,

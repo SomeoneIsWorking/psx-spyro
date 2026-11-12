@@ -4,7 +4,6 @@
 #include "emit_memory.h"
 #include "game.h"
 #include "gte_registers.h"
-#include "native_dispatch.h"
 #include "render/field/guest_moby_visibility.h"
 #include "render/field/guest_packet.h"
 #include "render/field/guest_word.h"
@@ -152,12 +151,10 @@ private:
 
 } // namespace
 
-void draw(Core &core, const Facts &facts, const guest_render_globals::Globals &globals) {
-  const std::uint32_t list =
-      core.gte().readData(psx::gte::kVxy1) + guest_moby::kRenderListAboveScratch;
-  if (!psx::cpu::callOriginalOrPropagate(core, facts.drawer)) {
-    return;
-  }
+void extend(Core &core,
+            const Facts &facts,
+            const guest_render_globals::Globals &globals,
+            std::uint32_t list) {
   const psx::present::GuestProjectionPlan &plan = core.game->guestDisplay.plan();
   if (!plan.widescreen() || core.mem_r32(facts.gameState) != facts.titleGameState) {
     return;

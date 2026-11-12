@@ -77,8 +77,10 @@ public:
   MobyWalk(Core &core,
            const Facts &facts,
            const guest_render_globals::Globals &globals,
-           HorizontalSlope slope)
-      : core_(core), facts_(facts), globals_(globals), slope_(slope) {}
+           const Selection &selection)
+      : core_(core), facts_(facts), globals_(globals), selection_(selection),
+        presented_(presentedSlope(core)),
+        slope_(selection.margin != nullptr ? presented_ : guest_moby_frustum::kRetailSlope) {}
 
   void run();
 
@@ -125,10 +127,16 @@ private:
                                          std::uint32_t radius,
                                          const guest_moby_frustum::SphereMargins &margins) const;
   Step finishEntry(const Candidate &candidate);
+  [[nodiscard]] bool margin() const {
+    return selection_.margin != nullptr;
+  }
 
   Core &core_;
   const Facts &facts_;
   const guest_render_globals::Globals &globals_;
+  const Selection &selection_;
+  HorizontalSlope presented_;
+  // The slope the frustum tests list on: retail's, or the presented view's for the margin.
   HorizontalSlope slope_;
   RotationWords camera_{};
   std::int32_t cameraX_ = 0;
@@ -183,7 +191,7 @@ MobyWalk::Step MobyWalk::visit(std::uint32_t rec) {
   const std::int32_t reach = static_cast<std::int8_t>(reachWord & 0xFFu) * 256;
   const std::int32_t drawDistance = reach + static_cast<std::int32_t>(reachWord & 0x300u);
   if (reach <= 0) {
-    if (reach == 0) {
+    if (reach == 0 || margin()) {
       return Step::Next;
     }
     const std::uint32_t z = core_.mem_r32(rec + moby_record::kZ);
@@ -217,11 +225,15 @@ MobyWalk::Step MobyWalk::visit(std::uint32_t rec) {
     return Step::Next;
   }
   const std::uint32_t group = core_.mem_r8(rec + record::kGroup);
-  if (group < 0xFE && core_.mem_r8(globals_.visibilityGroups + group) == 0) {
+  if (group < 0xFE && core_.mem_r8(globals_.visibilityGroups + group) == 0 &&
+      !(margin() && selection_.margin->lists(selection_.level, group))) {
     return Step::Next;
   }
   const MeshSlots mesh = slotsOf(rec);
   if (!mesh.resident()) {
+    if (margin()) {
+      return Step::Next;
+    }
     // The mesh is not resident: its slot word is not a pointer. Hand the moby on with its
     // camera-relative centre and reach instead of drawing it.
     defer({.rec = rec,
@@ -281,7 +293,14 @@ MobyWalk::Step MobyWalk::drawCandidate(std::uint32_t rec,
   if (guest_moby_frustum::outsideHorizontal(view, margins, slope_)) {
     return Step::Next;
   }
-  listClose(candidate, view.z);
+  // The margin lists only spheres wholly past retail's window, which draw no pixel inside it.
+  if (margin()) {
+    if (!guest_moby_frustum::outsideHorizontal(view, margins, guest_moby_frustum::kRetailSlope)) {
+      return Step::Next;
+    }
+  } else {
+    listClose(candidate, view.z);
+  }
   if (guest_moby_frustum::outsideVertical(view, margins)) {
     return Step::Next;
   }
@@ -358,7 +377,7 @@ RotationWords MobyWalk::orient(std::uint32_t rec) {
 bool MobyWalk::edgeTestsCullMargin(const ViewPoint &view,
                                    std::uint32_t radius,
                                    const guest_moby_frustum::SphereMargins &margins) const {
-  return slope_ != guest_moby_frustum::kRetailSlope &&
+  return presented_ != guest_moby_frustum::kRetailSlope &&
          guest_moby_frustum::clearOfEye(view, radius) &&
          !guest_moby_frustum::insideHorizontal(view, margins, guest_moby_frustum::kRetailSlope);
 }
@@ -529,8 +548,11 @@ animationLoop(Core &core, const Facts &facts, std::uint32_t meshIndex, std::uint
   return keyframe_blend::Loop{.start = 0, .end = frames};
 }
 
-void walk(Core &core, const Facts &facts, const guest_render_globals::Globals &globals) {
-  MobyWalk(core, facts, globals, presentedSlope(core)).run();
+void walk(Core &core,
+          const Facts &facts,
+          const guest_render_globals::Globals &globals,
+          const Selection &selection) {
+  MobyWalk(core, facts, globals, selection).run();
 }
 
 } // namespace spyro::guest_moby

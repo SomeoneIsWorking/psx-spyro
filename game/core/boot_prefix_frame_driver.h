@@ -7,6 +7,7 @@
 #include "core/logo_hold.h"
 #include "game_runtime.h"
 #include "machine_state.h"
+#include "render/field/margin_sectors.h"
 #include "replay_frame.h"
 #include "resumable_guest_call.h"
 
@@ -72,6 +73,13 @@ public:
   [[nodiscard]] psx::present::ReplayFrame &replay() {
     return replay_;
   }
+  [[nodiscard]] const DrawSection &section() const {
+    return section_;
+  }
+  // The terrain sectors the last drawn field listed only in the margins.
+  [[nodiscard]] MarginSectors &marginSectors() {
+    return marginSectors_;
+  }
   [[nodiscard]] DrawMotion &motion() {
     return motion_;
   }
@@ -128,6 +136,7 @@ private:
   LogoHoldSkip logoHolds_;
   const DrawSection &section_;
   DrawMotion motion_;
+  MarginSectors marginSectors_;
   psx::present::ReplayFrame replay_;
   std::optional<std::uint32_t> sampledState_;
   std::map<std::string_view, std::uint64_t> declined_;

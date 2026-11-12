@@ -53,6 +53,14 @@ public:
   // The frame's other chain is PutDrawEnv's packet inside the two draw buffers.
   [[nodiscard]] bool linked(std::uint32_t head) const final;
 
+  struct PacketPool {
+    std::uint32_t start = 0;
+    std::uint32_t bytes = 0;
+  };
+  // The pool of the draw buffer the frame is not drawing into: the last frame's packets, which its
+  // DrawOTag already walked (psxport sends a DMA2 chain when it starts).
+  [[nodiscard]] PacketPool idlePool(Core &core) const;
+
 protected:
   // Why `state`'s handler, as it runs this frame, is not replayed (a device it reaches, a state the
   // switch has no case for); nothing when it stays off the devices.
@@ -80,6 +88,9 @@ protected:
   }
 
 private:
+  // The draw buffer the current-buffer word does not name.
+  [[nodiscard]] std::uint32_t otherBuffer(Core &core) const;
+
   const DrawSectionFacts &facts_;
 };
 

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/boot_prefix_frame_driver.h"
+#include "spyro3/core/game_state.h"
 #include "spyro3/render/render_facts.h"
 
 #include <array>
@@ -8,10 +9,6 @@
 
 namespace spyro3 {
 
-// The draw's switch operand (lw at 0x8001E6E0).
-inline constexpr std::uint32_t kGameState = 0x8006E344u;
-// The title screen's state.
-inline constexpr std::uint32_t kTitleScreenGameState = 11u;
 // Title image data, resident whenever the game state is the title's: the state byte and its step
 // byte. State 1 runs the Insomniac credit at step 0 and holds the finished logo while "press start"
 // waits at step 1.
@@ -37,10 +34,8 @@ inline constexpr std::uint32_t kVSyncQueryCounter = 0x8006B480u;
 // The boot overlay's logo sequence 0x80074DEC(1) (WAD 0x23000 at 0x800742D0): the Sony card's hold,
 // the Universal card's two (both from one start) and the Insomniac card's, each against the start
 // field it keeps in $s5.
-inline constexpr std::array<spyro::LogoHold, 4> kLogoHolds{{{0x80074FD8u, 0xA4u},
-                                                            {0x800750B4u, 0x3Cu},
-                                                            {0x800751E8u, 0xB4u},
-                                                            {0x800755E0u, 0xB4u}}};
+inline constexpr std::array<spyro::LogoHold, 4> kLogoHolds{
+    {{0x80074FD8u, 0xA4u}, {0x800750B4u, 0x3Cu}, {0x800751E8u, 0xB4u}, {0x800755E0u, 0xB4u}}};
 
 // Game main 0x8001200C: boot prefix 0x8002AB38 (jal at 0x8001201C), then the loop jal 0x80055400 /
 // jal 0x8001E638. Bound measurements: docs/issues/0156.

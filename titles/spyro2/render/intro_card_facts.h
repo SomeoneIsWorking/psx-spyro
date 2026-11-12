@@ -2,7 +2,7 @@
 #pragma once
 
 #include "render/field/intro_card.h"
-#include "spyro2/core/boot_facts.h"
+#include "spyro2/core/game_state.h"
 
 #include <array>
 
@@ -13,8 +13,6 @@ inline constexpr std::array<spyro::intro_card::Row, 5> kIntroCardRows{
     {{23, 41}, {22, 40}, {19, 37}, {18, 36}, {15, 42}}};
 
 inline constexpr spyro::intro_card::Facts kIntroCard{
-    .drawer = 0x80044504u,
-    .overrideName = "spyro2-moby-drawer",
     .deltaTable = 0x80062674u,
     .gameState = kGameState,
     .titleGameState = kTitleScreenGameState,

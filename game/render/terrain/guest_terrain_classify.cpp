@@ -4,10 +4,13 @@
 #include "render/terrain/guest_terrain_passes.h"
 
 #include "core.h"
+#include "core/boot_prefix_frame_driver.h"
+#include "game.h"
 #include "gte_registers.h"
 #include "render/field/guest_render_globals.h"
 #include "render/field/guest_view_slope.h"
 #include "render/field/guest_word.h"
+#include "render/field/margin_sectors.h"
 #include "render/terrain/guest_terrain_animation.h"
 #include "render/terrain/guest_terrain_frame.h"
 #include "render/terrain/guest_terrain_sphere.h"
@@ -75,6 +78,8 @@ private:
   std::uint32_t detailCursor_ = 0;
   std::uint32_t translucentCursor_ = 0;
   std::uint32_t farCursor_ = 0;
+  // Sectors the presented view lists and retail's does not, by index.
+  MarginSectors::Set margin_;
 };
 
 void SectorClassifier::run() {
@@ -99,6 +104,8 @@ void SectorClassifier::run() {
       classify({.sector = memory_.mem_r32(slot - 4), .visibilityByte = byte});
     }
   }
+  core_.game->frameDriverAs<BootPrefixFrameDriver>().marginSectors().publish(
+      core_, memory_.mem_r32(frame_.facts.classify.sectorTable), margin_);
   memory_.mem_w32(translucentCursor_, 0);
   memory_.mem_w32(farCursor_, 0);
   memory_.mem_w32(detailCursor_, 0);
@@ -181,6 +188,12 @@ void SectorClassifier::classify(const Visible &visible) {
   }
   marks |= claim;
   if (!retailSees) {
+    // A taken byte is what shows its mobys (the walk's group test), so only a taken sector is a
+    // margin one.
+    const std::uint32_t index = visibilityByte - kScratchpad;
+    if (taken != 0 && index < margin_.size()) {
+      margin_.set(index);
+    }
     return;
   }
   memory_.mem_w8(visibilityByte, static_cast<std::uint8_t>(taken));

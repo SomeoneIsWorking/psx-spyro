@@ -51,8 +51,7 @@ DrawSection::flattenFrame(Core &core, psx::present::GuestRedraw &redraw, std::ui
 
 std::optional<std::uint32_t> DrawSection::draw(Core &core,
                                                psx::present::GuestRedraw &redraw) const {
-  const std::uint32_t buffer =
-      core.mem_r32(facts_.currentBuffer) == facts_.buffer0 ? facts_.buffer1 : facts_.buffer0;
+  const std::uint32_t buffer = otherBuffer(core);
   const std::uint32_t cursor = core.mem_r32(buffer + kBufferPool);
   redraw.writeWord(facts_.primitiveCursor, cursor);
   redraw.writeWord(facts_.binMark, core.mem_r32(facts_.orderingTable) + 0x1000u);
@@ -69,6 +68,15 @@ std::optional<std::uint32_t> DrawSection::draw(Core &core,
     return std::nullopt;
   }
   return flattenFrame(core, redraw, state);
+}
+
+std::uint32_t DrawSection::otherBuffer(Core &core) const {
+  return core.mem_r32(facts_.currentBuffer) == facts_.buffer0 ? facts_.buffer1 : facts_.buffer0;
+}
+
+DrawSection::PacketPool DrawSection::idlePool(Core &core) const {
+  return {.start = core.mem_r32(otherBuffer(core) + kBufferPool),
+          .bytes = core.mem_r32(facts_.scratchSize)};
 }
 
 bool DrawSection::linked(std::uint32_t head) const {

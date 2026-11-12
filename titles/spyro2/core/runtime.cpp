@@ -6,7 +6,6 @@
 #include "spyro2/core/logo_facts.h"
 #include "spyro2/core/warp.h"
 #include "spyro2/render/hud_anchor.h"
-#include "spyro2/render/intro_card_facts.h"
 #include "spyro2/render/render_facts.h"
 
 #include <lucent/log.h>
@@ -83,10 +82,6 @@ void Runtime::registerOverrides(Game &game) {
   // libgte's two projection leaves, carrying the title's widening decision.
   libgte_.bind(game);
   spyro::registerEngineRenderOverrides<kRenderFacts>(game.core);
-  psx::cpu::installNativeOverride(game.core,
-                                  kIntroCard.drawer,
-                                  kIntroCard.overrideName,
-                                  spyro::intro_card::drawOverride<kIntroCard, kRenderGlobals>);
   hud_anchor::registerOverrides(game.core);
   spyro::installHudSlide<kHudSlide>(game.core);
   spyro::installSkyWave(game.core, kSkyWave);
