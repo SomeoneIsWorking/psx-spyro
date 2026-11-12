@@ -159,7 +159,7 @@ void BootPrefixFrameDriver::stepBoot(Core &core) {
     idle = fields_.fields() != fieldsAtTurn ? 0u : idle + (end == TurnEnd::Ran ? 1u : 0u);
     requireClock(core, idle);
   }
-  logoHolds_.observe(core, call_, fields_.presentationSkipPressed());
+  logoHolds_.observe(core, call_, fields_.takePresentationSkip());
   if (fields_.fields() >= facts_.bootFieldLimit) {
     // A boot prefix that spends its whole field budget without returning is not making progress, so
     // the run ends by name instead of spinning on it.

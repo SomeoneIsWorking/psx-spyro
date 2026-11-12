@@ -115,6 +115,7 @@ bool FieldOwner::deliver(FieldRequest request) {
 
   game_.pad.serviceFrame();
   const bool startEdge = game_.pad.pressedButton(psx::input::kButtonStart);
+  skipPress_.observe(game_.pad.pressedButton(psx::input::kButtonStart | psx::input::kButtonCross));
   if (!game_.timing.advanceDisplayFields(
           {1, 1}, psx::frame::fieldRateMilliHz(game_.timing.displayFieldRate()))) {
     lucent::error(
@@ -168,8 +169,8 @@ void FieldOwner::presentFrame() {
   ++paces_;
 }
 
-bool FieldOwner::presentationSkipPressed() const {
-  return game_.pad.pressedButton(psx::input::kButtonStart | psx::input::kButtonCross);
+bool FieldOwner::takePresentationSkip() {
+  return skipPress_.take();
 }
 
 void FieldOwner::hostTurnThunk(Core *core) {

@@ -21,12 +21,17 @@ struct TransitionState {
   std::uint32_t titleState = 0;
   std::uint32_t demoType = 0;
   std::uint32_t loadStage = 0;
+  // The loader's music fade (guest_globals.h kCdMusicFlags, kSpuMusicFade*).
+  std::uint32_t musicFlags = 0;
+  std::int32_t musicFadeTarget = -1;
+  std::int32_t musicFadeStep = 0;
   bool skipPressed = false;
 };
 
 enum class Cancellation : std::uint8_t {
   None,
   LevelTransitionTally,
+  LoadingMusicFade,
   ReturnHomeSequence,
   CutsceneTransitionFlyby,
   CutsceneTransitionIntroCard,

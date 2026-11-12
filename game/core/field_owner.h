@@ -1,5 +1,7 @@
 #pragma once
 
+#include "core/press_latch.h"
+
 #include <chrono>
 
 #include <cstdint>
@@ -77,8 +79,9 @@ public:
   std::int32_t counter() const;
   void armHostClock();
 
-  // Whether the Start/Cross edge that ends a presentation-only hold is down now.
-  bool presentationSkipPressed() const;
+  // Whether a Start/Cross edge, which ends a presentation-only hold, came in a field since the
+  // last take; a logic frame spans several fields.
+  bool takePresentationSkip();
 
   std::uint64_t fields() const {
     return fields_;
@@ -103,6 +106,7 @@ private:
   FieldObserver *observer_;
   FieldCadence cadence_{};
   bool inField_ = false;
+  PressLatch skipPress_;
   bool hostClockArmed_ = false;
   std::uint64_t refused_ = 0;
   std::uint64_t fields_ = 0;

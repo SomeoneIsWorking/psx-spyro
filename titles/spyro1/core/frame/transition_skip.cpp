@@ -16,12 +16,17 @@
 namespace spyro1 {
 namespace {
 
+using guest::kCdMusicFading;
+using guest::kCdMusicFlags;
 using guest::kDemoTypeCutscene;
 using guest::kDemoTypeLevel;
 using guest::kGamestate;
 using guest::kGamestateTitleScreen;
 using guest::kLevelTransHudActive;
 using guest::kLoadStage;
+using guest::kSpuCdVolumeLeft;
+using guest::kSpuMusicFadeCurrent;
+using guest::kSpuMusicFadeTarget;
 using guest::kTitleModeDemo;
 using guest::kTitlescreenDemoType;
 using guest::kTitlescreenMode;
@@ -74,6 +79,17 @@ void runIntroCardTerminal(Core &core) {
   }
 }
 
+bool musicFading(const TransitionState &state) {
+  return (state.musicFlags & kCdMusicFading) != 0u && state.musicFadeTarget >= 0 &&
+         state.musicFadeStep < 0;
+}
+
+// LoadLevel waits past stage 2 for the music to stop; at the target volume the next
+// CDMusicUpdate ends the fade itself and pauses the drive.
+void finishMusicFade(Core &core, const TransitionState &state) {
+  core.mem_w16(kSpuCdVolumeLeft, static_cast<std::uint16_t>(state.musicFadeTarget));
+}
+
 } // namespace
 
 bool flybyCardUp(const TransitionState &state) {
@@ -89,6 +105,9 @@ Cancellation classify(const TransitionState &state) {
   // An ended tally owns no screen, so the press falls through.
   if (state.stage == kStageLevelTransition && state.levelTransHudActive != 0u) {
     return Cancellation::LevelTransitionTally;
+  }
+  if (state.stage == kStageLevelTransition && musicFading(state)) {
+    return Cancellation::LoadingMusicFade;
   }
   if (state.stage == kStageExitLevel) {
     return Cancellation::ReturnHomeSequence;
@@ -108,13 +127,17 @@ Cancellation classify(const TransitionState &state) {
 TransitionSkip::TransitionSkip(spyro::FieldOwner &fields) : fields_(fields) {}
 
 void TransitionSkip::observe(Core &core) {
-  TransitionState state{.stage = core.mem_r32(kGamestate),
-                        .levelTransHudActive = core.mem_r32(kLevelTransHudActive),
-                        .titleMode = core.mem_r32(kTitlescreenMode),
-                        .titleState = core.mem_r32(kTitlescreenStage),
-                        .demoType = core.mem_r32(kTitlescreenDemoType),
-                        .loadStage = core.mem_r32(kLoadStage),
-                        .skipPressed = fields_.presentationSkipPressed()};
+  TransitionState state{
+      .stage = core.mem_r32(kGamestate),
+      .levelTransHudActive = core.mem_r32(kLevelTransHudActive),
+      .titleMode = core.mem_r32(kTitlescreenMode),
+      .titleState = core.mem_r32(kTitlescreenStage),
+      .demoType = core.mem_r32(kTitlescreenDemoType),
+      .loadStage = core.mem_r32(kLoadStage),
+      .musicFlags = core.mem_r32(kCdMusicFlags),
+      .musicFadeTarget = static_cast<std::int32_t>(core.mem_r32(kSpuMusicFadeTarget)),
+      .musicFadeStep = static_cast<std::int32_t>(core.mem_r32(kSpuMusicFadeCurrent)),
+      .skipPressed = fields_.takePresentationSkip()};
 
   // A card's load can outlast the one-field edge by hundreds of frames.
   if (!flybyCardUp(state)) {
@@ -129,10 +152,21 @@ void TransitionSkip::observe(Core &core) {
     return;
   case Cancellation::LevelTransitionTally:
     core.mem_w32(kLevelTransHudActive, 0u);
+    if (musicFading(state)) {
+      finishMusicFade(core, state);
+    }
     ++cancellations_;
     // The tally only delays the load (func_8002DF9C), so every load phase still runs.
     lucent::info("transition",
                  "level-transition tally cancelled ({}); load continues from stage {}",
+                 cancellations_,
+                 core.mem_r32(kLoadStage));
+    return;
+  case Cancellation::LoadingMusicFade:
+    finishMusicFade(core, state);
+    ++cancellations_;
+    lucent::info("transition",
+                 "loading music fade finished ({}) at load stage {}",
                  cancellations_,
                  core.mem_r32(kLoadStage));
     return;

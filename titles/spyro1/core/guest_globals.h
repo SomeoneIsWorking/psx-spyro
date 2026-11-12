@@ -53,6 +53,15 @@ inline constexpr std::uint32_t kLoadStage = 0x80075864u;
 // g_LevelTransHudActive: func_8002DA74 ends the level-transition tally by clearing it.
 inline constexpr std::uint32_t kLevelTransHudActive = 0x800756B0u;
 
+// g_CdMusic.m_Flags (music.h): 0x200 while the music fades down, 0x40 once the drive is free.
+inline constexpr std::uint32_t kCdMusicFlags = 0x800774B4u;
+inline constexpr std::uint32_t kCdMusicFading = 0x200u;
+// g_Spu (spu.h): the CD volume CDMusicUpdate (0x8002BBE0) steps by m_MusicFadeCurrent toward
+// m_MusicFadeTarget; the fade ends once the step passes the target.
+inline constexpr std::uint32_t kSpuCdVolumeLeft = 0x80075F18u; // i16
+inline constexpr std::uint32_t kSpuMusicFadeTarget = 0x800761D8u;
+inline constexpr std::uint32_t kSpuMusicFadeCurrent = 0x80076230u;
+
 // g_Fade: the screen fade GamestateDraw and TitlescreenDraw draw while it is non-zero.
 inline constexpr std::uint32_t kFade = 0x80075918u;
 

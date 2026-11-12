@@ -1,6 +1,6 @@
 # 0249 — Spyro 1's loading picture lasts its own fade and stage cadence
 
-Status: open, unskippable. Owner: none (no faithful terminal transition).
+Status: open; a press ends the music fade. Owner: `titles/spyro1/core/frame/transition_skip.cpp`.
 
 ## Observed
 With reads due at once, a level change still shows the loading picture (Spyro flying over the level's colour) for 19
@@ -21,7 +21,15 @@ stage returns after it issues its read. Stage 0's `KillSoundsAndMusic(0)` starts
 (flags 0x200, the CD volume stepped down by an eighth per `CDMusicUpdate`); at silence it issues `CdlPause`
 (0x100), and the next update sees the pause complete (0x40). Both are the guest's own timing, not drive time.
 
-## Proper fix
-None recovered. Ending the fade early writes the fade words, and running more than one stage per frame runs
-`LoadLevel` faster than the guest does; G005 rules out both, and presenting fewer fields than the guest
-ran is an unshown field.
+## Without a press
+Nothing changes: ending the fade early writes the fade words, and running more than one stage per frame runs
+`LoadLevel` faster than the guest does; G005 rules out both.
+
+## Press skip
+A Start/Cross press while the fade runs writes the CD volume (`0x80075F18`) to the fade's target, so the next
+`CDMusicUpdate` (`0x8002BBE0`) ends the fade itself, issues `CdlPause` and frees the gate; the stages keep
+their one-per-frame cadence. Measured 2026-11-12 (`scratch/s1load/press_sheet.png`, `press.log`): tapped at
+step 1424, taken at 1426, stage 4 at 1427 instead of 1431, gameplay at 1438 instead of 1442 (the picture 15
+frames instead of 19). Paced (`paced_press.log`, `paced_nopress.log`): `warp` change to arrival 0.643 s ->
+0.510 s, presents p50 16.75 ms in both. The press edge is latched per field by
+`FieldOwner::takePresentationSkip`, since a logic frame spans two fields and the edge of the first was lost.

@@ -189,11 +189,12 @@ void BootSequence::leaveSecondPresentationHold() {
 }
 
 void BootSequence::observePress() {
+  const bool pressed = fields_.takePresentationSkip();
   // Past every hold, a press has nothing left to end.
   if (phase_ == Phase::FadeSecondOut || phase_ == Phase::Finalize || phase_ == Phase::Complete) {
     return;
   }
-  pressLatch_.observe(fields_.presentationSkipPressed());
+  pressLatch_.observe(pressed);
 }
 
 bool BootSequence::step(Core &core) {
