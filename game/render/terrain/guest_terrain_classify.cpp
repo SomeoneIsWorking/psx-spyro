@@ -6,6 +6,7 @@
 #include "core.h"
 #include "gte_registers.h"
 #include "render/field/guest_render_globals.h"
+#include "render/field/guest_view_slope.h"
 #include "render/field/guest_word.h"
 #include "render/terrain/guest_terrain_animation.h"
 #include "render/terrain/guest_terrain_frame.h"
@@ -70,6 +71,7 @@ private:
   Core &core_;
   const psx::present::EmitMemory &memory_;
   SphereCamera camera_;
+  guest_moby_frustum::HorizontalSlope slope_;
   std::uint32_t detailCursor_ = 0;
   std::uint32_t translucentCursor_ = 0;
   std::uint32_t farCursor_ = 0;
@@ -83,6 +85,7 @@ void SectorClassifier::run() {
   camera_ = {.x = asSigned(frame_.positionWord(0)) >> 4,
              .y = asSigned(frame_.positionWord(1)) >> 4,
              .z = asSigned(frame_.positionWord(2)) >> 4};
+  slope_ = presentedSlope(core_);
   const std::uint32_t count = memory_.mem_r32(frame_.facts.classify.sectorCount);
   std::uint32_t slot = memory_.mem_r32(frame_.facts.classify.sectorTable);
   const std::uint32_t end = kScratchpad + count;
@@ -121,14 +124,15 @@ void SectorClassifier::classify(const Visible &visible) {
   const std::uint32_t centreZ = memory_.mem_r32(sector + sector::kCentreZ);
   const std::uint32_t flags = centreZ & kFlagMask;
   const std::uint32_t r = centreZ & kRadiusMask;
-  const SectorSphere sphere =
-      testSectorSphere(core_,
-                       {.centreXY = centreXY, .centreZ = centreZ, .radius = r},
-                       camera_,
-                       guest_moby_frustum::kRetailSlope);
+  const SphereWords words{.centreXY = centreXY, .centreZ = centreZ, .radius = r};
+  const SectorSphere sphere = testSectorSphere(core_, words, camera_, slope_);
   if (!sphere.visible) {
     return;
   }
+  // A margin sector is listed but keeps a zero byte and its animation, which the moby walk reads.
+  const bool retailSees =
+      slope_ == guest_moby_frustum::kRetailSlope ||
+      testSectorSphere(core_, words, camera_, guest_moby_frustum::kRetailSlope).visible;
   const std::uint32_t z = sphere.z;
   std::uint32_t marks = memory_.mem_r32(sector + sector::kAnimationMarks);
   std::uint32_t entry = sector | kEdgeTouching;
@@ -176,6 +180,9 @@ void SectorClassifier::classify(const Visible &visible) {
     }
   }
   marks |= claim;
+  if (!retailSees) {
+    return;
+  }
   memory_.mem_w8(visibilityByte, static_cast<std::uint8_t>(taken));
   // 80023E8C..80024314: each slot whose mark byte is still clear animates once.
   if (marks == 0xFFFFFFFFu) {
