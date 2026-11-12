@@ -39,7 +39,7 @@ inline constexpr std::array<spyro::LogoHold, 4> kLogoHolds{
 
 // The screens a Start/Cross press ends (spyro::CountedScreenSkip): counter 0x8006FBC4, fade
 // 0x8006C598.
-inline constexpr std::array<spyro::CountedScreen, 4> kCountedScreens{{
+inline constexpr std::array<spyro::CountedScreen, 6> kCountedScreens{{
     // FUN_80058778 leaves when it reads 0xD, then ++; its draw FUN_80059038 lights the picture
     // count * 16 until 8 and adds the caption past 7; sub-states 1 and 4 draw only bars.
     {.name = "the loading picture",
@@ -77,6 +77,28 @@ inline constexpr std::array<spyro::CountedScreen, 4> kCountedScreens{{
      .limit = 0x1F,
      .zeroIsBefore = true,
      .exceptWhile = {0x8006FBD0u, 0x8007056Cu}},
+    // Portal overlay 0x80076538 sub-state 3, the portal sky: ++ to 0x8C, the fade in for 8 and
+    // out from 0x85 while FUN_8002CA50 streams the load.
+    {.name = "the portal sky",
+     .state = 7u,
+     .subState = 3u,
+     .word = 0x8006FBC4u,
+     .step = 1,
+     .limit = 0x8B,
+     .minimumKept = 8u,
+     .zeroIsBefore = true,
+     .offeredFrom = 8},
+    // Sub-state 4, the sky under the level's name: ++ to 0x78, fade in for 8 and out from 0x70;
+    // leaving finishes the load and the autosave (stage 7 of FUN_8002CA50).
+    {.name = "the level-name sky",
+     .state = 7u,
+     .subState = 4u,
+     .word = 0x8006FBC4u,
+     .step = 1,
+     .limit = 0x77,
+     .minimumKept = 9u,
+     .zeroIsBefore = true,
+     .offeredFrom = 8},
 }};
 
 // FUN_80020168, the loading picture's fade-out (state 5 sub-state 3): 16 passes in one call, each

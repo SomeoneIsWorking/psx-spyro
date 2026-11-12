@@ -1,7 +1,7 @@
 # 0250 — Spyro transition fades and flights that a press does not end yet
 
-Status: open; the Spyro 2/3 level fade-in, the fade-out loop before a load, Spyro 2's load hold, its
-Exit Level fade and its portal flight end on a press. Owner: `game/core/counted_screen_skip.cpp`
+Status: open; the Spyro 2/3 level fade-in, the fade-out loop before a load, Spyro 2's load hold, the Exit
+Level fade, the portal flight and the two skies after it end on a press. Owner: `game/core/counted_screen_skip.cpp`
 (Spyro 2/3) and `titles/spyro1/core/frame/transition_skip.cpp` (Spyro 1).
 
 ## Done
@@ -43,14 +43,32 @@ counter `0x800698EC` / `0x8006FBC4` and the fade word `0x80066F68` / `0x8006C598
   or without the press (`sheet_s3flight_*`). Spyro 3's `warp` enters a level from its homeworld through its
   portal, and its `portal` arrival leaves through Exit Level, both via `spyro::portalInto` / `0x80053F50`.
 
+- After the flight both titles show two skies on the same count, in Spyro 2's boot overlay `0x80071BD4`
+  (sub-states 2 and 3) and in Spyro 3's portal overlay `0x80076538` (WAD `0x0322C800`, decomp manifest
+  `spyro3_portal`; sub-states 3 and 4): the portal sky, ++ to 0x8C with the fade in for 8 and out from 0x85, and
+  the sky under "Entering <level>", ++ to 0x78, out from 0x70. Each leaves through its own exit, which finishes
+  the load it streams synchronously (Spyro 3's stage 7 also finishes the autosave, `FUN_80077438`). A press keeps
+  the whole fade-out (8 / 9 updates); a press during the fade-in waits for its end (`CountedScreen::offeredFrom`;
+  Spyro 3 pressed at sky count 2 acts at 8, `8 -> 132`, `s3sky_1352.log`).
+  Spyro 2's own Triangle skip of the second sky on a visited level (`0x8006B2F8`) is left to the guest. Sky
+  `33 -> 131` and `34 -> 132`, both leaving on the same step; name sky `33 -> 111` and `34 -> 110`
+  (`sheet_s2sky_*`, `sheet_s3sky_*`: Spyro 3 `31 -> 131`, `32 -> 132`, `31 -> 111`, `32 -> 110`). Arrival with
+  both presses, paced: Summer Forest to Glimmer 10.770 s -> 4.814 s (178 frames), Spyro at (0x10C66, 0x818F,
+  0x2667) either way; Sunrise Spring to Sunny Villa 10.899 s -> 4.882 s (180 frames), (0xF8A4, 0x533D, 0x2F67)
+  either way. The pressed Spyro 2 run presents at p50 16.75 ms, p99 17.00 ms, 3 missed; the
+  misses seen in other runs of both kinds followed other agents' load on the host (`paced_s2sky_*`, `paced2_s2sky_*`).
+- Spyro 2's arrival flyby (state 6, `0x800742F8`; Idol Springs after Exit Level, count `0x80068C44` +2 per update
+  to 0x4AE) already ends on the guest's own Start/Cross (`0x800683A4 & 0x940`) once its count is 0x78, fading out
+  over 8 updates: a press at step 2500/2501 reaches gameplay at 2545/2546 instead of 3050 (`s2fly_*`). Before
+  0x78 the guest streams the flyby's first track and takes no press; that second is left to it.
+
 ## Not wanted
 - The fade-out and respawn hold after a death (sub-state 0 and 1 while `0x800698F8` / `0x8006FBD0` is set): not
   skipped, per the user, 2026-11-12.
 
 ## Not done
-- Spyro 2 state 7 sub-states 1-3 (overlay `0x80071BD4`) and Spyro 3's sub-states 1-5 (overlay `0x80076538`): the
-  portal's sky and load, about 290 / 260 updates after the flight; Spyro 2's state 6 arrival flyby (Idol
-  Springs: about 700 updates). Not traced.
+- Spyro 2's sub-state 1 and Spyro 3's sub-states 1-2 and 5 after the flight (Spyro 2 16 updates, Spyro 3 19:
+  the flight's tail and the load's first stages): not offered.
 - Spyro 1's balloonist (overlay `balloonist.inc.h`, `D_800777E8` at `0x800777E8`, tick `+4` by `g_DeltaTime`):
   state 5 places the camera from the tick alone while `LoadLevel(1)` runs a stage per frame and leaves at tick
   0x100 once stage 13 is reached, so a press can bring the tick to its end; states 2, 3 and 6 move the balloon per

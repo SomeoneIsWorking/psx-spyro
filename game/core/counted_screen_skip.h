@@ -34,6 +34,8 @@ struct CountedScreen {
   std::int32_t mustReach = 0;
   std::uint32_t mustReachFlags = 0;
   std::uint32_t mustReachKind = 0;
+  // A press waits until the count reaches this, the end of the screen's fade-in. 0: none.
+  std::int32_t offeredFrom = 0;
 };
 
 // A fade that loops inside one guest call, one field per pass: its count is a register of the call

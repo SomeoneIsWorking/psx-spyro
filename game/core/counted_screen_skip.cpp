@@ -83,10 +83,14 @@ void CountedScreenSkip::observe(Core &core, bool pressed) {
     return;
   }
   press_.observe(pressed);
+  const auto value = static_cast<std::int32_t>(core.mem_r32(screen->word));
+  if (screen->offeredFrom != 0 &&
+      remainingUpdates(*screen, value) > remainingUpdates(*screen, screen->offeredFrom)) {
+    return;
+  }
   if (!press_.take()) {
     return;
   }
-  const auto value = static_cast<std::int32_t>(core.mem_r32(screen->word));
   const std::optional<std::int32_t> to =
       endedCount(*screen, value, minimumKept(core, *screen, value));
   if (!to) {

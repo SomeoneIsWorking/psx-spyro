@@ -34,7 +34,7 @@ inline constexpr std::array<spyro::LogoHold, 4> kLogoHolds{
 
 // The screens a Start/Cross press ends (spyro::CountedScreenSkip): counter 0x800698EC, fade
 // 0x80066F68.
-inline constexpr std::array<spyro::CountedScreen, 5> kCountedScreens{{
+inline constexpr std::array<spyro::CountedScreen, 7> kCountedScreens{{
     // FUN_80019364: ++ and leave at 0xE; at 0xB it finishes the autosave 0x80063278[0x800698F4]
     // asks for. Its draw FUN_800151F0 lights the picture count * 16 until 8.
     {.name = "the loading picture",
@@ -86,6 +86,30 @@ inline constexpr std::array<spyro::CountedScreen, 5> kCountedScreens{{
      .limit = 0x1F,
      .zeroIsBefore = true,
      .exceptWhile = {0x800698F8u}},
+    // FUN_80071BD4 sub-state 2, the portal sky: ++ to 0x8C, the camera by count / 0x8C, the fade
+    // in for 8 and out from 0x85; leaving at 0x8C finishes the load it streams.
+    {.name = "the portal sky",
+     .state = 7u,
+     .subState = 2u,
+     .word = 0x800698ECu,
+     .step = 1,
+     .limit = 0x8B,
+     .minimumKept = 8u,
+     .zeroIsBefore = true,
+     .offeredFrom = 8},
+    // Sub-state 3, the sky under the level's name: ++ to 0x78, fade in for 8 and out from 0x70;
+    // sub-state 4 finishes the load. 0x8006B2F8 is set when Triangle ends it early on a level
+    // already visited.
+    {.name = "the level-name sky",
+     .state = 7u,
+     .subState = 3u,
+     .word = 0x800698ECu,
+     .step = 1,
+     .limit = 0x77,
+     .minimumKept = 9u,
+     .zeroIsBefore = true,
+     .exceptWhile = {0x8006B2F8u},
+     .offeredFrom = 8},
 }};
 
 // FUN_8004D810, the fade-out before a load (state 5's draw FUN_800151F0, the ending's update
