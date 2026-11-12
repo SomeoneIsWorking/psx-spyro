@@ -41,7 +41,8 @@ constexpr std::uint32_t kCdCommand = 0x8005E0BCu;
 // libcd's CdReadyCallback word, defaulted by CdInit at 0x8005DB6C.
 constexpr std::uint32_t kCdReadyCallbackPointer = 0x8006B3D0u;
 
-// The per-sector reader 0x80050504 ends a read on `$a0 & 0xFF == 2`.
+// The per-sector reader 0x80050504 ends a read on `$a0 & 0xFF == 2`. Drive time stays: the loader
+// 0x8002CA50 checksums code only while a read is in flight (issue 0247).
 constexpr psx::cd::GuestInterruptLibcd::Completion kCdCompletion{.status = 2, .perStockRead = true};
 
 } // namespace

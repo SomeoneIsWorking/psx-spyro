@@ -61,7 +61,9 @@ constexpr psx::hle::StockLibgte::Entries kLibgte{.setGeomOffset = 0x80057AF8u,
 constexpr psx::game::Crt0Image kCrt0{.entry = 0x8005478Cu};
 
 // The ready callback 0x8001379C ends a read on `$a0 & 0xFF == 2`.
-constexpr psx::cd::GuestInterruptLibcd::Completion kCdCompletion{.status = 2, .perStockRead = true};
+// Its loads poll that callback, so a completion at the drive's rate is a loading-only wait.
+constexpr psx::cd::GuestInterruptLibcd::Completion kCdCompletion{
+    .status = 2, .perStockRead = true, .timing = psx::cd::ReadTiming::AtOnce};
 
 } // namespace
 
