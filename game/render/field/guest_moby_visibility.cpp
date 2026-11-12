@@ -236,9 +236,6 @@ MobyWalk::Step MobyWalk::visit(std::uint32_t rec) {
   }
   const MeshSlots mesh = slotsOf(rec);
   if (!mesh.resident()) {
-    if (margin()) {
-      return Step::Next;
-    }
     // The mesh is not resident: its slot word is not a pointer. Hand the moby on with its
     // camera-relative centre and reach instead of drawing it.
     defer({.rec = rec,

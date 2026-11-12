@@ -5,6 +5,7 @@
 
 #include "core.h"
 #include "native_dispatch.h"
+#include "render/field/guest_moby_deferred.h"
 #include "render/field/guest_moby_drawer.h"
 #include "render/field/guest_moby_shadows.h"
 #include "render/field/guest_moby_visibility.h"
@@ -32,6 +33,7 @@ struct EngineRenderFacts {
   // entry's faces under the translation the walk tagged with its view unit and bucket.
   guest_moby_drawer::Facts mobyDrawer;
   guest_moby_shadows::Facts mobyShadows;
+  guest_moby_deferred::Facts mobyDeferred;
   spyro_drawer_depth::Facts spyroDrawer;
   guest_sky::Facts sky;
   std::uint32_t flatten = 0;
@@ -59,13 +61,27 @@ template <const EngineRenderFacts &facts> void walkMobys(Core *core) {
   guest_moby::walk(*core, facts.moby, facts.globals, {});
 }
 
+template <const EngineRenderFacts &facts>
+inline constexpr guest_moby_deferred::Image kDeferredImage{
+    facts.mobyDeferred, facts.moby, facts.terrain, facts.globals};
+
+template <const EngineRenderFacts &facts> void drawDeferredMobys(Core *core) {
+  guest_moby_deferred::draw(*core, kDeferredImage<facts>, guest_moby_deferred::Selection::Retail);
+}
+
+template <const EngineRenderFacts &facts> void drawMarginDeferredMobys(Core *core) {
+  guest_moby_deferred::draw(*core, kDeferredImage<facts>, guest_moby_deferred::Selection::Margin);
+}
+
 template <const EngineRenderFacts &facts> void drawMobys(Core *core) {
   guest_moby_drawer::draw(*core,
                           {.drawer = facts.mobyDrawer,
                            .walk = facts.moby,
                            .globals = facts.globals,
                            .sectorTable = facts.terrain.classify.sectorTable,
-                           .shadowDrawer = facts.mobyShadows.entry});
+                           .shadowDrawer = facts.mobyShadows.entry,
+                           .deferredDrawer = facts.mobyDeferred.entry,
+                           .marginDeferred = drawMarginDeferredMobys<facts>});
 }
 
 template <const EngineRenderFacts &facts> void drawMobyShadows(Core *core) {
@@ -99,6 +115,10 @@ template <const EngineRenderFacts &facts> void registerEngineRenderOverrides(Cor
                                   facts.mobyShadows.entry,
                                   facts.mobyShadows.overrideName,
                                   engine_render::drawMobyShadows<facts>);
+  psx::cpu::installNativeOverride(core,
+                                  facts.mobyDeferred.entry,
+                                  facts.mobyDeferred.overrideName,
+                                  engine_render::drawDeferredMobys<facts>);
   psx::cpu::installNativeOverride(
       core, facts.sky.entry, facts.sky.overrideName, engine_render::drawSky<facts>);
   psx::cpu::installNativeOverride(

@@ -296,6 +296,11 @@ inline constexpr spyro::EngineRenderFacts kRenderFacts{
     .mobyShadows = {.entry = 0x800499D4u,
                     .overrideName = "spyro2-moby-shadows",
                     .texture = kMobyFacts.exitV0},
+    // The walk's deferred buffer's drawer, the object pass's third call (8004C56C).
+    .mobyDeferred = {.entry = 0x80046FD8u,
+                     .overrideName = "spyro2-moby-deferred",
+                     .paletteTable = 0x80064440u,
+                     .fogColour = 0x800681C0u},
     .spyroDrawer = kSpyroDrawer,
     .sky = kSkyFacts,
     .flatten = kFlatten,

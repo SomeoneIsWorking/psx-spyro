@@ -24,9 +24,9 @@ constexpr std::uint32_t kBucketBytes = 0xC00;
 
 // Which of the drawer's calls a margin pass follows.
 enum class Pass : std::uint8_t {
-  // The field's object pass: the walk's shadows are drawn after the drawer.
+  // The field's object pass: the deferred mobys and the walk's shadows are drawn after the drawer.
   Field,
-  // Spyro 3's chained Sparx pass, which draws no shadows.
+  // Spyro 3's chained Sparx pass, which draws neither.
   Chained,
 };
 
@@ -83,10 +83,17 @@ private:
                      globals,
                      {.margin = &sectors, .level = core_.mem_r32(image_.sectorTable)});
     const std::uint32_t listed = listedEntries(scratch + guest_moby::kRenderListAboveScratch);
-    if (!redraw.run(image_.drawer.entry, {}) ||
-        (pass_ == Pass::Field && !redraw.dispatch(image_.shadowDrawer, {}))) {
+    if (!redraw.run(image_.drawer.entry, {})) {
       redraw.keepNothing();
       return start;
+    }
+    if (pass_ == Pass::Field) {
+      const psx::cpu::ExecutionResult deferred =
+          psx::cpu::invokeNativeFunction(core_, image_.deferredDrawer, image_.marginDeferred);
+      if (!deferred.returned() || !redraw.dispatch(image_.shadowDrawer, {})) {
+        redraw.keepNothing();
+        return start;
+      }
     }
     const std::uint32_t end = core_.mem_r32(globals.primitiveCursor);
     if (end > limit) {

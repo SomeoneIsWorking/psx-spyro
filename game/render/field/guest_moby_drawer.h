@@ -5,8 +5,9 @@
 // The guest's call draws retail's list. At a widened aspect the field's object pass (8004C534 /
 // 8001EC5C) then draws the margin: inside a rolled-back run the walk lists only the mobys retail
 // leaves out, wholly past the 4:3 window or in a margin-only sector (guest_moby_visibility.h), over
-// the list region the drawer just consumed; the original drawer draws them, and the shadow drawer
-// the close ones among them (guest_moby_shadows.h), into the idle draw buffer's pool
+// the list region the drawer just consumed; the original drawer draws them, the deferred drawer the
+// far ones the presented half-angle adds (guest_moby_deferred.h), and the shadow drawer the close
+// ones among them (guest_moby_shadows.h), into the idle draw buffer's pool
 // (DrawSection::idlePool), so the guest's cursor and the pool room it tests stay retail's. Spyro
 // 3's chained Sparx pass draws his margin the same way, after the field pass's packets
 // (margin_packets.h). The run keeps what the frame needs of it: those packets, the ordering-table
@@ -16,6 +17,7 @@
 #pragma once
 
 #include "core.h"
+#include "native_function.h"
 #include "render/field/guest_moby_visibility.h"
 #include "render/field/guest_render_globals.h"
 #include "render/field/intro_card.h"
@@ -43,6 +45,9 @@ struct Image {
   const guest_render_globals::Globals &globals;
   std::uint32_t sectorTable = 0;  // the word holding the level's terrain sector table
   std::uint32_t shadowDrawer = 0; // the close list's drawer (guest_moby_shadows.h)
+  // The deferred drawer (guest_moby_deferred.h) and its body bound to the margin selection.
+  std::uint32_t deferredDrawer = 0;
+  psx::cpu::NativeFunction marginDeferred = nullptr;
 };
 
 void draw(Core &core, const Image &image);

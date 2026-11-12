@@ -33,7 +33,9 @@
 // the margin selection inside a rolled-back run: spheres inside the presented window that retail
 // leaves out, wholly past the 4:3 window in a group the guest shows, or anywhere in a margin-only
 // sector (margin_sectors.h), whose groups retail draws nowhere; close ones go on the close list for
-// the shadow drawer, and nothing is deferred. The drawers' edge tests stay 4:3, so a widened view lists a moby that
+// the shadow drawer, and those without a resident mesh are deferred as retail defers them, in a
+// shown group or a margin-only one, for the deferred drawer's margin call (guest_moby_deferred.h),
+// which keeps only what the presented half-angle adds. The moby drawer's edge tests stay 4:3, so a widened view lists a moby that
 // reaches past that window and is clear of the eye as inside (2) in its entry; its record keeps the
 // frustum class.
 //
