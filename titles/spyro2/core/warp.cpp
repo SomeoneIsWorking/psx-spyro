@@ -41,6 +41,14 @@ constexpr std::uint32_t kLevelIdEnd = 0x46u;
 constexpr std::uint32_t kBossSlot = 6u;
 constexpr std::uint32_t kLevelsPerSlotRow = 10u;
 constexpr std::uint32_t kGameplayGameState = 0u;
+// The level's trigger records (pointer list, then the records it points at) and its portal records:
+// a type-6 trigger calls 0x80019928(index) at 0x8002AD98, and portal `index`'s byte 0x42 is where
+// it leads in a homeworld.
+constexpr std::uint32_t kTriggerTable = 0x800673E8u;
+constexpr std::uint8_t kPortalTrigger = 6u;
+constexpr std::uint32_t kPortalTable = 0x80066F00u;
+constexpr std::uint32_t kPortalRecordSize = 0x44u;
+constexpr std::uint32_t kPortalDestination = 0x42u;
 
 // The homeworld the guest tables put `level` under; 0 for an id that is no level.
 std::uint32_t homeworldOf(Core &core, std::uint32_t level) {
@@ -57,6 +65,27 @@ std::uint32_t homeworldOf(Core &core, std::uint32_t level) {
 bool leavesForPortal(Core &core, std::uint32_t level) {
   const std::uint32_t homeworld = homeworldOf(core, level);
   return homeworld != 0u && level != homeworld && level % kLevelsPerSlotRow != kBossSlot;
+}
+
+// The index of the current level's portal into `level`, as its trigger names it.
+std::optional<std::uint32_t> portalInto(Core &core, std::uint32_t level) {
+  const std::uint32_t table = core.mem_r32(kTriggerTable);
+  const std::uint32_t portals = core.mem_r32(kPortalTable);
+  if (table == 0u || portals == 0u) {
+    return std::nullopt;
+  }
+  const std::uint32_t records = core.mem_r32(table);
+  for (std::uint32_t slot = table; slot < records; slot += 4u) {
+    const std::uint32_t record = core.mem_r32(slot);
+    if (core.mem_r8(record) != kPortalTrigger) {
+      continue;
+    }
+    const std::uint32_t index = core.mem_r32(record + 4u);
+    if (core.mem_r8(portals + index * kPortalRecordSize + kPortalDestination) == level) {
+      return index;
+    }
+  }
+  return std::nullopt;
 }
 
 // The lowest level id under `homeworld` with a portal there.
@@ -136,6 +165,12 @@ void Warp::changeLevel(Core &core, std::uint32_t level) const {
     return;
   }
   if (leavesForPortal(core, level)) {
+    if (core.mem_r32(kLevelId) == homeworld) {
+      if (const std::optional<std::uint32_t> portal = portalInto(core, level)) {
+        psx::cpu::callGuestNow(core, "warp-portal-entry", kLevelExit, *portal);
+        return;
+      }
+    }
     psx::cpu::callGuestNow(core, "warp-level-exit", kLevelExit, kExitToHomeworld);
     core.mem_w32(kExitDestination, level);
     return;

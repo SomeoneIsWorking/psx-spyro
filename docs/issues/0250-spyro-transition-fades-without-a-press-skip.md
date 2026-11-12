@@ -1,6 +1,7 @@
 # 0250 — Spyro transition fades and flights that a press does not end yet
 
-Status: open; the Spyro 2/3 level fade-in and Spyro 2's load hold end on a press. Owner: `game/core/counted_screen_skip.cpp`
+Status: open; the Spyro 2/3 level fade-in, the fade-out loop before a load, Spyro 2's load hold, its
+Exit Level fade and its portal flight end on a press. Owner: `game/core/counted_screen_skip.cpp`
 (Spyro 2/3) and `titles/spyro1/core/frame/transition_skip.cpp` (Spyro 1).
 
 ## Done
@@ -14,15 +15,35 @@ counter `0x800698EC` / `0x8006FBC4` and the fade word `0x80066F68` / `0x8006C598
 - Spyro 2's load hold (sub-state 1, black, ++ once the load is issued, leaves past 5): `2 -> 4`
   (`scratch/fades/s2h2`). A press on a screen that is not offered is dropped, not carried to the next (`s2h1`).
 
+- The fade-out loop before a load (Spyro 2 `0x8004D810`, from state 5's draw `0x800151F0` and the ending's
+  update `0x800159C8`; Spyro 3 `0x80020168`, from state 5 sub-state 3 in `0x80059038`): 16 passes inside one call,
+  each darkening the drawn buffer and waiting in `VSync(0)`, the pass count in `$s0` (`slti $s0, 0x10` at
+  `0x8004D948` / `0x800202A0`). The frame driver already suspends the call at that wait, one field per step, so no
+  override is needed: a `spyro::CountedLoop` moves the suspended `$s0` (`ResumableGuestCall::setSuspendedRegister`)
+  and the loop's own test leaves after the kept passes. Spyro 3 `6 -> 14` and `7 -> 13`, Spyro 2's title fade
+  `8 -> 14` and `9 -> 13`, its picture fade likewise (`scratch/skip0250/sheet_s3loop_*`, `sheet_s2loop_*`). Paced:
+  `warp 0/1/0` start to gameplay Spyro 3 2.475 s -> 2.325 s, Spyro 2 2.292 s -> 2.124 s (both loops), p50 16.75 ms;
+  the worst interval is the load hold, present without a press.
+- Spyro 2 state 7 (`0x80019C40`) sub-state 0 has two courses on `0x800698EC`. After Exit Level
+  (`0x80019928(-1)` sets `0x800698F8`): +2 per update, the fade `(count + 1) * 8`; `12 -> 28` and `14 -> 26`
+  (`sheet_s2exit_*`); Glimmer to Idol Springs arrival 30.124 s -> 29.857 s. After a portal (`0x80019928(index)`,
+  the type-6 trigger at `0x8002AD98`): +1 per update to 0x20, the camera eased from `0x8006B2D4` to `0x8006B2E0`
+  by count / 32 and Spyro moved by `0x8006B2C4`; `11 -> 29` and `12 -> 30`, both leaving on the same step
+  (`sheet_s2flight_*`); Summer Forest to Glimmer arrival 10.765 s -> 10.164 s. Nothing persistent depends on where
+  the flight ends: sub-state 2's load resets Spyro to (0x2000, 0x2000), and sub-state 4 reads the flight words
+  `0x8006B2B8` only on arrival in a homeworld (`0x80066EE4`), which a portal from a homeworld never is; the
+  Glimmer arrival is (0x10C66, 0x818F, 0x2667), camera 0x1140A, with or without the press. The `warp` from a
+  homeworld now enters a level through its own portal (`spyro2::Warp::changeLevel`).
+
+## Not wanted
+- The fade-out and respawn hold after a death (sub-state 0 and 1 while `0x800698F8` / `0x8006FBD0` is set): not
+  skipped, per the user, 2026-11-12.
+
 ## Not done
-- The fade-out (sub-state 0, +0x10 until past 0xFE) and the respawn hold (sub-state 1 while `0x800698F8` /
-  `0x8006FBD0` is set, to 0x4F) run only after a death (Spyro 2 `0x8004C1AC` from `0x80032E74`); no debug route
-  reaches a death, so they are not offered.
-- Spyro 2 state 7 (`0x80019C40`): the level-exit flight, its camera moved per update and the fade `(count + 1) * 8`
-  over `0x800698EC` to 0x20; reached by `warp` from play (`scratch/fades/spyro2_trace.log` 1151-1166). State 6 after
-  it is the arrival flyby (fade 0xF8 down by 0x20).
-- Spyro 3 `0x80020168` runs all 16 steps of its fade-out inside one call (its own `VSync`/`DrawOTag` loop); a press
-  needs an override that owns the function and leaves its loop, as the logo holds do.
+- Spyro 2 state 7 sub-states 1-3 (overlay `0x80071BD4`): the portal's sky and load, about 290 updates after the
+  flight; and state 6, the arrival flyby (Idol Springs: about 700 updates). Not traced.
+- Spyro 3 state 7 (`0x80054450`) has the same two courses on `0x8006FBC4`; the flight runs only while both
+  `0x8006FBD0` and `0x8007056C` are zero.
 - Spyro 1's balloonist (overlay `balloonist.inc.h`, `D_800777E8` at `0x800777E8`, tick `+4` by `g_DeltaTime`):
   state 5 places the camera from the tick alone while `LoadLevel(1)` runs a stage per frame and leaves at tick
   0x100 once stage 13 is reached, so a press can bring the tick to its end; states 2, 3 and 6 move the balloon per

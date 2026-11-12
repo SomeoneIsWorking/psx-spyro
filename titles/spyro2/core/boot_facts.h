@@ -34,7 +34,7 @@ inline constexpr std::array<spyro::LogoHold, 4> kLogoHolds{
 
 // The screens a Start/Cross press ends (spyro::CountedScreenSkip): counter 0x800698EC, fade
 // 0x80066F68.
-inline constexpr std::array<spyro::CountedScreen, 3> kCountedScreens{{
+inline constexpr std::array<spyro::CountedScreen, 5> kCountedScreens{{
     // FUN_80019364: ++ and leave at 0xE; at 0xB it finishes the autosave 0x80063278[0x800698F4]
     // asks for. Its draw FUN_800151F0 lights the picture count * 16 until 8.
     {.name = "the loading picture",
@@ -66,6 +66,33 @@ inline constexpr std::array<spyro::CountedScreen, 3> kCountedScreens{{
      .word = 0x80066F68u,
      .step = -0x10,
      .limit = 1},
+    // FUN_80019C40 sub-state 0 after Exit Level (0x80019928(-1) sets 0x800698F8): +2 per update,
+    // the fade (count + 1) * 8, then the load once the count is 0x20 and FUN_8001D658 has run.
+    {.name = "the level-exit fade",
+     .state = 7u,
+     .subState = 0u,
+     .word = 0x800698ECu,
+     .step = 2,
+     .limit = 0x1E,
+     .onlyWhile = 0x800698F8u},
+    // Sub-state 0 after a portal (0x80019928(index)): +1 per update to 0x20, the camera eased from
+    // 0x8006B2D4 to 0x8006B2E0 by count / 32 and Spyro moved by 0x8006B2C4; count 0 starts its
+    // sound.
+    {.name = "the portal flight",
+     .state = 7u,
+     .subState = 0u,
+     .word = 0x800698ECu,
+     .step = 1,
+     .limit = 0x1F,
+     .zeroIsBefore = true,
+     .exceptWhile = 0x800698F8u},
+}};
+
+// FUN_8004D810, the fade-out before a load (state 5's draw FUN_800151F0, the ending's update
+// FUN_800159C8): 16 passes in one call, each darkening the drawn buffer and waiting at 0x8004D910;
+// `slti $s0, 0x10` at 0x8004D948.
+inline constexpr std::array<spyro::CountedLoop, 1> kCountedLoops{{
+    {.name = "the fade-out loop", .waitReturn = 0x8004D918u, .reg = 16, .step = 1, .limit = 0xF},
 }};
 
 // Game main 0x80011ADC: boot prefix 0x80011E9C (jal at 0x80011AE4), then the loop jal 0x8001B140 /
@@ -77,14 +104,14 @@ inline constexpr spyro::BootPrefixFacts kBootPrefixFacts{
     .frameDraw = 0x800156FCu,
     // FUN_8001271C clamps the delta 0x80067018 to [2, 4].
     .deltaClampFields = 4,
-    // FUN_8004D810 waits at 0x8004D910.
-    .fadeFrameWait = 0x8004D918u,
+    .fadeFrameWait = kCountedLoops[0].waitReturn,
     .logoHolds = {.holds = kLogoHolds,
                   .start = {.word = 0x80067E00u},
                   .vsyncCounter = kVSyncQueryCounter},
     .countedScreens = {.gameState = kGameState,
                        .subState = kGameSubState,
-                       .screens = kCountedScreens},
+                       .screens = kCountedScreens,
+                       .loops = kCountedLoops},
     .field =
         {
             .titleName = "Spyro 2",

@@ -28,8 +28,9 @@ protected:
   void startLevel(Core &core, std::uint32_t level) const override;
   // Game state 0, free play in a loaded level.
   [[nodiscard]] bool levelChangeReady(Core &core) const override;
-  // Exit Level with its destination 0x8006715C set to the level; a boss arena through the boss
-  // door from its homeworld.
+  // From the level's homeworld, through its portal there (0x80019928(index)); from elsewhere, Exit
+  // Level with its destination 0x8006715C set to the level; a boss arena through the boss door
+  // from its homeworld.
   void changeLevel(Core &core, std::uint32_t level) const override;
   // Game state 0 in `level`.
   [[nodiscard]] bool playing(Core &core, std::uint32_t level) const override;

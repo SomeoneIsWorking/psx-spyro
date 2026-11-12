@@ -59,6 +59,12 @@ inline constexpr std::array<spyro::CountedScreen, 2> kCountedScreens{{
      .limit = 1},
 }};
 
+// FUN_80020168, the loading picture's fade-out (state 5 sub-state 3): 16 passes in one call, each
+// darkening the drawn buffer and waiting at 0x80020268; `slti $s0, 0x10` at 0x800202A0.
+inline constexpr std::array<spyro::CountedLoop, 1> kCountedLoops{{
+    {.name = "the fade-out loop", .waitReturn = 0x80020270u, .reg = 16, .step = 1, .limit = 0xF},
+}};
+
 // Game main 0x8001200C: boot prefix 0x8002AB38 (jal at 0x8001201C), then the loop jal 0x80055400 /
 // jal 0x8001E638. Bound measurements: docs/issues/0156.
 inline constexpr spyro::BootPrefixFacts kBootPrefixFacts{
@@ -68,12 +74,12 @@ inline constexpr spyro::BootPrefixFacts kBootPrefixFacts{
     .frameDraw = 0x8001E638u,
     // FUN_8003A584 clamps the delta 0x8006C648 to [2, 4].
     .deltaClampFields = 4,
-    // FUN_80020168 waits at 0x80020268.
-    .fadeFrameWait = 0x80020270u,
+    .fadeFrameWait = kCountedLoops[0].waitReturn,
     .logoHolds = {.holds = kLogoHolds, .start = {.reg = 21}, .vsyncCounter = kVSyncQueryCounter},
     .countedScreens = {.gameState = kGameState,
                        .subState = kGameSubState,
-                       .screens = kCountedScreens},
+                       .screens = kCountedScreens,
+                       .loops = kCountedLoops},
     .field =
         {
             .titleName = "Spyro 3",
