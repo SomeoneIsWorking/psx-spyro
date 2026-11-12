@@ -18,10 +18,6 @@ namespace {
 // libetc VSync: a negative argument returns the field delta.
 constexpr std::uint32_t kVSync = 0x80058EDCu;
 
-// A negative VSync returns this guest vblank count (lw at 0x80058F40, ++ at 0x8005ACB0);
-// docs/issues/0160.
-constexpr std::uint32_t kVSyncQueryCounter = 0x80066618u;
-
 // libcd CdCommand(com, parm, result).
 constexpr std::uint32_t kCdCommand = 0x80058858u;
 

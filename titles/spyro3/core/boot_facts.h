@@ -3,6 +3,7 @@
 #include "core/boot_prefix_frame_driver.h"
 #include "spyro3/render/render_facts.h"
 
+#include <array>
 #include <cstdint>
 
 namespace spyro3 {
@@ -30,6 +31,17 @@ inline constexpr spyro::LevelLoadFacts kLevelLoad{
 // The state whose overlay plays a cutscene's camera track (blend test at 0x80077E0C as loaded).
 inline constexpr std::uint32_t kCutsceneGameState = 6u;
 
+// Negative VSync reads the libetc vblank count at 0x8006B480 (docs/issues/0160).
+inline constexpr std::uint32_t kVSyncQueryCounter = 0x8006B480u;
+
+// The boot overlay's logo sequence 0x80074DEC(1) (WAD 0x23000 at 0x800742D0): the Sony card's hold,
+// the Universal card's two (both from one start) and the Insomniac card's, each against the start
+// field it keeps in $s5.
+inline constexpr std::array<spyro::LogoHold, 4> kLogoHolds{{{0x80074FD8u, 0xA4u},
+                                                            {0x800750B4u, 0x3Cu},
+                                                            {0x800751E8u, 0xB4u},
+                                                            {0x800755E0u, 0xB4u}}};
+
 // Game main 0x8001200C: boot prefix 0x8002AB38 (jal at 0x8001201C), then the loop jal 0x80055400 /
 // jal 0x8001E638. Bound measurements: docs/issues/0156.
 inline constexpr spyro::BootPrefixFacts kBootPrefixFacts{
@@ -41,6 +53,7 @@ inline constexpr spyro::BootPrefixFacts kBootPrefixFacts{
     .deltaClampFields = 4,
     // FUN_80020168 waits at 0x80020268.
     .fadeFrameWait = 0x80020270u,
+    .logoHolds = {.holds = kLogoHolds, .start = {.reg = 21}, .vsyncCounter = kVSyncQueryCounter},
     .field =
         {
             .titleName = "Spyro 3",

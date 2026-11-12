@@ -25,9 +25,6 @@ constexpr psx::game::Crt0Image kCrt0{.entry = 0x80059444u};
 // libetc VSync: a non-negative argument waits, a negative one returns the count.
 constexpr std::uint32_t kVSync = 0x8005956Cu;
 
-// Negative VSync reads the libetc vblank count at 0x8006B480 (docs/issues/0160).
-constexpr std::uint32_t kVSyncQueryCounter = 0x8006B480u;
-
 // libcd CdRead(dest, src, mode).
 constexpr std::uint32_t kCdRead = 0x8005D96Cu;
 

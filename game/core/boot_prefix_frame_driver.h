@@ -4,6 +4,7 @@
 #include "core/draw_section.h"
 #include "core/field_owner.h"
 #include "core/frame_cut.h"
+#include "core/logo_hold.h"
 #include "game_runtime.h"
 #include "machine_state.h"
 #include "replay_frame.h"
@@ -33,6 +34,8 @@ struct BootPrefixFacts {
   // The display wait (VSync return) of the fade loop before a load, which swaps and draws one frame
   // per field.
   std::uint32_t fadeFrameWait = 0;
+  // The boot logos' holds a press ends; empty when none is recovered.
+  LogoHoldFacts logoHolds;
   FieldOwnerFacts field;
   FrameCutFacts cut;
   std::uint64_t bootFieldLimit = kDefaultBootFieldLimit;
@@ -122,6 +125,7 @@ private:
   BootPrefixFacts facts_;
   FieldOwner fields_;
   FrameCut cut_;
+  LogoHoldSkip logoHolds_;
   const DrawSection &section_;
   DrawMotion motion_;
   psx::present::ReplayFrame replay_;
