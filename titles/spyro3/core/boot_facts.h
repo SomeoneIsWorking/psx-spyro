@@ -39,7 +39,7 @@ inline constexpr std::array<spyro::LogoHold, 4> kLogoHolds{
 
 // The screens a Start/Cross press ends (spyro::CountedScreenSkip): counter 0x8006FBC4, fade
 // 0x8006C598.
-inline constexpr std::array<spyro::CountedScreen, 2> kCountedScreens{{
+inline constexpr std::array<spyro::CountedScreen, 4> kCountedScreens{{
     // FUN_80058778 leaves when it reads 0xD, then ++; its draw FUN_80059038 lights the picture
     // count * 16 until 8 and adds the caption past 7; sub-states 1 and 4 draw only bars.
     {.name = "the loading picture",
@@ -57,6 +57,26 @@ inline constexpr std::array<spyro::CountedScreen, 2> kCountedScreens{{
      .word = 0x8006C598u,
      .step = -0x10,
      .limit = 1},
+    // FUN_80054450 sub-state 0 after Exit Level (0x80053F50(-1) sets 0x8006FBD0) or while
+    // 0x8007056C is set: +2 per update, the fade (count + 1) * 8, then the load once the count is
+    // 0x20 and FUN_8002CA50 has run.
+    {.name = "the level-exit fade",
+     .state = 7u,
+     .subState = 0u,
+     .word = 0x8006FBC4u,
+     .step = 2,
+     .limit = 0x1E,
+     .onlyWhile = {0x8006FBD0u, 0x8007056Cu}},
+    // Sub-state 0 after a portal (0x80053F50(index)): +1 per update to 0x20, the camera eased from
+    // 0x80072308 to 0x80072314 by count / 32 and Spyro moved by 0x800722F8.
+    {.name = "the portal flight",
+     .state = 7u,
+     .subState = 0u,
+     .word = 0x8006FBC4u,
+     .step = 1,
+     .limit = 0x1F,
+     .zeroIsBefore = true,
+     .exceptWhile = {0x8006FBD0u, 0x8007056Cu}},
 }};
 
 // FUN_80020168, the loading picture's fade-out (state 5 sub-state 3): 16 passes in one call, each

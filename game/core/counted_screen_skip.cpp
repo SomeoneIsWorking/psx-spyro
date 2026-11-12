@@ -32,6 +32,21 @@ endedCount(const Count &count, std::int32_t value, std::uint32_t minimum) {
   return value + static_cast<std::int32_t>(remaining - kept) * count.step;
 }
 
+// Whether any listed word is non-zero; `none` when the list is empty.
+bool anySet(Core &core, const std::array<std::uint32_t, 2> &words, bool none) {
+  bool listed = false;
+  for (const std::uint32_t word : words) {
+    if (word == 0u) {
+      continue;
+    }
+    listed = true;
+    if (core.mem_r32(word) != 0u) {
+      return true;
+    }
+  }
+  return listed ? false : none;
+}
+
 std::uint32_t minimumKept(Core &core, const CountedScreen &screen, std::int32_t value) {
   if (screen.mustReach == 0 || value >= screen.mustReach ||
       core.mem_r8(screen.mustReachFlags + core.mem_r32(screen.mustReachKind)) == 0u) {
@@ -51,8 +66,7 @@ const CountedScreen *CountedScreenSkip::showing(Core &core) const {
   for (const CountedScreen &screen : facts_.screens) {
     if (screen.state == state && screen.subState == subState &&
         !(screen.zeroIsBefore && core.mem_r32(screen.word) == 0u) &&
-        !(screen.exceptWhile != 0u && core.mem_r32(screen.exceptWhile) != 0u) &&
-        !(screen.onlyWhile != 0u && core.mem_r32(screen.onlyWhile) == 0u)) {
+        !anySet(core, screen.exceptWhile, false) && anySet(core, screen.onlyWhile, true)) {
       return &screen;
     }
   }

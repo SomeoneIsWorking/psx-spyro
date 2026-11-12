@@ -71,6 +71,7 @@ set(SPYRO_RUNTIME_SOURCES
   game/core/session.cpp
   game/core/debug/debug_menu.cpp
   game/core/debug/moby_teleport.cpp
+  game/core/debug/portal_entry.cpp
   game/core/debug/warp.cpp
   game/core/runtime.cpp
   game/core/title_runtime_registry.cpp

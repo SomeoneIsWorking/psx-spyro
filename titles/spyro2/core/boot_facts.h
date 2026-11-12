@@ -58,7 +58,7 @@ inline constexpr std::array<spyro::CountedScreen, 5> kCountedScreens{{
      .limit = 5,
      .minimumKept = 1u,
      .zeroIsBefore = true,
-     .exceptWhile = 0x800698F8u},
+     .exceptWhile = {0x800698F8u}},
     // Sub-state 2: the field fades in, -0x10 until below 1.
     {.name = "the level fade-in",
      .state = 3u,
@@ -74,7 +74,7 @@ inline constexpr std::array<spyro::CountedScreen, 5> kCountedScreens{{
      .word = 0x800698ECu,
      .step = 2,
      .limit = 0x1E,
-     .onlyWhile = 0x800698F8u},
+     .onlyWhile = {0x800698F8u}},
     // Sub-state 0 after a portal (0x80019928(index)): +1 per update to 0x20, the camera eased from
     // 0x8006B2D4 to 0x8006B2E0 by count / 32 and Spyro moved by 0x8006B2C4; count 0 starts its
     // sound.
@@ -85,7 +85,7 @@ inline constexpr std::array<spyro::CountedScreen, 5> kCountedScreens{{
      .step = 1,
      .limit = 0x1F,
      .zeroIsBefore = true,
-     .exceptWhile = 0x800698F8u},
+     .exceptWhile = {0x800698F8u}},
 }};
 
 // FUN_8004D810, the fade-out before a load (state 5's draw FUN_800151F0, the ending's update

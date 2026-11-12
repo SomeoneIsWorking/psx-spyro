@@ -35,20 +35,33 @@ counter `0x800698EC` / `0x8006FBC4` and the fade word `0x80066F68` / `0x8006C598
   Glimmer arrival is (0x10C66, 0x818F, 0x2667), camera 0x1140A, with or without the press. The `warp` from a
   homeworld now enters a level through its own portal (`spyro2::Warp::changeLevel`).
 
+- Spyro 3 state 7 (`0x80054450`) runs the same two courses on `0x8006FBC4`, entered by `0x80053F50` (-1 from the
+  pause menu's Exit Level at `0x80058378`, an index from the type-6 trigger at `0x80040230`); the flight runs only
+  while both `0x8006FBD0` and `0x8007056C` are zero. Exit Level fade `12 -> 28` and `14 -> 26`
+  (`sheet_s3exit_*`), Sunny Villa to its homeworld portal 11.099 s -> 10.870 s (8 frames); portal flight `11 -> 29` and
+  `12 -> 30`, Sunrise Spring to Sunny Villa 10.935 s -> 10.297 s, arrival (0xF8A4, 0x533D), camera 0xF8A4, with
+  or without the press (`sheet_s3flight_*`). Spyro 3's `warp` enters a level from its homeworld through its
+  portal, and its `portal` arrival leaves through Exit Level, both via `spyro::portalInto` / `0x80053F50`.
+
 ## Not wanted
 - The fade-out and respawn hold after a death (sub-state 0 and 1 while `0x800698F8` / `0x8006FBD0` is set): not
   skipped, per the user, 2026-11-12.
 
 ## Not done
-- Spyro 2 state 7 sub-states 1-3 (overlay `0x80071BD4`): the portal's sky and load, about 290 updates after the
-  flight; and state 6, the arrival flyby (Idol Springs: about 700 updates). Not traced.
-- Spyro 3 state 7 (`0x80054450`) has the same two courses on `0x8006FBC4`; the flight runs only while both
-  `0x8006FBD0` and `0x8007056C` are zero.
+- Spyro 2 state 7 sub-states 1-3 (overlay `0x80071BD4`) and Spyro 3's sub-states 1-5 (overlay `0x80076538`): the
+  portal's sky and load, about 290 / 260 updates after the flight; Spyro 2's state 6 arrival flyby (Idol
+  Springs: about 700 updates). Not traced.
 - Spyro 1's balloonist (overlay `balloonist.inc.h`, `D_800777E8` at `0x800777E8`, tick `+4` by `g_DeltaTime`):
   state 5 places the camera from the tick alone while `LoadLevel(1)` runs a stage per frame and leaves at tick
   0x100 once stage 13 is reached, so a press can bring the tick to its end; states 2, 3 and 6 move the balloon per
-  update and would land it elsewhere. No debug route reaches a balloonist yet (its dialogue is a player choice).
-- Portal entry and exit, and the fades into and out of menus and cutscenes: not traced.
+  update and would land it elsewhere. No debug route reaches it yet. The conversation starts through
+  `g_BalloonistTriggerCode` (`D_800757A0`, set per homeworld in `overlay_pointers.c`, called from the
+  balloonist's moby update), and its choices (dialogue 30: homeworld list, 31/32: yes/no) are taken in state 1
+  from `g_Pad.m_Down` (`0x80077378`), which the guest's own frame update fills from the pad buffers before the
+  gamestate dispatch. A route through the game's own choice therefore needs a seam between that pad read and
+  `func_800324D8`, or the choice's Cross delivered through the pad buffers; neither exists yet.
+- Menus and cutscenes: Spyro 2's story scene (state 6, level 0x48) already ends on the guest's own Start;
+  the pause menu's and the S1 menus' fades are not traced.
 
 ## Cause
 Each runs on its own counter or its own frame loop; none reads the pad. A fade that loops inside one update call

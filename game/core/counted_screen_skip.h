@@ -3,6 +3,7 @@
 #include "core/press_latch.h"
 #include "resumable_guest_call.h"
 
+#include <array>
 #include <cstdint>
 #include <span>
 
@@ -23,10 +24,11 @@ struct CountedScreen {
   std::uint32_t minimumKept = 2;
   // A word still at 0 means the screen has not begun (its first update loads it).
   bool zeroIsBefore = false;
-  // While this word is non-zero the screen runs another course and is not offered. 0: none.
-  std::uint32_t exceptWhile = 0;
-  // The screen is offered only while this word is non-zero. 0: always.
-  std::uint32_t onlyWhile = 0;
+  // While any of these words is non-zero the screen runs another course and is not offered. 0:
+  // none.
+  std::array<std::uint32_t, 2> exceptWhile{};
+  // The screen is offered only while one of these words is non-zero. All 0: always.
+  std::array<std::uint32_t, 2> onlyWhile{};
   // An update reaching `mustReach` does work beyond the screen when the byte at
   // `mustReachFlags + [mustReachKind]` is set; a press keeps that update. 0: none.
   std::int32_t mustReach = 0;

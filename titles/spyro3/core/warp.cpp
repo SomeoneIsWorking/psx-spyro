@@ -4,6 +4,7 @@
 #include "spyro3/core/logo_facts.h"
 
 #include "core.h"
+#include "core/debug/portal_entry.h"
 #include "core/session.h"
 #include "guest_call.h"
 
@@ -31,6 +32,16 @@ constexpr std::uint32_t kLevelsPerHomeworld = 10u;
 constexpr std::uint32_t kBossExitSlot = 7u;
 constexpr std::uint32_t kStartArrivalSlot = 8u;
 constexpr std::uint32_t kGameplayGameState = 0u;
+// The portal entry: an index enters that portal's level; -1 leaves for this level's portal in its
+// homeworld, as the pause menu's Exit Level calls it at 0x80058378.
+constexpr std::uint32_t kLevelExit = 0x80053F50u;
+constexpr std::uint32_t kExitToHomeworld = 0xFFFFFFFFu;
+// Trigger 0x8003FD58's records and the portals its type 6 enters (0x80053F50(index) at 0x80040230).
+constexpr spyro::PortalFacts kPortals{.triggerTable = 0x8006D05Cu, .portalTable = 0x8006C530u};
+
+std::uint32_t homeworldOf(Core &core, std::uint32_t level) {
+  return core.mem_r8(kLevelHomeworlds + core.mem_r8(kLevelIdToIndex + level));
+}
 
 bool arrivesAtPortal(std::uint32_t level, std::uint32_t homeworld) {
   const std::uint32_t slot = level % kLevelsPerHomeworld;
@@ -47,7 +58,7 @@ spyro::Warp::Placement portalExit(std::uint32_t level, std::uint32_t homeworld) 
           },
       .apply =
           [homeworld](Core &core) {
-            psx::cpu::callGuestNow(core, "warp-to-homeworld", kWarpToLevel, kWarpLevel, homeworld);
+            psx::cpu::callGuestNow(core, "warp-level-exit", kLevelExit, kExitToHomeworld);
             return lucent::format("left for homeworld {} at the portal", homeworld);
           },
   };
@@ -99,6 +110,12 @@ bool Warp::levelChangeReady(Core &core) const {
 }
 
 void Warp::changeLevel(Core &core, std::uint32_t level) const {
+  if (core.mem_r32(kLevelId) == homeworldOf(core, level)) {
+    if (const std::optional<std::uint32_t> portal = spyro::portalInto(core, kPortals, level)) {
+      psx::cpu::callGuestNow(core, "warp-portal-entry", kLevelExit, *portal);
+      return;
+    }
+  }
   psx::cpu::callGuestNow(core, "warp-to-level", kWarpToLevel, kWarpLevel, level);
 }
 

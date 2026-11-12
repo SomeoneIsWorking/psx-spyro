@@ -9,8 +9,9 @@ namespace spyro3 {
 
 // SCUS_944.67's warp: from the idle title screen into the title's own start states (state 19
 // fades and prepares, state 20 calls WarpToLevel 0x800584BC(0, level id) at 0x80077A50 in the
-// title image); from gameplay through WarpToLevel(0, level id) as the level-warp cheat's pause
-// resume calls it (0x800583A4).
+// title image); from a level's homeworld through that level's portal (0x80053F50(index)); from
+// elsewhere through WarpToLevel(0, level id) as the level-warp cheat's pause resume calls it
+// (0x800583A4). A `portal` arrival leaves through the pause menu's Exit Level (0x80053F50(-1)).
 class Warp final : public spyro::Warp {
 public:
   // The levels of LevelIdToLevelIndex 0x80066FCC under levelIndexToHomeworldLevelId 0x800671A0,
