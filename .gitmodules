@@ -4,3 +4,9 @@
 [submodule "external/spyro-1"]
 	path = external/spyro-1
 	url = https://github.com/TheMobyCollective/spyro-1.git
+[submodule "external/spyro-2"]
+	path = external/spyro-2
+	url = https://github.com/TheMobyCollective/spyro-2.git
+[submodule "external/spyro-3"]
+	path = external/spyro-3
+	url = https://github.com/TheMobyCollective/spyro-3.git
