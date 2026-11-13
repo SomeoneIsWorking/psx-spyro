@@ -154,3 +154,27 @@ Constraints and non-goals:
 - No new art assets, and nothing that has to ship with the product.
 
 Related state: none yet; plan `docs/plans/more-vegetation.md`.
+
+## G007 — Right-stick camera
+
+The right analog stick turns the camera freely around Spyro in Spyro 1, 2 and 3.
+
+Why it matters: the original gives only L2/R2 steps and a hold-to-look button. A modern pad expects
+the right stick to move the camera.
+
+Success conditions:
+
+- Right stick left/right orbits the camera around Spyro continuously, at a rate proportional to the
+  deflection. Up/down raises and lowers it within the bounds the game's own camera keeps.
+- Release leaves the camera where the player put it until the game's own follow logic, or a press of
+  L1/R1 (recentre), takes it back. The original buttons keep working.
+- It drives the game's own camera inputs (its target angle and height), so collision, cuts and
+  60 fps interpolation follow on their own, and it works the same at 16:9 and 21:9.
+- It is a saved setting, on by default, off under oracle comparison.
+
+Constraints and non-goals:
+
+- The stick is read through the port's pad owner; nothing writes host input into guest pad words.
+- No detached debug free-fly camera; cutscenes, flybys and scripted shots stay as authored.
+
+Related state: none yet; plan `docs/plans/0252-right-stick-camera.md`.
