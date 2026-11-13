@@ -2,6 +2,7 @@
 
 #include "core.h"
 #include "core/session.h"
+#include "core/stick_camera.h"
 #include "core/title_logo.h"
 #include "frame_pacer.h"
 #include "game.h"
@@ -43,6 +44,10 @@ std::unique_ptr<TitleState> Runtime::createTitleState() const {
 
 bool Runtime::interpolates() const {
   return true;
+}
+
+std::span<const psx::game::TitleIntSetting> Runtime::titleIntSettings() const {
+  return {&rightStickCameraSetting(), 1};
 }
 
 const psx::present::GuestWidescreenProjection *Runtime::guestWidescreenProjection() const {

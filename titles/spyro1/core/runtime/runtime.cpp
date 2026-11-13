@@ -7,6 +7,7 @@
 #include "spyro1/core/audio/native_moby_sound.h"
 #include "spyro1/core/audio/native_sound_position.h"
 #include "spyro1/core/audio/spu_library.h"
+#include "spyro1/core/camera/camera_input.h"
 #include "spyro1/core/camera/native_camera.h"
 #include "spyro1/core/debug/teleport.h"
 #include "spyro1/core/debug/warp.h"
@@ -136,6 +137,7 @@ void Runtime::registerOverrides(Game &game) {
   spyro1::registerNativeUtil(game.core);
   native::registerSpuLibraryOverrides(game.core);
   native::registerCameraOverrides(game.core);
+  native::registerCameraInputOverrides(game.core);
   native::registerCollisionShadeOverrides(game.core);
   native::registerCutsceneOverrides(game.core);
   native::registerDrawSetupOverrides(game.core);

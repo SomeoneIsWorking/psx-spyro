@@ -32,6 +32,8 @@ public:
   // The packets the overlay pair's link and the screen-space emitters name (render/crop_layers.h).
   const psx::present::CropUiLayers *cropUiLayers(Core &core) const final;
   bool interpolates() const final;
+  // The right-stick camera row (core/stick_camera.h).
+  std::span<const psx::game::TitleIntSetting> titleIntSettings() const final;
 
 protected:
   Runtime() = default;

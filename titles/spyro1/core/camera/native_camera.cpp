@@ -23,7 +23,6 @@ using spyro1::guest::kCameraPosition;
 using spyro1::guest::kCameraRotationX;
 using spyro1::guest::kCameraRotationY;
 using spyro1::guest::kCameraRotationZ;
-using spyro1::guest::kPlayerControlFlags;
 using spyro1::guest::kSpyro;
 
 // g_Camera (camera.h), base 0x80076DD0: the spherical inputs the body reads are five words at
@@ -57,47 +56,6 @@ void cameraRotationFromSphere(Core *c) {
   c->mem_w16(kCameraRotationZ, static_cast<std::uint16_t>(azimuth));
   c->r[2] = azimuth;
   c->r[3] = offsetRadius;
-}
-
-constexpr std::uint32_t kShoulderRotationSpeed = kGp + 0x6C0u; // 0x80075924
-constexpr std::uint32_t kCameraSpyroOffCenterFrames = 0x80076E98u;
-constexpr std::uint32_t kPadHeld = 0x80077380u;
-constexpr std::uint32_t kSkipCameraCenter = 0x1000u;
-constexpr std::uint32_t kPadR2 = 0x2u;
-constexpr std::uint32_t kPadL2 = 0x1u;
-constexpr std::uint32_t kShoulderSpeedRight = 0xFFFFFC00u;
-constexpr std::uint32_t kShoulderSpeedLeft = 0x400u;
-
-// ── 0x80035F58 — the L2/R2 shoulder-camera rotation speed. The speed global is gp-relative
-//     (`sw $zero, 0x6c0($gp)`) and is cleared first, so both early exits leave it at zero and only
-//     the button paths store a speed. Every branch here has an `addiu` delay slot, so v0 never
-//     carries out what the branch tested: a skip exit hands back the word its `lw` loaded, R2
-//     hands back -1024, and the L2 slot runs on BOTH arms, so "neither held" hands back 1024
-//     having stored nothing. v1 holds the pad word only where the button tests are reached.
-void cameraShoulderRotationInput(Core *c) {
-  c->mem_w32(kShoulderRotationSpeed, 0u);
-  const std::uint32_t controlFlags = c->mem_r32(kPlayerControlFlags);
-  c->r[2] = controlFlags & kSkipCameraCenter;
-  if (c->r[2] != 0u) {
-    return;
-  }
-  const std::uint32_t offCenterFrames = c->mem_r32(kCameraSpyroOffCenterFrames);
-  c->r[2] = offCenterFrames;
-  if (offCenterFrames != 0u) {
-    return;
-  }
-  const std::uint32_t held = c->mem_r32(kPadHeld);
-  c->r[3] = held;
-  if ((held & kPadR2) != 0u) {
-    c->r[2] = kShoulderSpeedRight;
-    c->mem_w32(kShoulderRotationSpeed, kShoulderSpeedRight);
-    return;
-  }
-  const bool leftHeld = (held & kPadL2) != 0u;
-  c->r[2] = kShoulderSpeedLeft;
-  if (leftHeld) {
-    c->mem_w32(kShoulderRotationSpeed, kShoulderSpeedLeft);
-  }
 }
 
 // g_Camera.m_Sphere's FIRST row, which is kCameraSphereRows below: the leaf below converts these
@@ -976,8 +934,6 @@ void registerCameraOverrides(Core &core) {
       core, 0x800342F8u, "camera_rotation_from_sphere", cameraRotationFromSphere);
   psx::cpu::installNativeOverride(
       core, 0x80033F08u, "camera_spherical_follow", cameraSphericalFollow);
-  psx::cpu::installNativeOverride(
-      core, 0x80035F58u, "camera_shoulder_rotation_input", cameraShoulderRotationInput);
   psx::cpu::installNativeOverride(
       core, 0x80033E40u, "ray_between_points_is_clear", rayBetweenPointsIsClear);
   psx::cpu::installNativeOverride(

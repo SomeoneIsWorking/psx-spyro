@@ -65,6 +65,7 @@ set(SPYRO_RUNTIME_SOURCES
   game/core/logo_hold.cpp
   game/core/counted_screen_skip.cpp
   game/core/frame_cut.cpp
+  game/core/stick_camera.cpp
   game/core/guest_magnitude.cpp
   game/core/hud_slide.cpp
   game/core/sky_wave.cpp
@@ -110,6 +111,7 @@ set(SPYRO_RUNTIME_SOURCES
   titles/spyro1/core/audio/native_sound_position.cpp
   titles/spyro1/core/audio/native_audio_key_state.cpp
   titles/spyro1/core/audio/spu_library.cpp
+  titles/spyro1/core/camera/camera_input.cpp
   titles/spyro1/core/camera/native_camera.cpp
   titles/spyro1/core/moby/native_collision_shade.cpp
   titles/spyro1/core/player/native_cutscene.cpp

@@ -14,6 +14,7 @@ Frame loop: each title's driver runs one logic frame per step, update then draw 
 - `game/core/hud_slide.*` — S2/S3 HUD widgets' slide as a `MotionSource` (`HudSlide`): each widget record's state and slide sampled per tick, an element placed between the two ticks' places inside a replay with the rounding remainder kept for the element its caller emits next; S2's slide function `0x80052498` as its native override
 - `game/core/sky_wave.*` — S2/S3 sky-object wave as a `MotionSource`: the consumer (S2 `0x800296D0`, S3 `0x8001C8C8`) overridden to write the wave word `t` of the way between ticks inside a replay (`SkyWave`)
 - `game/core/table_slide.*` — a slide the draw reads from one table entry per tick, as a `MotionSource` (S1 title logo, S2 conversation box)
+- `game/core/stick_camera.*` — the right-stick camera (plan 0252): the stick's deflection from the pad owner past its deadzone, and its settings row
 - `game/core/press_latch.h` — one held Start/Cross edge until a skip that can act on it takes it
 - `game/core/logo_hold.*` — S2/S3 boot logos: a Start/Cross press dates the held card's start back by its hold, so the guest's own test ends it and its fade-out plays
 - `game/core/counted_screen_skip.*`, `even_skip.h` — S2/S3 screens that end on their own count (loading picture, level fades, load hold, Exit Level fade, portal flight, portal sky, level-name sky) and the fade-out loop inside one call (its count a register of the call suspended at its wait): a Start/Cross press moves the count to where the guest's own test ends it, the last draws and the buffer parity kept; a press during a fade-in waits for its end
@@ -62,7 +63,7 @@ Frame loop: each title's driver runs one logic frame per step, update then draw 
 - `titles/spyro1/core/audio/` — S1 sound: libspu natives, SPU registers, voices, pitch, key status, positional moby sound
 - `titles/spyro1/core/moby/` — S1 mobys / game objects: allocator, lists, transform, animation, collision, collision shade, environment light, `scroll_bake.h` texture scroll bake (0x8002A6FC), shaded queue, shared models (PETE.WAD), level globals table
 - `titles/spyro1/core/player/` — S1 player: Spyro physics, body / head / tail animation, cutscene playback
-- `titles/spyro1/core/camera/` — S1 camera state
+- `titles/spyro1/core/camera/` — S1 camera state; `camera_input.*` its inputs: the L2/R2 manual yaw (0x80035F58) and the target load from the mode's record (0x80034198), the right stick's yaw and pitch on them
 - `titles/spyro1/core/effect/` — S1 effects: ground shadow block and ring, flame block, particle pool allocation and each slot's life (`particle_lives.*`)
 - `titles/spyro1/core/hud/` — S1 HUD: collectables, pause menu, pixel fade
 - `titles/spyro1/core/input/` — S1 gamepad buffers, input phase for `.pad` recordings

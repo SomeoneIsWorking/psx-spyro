@@ -22,6 +22,26 @@ User, 2026-11-13: "Oh right, Spyro gets free camera right stick".
 - The offset is camera input, so the existing motion tracks interpolate it and the game's own
   collision and cuts apply.
 
+## Spyro 1 (done)
+
+- The pad owner reads the right stick (psxport `Pad::rightStick()`, centred during a pad replay or while the
+  host holds the input); `game/core/stick_camera.*` turns it into a deflection past the rest deadzone and
+  owns the `right_stick_camera` setting row (on by default).
+- Yaw: `UpdateCameraManualYawInput` (0x80035F58, `titles/spyro1/core/camera/camera_input.cpp`) writes
+  `g_nCameraManualYawInput` (0x80075924) from L2/R2 as +-0x400; with neither held the stick's x writes the
+  same word, full deflection matching a shoulder. `AdvanceCameraSpringStep` springs the yaw on it, so the
+  game's own refusals (lock-on, stuck camera) and its mode list (no free look, scripted target or
+  vantage, level transition, portal path, charge) apply.
+- Pitch: after `LoadCameraTargetAnglesFromMode` (0x80034198) loads the target, the stick's y moves
+  `g_nCameraTargetPitch` in the same modes, with the free look's own limits (up 0x500, down 0x3D0, past
+  0x140 down into the pitch bias) and no higher than the overhead fall preset (pitch 0x400). Not
+  inverted: stick up looks up.
+- Proof: Stone Hill, `ires=0`, `fps60=1`, sink 3840x2160, unpaced: a full-right stick orbits the camera
+  around Spyro with the skyline moving 8-9.5 native px on every present (in-betweens halfway); stick up
+  looks into the sky, down looks down from overhead (`scratch/stick-camera/s1_orbit_sheet.png`,
+  `s1_orbit_crops.png`).
+- The `.pad` recording does not carry the stick, so a recording that used it does not replay its camera.
+
 ## Phases
 
 1. Spyro 1: RE the camera update, the owner, and proof by crops of an orbit at 60 fps.
