@@ -1,12 +1,12 @@
 [submodule "external/open-spyro"]
 	path = external/open-spyro
-	url = https://github.com/theMagicalKarp/open-spyro
+	url = https://github.com/SomeoneIsWorking/open-spyro.git
 [submodule "external/spyro-1"]
 	path = external/spyro-1
 	url = https://github.com/TheMobyCollective/spyro-1.git
 [submodule "external/spyro-2"]
 	path = external/spyro-2
-	url = https://github.com/TheMobyCollective/spyro-2.git
+	url = https://github.com/SomeoneIsWorking/spyro-2.git
 [submodule "external/spyro-3"]
 	path = external/spyro-3
-	url = https://github.com/TheMobyCollective/spyro-3.git
+	url = https://github.com/SomeoneIsWorking/spyro-3.git
