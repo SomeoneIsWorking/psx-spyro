@@ -4,8 +4,9 @@
 // so the new node becomes the list head on BOTH paths.
 #include "core.h"
 #include "core/native_execution.h"
+#include "render/overlay_pair.h"
 #include "spyro1/core/execution/native_owners.h"
-#include "spyro1/core/native_state.h"
+#include "spyro1/render/crop_facts.h"
 #include "spyro1/render/inventory_band.h"
 
 namespace {
@@ -56,32 +57,15 @@ void dist2d_native(Core *c) {
   c->r[2] = dx + dy; // v0
 }
 
-// 0x800168DC — link a node into the display list; it writes a 24-BIT pointer.
-//     v1 = [0x8007581C] ; at = [v1] ; beq at,zero,EMPTY ; sw a0,0(v1)
-//     sh a0,0(at) ; srl a0,a0,16 ; jr ra ; sb a0,2(at)      EMPTY: jr ra ; sw a0,4(v1)
-// [0x8007581C] points at a small header whose first word is the current head. An empty list records
-// the node at header+4; a non-empty one writes the node's address into the old head's low three
-// bytes — halfword then byte, the PSX convention of packing a pointer into 24 bits and leaving the
-// 4th byte for a length or code.
-//
-// a0 survives shifted on the non-empty path and unshifted on the empty one.
-constexpr uint32_t kDlHead = 0x8007581Cu;
+// 0x800168DC, the overlay pair's link (render/overlay_pair.h).
+constexpr spyro::overlay_pair::Facts kOverlayLink{.entry = 0x800168DCu,
+                                                  .overrideName = "dllink",
+                                                  .pairWord = 0x8007581Cu,
+                                                  .wholeScreenReturns = spyro1::kWholeScreenLinks};
 void dl_link_native(Core *c) {
   const uint32_t node = c->r[4];
-  const uint32_t hdr = c->mem_r32(kDlHead);
-  const uint32_t old = c->mem_r32(hdr);
-  c->mem_w32(hdr, node); // delay slot — the new node is the head either way
-  c->r[3] = hdr;         // v1
-  c->r[1] = old;         // at
-  if (old == 0) {
-    c->mem_w32(hdr + 4, node); // empty list: recorded at header+4, a0 untouched
-  } else {
-    c->mem_w16(old + 0, (uint16_t)node);
-    c->r[4] = node >> 16; // a0 is shifted BEFORE the byte store
-    c->mem_w8(old + 2, (uint8_t)(node >> 16));
-  }
+  spyro::overlay_pair::link(*c, kOverlayLink);
   spyro1::inventory_band::linked(*c, node);
-  spyro1::nativeState(*c).cropLayers.linked(*c, node, c->r[31]);
 }
 
 } // namespace
@@ -89,5 +73,5 @@ void dl_link_native(Core *c) {
 void spyro1::registerNativeUtil(Core &core) {
   psx::cpu::installNativeOverride(core, 0x80063C30u, "setg3c30", setg_3c30_native);
   psx::cpu::installNativeOverride(core, 0x80017990u, "dist2d", dist2d_native);
-  psx::cpu::installNativeOverride(core, 0x800168DCu, "dllink", dl_link_native);
+  spyro::overlay_pair::install(core, kOverlayLink, dl_link_native);
 }

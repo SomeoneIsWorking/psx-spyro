@@ -1,10 +1,11 @@
 #include "spyro2/render/hud_element.h"
 
 #include "core.h"
+#include "core/session.h"
 #include "emit_memory.h"
 #include "projected_vertex.h"
 #include "r3000.h"
-#include "render/field/guest_working_memory.h"
+#include "render/overlay_pair.h"
 #include "spyro2/render/render_facts.h"
 
 #include <cstdint>
@@ -21,16 +22,10 @@ constexpr std::uint16_t kQuadPage = 0x38u;        // 80052224
 constexpr std::uint8_t kGrey = 0x80u;
 constexpr std::uint32_t kFrameBytes = 0x18u;
 
-// FUN_8001B390(packet): the packet after the overlay pair's last, or its first.
-void appendToOverlay(const psx::present::EmitMemory &memory, std::uint32_t packet) {
-  const std::uint32_t pair = memory.mem_r32(kRenderGlobals.overlayPair);
-  const std::uint32_t last = memory.mem_r32(pair);
-  memory.mem_w32(pair, packet);
-  if (last != 0) {
-    spyro::guest_memory::linkAfter(memory, last, packet);
-  } else {
-    memory.mem_w32(pair + 4, packet);
-  }
+// FUN_8001B390(packet); every packet the sprite emitter draws is HUD.
+void appendToOverlay(Core &core, const psx::present::EmitMemory &memory, std::uint32_t packet) {
+  (void)spyro::overlay_pair::append(memory, kRenderGlobals.overlayPair, packet);
+  spyro::session(core).cropLayers.linked(core, packet);
 }
 
 // The image's CLUT halfword: palette column (+2 low bits) and row (+3).
@@ -80,7 +75,7 @@ void draw(Core &core, float rows) {
     memory.mem_w16(packet + 0xE, clutOf(memory, image));
     memory.mem_w16(packet + 0x10, static_cast<std::uint16_t>(width));
     memory.mem_w16(packet + 0x12, static_cast<std::uint16_t>(height));
-    appendToOverlay(memory, packet);
+    appendToOverlay(core, memory, packet);
     next = packet + 0x14;
     core.r[2] = packet;
   } else {
@@ -101,7 +96,7 @@ void draw(Core &core, float rows) {
     memory.mem_w8(packet + 0x1D, static_cast<std::uint8_t>(v + height - 1u));
     memory.mem_w8(packet + 0x24, u);
     memory.mem_w8(packet + 0x25, static_cast<std::uint8_t>(v + height - 1u));
-    appendToOverlay(memory, packet);
+    appendToOverlay(core, memory, packet);
     next = packet + 0x28;
     core.r[2] = 0;
   }

@@ -4,6 +4,7 @@
 
 #include "core/draw_motion.h"
 #include "render/engine_render_overrides.h"
+#include "spyro2/core/game_state.h"
 #include "spyro2/render/intro_card_facts.h"
 
 #include <array>
@@ -282,6 +283,19 @@ inline constexpr spyro::guest_sky::Facts kSkyFacts{
     .sectors = 0x800681B8u,
 };
 
+// FUN_8001B390's calls that draw the whole screen, by return address; every other packet it links
+// is UI.
+//
+//   8004D710  the cinematic letterbox's bars (8004D604)
+//   8004D794  the fades' quad 0..0x200 x 0xC..0xE4 (8004D748, from the dispatcher 800155A0): its
+//   draw mode 8004D7E4  and the quad
+inline constexpr std::array<std::uint32_t, 3> kWholeScreenReturns = {
+    0x8004D710u, 0x8004D794u, 0x8004D7E4u};
+
+// State 4 is the pause screen, FUN_800145AC: the captured frame's shrink (8004DF84), its 256x108
+// copy (8004E14C), the menu panel (8004E62C) and the guidebook, all laid out for 4:3.
+inline constexpr std::array<std::uint32_t, 1> kWholeFrameUiStates = {4u};
+
 inline constexpr spyro::EngineRenderFacts kRenderFacts{
     .globals = kRenderGlobals,
     .terrain = kTerrainFacts,
@@ -306,6 +320,14 @@ inline constexpr spyro::EngineRenderFacts kRenderFacts{
     .flatten = kFlatten,
     .flattenName = "spyro2-depth-bins",
     .letterbox = kCinematicLetterbox,
+    .overlayLink = {.entry = 0x8001B390u,
+                    .overrideName = "spyro2-overlay-link",
+                    .pairWord = kRenderGlobals.overlayPair,
+                    .wholeScreenReturns = kWholeScreenReturns,
+                    .primitiveCursor = kRenderGlobals.primitiveCursor,
+                    .textLayouts = {{{.entry = 0x8004A374u, .overrideName = "spyro2-text"},
+                                     {.entry = 0x8004A59Cu, .overrideName = "spyro2-text-quads"}}}},
+    .wholeFrameUi = {.gameState = kGameState, .states = kWholeFrameUiStates},
 };
 
 } // namespace spyro2

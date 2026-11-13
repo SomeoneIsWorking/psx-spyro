@@ -49,4 +49,8 @@ const psx::present::GuestWidescreenProjection *Runtime::guestWidescreenProjectio
   return this;
 }
 
+const psx::present::CropUiLayers *Runtime::cropUiLayers(Core &core) const {
+  return &session(core).cropLayers;
+}
+
 } // namespace spyro

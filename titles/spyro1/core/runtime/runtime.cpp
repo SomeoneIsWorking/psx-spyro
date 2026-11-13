@@ -218,10 +218,6 @@ psx::state::NativeStatePort *Runtime::nativeState(Core &core) const {
   return &core.game->frameDriverAs<FrameDriver>();
 }
 
-const psx::present::CropUiLayers *Runtime::cropUiLayers(Core &core) const {
-  return &spyro1::nativeState(core).cropLayers;
-}
-
 std::unique_ptr<spyro::Warp> Runtime::createWarp() const {
   return std::make_unique<Warp>();
 }

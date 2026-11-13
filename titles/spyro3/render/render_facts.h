@@ -263,6 +263,15 @@ inline constexpr spyro::spyro_drawer_depth::Facts kSpyroDrawer{
     .unbinnedReturns = kUnbinnedSpyroReturns,
 };
 
+// FUN_8004E758's calls that draw the whole screen, by return address; every other packet it links
+// is UI.
+//
+//   80020068  the cinematic letterbox's bars (8001FF44)
+//   800200EC  the fades' quad 0..0x200 x 0xC..0xE4 (800200A0): its draw mode
+//   8002013C  and the quad
+inline constexpr std::array<std::uint32_t, 3> kWholeScreenReturns = {
+    0x80020068u, 0x800200ECu, 0x8002013Cu};
+
 inline constexpr spyro::EngineRenderFacts kRenderFacts{
     .globals = kRenderGlobals,
     .terrain = kTerrainFacts,
@@ -289,6 +298,13 @@ inline constexpr spyro::EngineRenderFacts kRenderFacts{
     .flattenName = "spyro3-depth-bins",
     .unbinnedFlattens = kSecondPassFlattenReturns,
     .letterbox = kCinematicLetterbox,
+    .overlayLink = {.entry = 0x8004E758u,
+                    .overrideName = "spyro3-overlay-link",
+                    .pairWord = kRenderGlobals.overlayPair,
+                    .wholeScreenReturns = kWholeScreenReturns,
+                    .primitiveCursor = kRenderGlobals.primitiveCursor,
+                    .textLayouts = {{{.entry = 0x8002E748u, .overrideName = "spyro3-text"},
+                                     {.entry = 0x8002E970u, .overrideName = "spyro3-text-quads"}}}},
 };
 
 } // namespace spyro3

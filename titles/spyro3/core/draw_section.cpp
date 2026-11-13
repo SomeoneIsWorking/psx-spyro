@@ -1,6 +1,7 @@
 #include "spyro3/core/draw_section.h"
 
 #include "core.h"
+#include "core/session.h"
 #include "guest_redraw.h"
 
 #include <array>
@@ -126,6 +127,7 @@ bool DrawSection::secondPass(Core &core,
     }
   }
   redraw.writeWord(image.scratchEnd, scratch);
+  spyro::session(core).cropLayers.secondPass();
   const std::optional<std::uint32_t> head = flatten(core, redraw);
   if (!head) {
     return false;

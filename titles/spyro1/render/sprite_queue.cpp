@@ -751,7 +751,7 @@ void drawQueue(Core *core) {
             queue.draw({.record = record, .hudShift = hudShift, .angleFractions = fractions})) {
       queue.link(*chain);
       if (screenSpace) {
-        state.cropLayers.screenSpace(guest, memory, chain->first, chain->last);
+        spyro::session(guest).cropLayers.linkedChain(guest, memory, chain->first, chain->last);
       }
     }
   }

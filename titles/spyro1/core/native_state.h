@@ -4,7 +4,6 @@
 #include "core/session.h"
 #include "render/terrain/guest_camera_builder.h"
 #include "spyro1/core/effect/particle_lives.h"
-#include "spyro1/render/crop_layers.h"
 #include "spyro1/render/drawn_records.h"
 #include "spyro1/render/replay_angles.h"
 
@@ -19,7 +18,6 @@ public:
   actors::ReplayAngles replayAngles;
   actors::DrawnRecords drawnRecords;
   ParticleLives particleLives;
-  CropLayers cropLayers;
   // m_Rotation's blended angles, with their fractions, while a replay draws.
   std::optional<spyro::guest_camera::Angles> replayCamera;
 };

@@ -13,7 +13,8 @@
 
 namespace spyro {
 
-// The behaviour Spyro 1/2/3 share; each serial's runtime derives from it, and is its own widescreen projection.
+// The behaviour Spyro 1/2/3 share; each serial's runtime derives from it, and is its own widescreen
+// projection.
 class Runtime : public psx::game::GameRuntime, public psx::present::GuestWidescreenProjection {
 public:
   // The title screen's logo gate and the texture pages its wordmark is drawn from; the base has
@@ -28,6 +29,8 @@ public:
   std::span<const psx::present::LogoTexture> logoTextures() const final;
   // The player's aspect; the canvas holds the margins and each title widens its own culls.
   const psx::present::GuestWidescreenProjection *guestWidescreenProjection() const final;
+  // The packets the overlay pair's link and the screen-space emitters name (render/crop_layers.h).
+  const psx::present::CropUiLayers *cropUiLayers(Core &core) const final;
   bool interpolates() const final;
 
 protected:

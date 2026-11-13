@@ -19,6 +19,8 @@ draw's tail waits until two fields have passed since its stamp `0x80066F9C` (one
 |---|---|---|
 | `0x80057AF8`, `0x80057AE8` | `psx::hle::StockLibgte` | SetGeomOffset and SetGeomScreen |
 | `0x80023BB4` | `game/render/terrain/guest_terrain_*` | the terrain drawer, every pass |
+| `0x8001B390` | `game/render/overlay_pair.*`, `titles/spyro2/render/render_facts.h` | the overlay pair's link, native: names each packet crop UI but the letterbox's and the fades' |
+| `0x8004A374`, `0x8004A59C` | `game/render/overlay_pair.*` | the text layouts, sprites and quads: run, and the glyph chain each links inline named crop UI |
 | `0x8001B2A8` | `game/render/engine_render_overrides.h`, `game/render/terrain/guest_depth_bins.*` | the ordering-table flatten: assigns each packet its bin, then runs the original |
 | `0x80043858` | `game/render/field/guest_moby_*` | the moby visibility walk |
 | `0x8005251C`, `0x800520CC` | `render/hud_anchor.*` | HUD counters and sprites anchored at the widened edges |
