@@ -19,6 +19,7 @@ public:
   Runtime();
 
   void registerOverrides(Game &game) override;
+  const spyro::FollowCameraFacts &followCamera() const override;
   std::optional<psx::gpu::PacketPoolExtent> packetPool(Core &core) const override;
   const spyro::TitleLogoFacts &logoFacts() const override;
   const psx::game::TitleDebugMenu &debugMenu() const override {

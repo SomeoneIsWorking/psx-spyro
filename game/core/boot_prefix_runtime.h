@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/boot_prefix_frame_driver.h"
+#include "core/follow_camera.h"
 #include "core/runtime.h"
 #include "crt0_boot.h"
 #include "guest_code_module.h"
@@ -20,6 +21,8 @@ public:
   psx::state::NativeStatePort *nativeState(Core &core) const final;
   psx::present::ReplayFrame *replayFrame(Core &core) final;
   void reportRun(Core &core) const final;
+  // The image's follow camera, which its shoulder poll and error step natives read.
+  [[nodiscard]] virtual const FollowCameraFacts &followCamera() const = 0;
 
 protected:
   BootPrefixRuntime(const psx::game::Crt0Image &crt0, const BootPrefixFacts &facts);

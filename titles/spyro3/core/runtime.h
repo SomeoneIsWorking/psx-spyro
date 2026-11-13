@@ -20,6 +20,7 @@ public:
   Runtime();
 
   void registerOverrides(Game &game) override;
+  const spyro::FollowCameraFacts &followCamera() const override;
   const spyro::TitleLogoFacts &logoFacts() const override;
   const psx::game::TitleDebugMenu &debugMenu() const override {
     return debugMenu_;

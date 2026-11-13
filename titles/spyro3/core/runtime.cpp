@@ -44,6 +44,18 @@ constexpr std::uint32_t kCdReadyCallbackPointer = 0x8006B3D0u;
 constexpr psx::cd::GuestInterruptLibcd::Completion kCdCompletion{
     .status = 2, .perStockRead = true, .timing = psx::cd::ReadTiming::AtOnce};
 
+// spyro-3 asm camera/func_80013918 polls L2/R2 (refused in gamestate 7 and with L1/R1 held),
+// func_8001241C computes the errors that both the camera's error step and a level's own (0x80074308) take.
+constexpr spyro::FollowCameraFacts kFollowCamera{.shoulderPoll = 0x80013918u,
+                                                 .errorCompute = 0x8001241Cu,
+                                                 .camera = 0x8006DFF8u,
+                                                 .padHeld = 0x8006E538u,
+                                                 .turnButtons = 0x3u,
+                                                 .refusedHeld = 0xCu,
+                                                 .spyroBusy = 0x80070568u,
+                                                 .gamestate = 0x8006E344u,
+                                                 .refusedGamestate = 7u};
+
 } // namespace
 
 Runtime::Runtime()
@@ -61,6 +73,7 @@ void Runtime::registerOverrides(Game &game) {
   // HUD edge widgets keep their distance from the frame edges.
   spyro3::hud_anchor::registerOverrides(game.core);
   spyro3::hud_slide::registerOverrides(game.core);
+  spyro::registerFollowCamera(game.core, kFollowCamera);
   spyro::installSkyWave(game.core, kSkyWave);
   spyro::installEffectSpawns(game.core, kDrawMotion.effects);
   installLoaderChecksum(game.core);
@@ -74,6 +87,10 @@ void Runtime::registerOverrides(Game &game) {
 
 std::unique_ptr<spyro::TitleState> Runtime::createTitleState() const {
   return std::make_unique<hud_anchor::DrawState>();
+}
+
+const spyro::FollowCameraFacts &Runtime::followCamera() const {
+  return kFollowCamera;
 }
 
 const spyro::DrawMotionFacts &Runtime::drawMotion() const {

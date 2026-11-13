@@ -39,15 +39,6 @@ constexpr std::uint32_t kTargetLoadHi = 0x80070000u; // the body's last `lui $at
 constexpr std::uint32_t kNoManualModes[] = {
     0x80000009u, 0x80000007u, 0x80000012u, 0x8000000Bu, 0x8000000Eu, 3u};
 
-// The free look's own stick limits (CAM_LOOK_MAX_UP / MAX_DOWN / PITCH_SPLIT): past the split a
-// downward look tilts the view through the pitch bias instead of lowering the camera.
-constexpr std::int32_t kLookMaxUp = 0x500;
-constexpr std::int32_t kLookMaxDown = 0x3D0;
-constexpr std::int32_t kLookPitchSplit = 0x140;
-// g_anCameraParamFallBehind's pitch, straight down from overhead: the highest any follow preset
-// sits.
-constexpr std::int32_t kOverheadPitch = 0x400;
-
 bool followsSpyro(Core *c) {
   const std::uint32_t mode = c->mem_r32(kCameraCurrentMode);
   return std::find(std::begin(kNoManualModes), std::end(kNoManualModes), mode) ==
@@ -60,9 +51,8 @@ bool manualInputRefused(Core *c) {
          c->mem_r32(kCameraStuckFrames) != 0u;
 }
 
-// ── 0x80035F58 — the L2/R2 manual yaw, cleared first, so both early exits leave it at zero. Every
-// branch
-//     has an `addiu` delay slot, so v0 never carries out what the branch tested: a refusal hands
+// ── 0x80035F58 — the L2/R2 manual yaw, cleared first, so both early exits leave it at zero.
+//     Every branch has an `addiu` delay slot, so v0 never carries out what the branch tested: a refusal hands
 //     back the word its `lw` loaded, R2 hands back -1024, and the L2 slot runs on both arms, so
 //     "neither held" hands back 1024 having stored nothing. v1 holds the pad word only where the
 //     button tests are reached. With neither held, the right stick's x drives the same word, full
@@ -99,27 +89,16 @@ void cameraManualYawInput(Core *c) {
   }
 }
 
-// The stick's y on the freshly loaded target pitch, the way the free look puts its own stick there,
-// but not inverted: a raised pitch lifts the camera over Spyro, so a stick pushed up lowers it to
-// look up.
+// The stick's y on the freshly loaded target pitch, in the modes the manual yaw is taken in.
 void applyStickPitch(Core *c) {
   if (!followsSpyro(c) || manualInputRefused(c)) {
     return;
   }
-  const double lift = -spyro::rightStickCamera(*c).y;
-  const std::int32_t look = spyro::scaledBy(lift, lift > 0.0 ? kLookMaxUp : kLookMaxDown);
-  if (look == 0) {
-    return;
-  }
-  std::int32_t pitch = static_cast<std::int32_t>(c->mem_r32(kCameraTargetPitch));
-  if (look < -kLookPitchSplit) {
-    pitch -= kLookPitchSplit;
-    const std::int32_t bias = static_cast<std::int32_t>(c->mem_r32(kCameraTargetPitchBias));
-    c->mem_w32(kCameraTargetPitchBias, static_cast<std::uint32_t>(bias + kLookPitchSplit + look));
-  } else {
-    pitch = std::min(pitch + look, std::max(pitch, kOverheadPitch));
-  }
-  c->mem_w32(kCameraTargetPitch, static_cast<std::uint32_t>(pitch));
+  const auto pitch = static_cast<std::int32_t>(c->mem_r32(kCameraTargetPitch));
+  const spyro::StickLook look = spyro::stickLook(*c, pitch);
+  c->mem_w32(kCameraTargetPitch, static_cast<std::uint32_t>(pitch + look.elevation));
+  const auto bias = static_cast<std::int32_t>(c->mem_r32(kCameraTargetPitchBias));
+  c->mem_w32(kCameraTargetPitchBias, static_cast<std::uint32_t>(bias + look.bias));
 }
 
 // ── 0x80034198 — the camera target from the mode's parameter record: yaw relative to the reference

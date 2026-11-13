@@ -60,6 +60,18 @@ constexpr psx::game::Crt0Image kCrt0{.entry = 0x8005478Cu};
 constexpr psx::cd::GuestInterruptLibcd::Completion kCdCompletion{
     .status = 2, .perStockRead = true, .timing = psx::cd::ReadTiming::AtOnce};
 
+// spyro-2 src/camera.c: func_8001F020 polls the shoulders, func_8001DB58 computes the errors that both
+// the camera's error step and a level's own (D_80067040) take; D_800683A0 the held pad word.
+constexpr spyro::FollowCameraFacts kFollowCamera{.shoulderPoll = 0x8001F020u,
+                                                 .errorCompute = 0x8001DB58u,
+                                                 .camera = 0x80067E84u,
+                                                 .padHeld = 0x800683A0u,
+                                                 .turnButtons = 0xFu,
+                                                 .refusedHeld = 0u,
+                                                 .spyroBusy = 0x8006A230u,
+                                                 .gamestate = 0u,
+                                                 .refusedGamestate = 0u};
+
 } // namespace
 
 Runtime::Runtime()
@@ -83,6 +95,7 @@ void Runtime::registerOverrides(Game &game) {
   libgte_.bind(game);
   spyro::registerEngineRenderOverrides<kRenderFacts>(game.core);
   hud_anchor::registerOverrides(game.core);
+  spyro::registerFollowCamera(game.core, kFollowCamera);
   spyro::installHudSlide<kHudSlide>(game.core);
   spyro::installSkyWave(game.core, kSkyWave);
   spyro::installEffectSpawns(game.core, kDrawMotion.effects);
@@ -95,6 +108,10 @@ void Runtime::registerOverrides(Game &game) {
 
 std::optional<psx::gpu::PacketPoolExtent> Runtime::packetPool(Core &core) const {
   return kPacketPool.extent(core);
+}
+
+const spyro::FollowCameraFacts &Runtime::followCamera() const {
+  return kFollowCamera;
 }
 
 const spyro::DrawMotionFacts &Runtime::drawMotion() const {

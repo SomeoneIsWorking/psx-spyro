@@ -64,6 +64,7 @@ set(SPYRO_RUNTIME_SOURCES
   game/core/field_owner.cpp
   game/core/logo_hold.cpp
   game/core/counted_screen_skip.cpp
+  game/core/follow_camera.cpp
   game/core/frame_cut.cpp
   game/core/stick_camera.cpp
   game/core/guest_magnitude.cpp

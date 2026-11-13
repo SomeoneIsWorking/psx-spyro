@@ -42,8 +42,24 @@ User, 2026-11-13: "Oh right, Spyro gets free camera right stick".
   `s1_orbit_crops.png`).
 - The `.pad` recording does not carry the stick, so a recording that used it does not replay its camera.
 
+## Spyro 2 and 3
+
+- One owner, `game/core/follow_camera.*`, with each title's addresses in its runtime (spyro-2 `src/camera.c`,
+  spyro-3 asm). Both poll the shoulders in camera modes 0, 1 and 6 (S2 `func_8001F020` R1/R2 and L1/L2, S3
+  `func_80013918` L2/R2, refused in gamestate 7 and with L1/R1 held, both refused while `g_Spyro+0x240` is set)
+  into the azimuth override at camera+0x150 with the rotating state at +0x154; the stick's x writes the same
+  override, full deflection matching a shoulder, only when no shoulder is held.
+- Pitch: the error computation (S2 `func_8001DB58`, S3 `func_8001241C`), called by the camera's own error step
+  and by a level's error callback (S2 `D_80067040`, S3 `0x80074308`; Glimmer's is just the computation and the
+  step), runs with the stick's look added to the target row's elevation (camera+0x94) and the free look's 0x140
+  split on its yaw word (+0x9C), and the game's target restored after it. Same limits as Spyro 1; only in the
+  poll's modes, unlocked (+0x134 zero) and unrefused.
+- Proof: Glimmer (Spyro 2) and Sunny Villa (Spyro 3), each `warp 0/1/0`, at `ires=0`, `fps60=1`, 3840x2160, unpaced: stick right orbits the
+  camera every present, stick up looks into the sky, down looks down on Spyro from overhead
+  (`scratch/stick-camera/s2_sheet.png`, `s2_pitch_sheet.png`, `s3_sheet.png`).
+
 ## Phases
 
-1. Spyro 1: RE the camera update, the owner, and proof by crops of an orbit at 60 fps.
-2. Spyro 2 and 3 on the same owner.
+1. Spyro 1: RE the camera update, the owner, and proof by crops of an orbit at 60 fps (done).
+2. Spyro 2 and 3 on the same owner (done).
 3. Setting row and docs.

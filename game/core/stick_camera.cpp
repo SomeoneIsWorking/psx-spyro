@@ -39,6 +39,12 @@ double deflection(std::int16_t raw) {
   return value < 0 ? -past : past;
 }
 
+constexpr std::int32_t kLookMaxUp = 0x500;
+constexpr std::int32_t kLookMaxDown = 0x3D0;
+constexpr std::int32_t kLookSplit = 0x140;
+// A quarter turn: past it the orbit goes over the top.
+constexpr std::int32_t kOverhead = 0x400;
+
 } // namespace
 
 StickDeflection rightStickCamera(const Core &core) {
@@ -51,6 +57,15 @@ StickDeflection rightStickCamera(const Core &core) {
 
 std::int32_t scaledBy(double deflection, std::int32_t full) {
   return static_cast<std::int32_t>(std::trunc(deflection * static_cast<double>(full)));
+}
+
+StickLook stickLook(const Core &core, std::int32_t elevation) {
+  const double lift = -rightStickCamera(core).y;
+  const std::int32_t look = scaledBy(lift, lift > 0.0 ? kLookMaxUp : kLookMaxDown);
+  if (look < -kLookSplit) {
+    return {.elevation = -kLookSplit, .bias = kLookSplit + look};
+  }
+  return {.elevation = std::min(look, std::max(0, kOverhead - elevation)), .bias = 0};
 }
 
 const psx::game::TitleIntSetting &rightStickCameraSetting() {
