@@ -30,3 +30,6 @@ __pycache__/
 .DS_Store
 compile_commands.json
 .claude/scheduled_tasks.lock
+
+# long-lived ignored inputs and derived assets (Ghidra projects, decompiled output)
+env-assets/
