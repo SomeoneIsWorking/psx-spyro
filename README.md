@@ -17,9 +17,9 @@ Captured from the port at 16:9 with 60 fps interpolation on.
 ![Spyro the Dragon: Artisans at 16:9](docs/media/spyro1-artisans.png)
 ![Spyro the Dragon: gems under a stone arch at 16:9](docs/media/spyro1-gems.png)
 ![Spyro the Dragon: original 4:3 beside 16:9 widescreen](docs/media/spyro1-widescreen.png)
-![Spyro the Dragon: title-screen flyby at the original 30 fps beside 60 fps interpolation, quarter speed](docs/media/spyro1-interpolation.webp)
+![Spyro the Dragon: title-screen flyby at the original 30 fps beside 60 fps interpolation, half speed](docs/media/spyro1-interpolation.webp)
 
-*The title-screen flyby at quarter speed: the original (left) changes every other frame; the
+*The title-screen flyby at half speed: the original (left) changes every other frame; the
 interpolated side (right) changes every frame, halfway between.*
 
 ### Spyro 2: Ripto's Rage!
@@ -27,18 +27,18 @@ interpolated side (right) changes every frame, halfway between.*
 ![Spyro 2: canyon with a bone arch at 16:9](docs/media/spyro2-bone-canyon.png)
 ![Spyro 2: Idol Springs at 16:9](docs/media/spyro2-idol-springs.png)
 ![Spyro 2: original 4:3 beside 16:9 widescreen](docs/media/spyro2-widescreen.png)
-![Spyro 2: intro at the original 30 fps beside 60 fps interpolation, quarter speed](docs/media/spyro2-interpolation.webp)
+![Spyro 2: intro at the original 30 fps beside 60 fps interpolation, half speed](docs/media/spyro2-interpolation.webp)
 
-*The intro at quarter speed, original left, interpolated right.*
+*The intro at half speed, original left, interpolated right.*
 
 ### Spyro: Year of the Dragon
 
 ![Spyro: Year of the Dragon: desert level at 16:9](docs/media/spyro3-desert.png)
 ![Spyro: Year of the Dragon: Frozen Altars with Gabrielle at 16:9](docs/media/spyro3-frozen-altars.png)
 ![Spyro: Year of the Dragon: original 4:3 beside 16:9 widescreen](docs/media/spyro3-widescreen.png)
-![Spyro: Year of the Dragon: intro at the original 30 fps beside 60 fps interpolation, quarter speed](docs/media/spyro3-interpolation.webp)
+![Spyro: Year of the Dragon: intro at the original 30 fps beside 60 fps interpolation, half speed](docs/media/spyro3-interpolation.webp)
 
-*The Insomniac intro at quarter speed, original left, interpolated right.*
+*The Insomniac intro at half speed, original left, interpolated right.*
 
 ## Features
 
