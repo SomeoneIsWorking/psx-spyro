@@ -35,12 +35,14 @@ finishes a pending autosave at 0xB. The load is sub-state 1.
 Spyro 3's loader override calls the loader again in the same update, only from the loading screen's own call
 (jal `0x800588A0`), while its last call moved the stage or stage 4's step on (`spyro::drainLoader`). The other
 callers (the portal flight, the skies, the cutscene loads) stop at their own stage thresholds and keep their one
-call. A call that moves nothing ends the update: a read whose completion interrupt is still owed (stock libcd
-posts it at the next drive service, `cdc_state.h` `postDataReadyAfterRead`), the autosave stage 7 waits on, the
-checksum's end. Measured 2026-11-13 (`warp 0/1/0`, `scratch/loadwait/before`, `after`): sub-state 1 1033-1055 ->
+call. Before each call it takes the interrupts owed since the last (`psx::cpu::takePendingInterrupts`): a read's
+completion is due at once, but a running native refuses interrupts (`Hle::canDispatchInterrupt`), so without it
+`CDLoadTime` (`0x800503F8`) found `isReading` still set and every read cost an update. A call that moves nothing
+ends the update: the autosave stage 7 waits on, the checksum's end. Measured 2026-11-13 (`warp 0/1/0`, `scratch/loadwait/before`, `after`): sub-state 1 1033-1055 ->
 1033-1041, gameplay at step 1079 instead of 1092, state 5 entry to gameplay 130 -> 104 fields; the picture stays
-full through the load, then its fade-out and the level's fade-in as before (`after/s3_sheet.png`). The remaining
-nine updates are one per owed completion interrupt.
+full through the load, then its fade-out and the level's fade-in as before (`after/s3_sheet.png`). With the owed
+interrupts taken between calls (`scratch/loadwait3/after.log`): stage 1 at 1034, the six remaining reads all in
+1035, gameplay at 1072 instead of 1079.
 
 ## The card before the new-game cutscene
 The same state. Spyro 2's "In the world of Dragons" storybook is kind 1: state 5 from step 1313 to the first

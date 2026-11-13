@@ -123,6 +123,9 @@ void loader(Core *core) {
   bool returned = true;
   spyro::drainLoader(
       [core, returnPc, &returned] {
+        // The completion of the read the last call issued is due at once; the guest takes it before
+        // its next poll.
+        psx::cpu::takePendingInterrupts(*core);
         core->r[psx::cpu::kRa] = returnPc;
         returned = loaderCall(*core);
       },
