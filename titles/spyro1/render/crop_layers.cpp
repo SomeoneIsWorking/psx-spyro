@@ -16,7 +16,8 @@ bool cropping(Core &core) {
 } // namespace
 
 void CropLayers::linked(Core &core, std::uint32_t packet, std::uint32_t returnAddress) {
-  if (!cropping(core) || std::ranges::find(kWholeScreenLinks, returnAddress) != kWholeScreenLinks.end()) {
+  if (!cropping(core) ||
+      std::ranges::find(kWholeScreenLinks, returnAddress) != kWholeScreenLinks.end()) {
     return;
   }
   linking_.push_back(psx::gpu::mainRamOffsetOf(packet));
@@ -43,7 +44,7 @@ void CropLayers::flattened() {
   std::ranges::sort(drawn_);
 }
 
-bool CropLayers::ui(std::uint32_t packet) const {
+bool CropLayers::uiPacket(std::uint32_t packet) const {
   return std::ranges::binary_search(drawn_, psx::gpu::mainRamOffsetOf(packet));
 }
 

@@ -16,6 +16,7 @@
 // The rescue star (0x80058864) appends to the pair natively and is drawn in the world.
 #pragma once
 
+#include "crop_ui_layers.h"
 #include "emit_memory.h"
 
 #include <array>
@@ -29,7 +30,7 @@ namespace spyro1 {
 inline constexpr std::array<std::uint32_t, 6> kWholeScreenLinks = {
     0x8001A738u, 0x8001A784u, 0x80019120u, 0x80019170u, 0x8001904Cu, 0x800190A8u};
 
-class CropLayers {
+class CropLayers final : public psx::present::CropUiLayers {
 public:
   // AddPrimToOT linked `packet`, returning to `returnAddress`.
   void linked(Core &core, std::uint32_t packet, std::uint32_t returnAddress);
@@ -41,7 +42,7 @@ public:
   // The flatten: the packets linked since the last are the frame DrawOTag draws next.
   void flattened();
   // Whether the packet at `packet` of the frame last flattened is UI.
-  [[nodiscard]] bool ui(std::uint32_t packet) const;
+  [[nodiscard]] bool uiPacket(std::uint32_t packet) const override;
 
 private:
   std::vector<std::uint32_t> linking_; // main-RAM offsets

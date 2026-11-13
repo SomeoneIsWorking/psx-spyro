@@ -37,7 +37,7 @@ public:
   std::uint64_t inputPhase(Core &core) const override;
   psx::state::NativeStatePort *nativeState(Core &core) const override;
   // The screen-space packets (titles/spyro1/render/crop_layers.h).
-  bool cropUiPacket(Core &core, std::uint32_t packet) const override;
+  const psx::present::CropUiLayers *cropUiLayers(Core &core) const override;
 
 protected:
   std::unique_ptr<spyro::Warp> createWarp() const override;
