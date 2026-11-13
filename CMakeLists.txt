@@ -89,6 +89,7 @@ set(SPYRO_RUNTIME_SOURCES
   titles/spyro1/core/frame/dragon_shrink.cpp
   titles/spyro1/core/frame/title_slide.cpp
   titles/spyro1/core/frame/draw_cuts.cpp
+  titles/spyro1/core/frame/level_transition_update.cpp
   titles/spyro1/core/frame/frame_driver.cpp
   titles/spyro1/render/ordering_table.cpp
   game/render/crop_layers.cpp

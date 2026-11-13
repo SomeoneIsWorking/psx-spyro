@@ -8,7 +8,9 @@ namespace spyro3 {
 // a read in flight and its stage 0x8006C518 is 2..7, 0x1400 steps a call; stage 7 waits for the
 // checksum's end and stage 8 sabotages 0x8002AB38 unless the sum is 0 (issue 0247). Its reads are
 // due at once, so no read is ever in flight: before the loader runs, the override completes the
-// checksum those calls would have run, from the same bytes, then runs the loader.
+// checksum those calls would have run, from the same bytes, then runs the loader. Called from the
+// loading screen (state 5 sub-state 1, jal 0x800588A0), it runs again while its last call moved
+// the stage on (spyro::drainLoader); the other callers keep their one call.
 void installLoaderChecksum(Core &core);
 
 } // namespace spyro3

@@ -1,7 +1,8 @@
 # 0248 — Spyro 2 and 3 loading pictures, the new-game card among them, end only on their own count
 
-Status: open; a press ends the picture's count. Owner: `game/core/counted_screen_skip.cpp`, the screens in each
-title's `core/boot_facts.h` (`kCountedScreens`).
+Status: open; Spyro 3's load stages run in one update, a press ends the picture's count. Owners:
+`game/core/counted_screen_skip.cpp` (the press), the screens in each title's `core/boot_facts.h`
+(`kCountedScreens`), `titles/spyro3/core/loader_checksum.cpp` (Spyro 3's stages).
 
 ## Observed
 With reads due at once, entering a level still shows the loading picture: Spyro 2's `warp 0/1/0` fades the
@@ -16,6 +17,30 @@ leaves sub-state `0x8006FBC8` 0 only once it reads 0xD. Neither has another exit
 The draws (`0x800151F0`, `0x80059038`) light the picture count * 16 until count 8 and fully after it;
 Spyro 3 adds the caption past count 7. The later sub-states draw no picture (Spyro 2's 1 draws nothing,
 Spyro 3's 1 and 4 only bars), so each display buffer keeps the last picture drawn into it through the load.
+
+## What the picture waits on once the data is in
+The count runs before the level load starts: sub-state 0 reads only the picture (at count 0) and, in Spyro 2,
+finishes a pending autosave at 0xB. The load is sub-state 1.
+
+- Spyro 2's sub-state 1 loads synchronously in one update (`while` loops over the stage step `0x8001D658`), so
+  nothing waits once the data is in: state 5 entry to gameplay is 106 fields, of which the load is one update
+  (`scratch/loadwait/before/s2.trace`, steps 932-1003). The rest is the picture's count, the two fade-out loops,
+  state 3's hold and its fade-in, each on its own count (issue 0250).
+- Spyro 3's sub-state 1 (`0x80058778`) calls the loader `0x8002CA50` once per update until its stage
+  `0x8006C518` is -1. Each stage that issues a read returns, and the next call's poll `0x800503F8` waits for it;
+  stage 4 (the overlay step `0x8007494C`) also steps `0x8006C5E4` once a call through two VRAM halves, eight SPU
+  chunks and its last read. With reads due at once those calls waited for the next update, not for data:
+  sub-state 1 took 23 updates, stage 4 eleven of them.
+
+Spyro 3's loader override calls the loader again in the same update, only from the loading screen's own call
+(jal `0x800588A0`), while its last call moved the stage or stage 4's step on (`spyro::drainLoader`). The other
+callers (the portal flight, the skies, the cutscene loads) stop at their own stage thresholds and keep their one
+call. A call that moves nothing ends the update: a read whose completion interrupt is still owed (stock libcd
+posts it at the next drive service, `cdc_state.h` `postDataReadyAfterRead`), the autosave stage 7 waits on, the
+checksum's end. Measured 2026-11-13 (`warp 0/1/0`, `scratch/loadwait/before`, `after`): sub-state 1 1033-1055 ->
+1033-1041, gameplay at step 1079 instead of 1092, state 5 entry to gameplay 130 -> 104 fields; the picture stays
+full through the load, then its fade-out and the level's fade-in as before (`after/s3_sheet.png`). The remaining
+nine updates are one per owed completion interrupt.
 
 ## The card before the new-game cutscene
 The same state. Spyro 2's "In the world of Dragons" storybook is kind 1: state 5 from step 1313 to the first

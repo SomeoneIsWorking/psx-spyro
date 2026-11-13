@@ -17,6 +17,7 @@
 #include "spyro1/core/execution/native_random_range.h"
 #include "spyro1/core/frame/draw_cuts.h"
 #include "spyro1/core/frame/frame_driver.h"
+#include "spyro1/core/frame/level_transition_update.h"
 #include "spyro1/core/frame/logo_facts.h"
 #include "spyro1/core/frame/native_draw_setup.h"
 #include "spyro1/core/hud/native_hud_collectables.h"
@@ -125,6 +126,7 @@ void Runtime::registerOverrides(Game &game) {
   game.platform_hle.bindStock(kCdDataSync, PlatformHle::completeImmediately);
   game.platform_hle.bindStock(kCdInitHandshake, PlatformHle::completeImmediately);
   spyro1::registerCdQueue(game.core);
+  spyro1::registerLevelTransitionUpdate(game.core);
   spyro1::registerNativeRand(game.core);
   spyro1::registerDrawCutOverrides(game.core);
   spyro1::registerNativeLeaves(game.core);
