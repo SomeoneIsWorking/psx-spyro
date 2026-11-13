@@ -30,12 +30,15 @@ std::uint32_t levelIndex(std::uint32_t level) {
   return (level / 10u - 1u) * kLevelsPerWorld + level % 10u;
 }
 
-// The level is loaded and playing.
-spyro::Warp::Placement placementIn(std::uint32_t level, std::function<std::string(Core &)> apply) {
+// The level is loaded and playing, and `also` holds where given.
+spyro::Warp::Placement placementIn(std::uint32_t level,
+                                   std::function<std::string(Core &)> apply,
+                                   std::function<bool(Core &)> also = {}) {
   return {
       .ready =
-          [level](Core &core) {
-            return teleport::inActiveField(core) && core.mem_r32(guest::kLevelId) == level;
+          [level, also = std::move(also)](Core &core) {
+            return teleport::inActiveField(core) && core.mem_r32(guest::kLevelId) == level &&
+                   (!also || also(core));
           },
       .apply = std::move(apply),
   };
@@ -126,7 +129,31 @@ std::vector<spyro::WarpWorld> DebugMenu::worlds(Core &core) const {
       if (warpLevel.name.empty()) {
         return {};
       }
-      if (!homeworld) {
+      if (homeworld) {
+        const std::uint32_t talker = guest::kMobyClassHomeTalker + world - kFirstWorld;
+        warpLevel.arrivals.push_back({
+            .name = "balloonist",
+            .arrive =
+                [this, level, talker](Core &target) {
+                  // Out of the talker's rearm range first, then in front of it once rearmed.
+                  spyro::Warp::Placement approach =
+                      placementIn(level, [this, talker](Core &placed) {
+                        return teleport::toTalkerApproach(placed, mobys_, talker);
+                      });
+                  approach.next = [this, level, talker] {
+                    return placementIn(
+                        level,
+                        [this, talker](Core &placed) {
+                          return teleport::toTalker(placed, mobys_, talker);
+                        },
+                        [this, talker](Core &placed) {
+                          return teleport::talkerReady(placed, mobys_, talker);
+                        });
+                  };
+                  return spyro::session(target).warp->arm(target, level, std::move(approach));
+                },
+        });
+      } else {
         const std::uint32_t hub = world * 10u;
         warpLevel.arrivals.push_back({
             .name = "portal",

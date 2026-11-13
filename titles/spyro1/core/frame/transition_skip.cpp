@@ -21,6 +21,7 @@ using guest::kCdMusicFlags;
 using guest::kDemoTypeCutscene;
 using guest::kDemoTypeLevel;
 using guest::kGamestate;
+using guest::kGamestateBalloonist;
 using guest::kGamestateTitleScreen;
 using guest::kLevelTransHudActive;
 using guest::kLoadStage;
@@ -63,6 +64,14 @@ constexpr std::array<GuestFrameSpill, 4> kCutsceneTransitionSpills{{
 }};
 constexpr std::uint32_t kLoadStageCutsceneReady = 7u;
 
+// Balloonist ACS_CRUISE (state 5, BalloonistCutscene_Update): the camera eases along the flight
+// on the timer alone, and the state leaves for ACS_DESCEND once the timer reaches 0x100 with the
+// stream at LSTREAM_FINALIZE.
+constexpr std::uint32_t kActorCutsceneSubstate = 0x800777E8u;
+constexpr std::uint32_t kActorCutsceneTimer = 0x800777ECu;
+constexpr std::uint32_t kActorCutsceneCruise = 5u;
+constexpr std::uint32_t kCruiseEnd = 0x100u;
+
 // Leaves through the function's own epilogue back to the frame update's call site.
 void runIntroCardTerminal(Core &core) {
   const std::uint32_t entrySp = core.r[psx::cpu::kSp];
@@ -91,6 +100,10 @@ void finishMusicFade(Core &core, const TransitionState &state) {
 }
 
 } // namespace
+
+bool balloonistCruising(const TransitionState &state) {
+  return state.stage == kGamestateBalloonist && state.actorCutsceneSubstate == kActorCutsceneCruise;
+}
 
 bool flybyCardUp(const TransitionState &state) {
   return state.stage == kGamestateTitleScreen && state.titleMode == kTitleModeDemo &&
@@ -121,6 +134,10 @@ Cancellation classify(const TransitionState &state) {
       state.loadStage == kLoadStageCutsceneReady) {
     return Cancellation::CutsceneTransitionIntroCard;
   }
+  if (balloonistCruising(state) && state.loadStage == kLoadStageLevelReady &&
+      state.actorCutsceneTimer < kCruiseEnd) {
+    return Cancellation::BalloonistCruise;
+  }
   return Cancellation::None;
 }
 
@@ -137,6 +154,8 @@ void TransitionSkip::observe(Core &core) {
       .musicFlags = core.mem_r32(kCdMusicFlags),
       .musicFadeTarget = static_cast<std::int32_t>(core.mem_r32(kSpuMusicFadeTarget)),
       .musicFadeStep = static_cast<std::int32_t>(core.mem_r32(kSpuMusicFadeCurrent)),
+      .actorCutsceneSubstate = core.mem_r32(kActorCutsceneSubstate),
+      .actorCutsceneTimer = core.mem_r32(kActorCutsceneTimer),
       .skipPressed = fields_.takePresentationSkip()};
 
   // A card's load can outlast the one-field edge by hundreds of frames.
@@ -145,6 +164,13 @@ void TransitionSkip::observe(Core &core) {
   } else {
     flybyPress_.observe(state.skipPressed);
     state.skipPressed = flybyPress_.held();
+  }
+  // The stream can still be short of its terminal stage when the press comes.
+  if (balloonistCruising(state)) {
+    cruisePress_.observe(state.skipPressed);
+    state.skipPressed = cruisePress_.held();
+  } else {
+    cruisePress_.clear();
   }
 
   switch (classify(state)) {
@@ -210,6 +236,15 @@ void TransitionSkip::observe(Core &core) {
                  core.mem_r32(kLoadStage),
                  core.mem_r32(kTitlescreenMode),
                  core.mem_r32(kTitlescreenStage));
+    return;
+  case Cancellation::BalloonistCruise:
+    cruisePress_.clear();
+    core.mem_w32(kActorCutsceneTimer, kCruiseEnd);
+    ++cancellations_;
+    lucent::info("transition",
+                 "balloonist cruise ended ({}) at timer {:#x}; its own test leaves for the descent",
+                 cancellations_,
+                 state.actorCutsceneTimer);
     return;
   case Cancellation::CutsceneTransitionIntroCard:
     flybyPress_.clear();

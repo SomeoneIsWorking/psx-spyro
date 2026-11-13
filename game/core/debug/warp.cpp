@@ -35,7 +35,7 @@ void Warp::applyArmed(Core &core, std::uint32_t frame) {
                          : lucent::format("entry 0x{:08X}({}) before the update",
                                           placement_.enter->function,
                                           placement_.enter->argument);
-    placement_ = {};
+    placement_ = placement_.next ? placement_.next() : Placement{};
     lucent::info("warp", "placement at f{}: {}", frame, result);
     return;
   }

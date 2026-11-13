@@ -25,11 +25,12 @@ public:
   };
 
   // Runs once `ready` holds, after the level is reached: `apply` at once, or `enter` handed to the
-  // frame driver.
+  // frame driver; then `next`, where given, as the placement that follows.
   struct Placement {
     std::function<bool(Core &)> ready;
     std::function<std::string(Core &)> apply;
     std::optional<Entry> enter;
+    std::function<Placement()> next;
   };
 
   Warp() = default;

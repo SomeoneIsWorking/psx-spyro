@@ -25,6 +25,18 @@ toPosition(Core &core, const spyro::MobyTeleport::Position &destination, std::ui
 // leads there.
 std::string toPortal(Core &core, std::uint32_t level);
 
+class LevelMobys;
+// Spyro in front of the first moby of `mobyClass`, inside its talk range and facing it, for the
+// homeworld talker's own check (open-spyro Level0_UpdateActors, ACTOR_TYPE_HOME_TALKER) to start
+// its conversation.
+std::string toTalker(Core &core, const LevelMobys &mobys, std::uint32_t mobyClass);
+// Spyro on the talker's facing outside TALKER_REARM_RANGE and inside its activation radius, where
+// its update rearms it as when he walks up from afar.
+std::string toTalkerApproach(Core &core, const LevelMobys &mobys, std::uint32_t mobyClass);
+// The talker of `mobyClass` is TALKER_READY: it has seen Spyro outside TALKER_REARM_RANGE since the
+// level loaded, so walking up to it starts its conversation.
+bool talkerReady(Core &core, const LevelMobys &mobys, std::uint32_t mobyClass);
+
 // SCUS_942.28's g_LevelMobys, its active field and Spyro's two position copies.
 class LevelMobys final : public spyro::MobyTeleport {
 public:

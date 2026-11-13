@@ -1,7 +1,7 @@
 # 0250 — Spyro transition fades and flights that a press does not end yet
 
 Status: open; the Spyro 2/3 level fade-in, the fade-out loop before a load, Spyro 2's load hold, the Exit
-Level fade, the portal flight and the two skies after it end on a press. Owner: `game/core/counted_screen_skip.cpp`
+Level fade, the portal flight and the two skies after it, and Spyro 1's balloon cruise end on a press. Owner: `game/core/counted_screen_skip.cpp`
 (Spyro 2/3) and `titles/spyro1/core/frame/transition_skip.cpp` (Spyro 1).
 
 ## Done
@@ -61,6 +61,17 @@ counter `0x800698EC` / `0x8006FBC4` and the fade word `0x80066F68` / `0x8006C598
   to 0x4AE) already ends on the guest's own Start/Cross (`0x800683A4 & 0x940`) once its count is 0x78, fading out
   over 8 updates: a press at step 2500/2501 reaches gameplay at 2545/2546 instead of 3050 (`s2fly_*`). Before
   0x78 the guest streams the flyby's first track and takes no press; that second is left to it.
+- Spyro 1's balloon cruise (GS_ACTOR_CUTSCENE 12, ACS_CRUISE 5 in `BalloonistCutscene_Update`): the camera eases
+  along the flight on the timer `0x800777EC` alone (+2 per update to 0x100) while `TickLevelTransitionStream(1)`
+  streams the level, and the state leaves for ACS_DESCEND once the timer is 0x100 with the stream at
+  LSTREAM_FINALIZE (13). A press during the cruise is held until stage 13, then brings the timer to 0x100 and the
+  state's own test leaves (`TransitionSkip`, `Cancellation::BalloonistCruise`). Peace Keepers to Artisans
+  (`warp 1/0/1`, the `balloonist` arrival: Spyro is put out of the talker's rearm range, then in front of it once
+  its update rearms it, so its own check starts the conversation; the roster choice by pad): pressed at 1960 or
+  1961 the descent starts on the next update, gameplay at step ~2060 instead of ~2170, whole frames on both sides
+  of the cut and the same landing, Spyro at (84992, 47243, 9543), with or without the press
+  (`scratch/balloonist/cut_sheet.png`, `descent_sheet.png`). Boarding, lift-off and the descent move the balloon
+  per update and stay unskippable.
 
 ## Not wanted
 - The fade-out and respawn hold after a death (sub-state 0 and 1 while `0x800698F8` / `0x8006FBD0` is set): not
@@ -69,15 +80,6 @@ counter `0x800698EC` / `0x8006FBC4` and the fade word `0x80066F68` / `0x8006C598
 ## Not done
 - Spyro 2's sub-state 1 and Spyro 3's sub-states 1-2 and 5 after the flight (Spyro 2 16 updates, Spyro 3 19:
   the flight's tail and the load's first stages): not offered.
-- Spyro 1's balloonist (overlay `balloonist.inc.h`, `D_800777E8` at `0x800777E8`, tick `+4` by `g_DeltaTime`):
-  state 5 places the camera from the tick alone while `LoadLevel(1)` runs a stage per frame and leaves at tick
-  0x100 once stage 13 is reached, so a press can bring the tick to its end; states 2, 3 and 6 move the balloon per
-  update and would land it elsewhere. No debug route reaches it yet. The conversation starts through
-  `g_BalloonistTriggerCode` (`D_800757A0`, set per homeworld in `overlay_pointers.c`, called from the
-  balloonist's moby update), and its choices (dialogue 30: homeworld list, 31/32: yes/no) are taken in state 1
-  from `g_Pad.m_Down` (`0x80077378`), which the guest's own frame update fills from the pad buffers before the
-  gamestate dispatch. A route through the game's own choice therefore needs a seam between that pad read and
-  `func_800324D8`, or the choice's Cross delivered through the pad buffers; neither exists yet.
 - Menus and cutscenes: Spyro 2's story scene (state 6, level 0x48) already ends on the guest's own Start;
   the pause menu's and the S1 menus' fades are not traced.
 

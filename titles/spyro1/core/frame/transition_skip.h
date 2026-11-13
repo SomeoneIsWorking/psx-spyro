@@ -25,6 +25,9 @@ struct TransitionState {
   std::uint32_t musicFlags = 0;
   std::int32_t musicFadeTarget = -1;
   std::int32_t musicFadeStep = 0;
+  // GS_ACTOR_CUTSCENE's substate and timer (open-spyro actor_cutscene.h).
+  std::uint32_t actorCutsceneSubstate = 0;
+  std::uint32_t actorCutsceneTimer = 0;
   bool skipPressed = false;
 };
 
@@ -35,7 +38,11 @@ enum class Cancellation : std::uint8_t {
   ReturnHomeSequence,
   CutsceneTransitionFlyby,
   CutsceneTransitionIntroCard,
+  BalloonistCruise,
 };
+
+// The balloon's cruise (ACS_CRUISE) owns the screen while its level streams.
+bool balloonistCruising(const TransitionState &state);
 
 // True while "IN THE WORLD OF DRAGONS..." or "THE ADVENTURE BEGINS/CONTINUES..." owns the screen,
 // loaded or not; the attract demo's flyby is excluded.
@@ -59,6 +66,7 @@ public:
   // A press this process latched belongs to no screen of a loaded state.
   void dropHeldPress() {
     flybyPress_.clear();
+    cruisePress_.clear();
   }
 
 private:
@@ -67,6 +75,8 @@ private:
   // A press while a flyby card's load streams, held until its load gate opens; dropped with the
   // card.
   spyro::PressLatch flybyPress_;
+  // A press during the cruise, held until the stream reaches its terminal stage.
+  spyro::PressLatch cruisePress_;
 };
 
 } // namespace spyro1

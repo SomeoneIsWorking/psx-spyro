@@ -4,9 +4,12 @@
 #include "core.h"
 #include "core/debug/moby_teleport.h"
 #include "render/field/moby_record.h"
+#include <cmath>
 #include <cstdint>
 #include <lucent/log.h>
+#include <numbers>
 #include <optional>
+#include <vector>
 
 namespace spyro1::teleport {
 namespace {
@@ -35,6 +38,17 @@ constexpr uint32_t kSpyroPreviousPosition = 0x8cu;
 constexpr uint32_t kSpyroTargetHeading = 0xccu;
 constexpr uint32_t kSpyroHeading = 0x11cu;
 constexpr uint32_t kHeadingMask = kHeadingTurn - 1u;
+// SPY.bodyRotZ, the 8-bit facing the talker's check reads.
+constexpr uint32_t kSpyroBodyYaw = 0x0eu;
+constexpr uint32_t kMobyYaw = 0x46u;            // actor rotZ, 8 bits a turn
+constexpr uint32_t kMobyMode = 0x48u;           // actor mode
+constexpr uint8_t kTalkerReady = 1u;            // TALKER_READY
+constexpr uint32_t kMobyUpdateDistance = 0x52u; // activation radius >> 10
+constexpr double kTalkerRearmRange = 0x1000;    // TALKER_REARM_RANGE
+constexpr uint32_t kYawTurn = 0x100u;
+constexpr uint32_t kHeadingPerYaw = kHeadingTurn / kYawTurn;
+// Inside TALKER_TALK_RANGE (0x780) on the talker's facing (within TALKER_FACING_ANGLE).
+constexpr double kTalkerDistance = 0x400;
 constexpr uint32_t kMaxPortals = 16u;
 constexpr uint32_t kMaxPathNodes = 16u;
 
@@ -179,6 +193,55 @@ std::string toPosition(Core &core, const Position &destination, std::uint32_t he
                         destination.y,
                         destination.z,
                         heading & kHeadingMask);
+}
+
+namespace {
+
+// Spyro `distance` out along the talker's facing, turned to face it.
+std::string facingTalker(Core &core,
+                         const LevelMobys &mobys,
+                         std::uint32_t mobyClass,
+                         std::optional<double> distance) {
+  const std::vector<spyro::MobyTeleport::LevelMoby> talkers = mobys.ofClass(core, mobyClass);
+  if (talkers.empty()) {
+    return lucent::format("refused: the level has no moby of class {}", mobyClass);
+  }
+  const spyro::MobyTeleport::LevelMoby &talker = talkers.front();
+  const uint32_t yaw = core.mem_r8(talker.address + kMobyYaw);
+  // Halfway between the rearm range and the activation radius.
+  const double out = distance.value_or(
+      (kTalkerRearmRange + (core.mem_r8(talker.address + kMobyUpdateDistance) << 10u)) / 2.0);
+  // Angle 0 is +x, a quarter turn +y, as the overlays' LookupCosine/LookupSine moves take it.
+  const double radians = 2.0 * std::numbers::pi * yaw / kYawTurn;
+  const Position at{
+      .x = talker.position.x + static_cast<int32_t>(std::lround(out * std::cos(radians))),
+      .y = talker.position.y + static_cast<int32_t>(std::lround(out * std::sin(radians))),
+      .z = talker.position.z};
+  const uint32_t facing = (yaw + kYawTurn / 2u) % kYawTurn;
+  const std::string reply = toPosition(core, at, facing * kHeadingPerYaw);
+  core.mem_w8(kSpyro + kSpyroBodyYaw, static_cast<uint8_t>(facing));
+  lucent::info("spyro-teleport",
+               "talker class={} moby={:#010x} yaw={} distance={}",
+               mobyClass,
+               talker.address,
+               yaw,
+               out);
+  return reply;
+}
+
+} // namespace
+
+std::string toTalker(Core &core, const LevelMobys &mobys, std::uint32_t mobyClass) {
+  return facingTalker(core, mobys, mobyClass, kTalkerDistance);
+}
+
+std::string toTalkerApproach(Core &core, const LevelMobys &mobys, std::uint32_t mobyClass) {
+  return facingTalker(core, mobys, mobyClass, std::nullopt);
+}
+
+bool talkerReady(Core &core, const LevelMobys &mobys, std::uint32_t mobyClass) {
+  const std::vector<spyro::MobyTeleport::LevelMoby> talkers = mobys.ofClass(core, mobyClass);
+  return !talkers.empty() && core.mem_r8(talkers.front().address + kMobyMode) == kTalkerReady;
 }
 
 std::string listGates(Core &core) {

@@ -116,6 +116,8 @@ inline constexpr std::uint32_t kLevelMobys = 0x80075828u;
 inline constexpr std::uint32_t kMobyProps = 0x00u;
 // MOBYCLASS_CRYSTAL_DRAGON: the statue whose touch calls func_8002C924 into GS_Dragon.
 inline constexpr std::uint32_t kMobyClassCrystalDragon = 250u;
+// ACTOR_TYPE_HOME_TALKER: one per homeworld, in world order from Artisans.
+inline constexpr std::uint32_t kMobyClassHomeTalker = 187u;
 
 // D_8006CBF8: the sine table indexed with a 12-bit angle; cosine reads it a quarter turn on.
 inline constexpr std::uint32_t kSinTable = 0x8006CBF8u;
