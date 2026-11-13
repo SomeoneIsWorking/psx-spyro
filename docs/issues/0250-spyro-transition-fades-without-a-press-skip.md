@@ -70,8 +70,11 @@ counter `0x800698EC` / `0x8006FBC4` and the fade word `0x80066F68` / `0x8006C598
   its update rearms it, so its own check starts the conversation; the roster choice by pad): pressed at 1960 or
   1961 the descent starts on the next update, gameplay at step ~2060 instead of ~2170, whole frames on both sides
   of the cut and the same landing, Spyro at (84992, 47243, 9543), with or without the press
-  (`scratch/balloonist/cut_sheet.png`, `descent_sheet.png`). Boarding, lift-off and the descent move the balloon
-  per update and stay unskippable.
+  (`scratch/balloonist/cut_sheet.png`, `descent_sheet.png`). Pressed at 1945, the cruise's first update with the
+  stream at stage 10, the press is held through stages 11 and 12 and acts at 1948 when stage 13 is reached, the
+  descent at 1949, same landing (`held2.log`); a press at 1942, in the stream wait before the cruise, is dropped and
+  the cruise runs its full course (`held.log`). Boarding, lift-off and the descent move the balloon per update and
+  stay unskippable.
 
 ## Not wanted
 - The fade-out and respawn hold after a death (sub-state 0 and 1 while `0x800698F8` / `0x8006FBD0` is set): not
