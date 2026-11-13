@@ -25,7 +25,7 @@ void OrderingTable::assignSlots(Core &core, std::uint32_t bins) {
   depth_bins::assignBins(core, published);
   depth_bins::assignOverlay(
       core, published, depth_bins::overlayBins(core, terrain::kRenderGlobals));
-  spyro::session(core).cropLayers.flattened(false);
+  spyro::session(core).layers.flattened(false);
 }
 
 void OrderingTable::registerOverrides(Core &core) {

@@ -45,7 +45,8 @@ constexpr psx::cd::GuestInterruptLibcd::Completion kCdCompletion{
     .status = 2, .perStockRead = true, .timing = psx::cd::ReadTiming::AtOnce};
 
 // spyro-3 asm camera/func_80013918 polls L2/R2 (refused in gamestate 7 and with L1/R1 held),
-// func_8001241C computes the errors that both the camera's error step and a level's own (0x80074308) take.
+// func_8001241C computes the errors that both the camera's error step and a level's own
+// (0x80074308) take.
 constexpr spyro::FollowCameraFacts kFollowCamera{.shoulderPoll = 0x80013918u,
                                                  .errorCompute = 0x8001241Cu,
                                                  .camera = 0x8006DFF8u,
@@ -99,6 +100,10 @@ const spyro::DrawMotionFacts &Runtime::drawMotion() const {
 
 std::unique_ptr<spyro::Warp> Runtime::createWarp() const {
   return std::make_unique<Warp>();
+}
+
+const psx::present::OutlineFont *Runtime::outlineFont() const {
+  return &kTextFont;
 }
 
 const spyro::TitleLogoFacts &Runtime::logoFacts() const {

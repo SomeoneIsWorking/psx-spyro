@@ -30,7 +30,7 @@ void link(Core &core, const Facts &facts) {
     core.r[4] = packet >> 16;
   }
   if (std::ranges::find(facts.wholeScreenReturns, core.r[31]) == facts.wholeScreenReturns.end()) {
-    session(core).cropLayers.linked(core, packet);
+    session(core).layers.linked(core, packet);
   }
 }
 
@@ -41,7 +41,9 @@ void layText(Core &core, const Facts &facts, std::uint32_t entry) {
   (void)psx::cpu::callOriginalOrPropagate(core, entry);
   // A layout with nothing to draw links nothing.
   if (const std::uint32_t head = core.mem_r32(pair); head != headBefore) {
-    session(core).cropLayers.linkedChain(core, psx::present::EmitMemory(core), first, head);
+    const psx::present::EmitMemory memory(core);
+    session(core).layers.linkedChain(core, memory, first, head);
+    session(core).layers.linkedGlyphs(memory, first, head);
   }
 }
 

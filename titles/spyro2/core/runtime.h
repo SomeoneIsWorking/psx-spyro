@@ -22,6 +22,8 @@ public:
   const spyro::FollowCameraFacts &followCamera() const override;
   std::optional<psx::gpu::PacketPoolExtent> packetPool(Core &core) const override;
   const spyro::TitleLogoFacts &logoFacts() const override;
+  // The 2D font (render/text_font.h).
+  const psx::present::OutlineFont *outlineFont() const override;
   const psx::game::TitleDebugMenu &debugMenu() const override {
     return debugMenu_;
   }

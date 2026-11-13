@@ -11,7 +11,8 @@
 //
 // The two text layouts (SCUS_944.25 0x8004A374 and 0x8004A59C, SCUS_944.67 0x8002E748 and
 // 0x8002E970, sprites and quads) write their glyphs from the primitive cursor on and link the chain
-// into the pair themselves, inline; it is all UI.
+// into the pair themselves, inline; it is all UI, and its glyphs are the 2D font's
+// (render/text_font.h).
 #pragma once
 
 #include "emit_memory.h"
@@ -52,7 +53,7 @@ append(const psx::present::EmitMemory &memory, std::uint32_t pairWord, std::uint
 // The leaf at a call: links $a0, leaves v1, at and a0 as the guest does, and names the packet's
 // crop layer.
 void link(Core &core, const Facts &facts);
-// A text layout at a call: runs it and names the chain it linked UI.
+// A text layout at a call: runs it and names the chain it linked UI and font glyphs.
 void layText(Core &core, const Facts &facts, std::uint32_t entry);
 
 template <const Facts &facts> void linkOverride(Core *core) {

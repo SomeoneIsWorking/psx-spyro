@@ -4,6 +4,7 @@
 
 #include "core/draw_motion.h"
 #include "render/engine_render_overrides.h"
+#include "render/text_font.h"
 #include "spyro2/core/game_state.h"
 #include "spyro2/render/intro_card_facts.h"
 
@@ -295,6 +296,11 @@ inline constexpr std::array<std::uint32_t, 3> kWholeScreenReturns = {
 // State 4 is the pause screen, FUN_800145AC: the captured frame's shrink (8004DF84), its 256x108
 // copy (8004E14C), the menu panel (8004E62C) and the guidebook, all laid out for 4:3.
 inline constexpr std::array<std::uint32_t, 1> kWholeFrameUiStates = {4u};
+
+// The 2D font's page draws its glyph shadow in CLUT indices 2, 5 and 7
+// (spyro-2 `spyro2.text-font`).
+inline constexpr std::array<int, 3> kTextShadowIndices{2, 5, 7};
+inline constexpr psx::present::OutlineFont kTextFont = spyro::textFont(kTextShadowIndices);
 
 inline constexpr spyro::EngineRenderFacts kRenderFacts{
     .globals = kRenderGlobals,

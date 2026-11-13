@@ -29,8 +29,12 @@ public:
   std::span<const psx::present::LogoTexture> logoTextures() const final;
   // The player's aspect; the canvas holds the margins and each title widens its own culls.
   const psx::present::GuestWidescreenProjection *guestWidescreenProjection() const final;
-  // The packets the overlay pair's link and the screen-space emitters name (render/crop_layers.h).
+  // The packets the overlay pair's link and the screen-space emitters name
+  // (render/packet_layers.h).
   const psx::present::CropUiLayers *cropUiLayers(Core &core) const final;
+  // The 2D font glyphs the text layouts name (render/packet_layers.h); a title offering its font
+  // draws them.
+  const psx::present::OutlineGlyphs *outlineGlyphs(Core &core) const final;
   bool interpolates() const final;
   // The right-stick camera row (core/stick_camera.h).
   std::span<const psx::game::TitleIntSetting> titleIntSettings() const final;

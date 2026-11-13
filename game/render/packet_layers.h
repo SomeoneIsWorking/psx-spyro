@@ -1,10 +1,11 @@
-// crop_layers.h — the packets of a Spyro frame that crop widescreen (psxport plan 0203) shows as
-// UI, at their 4:3 size and place over the cropped world: the screen-space packets each title's
-// linkers name as they link them.
+// packet_layers.h — the screen-space packets of a Spyro frame its linkers name: the UI crop
+// widescreen (psxport plan 0203) shows at its 4:3 size and place over the cropped world, and the 2D
+// font's glyphs (Spyro 2 and 3) psxport draws from outline fonts (plan 0207).
 #pragma once
 
 #include "crop_ui_layers.h"
 #include "emit_memory.h"
+#include "outline_text.h"
 
 #include <cstdint>
 #include <span>
@@ -23,7 +24,7 @@ struct WholeFrameUi {
   [[nodiscard]] bool covers(Core &core) const;
 };
 
-class CropLayers final : public psx::present::CropUiLayers {
+class PacketLayers final : public psx::present::CropUiLayers, public psx::present::OutlineGlyphs {
 public:
   // A UI packet was linked.
   void linked(Core &core, std::uint32_t packet);
@@ -32,6 +33,9 @@ public:
                    const psx::present::EmitMemory &memory,
                    std::uint32_t first,
                    std::uint32_t last);
+  // A text layout linked its glyphs, `first` to `last`.
+  void
+  linkedGlyphs(const psx::present::EmitMemory &memory, std::uint32_t first, std::uint32_t last);
   // The flatten: the packets linked since the last are the frame DrawOTag draws next, all of them
   // UI when `wholeFrame`.
   void flattened(bool wholeFrame);
@@ -40,10 +44,23 @@ public:
   void secondPass();
   // Whether the packet at `packet` of the frame last flattened is UI.
   [[nodiscard]] bool uiPacket(std::uint32_t packet) const override;
+  // Whether the packet at `packet` of the frame last flattened draws a 2D font cell.
+  [[nodiscard]] bool glyphPacket(std::uint32_t packet) const override;
 
 private:
-  std::vector<std::uint32_t> linking_; // main-RAM offsets
-  std::vector<std::uint32_t> drawn_;   // the same, ascending
+  // Main-RAM offsets of a layer's packets: those linked since the flatten, and the frame's,
+  // ascending.
+  struct Layer {
+    std::vector<std::uint32_t> linking;
+    std::vector<std::uint32_t> drawn;
+
+    void link(const psx::present::EmitMemory &memory, std::uint32_t first, std::uint32_t last);
+    void flatten(bool joinsFrame);
+    [[nodiscard]] bool holds(std::uint32_t packet) const;
+  };
+
+  Layer ui_;
+  Layer glyphs_;
   bool wholeFrame_ = false;
   bool secondPass_ = false;
 };

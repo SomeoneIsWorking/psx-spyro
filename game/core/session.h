@@ -10,7 +10,7 @@
 #include "emit_memory.h"
 #include "game_runtime.h"
 #include "image_identity.h"
-#include "render/crop_layers.h"
+#include "render/packet_layers.h"
 
 class Core;
 
@@ -32,8 +32,8 @@ public:
   // The title's `warp` request, applied by its frame driver.
   std::unique_ptr<Warp> warp;
   std::unique_ptr<TitleState> titleState;
-  // The frame's crop widescreen UI, named by the title's linkers.
-  CropLayers cropLayers;
+  // The frame's crop widescreen UI and 2D font glyphs, named by the title's linkers.
+  PacketLayers layers;
 };
 
 // The session of the Game `core` belongs to; a native override reaches it from its Core alone.

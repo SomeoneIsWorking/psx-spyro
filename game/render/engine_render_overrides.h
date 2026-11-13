@@ -6,7 +6,6 @@
 #include "core.h"
 #include "core/session.h"
 #include "native_dispatch.h"
-#include "render/crop_layers.h"
 #include "render/field/guest_moby_deferred.h"
 #include "render/field/guest_moby_drawer.h"
 #include "render/field/guest_moby_shadows.h"
@@ -15,6 +14,7 @@
 #include "render/field/guest_sky_drawer.h"
 #include "render/field/spyro_drawer_depth.h"
 #include "render/overlay_pair.h"
+#include "render/packet_layers.h"
 #include "render/screen_overlays.h"
 #include "render/terrain/engine_terrain_image.h"
 #include "render/terrain/guest_depth_bins.h"
@@ -99,15 +99,15 @@ template <const EngineRenderFacts &facts> void drawSpyro(Core *core) {
 }
 
 template <const EngineRenderFacts &facts> void flatten(Core *core) {
-  CropLayers &cropLayers = session(*core).cropLayers;
+  PacketLayers &layers = session(*core).layers;
   if (std::ranges::find(facts.unbinnedFlattens, core->r[31]) == facts.unbinnedFlattens.end()) {
     const depth_bins::Bins published = depth_bins::publishedBins(*core, facts.globals);
     depth_bins::assignBins(*core, published);
     depth_bins::assignOverlay(*core, published, depth_bins::overlayBins(*core, facts.globals));
   } else {
-    cropLayers.secondPass();
+    layers.secondPass();
   }
-  cropLayers.flattened(facts.wholeFrameUi.covers(*core));
+  layers.flattened(facts.wholeFrameUi.covers(*core));
   (void)psx::cpu::callOriginalOrPropagate(*core, facts.flatten);
 }
 

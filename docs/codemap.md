@@ -33,7 +33,8 @@ Frame loop: each title's driver runs one logic frame per step, update then draw 
 - `game/render/engine_render_overrides.*` — S2/S3 render overrides bound to one image: terrain drawer, moby walk, sky drawer, flatten depth bins and letterbox
 - `game/render/screen_overlays.*` — cinematic letterbox override shared by all three images; in a replay the letterbox's moving edge is placed between the row read and the row drawn
 - `game/render/overlay_pair.*` — the overlay pair's link leaf all three images share (`0x800168DC`, `0x8001B390`, `0x8004E758`), native: links the packet and names it crop UI unless its return is a whole-screen draw; the S2/S3 text layouts, which link their glyph chains inline, named UI whole
-- `game/render/crop_layers.*` — crop widescreen UI packets (`spyro::Session::cropLayers`, the titles' `psx::present::CropUiLayers`): the links named UI, swapped at the flatten; a whole-frame UI state names every packet
+- `game/render/packet_layers.*` — the named screen-space packets (`spyro::Session::layers`, the titles' `psx::present::CropUiLayers` and `OutlineGlyphs`): crop widescreen UI and the 2D font's glyphs, swapped at the flatten; a whole-frame UI state names every packet UI
+- `game/render/text_font.h` — Spyro 2/3's 2D font page as psxport's outline text draws it (plan 0207): the cell-to-codepoint table, the button cells, the face
 - `game/render/field/effect_pools.*` — S2/S3 effects pass pools (sprites, glows, beams, trails, vertex meshes, particles): one field's records read, paired by slot and moved for the replay
 - `game/render/field/keyframe_blend.*` — moby / Spyro animation keyframe pair and progress (S2/S3 nibbles, S1 64ths and 16ths), pose between two fields and across an animation switch
 - `game/render/field/moby_motion.*` — a moby slot between two samples for all three replays: the moby array's records, position, angles, pose across an animation switch; titles subclass for layout test and own words

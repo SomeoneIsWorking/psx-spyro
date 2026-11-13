@@ -127,7 +127,7 @@ bool DrawSection::secondPass(Core &core,
     }
   }
   redraw.writeWord(image.scratchEnd, scratch);
-  spyro::session(core).cropLayers.secondPass();
+  spyro::session(core).layers.secondPass();
   const std::optional<std::uint32_t> head = flatten(core, redraw);
   if (!head) {
     return false;

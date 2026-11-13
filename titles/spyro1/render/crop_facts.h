@@ -1,5 +1,5 @@
 // crop_facts.h — the packets of a Spyro 1 frame that crop widescreen shows as UI
-// (render/crop_layers.h).
+// (render/packet_layers.h).
 //
 // The UI is what SCUS_942.28 lays out in screen space: the sprite queue's screen-space records (the
 // moby cull word's screen-space bit, titles/spyro1/render/sprite_queue.h) and the packets

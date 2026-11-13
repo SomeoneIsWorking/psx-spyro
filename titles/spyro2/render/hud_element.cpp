@@ -25,7 +25,7 @@ constexpr std::uint32_t kFrameBytes = 0x18u;
 // FUN_8001B390(packet); every packet the sprite emitter draws is HUD.
 void appendToOverlay(Core &core, const psx::present::EmitMemory &memory, std::uint32_t packet) {
   (void)spyro::overlay_pair::append(memory, kRenderGlobals.overlayPair, packet);
-  spyro::session(core).cropLayers.linked(core, packet);
+  spyro::session(core).layers.linked(core, packet);
 }
 
 // The image's CLUT halfword: palette column (+2 low bits) and row (+3).

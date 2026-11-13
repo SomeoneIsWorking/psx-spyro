@@ -4,6 +4,7 @@
 
 #include "core/draw_motion.h"
 #include "render/engine_render_overrides.h"
+#include "render/text_font.h"
 #include "spyro3/render/intro_card_facts.h"
 
 #include <array>
@@ -271,6 +272,10 @@ inline constexpr spyro::spyro_drawer_depth::Facts kSpyroDrawer{
 //   8002013C  and the quad
 inline constexpr std::array<std::uint32_t, 3> kWholeScreenReturns = {
     0x80020068u, 0x800200ECu, 0x8002013Cu};
+
+// The 2D font's page draws its glyph shadow in CLUT index 2 (spyro-3 `spyro3.text-font`).
+inline constexpr std::array<int, 1> kTextShadowIndices{2};
+inline constexpr psx::present::OutlineFont kTextFont = spyro::textFont(kTextShadowIndices);
 
 inline constexpr spyro::EngineRenderFacts kRenderFacts{
     .globals = kRenderGlobals,
