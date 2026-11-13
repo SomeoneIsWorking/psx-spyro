@@ -5,6 +5,7 @@
 #include "core.h"
 #include "core/native_execution.h"
 #include "spyro1/core/execution/native_owners.h"
+#include "spyro1/core/native_state.h"
 #include "spyro1/render/inventory_band.h"
 
 namespace {
@@ -80,6 +81,7 @@ void dl_link_native(Core *c) {
     c->mem_w8(old + 2, (uint8_t)(node >> 16));
   }
   spyro1::inventory_band::linked(*c, node);
+  spyro1::nativeState(*c).cropLayers.linked(*c, node, c->r[31]);
 }
 
 } // namespace

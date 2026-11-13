@@ -218,6 +218,10 @@ psx::state::NativeStatePort *Runtime::nativeState(Core &core) const {
   return &core.game->frameDriverAs<FrameDriver>();
 }
 
+bool Runtime::cropUiPacket(Core &core, std::uint32_t packet) const {
+  return spyro1::nativeState(core).cropLayers.ui(packet);
+}
+
 std::unique_ptr<spyro::Warp> Runtime::createWarp() const {
   return std::make_unique<Warp>();
 }

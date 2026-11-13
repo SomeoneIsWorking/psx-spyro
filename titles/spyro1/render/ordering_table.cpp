@@ -3,6 +3,7 @@
 #include "core.h"
 #include "native_dispatch.h"
 #include "render/terrain/guest_depth_bins.h"
+#include "spyro1/core/native_state.h"
 #include "spyro1/render/terrain_facts.h"
 
 namespace spyro1 {
@@ -24,6 +25,7 @@ void OrderingTable::assignSlots(Core &core, std::uint32_t bins) {
   depth_bins::assignBins(core, published);
   depth_bins::assignOverlay(
       core, published, depth_bins::overlayBins(core, terrain::kRenderGlobals));
+  nativeState(core).cropLayers.flattened();
 }
 
 void OrderingTable::registerOverrides(Core &core) {

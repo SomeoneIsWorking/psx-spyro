@@ -91,6 +91,7 @@ set(SPYRO_RUNTIME_SOURCES
   titles/spyro1/core/frame/draw_cuts.cpp
   titles/spyro1/core/frame/frame_driver.cpp
   titles/spyro1/render/ordering_table.cpp
+  titles/spyro1/render/crop_layers.cpp
   titles/spyro1/core/input/input_phase.cpp
   titles/spyro1/core/frame/transition_skip.cpp
   titles/spyro1/core/runtime/runtime.cpp

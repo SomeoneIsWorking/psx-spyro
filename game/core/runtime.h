@@ -13,8 +13,8 @@
 
 namespace spyro {
 
-// The behaviour Spyro 1/2/3 share; each serial's runtime derives from it.
-class Runtime : public psx::game::GameRuntime {
+// The behaviour Spyro 1/2/3 share; each serial's runtime derives from it, and is its own widescreen projection.
+class Runtime : public psx::game::GameRuntime, public psx::present::GuestWidescreenProjection {
 public:
   // The title screen's logo gate and the texture pages its wordmark is drawn from; the base has
   // none.
@@ -37,9 +37,6 @@ protected:
   virtual std::unique_ptr<Warp> createWarp() const = 0;
   // The title's own per-Core state; none by default.
   virtual std::unique_ptr<TitleState> createTitleState() const;
-
-private:
-  psx::present::GuestWidescreenProjection aspectPolicy_;
 };
 
 } // namespace spyro

@@ -46,7 +46,7 @@ bool Runtime::interpolates() const {
 }
 
 const psx::present::GuestWidescreenProjection *Runtime::guestWidescreenProjection() const {
-  return &aspectPolicy_;
+  return this;
 }
 
 } // namespace spyro
