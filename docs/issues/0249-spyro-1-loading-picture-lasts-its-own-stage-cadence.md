@@ -43,6 +43,12 @@ instead of 1442: the flight 10 frames instead of 19, change to gameplay 40 -> 22
 (`after/s1_sheet.png` against `scratch/s1load/seq_sheet.png`; the fade-in after it is unchanged).
 The music fade (8 frames) is the drive's pause before data reads and stays on the press.
 
+Through the portal (2026-11-13, `scratch/portal/`: `warp 0/0/0`, then `warp 0/1/0` at step 1700, which from
+Artisans now enters Stone Hill's portal trigger region through `DispatchSpyroTriggerEvent`): stage 2 at 1790, 11 by
+1800, held there under the tally until 2021; stage 12 for one update (the camera already on Spyro), 13 the next,
+then GS 9 for 34 updates and gameplay, Spyro at (133162, 121859, 20983). A Cross at 1850 ends the tally
+(`level-transition tally cancelled`), stage 12 and 13 follow at 1852-1853, same landing (`fine.log`, `tally.log`).
+
 ## Press skip
 A Start/Cross press while the fade runs writes the CD volume (`0x80075F18`) to the fade's target, so the next
 `CDMusicUpdate` (`0x8002BBE0`) ends the fade itself, issues `CdlPause` and frees the gate; the stages keep
