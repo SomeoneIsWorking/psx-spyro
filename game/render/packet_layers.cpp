@@ -82,8 +82,8 @@ bool PacketLayers::uiPacket(std::uint32_t packet) const {
   return wholeFrame_ || ui_.holds(packet);
 }
 
-bool PacketLayers::glyphPacket(std::uint32_t packet) const {
-  return glyphs_.holds(packet);
+std::optional<std::uint8_t> PacketLayers::glyphFont(std::uint32_t packet) const {
+  return glyphs_.holds(packet) ? std::optional<std::uint8_t>(0) : std::nullopt;
 }
 
 } // namespace spyro

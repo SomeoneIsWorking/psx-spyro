@@ -8,6 +8,7 @@
 #include "outline_text.h"
 
 #include <cstdint>
+#include <optional>
 #include <span>
 #include <vector>
 
@@ -44,8 +45,8 @@ public:
   void secondPass();
   // Whether the packet at `packet` of the frame last flattened is UI.
   [[nodiscard]] bool uiPacket(std::uint32_t packet) const override;
-  // Whether the packet at `packet` of the frame last flattened draws a 2D font cell.
-  [[nodiscard]] bool glyphPacket(std::uint32_t packet) const override;
+  // The 2D font, when the packet at `packet` of the frame last flattened draws one of its cells.
+  [[nodiscard]] std::optional<std::uint8_t> glyphFont(std::uint32_t packet) const override;
 
 private:
   // Main-RAM offsets of a layer's packets: those linked since the flatten, and the frame's,

@@ -102,8 +102,8 @@ std::unique_ptr<spyro::Warp> Runtime::createWarp() const {
   return std::make_unique<Warp>();
 }
 
-const psx::present::OutlineFont *Runtime::outlineFont() const {
-  return &kTextFont;
+std::span<const psx::present::OutlineFont> Runtime::outlineFonts() const {
+  return {&kTextFont, 1};
 }
 
 const spyro::TitleLogoFacts &Runtime::logoFacts() const {

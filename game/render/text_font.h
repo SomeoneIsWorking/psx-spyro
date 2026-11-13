@@ -23,86 +23,83 @@ namespace spyro {
 
 namespace text_font {
 
-using psx::present::OutlineCell;
 using psx::present::OutlineFace;
+using psx::present::OutlineGlyph;
 
-constexpr OutlineCell letter(std::uint16_t cell, char32_t codepoint) {
-  return {.cell = cell, .codepoint = codepoint};
+// The page's 12x9 cells, 32 a row from its top-left.
+inline constexpr psx::present::OutlineGrid kGrid{.cellWidth = 12, .cellHeight = 9, .columns = 32};
+
+constexpr OutlineGlyph letter(int cell, char32_t codepoint) {
+  return kGrid.glyph(cell, codepoint);
 }
 
-constexpr OutlineCell button(std::uint16_t cell, std::uint16_t psxButton) {
-  return {.cell = cell, .face = OutlineFace::Prompt, .button = psxButton};
+constexpr OutlineGlyph button(int cell, std::uint16_t psxButton) {
+  return kGrid.button(cell, psxButton);
 }
 
 // A run of consecutive cells holding consecutive codepoints.
 template <std::size_t N>
-constexpr void run(std::array<OutlineCell, N> &cells,
-                   std::size_t &at,
-                   std::uint16_t cell,
-                   char32_t first,
-                   char32_t last) {
+constexpr void
+run(std::array<OutlineGlyph, N> &glyphs, std::size_t &at, int cell, char32_t first, char32_t last) {
   for (char32_t codepoint = first; codepoint <= last; codepoint++) {
-    cells[at++] = letter(static_cast<std::uint16_t>(cell + (codepoint - first)), codepoint);
+    glyphs[at++] = letter(cell + static_cast<int>(codepoint - first), codepoint);
   }
 }
 
 // Letters, digits and the other cells.
-inline constexpr std::size_t kCells = 26 + 26 + 10 + 25;
+inline constexpr std::size_t kGlyphs = 26 + 26 + 10 + 25;
 
-constexpr std::array<OutlineCell, kCells> cells() {
-  std::array<OutlineCell, kCells> cells{};
+constexpr std::array<OutlineGlyph, kGlyphs> glyphs() {
+  std::array<OutlineGlyph, kGlyphs> glyphs{};
   std::size_t at = 0;
-  run(cells, at, 0, U'A', U'U');
-  run(cells, at, 32, U'V', U'Z');
-  run(cells, at, 37, U'a', U'p');
-  run(cells, at, 64, U'q', U'z');
-  run(cells, at, 74, U'0', U'9');
-  for (const OutlineCell cell : {letter(84, U'!'),
-                                 letter(96, U'\''),
-                                 letter(97, U','),
-                                 letter(98, U'-'),
-                                 letter(99, U'.'),
-                                 letter(100, U'?'),
-                                 letter(101, U'/'),
-                                 letter(102, U':'),
-                                 letter(103, U'•'),
-                                 letter(104, U'%'),
-                                 button(105, psx::input::kButtonCross),
-                                 button(106, psx::input::kButtonSquare),
-                                 button(107, psx::input::kButtonCircle),
-                                 button(108, psx::input::kButtonTriangle),
-                                 {.cell = 109, .codepoint = U'★', .face = OutlineFace::Prompt},
-                                 letter(110, U'¡'),
-                                 letter(111, U'¿'),
-                                 letter(112, U'ß'),
-                                 letter(113, U'¸'),
-                                 letter(114, U'´'),
-                                 letter(115, U'`'),
-                                 letter(116, U'¨'),
-                                 letter(128, U'ˆ'),
-                                 letter(129, U'˜'),
-                                 letter(130, U'+')}) {
-    cells[at++] = cell;
+  run(glyphs, at, 0, U'A', U'U');
+  run(glyphs, at, 32, U'V', U'Z');
+  run(glyphs, at, 37, U'a', U'p');
+  run(glyphs, at, 64, U'q', U'z');
+  run(glyphs, at, 74, U'0', U'9');
+  for (const OutlineGlyph glyph : {letter(84, U'!'),
+                                   letter(96, U'\''),
+                                   letter(97, U','),
+                                   letter(98, U'-'),
+                                   letter(99, U'.'),
+                                   letter(100, U'?'),
+                                   letter(101, U'/'),
+                                   letter(102, U':'),
+                                   letter(103, U'•'),
+                                   letter(104, U'%'),
+                                   button(105, psx::input::kButtonCross),
+                                   button(106, psx::input::kButtonSquare),
+                                   button(107, psx::input::kButtonCircle),
+                                   button(108, psx::input::kButtonTriangle),
+                                   kGrid.glyph(109, U'★', OutlineFace::Prompt),
+                                   letter(110, U'¡'),
+                                   letter(111, U'¿'),
+                                   letter(112, U'ß'),
+                                   letter(113, U'¸'),
+                                   letter(114, U'´'),
+                                   letter(115, U'`'),
+                                   letter(116, U'¨'),
+                                   letter(128, U'ˆ'),
+                                   letter(129, U'˜'),
+                                   letter(130, U'+')}) {
+    glyphs[at++] = glyph;
   }
-  return cells;
+  return glyphs;
 }
 
-inline constexpr std::array<OutlineCell, kCells> kCellTable = cells();
-static_assert(std::ranges::all_of(kCellTable,
-                                  [](const OutlineCell &cell) {
-                                    return cell.codepoint != 0 || cell.button != 0;
+inline constexpr std::array<OutlineGlyph, kGlyphs> kGlyphTable = glyphs();
+static_assert(std::ranges::all_of(kGlyphTable,
+                                  [](const OutlineGlyph &glyph) {
+                                    return glyph.codepoint != 0 || glyph.button != 0;
                                   }),
-              "kCells counts more cells than the table names");
+              "kGlyphs counts more glyphs than the table names");
 
 } // namespace text_font
 
 // The font of a page whose glyph shadow is drawn in CLUT indices `shadowIndices`.
 constexpr psx::present::OutlineFont textFont(std::span<const int> shadowIndices) {
   return {.page = {.x = 512, .y = 256, .depth = psx::gpu::TexDepth::Indexed4},
-          .cellWidth = 12,
-          .cellHeight = 9,
-          .columns = 32,
-          .cells = text_font::kCellTable,
+          .glyphs = text_font::kGlyphTable,
           .textFace = "Fredoka.ttf",
           .weight = 700,
           .shadowIndices = shadowIndices,
