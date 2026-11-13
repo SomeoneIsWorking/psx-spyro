@@ -25,7 +25,7 @@ caused the upstream `jr $ra` mis-classification in issue 0040.
 
 `spyro-1` is a **submodule at `external/spyro-1`** (CC0), pinned to a commit like `open-spyro`. It is the
 **primary decomp reference** for this repo — the most complete matching decompilation of SCUS_942.28 known
-to this workspace (its README claims >40%; its own `progress.md` tracks 254 of 270 listed functions (2026-10-13) as
+to this workspace (its README claims >40%; its own `progress.md` tracks all 270 listed functions (2026-11-13) as
 matched, ~2.7x `open-spyro`'s figure). Verified 2026-08-16: its target `PSX.EXE` is SHA-1
 `84e3728ab94720d0873e2514adf4aade4935e0c5`, **byte-identical to our extracted `SCUS_942.28`**, so its
 `src/` names and `asm/nonmatchings/` hold OUR addresses with no translation. It has the same role as
@@ -35,8 +35,10 @@ matched, ~2.7x `open-spyro`'s figure). Verified 2026-08-16: its target `PSX.EXE`
 
 | project | what it is |
 |---|---|
-| [TheMobyCollective/spyro-1](https://github.com/TheMobyCollective/spyro-1) | **Primary decomp reference** (CC0, submodule at `external/spyro-1`). Matching decompilation of SCUS_942.28; >40% C-matched, 254/270 listed functions matched (2026-10-13). Same target checksum as our extraction, so `src/` names OUR addresses directly. |
-| [theMagicalKarp/open-spyro](https://github.com/theMagicalKarp/open-spyro) | Byte-for-byte matching decompilation of SCUS_942.28 (CC0, submodule at `external/open-spyro`). Uses GCC 2.7.2 + maspsx + splat/spimdisasm; every commit rebuilds a byte-identical executable and stays runnable. Reports the game as the main EXE **plus 37 overlays**, ~828 functions (673 game, 155 PSY-Q/libc). **14.63% C-matched as of 2026-08-12** — this cell said ~5% and was stale by roughly 3x, which matters because the figure is how you judge whether a name you need is likely to exist yet. Verified the same day: our extracted `SCUS_942.28` is SHA-1 `84e3728ab94720d0873e2514adf4aade4935e0c5`, **byte-identical to its target**, so `config/symbol_addrs.txt` and `include/{types,funcs,globals}.h` name OUR addresses with no translation. |
+| [TheMobyCollective/spyro-1](https://github.com/TheMobyCollective/spyro-1) | **Primary decomp reference** (CC0, submodule at `external/spyro-1`). Matching decompilation of SCUS_942.28; 270/270 listed functions matched (2026-11-13). Same target checksum as our extraction, so `src/` names OUR addresses directly. |
+| [theMagicalKarp/open-spyro](https://github.com/theMagicalKarp/open-spyro) | Byte-for-byte matching decompilation of SCUS_942.28 (CC0, submodule at `external/open-spyro`). Uses GCC 2.7.2 + maspsx + splat/spimdisasm; every commit rebuilds a byte-identical executable and stays runnable. Reports the game as the main EXE **plus 37 overlays**, ~828 functions (673 game, 155 PSY-Q/libc). Its `PROGRESS.md` claims 100% of game code C-matched (2026-11-13), excluding PSY-Q and 100 hand-written asm functions; our pin `a7be2b1d` predates that. Verified the same day: our extracted `SCUS_942.28` is SHA-1 `84e3728ab94720d0873e2514adf4aade4935e0c5`, **byte-identical to its target**, so `config/symbol_addrs.txt` and `include/{types,funcs,globals}.h` name OUR addresses with no translation. |
+| [TheMobyCollective/spyro-2](https://github.com/TheMobyCollective/spyro-2) | Matching decompilation of SCUS_944.25 (CC0, submodule at `external/spyro-2`); `preparation/scus_944.25.yaml` sha1 equals our image. 102/330 EXE functions matched (2026-11-13). |
+| [TheMobyCollective/spyro-3](https://github.com/TheMobyCollective/spyro-3) | Matching decompilation of SCUS_944.67 rev 0 (CC0, submodule at `external/spyro-3`); `preparation/scus_944.67.yaml` sha1 equals our image. 180/337 EXE functions matched (2026-11-13). |
 | [celophi/spyro-decompilation](https://github.com/celophi/spyro-decompilation) | Decompilation to C using a different approach — recreated functions placed in extra RAM. |
 
 ## How these differ from this project
