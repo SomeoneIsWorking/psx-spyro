@@ -22,7 +22,10 @@ std::unique_ptr<psx::game::FrameDriver> BootPrefixRuntime::createFrameDriver(Gam
 }
 
 void BootPrefixRuntime::stockCdReadLanded(Core &core, const psx::cd::StockReadLanding &landing) {
-  (void)psx::code_module::publishStockReadLanding(core, landing);
+  if (const std::optional<psx::code_module::Digest> content =
+          psx::code_module::publishStockReadLanding(core, landing)) {
+    codeLanded(core, *content);
+  }
 }
 
 bool BootPrefixRuntime::sealedFrameIsCut(Core &core) const {

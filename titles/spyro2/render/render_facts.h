@@ -7,6 +7,7 @@
 #include "render/text_font.h"
 #include "spyro2/core/game_state.h"
 #include "spyro2/render/intro_card_facts.h"
+#include "spyro2/render/title_strings.h"
 
 #include <array>
 #include <cstdint>
@@ -323,9 +324,11 @@ inline constexpr std::array<int, 3> kDigitShadowIndices{2, 7, 0xD};
 
 // The fonts psxport draws from outline fonts, the 2D font first (PacketLayers::linkedGlyphs).
 inline constexpr std::uint8_t kDigitFont = 1;
-inline constexpr std::array<psx::present::OutlineFont, 2> kOutlineFonts = {
+inline constexpr std::uint8_t kTitleStringFont = 2;
+inline constexpr std::array<psx::present::OutlineFont, 3> kOutlineFonts = {
     spyro::textFont(kTextShadowIndices),
-    spyro::hudDigitFont(spyro::kTextPage, kDigitGlyphs, kDigitShadowIndices)};
+    spyro::hudDigitFont(spyro::kTextPage, kDigitGlyphs, kDigitShadowIndices),
+    title_strings::kFont};
 
 inline constexpr spyro::EngineRenderFacts kRenderFacts{
     .globals = kRenderGlobals,

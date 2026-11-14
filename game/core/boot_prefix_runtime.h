@@ -29,6 +29,11 @@ protected:
   // The image's per-field draw body as a replay section, and what moves under it.
   [[nodiscard]] virtual const DrawSection &drawSection() const = 0;
   [[nodiscard]] virtual const DrawMotionFacts &drawMotion() const = 0;
+  // A stock read published as code, for overrides keyed on its content.
+  virtual void codeLanded(Core &core, const psx::code_module::Digest &content) {
+    (void)core;
+    (void)content;
+  }
 
 private:
   psx::game::Crt0Image crt0_;

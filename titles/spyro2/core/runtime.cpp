@@ -7,6 +7,7 @@
 #include "spyro2/core/warp.h"
 #include "spyro2/render/hud_anchor.h"
 #include "spyro2/render/render_facts.h"
+#include "spyro2/render/title_strings.h"
 
 #include <lucent/log.h>
 #include <memory>
@@ -124,6 +125,10 @@ std::unique_ptr<spyro::Warp> Runtime::createWarp() const {
 
 std::span<const psx::present::OutlineFont> Runtime::outlineFonts(Core & /*core*/) const {
   return kOutlineFonts;
+}
+
+void Runtime::codeLanded(Core &core, const psx::code_module::Digest &content) {
+  title_strings::landed(core, content);
 }
 
 const spyro::TitleLogoFacts &Runtime::logoFacts() const {

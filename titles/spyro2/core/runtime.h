@@ -22,7 +22,7 @@ public:
   const spyro::FollowCameraFacts &followCamera() const override;
   std::optional<psx::gpu::PacketPoolExtent> packetPool(Core &core) const override;
   const spyro::TitleLogoFacts &logoFacts() const override;
-  // The 2D font (render/text_font.h).
+  // The 2D font (render/text_font.h), the HUD digits and the title strings.
   std::span<const psx::present::OutlineFont> outlineFonts(Core &core) const override;
   const psx::game::TitleDebugMenu &debugMenu() const override {
     return debugMenu_;
@@ -33,6 +33,8 @@ protected:
     return section_;
   }
   const spyro::DrawMotionFacts &drawMotion() const override;
+  // The boot overlay's title strings (render/title_strings.h).
+  void codeLanded(Core &core, const psx::code_module::Digest &content) override;
   std::unique_ptr<spyro::Warp> createWarp() const override;
 
 private:

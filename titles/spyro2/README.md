@@ -24,6 +24,7 @@ draw's tail waits until two fields have passed since its stamp `0x80066F9C` (one
 | `0x8001B2A8` | `game/render/engine_render_overrides.h`, `game/render/terrain/guest_depth_bins.*` | the ordering-table flatten: assigns each packet its bin, then runs the original |
 | `0x80043858` | `game/render/field/guest_moby_*` | the moby visibility walk |
 | `0x8005251C`, `0x800520CC` | `render/hud_anchor.*` | HUD counters and sprites anchored at the widened edges |
+| `0x80079878` (boot overlay) | `render/title_strings.*` | the title screen's image drawer: run, and the one-colour string lines' sprites named outline-text glyphs |
 
 ## Presentation
 
