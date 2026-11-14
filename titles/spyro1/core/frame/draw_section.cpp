@@ -11,6 +11,7 @@
 #include "spyro1/core/guest_functions.h"
 #include "spyro1/core/guest_globals.h"
 #include "spyro1/core/native_state.h"
+#include "spyro1/render/portals.h"
 #include "spyro1/render/terrain_facts.h"
 #include "spyro1/render/terrain_image.h"
 
@@ -57,7 +58,6 @@ constexpr std::uint32_t kCutsceneFade = 0x8001EA88u;
 // VRAM, every later one opens with PutDrawEnv, which the real frame applied, and ends with
 // DrawOTag(func_80016784(0)) at 0x8001C598.
 constexpr std::uint32_t kMenuDraw = 0x8001A40Cu;
-constexpr std::uint32_t kMenuDraws = 0x800758B8u;
 constexpr std::uint32_t kPutDrawEnv = 0x8005FDD8u;
 constexpr std::uint32_t kMenuFlatten = 0x8001C598u;
 // Flight5, GS_FlightResults through D_8007567C: the same code at the same address in all five
@@ -93,6 +93,19 @@ bool creditsFlyby(Core &core) {
 bool countedDraw(std::uint32_t state) {
   return guest::menuDraw(state) || state == guest::kGamestateFlightResults;
 }
+
+// LevelTransition_Draw, GS_LevelTransition and GS_ArrivalCamera: tally, Spyro and the sky join at
+// its DrawSync, 0x8001A334.
+constexpr std::uint32_t kLevelTransitionDraw = 0x8001A050u;
+constexpr std::uint32_t kLevelTransitionTail = 0x8001A334u;
+// MenuTransition_Draw, GS_ExitLevel, switches on g_nMenuDrawFrames: pass 0 opens with PutDrawEnv,
+// LoadImage of the backdrop CLUT and DrawSync, pass 1 with the fog store and PutDrawEnv; both then
+// draw Spyro and reach LinkOTPrimitives(0x800) at 0x8001C96C, before its DrawOTag.
+constexpr std::uint32_t kExitLevelDraw = 0x8001C694u;
+constexpr std::uint32_t kExitLevelTail = 0x8001C96Cu;
+constexpr std::uint32_t kExitLevelBackdropPass = 0u;
+constexpr std::uint32_t kLoadImage = 0x8005FA28u;
+constexpr std::uint32_t kDrawSync = 0x8005F764u;
 
 // func_8001CFDC, GS_Dragon: every m_State's drawers, fade and border join at its DrawSync,
 // 0x8001D644.
@@ -165,12 +178,14 @@ std::optional<std::uint32_t> fadeLevel(Core &core) {
 
 bool DrawSection::replays(Core &core) const {
   const std::uint32_t state = core.mem_r32(guest::kGamestate);
-  // TSM_Demo's card 0x8001E6B8 waits one VSync, so it presents every field and has no in-betweens.
+  // TSM_Demo's card 0x8001E6B8 and RespawnOrGameOver_Draw 0x8001CA38 wait one VSync, so they
+  // present every field and have no in-betweens.
   return state == guest::kGamestatePlaying || state == guest::kGamestateDragon ||
          state == guest::kGamestateFairy || state == guest::kGamestateBalloonist ||
-         state == guest::kGamestateCutscene ||
+         state == guest::kGamestateCutscene || state == guest::kGamestateLevelTransition ||
+         state == guest::kGamestateArrivalCamera || state == guest::kGamestateExitLevel ||
          (state == guest::kGamestateCredits && core.mem_r32(kCreditsStage) != kCreditsFirstStage) ||
-         (countedDraw(state) && core.mem_r32(kMenuDraws) != 0) ||
+         (countedDraw(state) && core.mem_r32(guest::kMenuDraws) != 0) ||
          (state == guest::kGamestateTitleScreen &&
           core.mem_r32(guest::kTitlescreenMode) != guest::kTitleModeDemo);
 }
@@ -264,6 +279,25 @@ bool DrawSection::drawDragon(Core &core, psx::present::GuestRedraw &redraw) {
   return drawTo(redraw, kDragonDraw, kDragonTail, scale);
 }
 
+bool DrawSection::drawExitLevel(Core &core, psx::present::GuestRedraw &redraw) {
+  // The real frame put the backdrop CLUT and draw environment; a fraction of a CLUT shift has no
+  // upload, so the backdrop's darkening shows the current tick's.
+  if (core.mem_r32(guest::kMenuDraws) == kExitLevelBackdropPass) {
+    const std::array<psx::present::GuestRedraw::Skip, 3> applied{
+        {{.at = kPutDrawEnv}, {.at = kLoadImage}, {.at = kDrawSync}}};
+    return drawTo(redraw, kExitLevelDraw, kExitLevelTail, applied);
+  }
+  const std::optional<std::uint32_t> progress =
+      motion(core).exitFade().progress(core.runtime.replayFrame(core)->replaying());
+  const std::array<psx::present::GuestRedraw::Skip, 1> fogged{
+      {{.at = kPutDrawEnv, .host = [&] {
+          if (progress) {
+            redraw.writeWord(portals::kFadeStep, *progress);
+          }
+        }}}};
+  return drawTo(redraw, kExitLevelDraw, kExitLevelTail, fogged);
+}
+
 bool DrawSection::drawState(Core &core, psx::present::GuestRedraw &redraw) {
   if (guest::menuDraw(core.mem_r32(guest::kGamestate))) {
     const std::array<psx::present::GuestRedraw::Skip, 1> applied{{{.at = kPutDrawEnv}}};
@@ -280,6 +314,11 @@ bool DrawSection::drawState(Core &core, psx::present::GuestRedraw &redraw) {
     const std::array<psx::present::GuestRedraw::Skip, 1> applied{{{.at = kPutDrawEnv}}};
     return drawTo(redraw, kFlightResultsDraw, kFlightResultsFlatten, applied);
   }
+  case guest::kGamestateLevelTransition:
+  case guest::kGamestateArrivalCamera:
+    return drawTo(redraw, kLevelTransitionDraw, kLevelTransitionTail);
+  case guest::kGamestateExitLevel:
+    return drawExitLevel(core, redraw);
   case guest::kGamestateFairy:
     return drawTo(redraw, kFairyDraw, kFairyTail);
   case guest::kGamestateBalloonist:

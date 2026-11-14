@@ -13,6 +13,7 @@ namespace spyro1 {
 namespace {
 
 using guest::kGamestate;
+using guest::kGamestateLevelTransition;
 using guest::kLevelTransHudActive;
 using guest::kLoadStage;
 
@@ -21,7 +22,6 @@ constexpr std::uint32_t kUpdateSpyroEnterReturnHome = 0x8004A7ECu;
 constexpr std::uint32_t kCameraUpdate = 0x80037BD4u;
 constexpr std::uint32_t kTransitionTally = 0x8002DA74u;
 constexpr std::uint32_t kLoadLevel = 0x80015370u;
-constexpr std::uint32_t kGamestateLevelTransition = 1u;
 // LoadLevel's stage 11 on waits for the tally to end.
 constexpr std::int32_t kStageTallyGate = 11;
 // Stage 12 waits for the camera to settle on Spyro; 13 is the load's terminal.

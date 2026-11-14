@@ -16,17 +16,17 @@ using spyro1::guest::kZero3;
 using spyro1::guest::kGamestate;
 using spyro1::guest::kLevelId;
 using spyro1::guest::kLoadStage;
+using spyro1::guest::kMenuDraws;
+using spyro1::guest::kMenuTicks;
 using spyro1::guest::kPad;
+using spyro1::guest::kPauseMenuCursor;
 using spyro1::guest::kStateSwitch;
 
 // Guest globals, each a lui+immediate the body at 0x8002E12C builds.
 constexpr std::uint32_t kIsFlightLevel = 0x80075690u;
-constexpr std::uint32_t kNoButtonTicks = 0x8007568Cu;
 constexpr std::uint32_t kHudSteadyTicks[] = {
     0x80077FB4u, 0x80077FB8u, 0x80077FBCu, 0x80077FC0u, 0x80077FC4u};
-constexpr std::uint32_t kFramesSinceStart = 0x800758B8u;
 constexpr std::uint32_t kMenuScreen = 0x800757C8u;
-constexpr std::uint32_t kSelectedOption = 0x80075720u;
 constexpr std::uint32_t kSpu = 0x800761D4u;
 constexpr std::uint32_t kActAvailable = 0x800756D8u;
 constexpr std::uint32_t kActEnabled = 0x800757A4u;
@@ -161,14 +161,14 @@ void updatePauseMenuInput(Core *c) {
   for (const std::uint32_t steady : kHudSteadyTicks) {
     c->mem_w32(steady, 0u);
   }
-  c->mem_w32(kNoButtonTicks, c->mem_r32(kNoButtonTicks) + 1u);
+  c->mem_w32(kMenuTicks, c->mem_r32(kMenuTicks) + 1u);
   psx::cpu::callGuestNow(*c, kOverrideName, kSpecularUpdate, 3u, c->r[5], c->r[6], c->r[7]);
 
   // Signed gate over the first fields of a level; its result stays in $v0.
-  c->r[2] = static_cast<std::int32_t>(c->mem_r32(kFramesSinceStart)) <
-                    static_cast<std::int32_t>(kInputArmFrames)
-                ? 1u
-                : 0u;
+  c->r[2] =
+      static_cast<std::int32_t>(c->mem_r32(kMenuDraws)) < static_cast<std::int32_t>(kInputArmFrames)
+          ? 1u
+          : 0u;
   if (c->r[2] != 0u) {
     return;
   }
@@ -188,8 +188,8 @@ void updatePauseMenuInput(Core *c) {
     if (c->r[2] != 0u) {
       // Left or right toggles the two-button quit screen's answer, read back after the sound.
       playMenuSound(c, menuSoundId(c, kMenuConfirmSoundOffset));
-      const std::uint32_t selected = c->mem_r32(kSelectedOption);
-      c->mem_w32(kSelectedOption, 1u - selected);
+      const std::uint32_t selected = c->mem_r32(kPauseMenuCursor);
+      c->mem_w32(kPauseMenuCursor, 1u - selected);
       c->r[3] = selected;
       c->r[2] = 1u - selected;
       return;
@@ -198,13 +198,13 @@ void updatePauseMenuInput(Core *c) {
     if (c->r[2] == 0u) {
       return;
     }
-    c->r[3] = c->mem_r32(kSelectedOption);
+    c->r[3] = c->mem_r32(kPauseMenuCursor);
     const bool answersNo = c->r[3] == 1u;
     c->r[2] = pad & kPadTriangle;
     if (answersNo || c->r[2] != 0u) {
       playMenuSound(c, menuSoundId(c, kMenuCursorSoundOffset));
       c->mem_w32(kMenuScreen, 0u);
-      c->mem_w32(kSelectedOption, 3u);
+      c->mem_w32(kPauseMenuCursor, 3u);
       c->r[2] = 3u;
       return;
     }
@@ -249,29 +249,29 @@ void updatePauseMenuInput(Core *c) {
     c->r[2] = pad & kPadDown;
     if (c->r[2] != 0u) {
       playMenuSound(c, menuSoundId(c, kMenuCursorSoundOffset));
-      const std::uint32_t selected = c->mem_r32(kSelectedOption);
-      c->mem_w32(kNoButtonTicks, 0u);
+      const std::uint32_t selected = c->mem_r32(kPauseMenuCursor);
+      c->mem_w32(kMenuTicks, 0u);
       const std::uint32_t next = selected + 1u;
       c->r[3] = next;
-      c->mem_w32(kSelectedOption, next);
+      c->mem_w32(kPauseMenuCursor, next);
       if (static_cast<std::int32_t>(next) >= static_cast<std::int32_t>(kOptionsRowCount)) {
-        c->mem_w32(kSelectedOption, 0u);
+        c->mem_w32(kPauseMenuCursor, 0u);
       } else if (next == 3u && c->mem_r32(kActAvailable) == 0u) {
-        c->mem_w32(kSelectedOption, selected + 2u);
+        c->mem_w32(kPauseMenuCursor, selected + 2u);
       }
     } else {
       c->r[2] = pad & kPadUp;
       if (c->r[2] != 0u) {
         playMenuSound(c, menuSoundId(c, kMenuCursorSoundOffset));
-        const std::uint32_t selected = c->mem_r32(kSelectedOption);
-        c->mem_w32(kNoButtonTicks, 0u);
+        const std::uint32_t selected = c->mem_r32(kPauseMenuCursor);
+        c->mem_w32(kMenuTicks, 0u);
         const std::uint32_t previous = selected - 1u;
         c->r[3] = previous;
-        c->mem_w32(kSelectedOption, previous);
+        c->mem_w32(kPauseMenuCursor, previous);
         if (static_cast<std::int32_t>(previous) < 0) {
-          c->mem_w32(kSelectedOption, kOptionsRowCount - 1u);
+          c->mem_w32(kPauseMenuCursor, kOptionsRowCount - 1u);
         } else if (previous == 3u && c->mem_r32(kActAvailable) == 0u) {
-          c->mem_w32(kSelectedOption, selected - 2u);
+          c->mem_w32(kPauseMenuCursor, selected - 2u);
         }
       }
     }
@@ -281,10 +281,10 @@ void updatePauseMenuInput(Core *c) {
     if (c->r[2] != 0u) {
       playMenuSound(c, menuSoundId(c, kMenuConfirmSoundOffset));
       c->mem_w32(kMenuScreen, 0u);
-      c->mem_w32(kSelectedOption, 0u);
+      c->mem_w32(kPauseMenuCursor, 0u);
       return;
     }
-    c->r[3] = c->mem_r32(kSelectedOption);
+    c->r[3] = c->mem_r32(kPauseMenuCursor);
     c->r[2] = c->r[3] < kOptionsRowCount ? 1u : 0u;
     if (c->r[2] == 0u) {
       return;
@@ -365,7 +365,7 @@ void updatePauseMenuInput(Core *c) {
       if (c->mem_r32(kActAvailable) == 0u) {
         // The row this machine cannot honour, so the cursor is pushed off it instead.
         c->r[2] = 4u;
-        c->mem_w32(kSelectedOption, 4u);
+        c->mem_w32(kPauseMenuCursor, 4u);
         return;
       }
       c->r[2] = pad & kPadLeftRightCross;
@@ -411,7 +411,7 @@ void updatePauseMenuInput(Core *c) {
       }
       playMenuSound(c, menuSoundId(c, kMenuConfirmSoundOffset));
       c->mem_w32(kMenuScreen, 0u);
-      c->mem_w32(kSelectedOption, 0u);
+      c->mem_w32(kPauseMenuCursor, 0u);
       return;
     }
     default:
@@ -422,25 +422,25 @@ void updatePauseMenuInput(Core *c) {
   c->r[2] = pad & kPadDown;
   if (c->r[2] != 0u) {
     playMenuSound(c, menuSoundId(c, kMenuCursorSoundOffset));
-    const std::uint32_t selected = c->mem_r32(kSelectedOption);
-    c->mem_w32(kNoButtonTicks, 0u);
+    const std::uint32_t selected = c->mem_r32(kPauseMenuCursor);
+    c->mem_w32(kMenuTicks, 0u);
     const std::uint32_t next = selected + 1u;
     c->r[3] = next;
-    c->mem_w32(kSelectedOption, next);
+    c->mem_w32(kPauseMenuCursor, next);
     if (static_cast<std::int32_t>(next) >= static_cast<std::int32_t>(kMainRowCount)) {
-      c->mem_w32(kSelectedOption, 0u);
+      c->mem_w32(kPauseMenuCursor, 0u);
     }
   } else {
     c->r[2] = pad & kPadUp;
     if (c->r[2] != 0u) {
       playMenuSound(c, menuSoundId(c, kMenuCursorSoundOffset));
-      const std::uint32_t selected = c->mem_r32(kSelectedOption);
-      c->mem_w32(kNoButtonTicks, 0u);
+      const std::uint32_t selected = c->mem_r32(kPauseMenuCursor);
+      c->mem_w32(kMenuTicks, 0u);
       const std::uint32_t previous = selected - 1u;
       c->r[3] = previous;
-      c->mem_w32(kSelectedOption, previous);
+      c->mem_w32(kPauseMenuCursor, previous);
       if (static_cast<std::int32_t>(previous) < 0) {
-        c->mem_w32(kSelectedOption, kMainRowCount - 1u);
+        c->mem_w32(kPauseMenuCursor, kMainRowCount - 1u);
       }
     }
   }
@@ -449,12 +449,12 @@ void updatePauseMenuInput(Core *c) {
   if (c->r[2] == 0u) {
     return;
   }
-  const std::uint32_t selected = c->mem_r32(kSelectedOption);
+  const std::uint32_t selected = c->mem_r32(kPauseMenuCursor);
   c->r[3] = selected;
   if (selected == 1u) {
     playMenuSound(c, menuSoundId(c, kMenuConfirmSoundOffset));
     c->mem_w32(kMenuScreen, kScreenOptions);
-    c->mem_w32(kSelectedOption, 0u);
+    c->mem_w32(kPauseMenuCursor, 0u);
     return;
   }
   c->r[2] = static_cast<std::int32_t>(selected) < 2 ? 1u : 0u;
@@ -478,7 +478,7 @@ void updatePauseMenuInput(Core *c) {
     c->r[2] = fiveTens << 1;
     if (levelId == c->r[2]) {
       // A homeworld has no level to exit to, so the row opens the two-button quit screen instead.
-      c->mem_w32(kSelectedOption, 1u);
+      c->mem_w32(kPauseMenuCursor, 1u);
       c->mem_w32(kMenuScreen, kScreenQuit);
       return;
     }
@@ -492,8 +492,8 @@ void updatePauseMenuInput(Core *c) {
     c->r[2] = kExitToTitleState;
     c->r[3] = c->mem_r32(kUpdateMoby);
     c->mem_w32(kGamestate, kExitToTitleState);
-    c->mem_w32(kSelectedOption, 0u);
-    c->mem_w32(kNoButtonTicks, 0u);
+    c->mem_w32(kPauseMenuCursor, 0u);
+    c->mem_w32(kMenuTicks, 0u);
     c->mem_w32(kExitLevelFlag, 1u);
     psx::cpu::callGuestNow(*c, kOverrideName, c->r[3], c->r[4], c->r[5], c->r[6], c->r[7]);
     return;

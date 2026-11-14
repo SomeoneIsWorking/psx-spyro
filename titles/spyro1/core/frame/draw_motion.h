@@ -8,6 +8,7 @@
 #include "spyro1/core/effect/flame_block.h"
 #include "spyro1/core/effect/shadow_block.h"
 #include "spyro1/core/frame/dragon_shrink.h"
+#include "spyro1/core/frame/exit_fade.h"
 #include "spyro1/core/frame/screen_fade.h"
 #include "spyro1/core/frame/texture_scroll.h"
 #include "spyro1/core/frame/title_slide.h"
@@ -98,6 +99,20 @@ public:
   void blend(const Samples &samples, float t, std::span<std::uint32_t> out) const override;
 };
 
+// The level-transition tally's gems, in g_anActorShadowQueue (AnimateGemTallyParticles 0x8002DA74
+// points g_pGemTallyParticleRecords there each tick): theirs only while LevelTransition_Draw
+// 0x8001A050 draws the tally, in GS_LevelTransition or GS_ArrivalCamera.
+class TallyLiveness final : public psx::present::MotionLiveness {
+public:
+  void sample(Core &core) override;
+  [[nodiscard]] bool live(std::uint32_t /*record*/) const override {
+    return drawn_;
+  }
+
+private:
+  bool drawn_ = false;
+};
+
 class DrawMotion {
 public:
   DrawMotion(Core &core, NativeState &state)
@@ -120,6 +135,9 @@ public:
   }
   [[nodiscard]] const DragonShrink &dragonShrink() const {
     return dragonShrink_;
+  }
+  [[nodiscard]] const ExitFade &exitFade() const {
+    return exitFade_;
   }
 
 private:
@@ -251,6 +269,19 @@ private:
       {0x28u, psx::present::Motion::Angle8x3},
   }};
 
+  // LevelTransition_Draw's tally phase (g_nLevelTransitionPhase, up g_DeltaTime a tick), which
+  // places its text, counts and rocking, and the sky tilt the draw lowers by 2 before reading.
+  static constexpr std::uint32_t kTallyPhase = 0x800756ACu;
+  static constexpr std::uint32_t kSkyTilt = 0x80075910u;
+  // A tally gem: x and y halfwords, then spin (+0x0C) beside its constant signs and spin rate. One
+  // gem while its velocity word (+0x04), drawn at spawn, holds; live while +0x08 is set.
+  static constexpr std::uint32_t kTallyGems = 0x800724F4u;
+  static constexpr std::array<Key, 1> kTallyGemKeys{{{0x04u}}};
+  static constexpr std::array<Field, 2> kTallyGem{{
+      {0x00u, psx::present::Motion::Halves},
+      {0x0Cu, psx::present::Motion::Angle8x3},
+  }};
+
   CameraMotion camera_;
   SpyroPoses poses_;
   MobyMotion moby_;
@@ -262,9 +293,15 @@ private:
   TitleSlide titleSlide_;
   ScreenFade screenFade_;
   DragonShrink dragonShrink_;
-  std::array<psx::present::MotionSource *, 4> sources_{
-      &textureScroll_, &titleSlide_, &screenFade_, &dragonShrink_};
-  std::array<psx::present::MotionTrack, 16> tracks_{{
+  ExitFade exitFade_;
+  TallyLiveness tallyLiveness_;
+  Records tallyGemRecords_{.stride = 0x10u,
+                           .count = 0x20u,
+                           .live = RecordByte{0x08u, 0x01u, 0xFFu},
+                           .liveness = &tallyLiveness_};
+  std::array<psx::present::MotionSource *, 5> sources_{
+      &textureScroll_, &titleSlide_, &screenFade_, &dragonShrink_, &exitFade_};
+  std::array<psx::present::MotionTrack, 19> tracks_{{
       {.name = "camera", .address = guest::kCamera, .fields = kCamera, .rule = &camera_},
       {.name = "spyro", .address = guest::kSpyro, .fields = kSpyro},
       {.name = "spyro poses", .address = guest::kSpyro, .fields = kSpyroPoses, .rule = &poses_},
@@ -306,6 +343,13 @@ private:
        .address = rescue_star::kBlock,
        .fields = kRescueStar,
        .records = kRescueStarRecords},
+      {.name = "tally phase", .address = kTallyPhase, .fields = kScalar},
+      {.name = "sky tilt", .address = kSkyTilt, .fields = kScalar},
+      {.name = "tally gems",
+       .address = kTallyGems,
+       .fields = kTallyGem,
+       .keys = kTallyGemKeys,
+       .records = tallyGemRecords_},
   }};
 };
 

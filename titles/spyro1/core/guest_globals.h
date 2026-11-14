@@ -182,6 +182,19 @@ inline constexpr std::uint32_t kDragonCutsceneTicks = kDragonCutscene + 0x3Cu; /
 // changes.
 inline constexpr std::uint32_t kInventoryPage = 0x80075744u;
 
+// g_nMenuTickFrames and g_nMenuDrawFrames: the menu states' update tick and draw count;
+// GS_ExitLevel counts its passes in the second.
+inline constexpr std::uint32_t kMenuTicks = 0x8007568Cu;
+inline constexpr std::uint32_t kMenuDraws = 0x800758B8u;
+// g_nPauseMenuCursor: the pause menu's row; EXIT LEVEL is row 3.
+inline constexpr std::uint32_t kPauseMenuCursor = 0x80075720u;
+inline constexpr std::uint32_t kPauseRowExit = 3u;
+
+// The level transition, arrival camera and exit glide.
+inline constexpr std::uint32_t kGamestateLevelTransition = 1u; // GS_LevelTransition
+inline constexpr std::uint32_t kGamestateArrivalCamera = 9u;   // GS_ArrivalCamera
+inline constexpr std::uint32_t kGamestateExitLevel = 10u;      // GS_ExitLevel
+
 // GS_PauseMenu, GS_InventoryMenu and GS_OldDragon share the menu draw 0x8001A40C.
 inline bool menuDraw(std::uint32_t gamestate) {
   return gamestate == kGamestatePauseMenu || gamestate == kGamestateInventoryMenu ||

@@ -7,6 +7,7 @@
 
 #include "core.h"
 #include "core/session.h"
+#include "guest_call.h"
 
 #include <lucent/log.h>
 
@@ -26,6 +27,13 @@ constexpr std::uint32_t kLevelsPerWorld = 6u;
 constexpr std::int64_t kMinWorld = std::numeric_limits<std::int32_t>::min();
 constexpr std::int64_t kMaxWorld = std::numeric_limits<std::int32_t>::max();
 
+// EnterPauseMenu(1), what Start in play calls (GamestateUpdate 0x8003385C), and PauseMenu_Update,
+// which takes Cross (the title's pad bit 0x40) on the row once g_nMenuDrawFrames reaches 5.
+constexpr std::uint32_t kEnterPauseMenu = 0x8002C420u;
+constexpr std::uint32_t kPauseMenuUpdate = 0x8002E12Cu;
+constexpr std::uint32_t kPadCross = 0x40u;
+constexpr std::uint32_t kPauseInputDraws = 5u;
+
 std::uint32_t levelIndex(std::uint32_t level) {
   return (level / 10u - 1u) * kLevelsPerWorld + level % 10u;
 }
@@ -42,6 +50,34 @@ spyro::Warp::Placement placementIn(std::uint32_t level,
           },
       .apply = std::move(apply),
   };
+}
+
+// Pause in `level`, then EXIT LEVEL once the menu takes input: the player's way into GS_ExitLevel.
+spyro::Warp::Placement exitPlacement(std::uint32_t level) {
+  spyro::Warp::Placement pause = placementIn(level, [](Core &placed) {
+    psx::cpu::callGuestNow(placed, "debug-pause", kEnterPauseMenu, 1u);
+    return std::string("paused");
+  });
+  pause.next = [level] {
+    return spyro::Warp::Placement{
+        .ready =
+            [level](Core &core) {
+              return core.mem_r32(guest::kGamestate) == guest::kGamestatePauseMenu &&
+                     core.mem_r32(guest::kLevelId) == level &&
+                     core.mem_r32(guest::kMenuDraws) >= kPauseInputDraws;
+            },
+        .apply =
+            [](Core &core) {
+              const std::uint32_t pressed = core.mem_r32(guest::kPad);
+              core.mem_w32(guest::kPauseMenuCursor, guest::kPauseRowExit);
+              core.mem_w32(guest::kPad, kPadCross);
+              psx::cpu::callGuestNow(core, "debug-exit-level", kPauseMenuUpdate);
+              core.mem_w32(guest::kPad, pressed);
+              return lucent::format("exit level: gamestate {}", core.mem_r32(guest::kGamestate));
+            },
+    };
+  };
+  return pause;
 }
 
 } // namespace
@@ -163,6 +199,13 @@ std::vector<spyro::WarpWorld> DebugMenu::worlds(Core &core) const {
                       target, hub, placementIn(hub, [level](Core &placed) {
                         return teleport::toPortal(placed, level);
                       }));
+                },
+        });
+        warpLevel.arrivals.push_back({
+            .name = "exit",
+            .arrive =
+                [level](Core &target) {
+                  return spyro::session(target).warp->arm(target, level, exitPlacement(level));
                 },
         });
       }

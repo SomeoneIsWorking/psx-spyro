@@ -255,4 +255,10 @@ void FlameMotion::blend(const Samples &samples, float t, std::span<std::uint32_t
   }
 }
 
+void TallyLiveness::sample(Core &core) {
+  const std::uint32_t state = core.mem_r32(guest::kGamestate);
+  drawn_ = (state == guest::kGamestateLevelTransition || state == guest::kGamestateArrivalCamera) &&
+           core.mem_r32(guest::kLevelTransHudActive) != 0u;
+}
+
 } // namespace spyro1

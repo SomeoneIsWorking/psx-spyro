@@ -1,7 +1,7 @@
 // draw_section.h — GamestateDraw 0x8001ED5C as a replay for GS_Playing, the menus, GS_Dragon,
-// GS_Cutscene and the title screen: the buffer flip it opens with, CameraUpdateMatrices,
-// GS_Playing's drawers in order or the state's own draw to its device tail, and the bin flatten
-// whose chain DrawOTag submits.
+// GS_Cutscene, the level transition, arrival camera and exit glide, and the title screen: the
+// buffer flip it opens with, CameraUpdateMatrices, GS_Playing's drawers in order or the state's own
+// draw to its device tail, and the bin flatten whose chain DrawOTag submits.
 #pragma once
 
 #include "guest_redraw.h"
@@ -37,6 +37,9 @@ private:
                                    std::span<const psx::present::GuestRedraw::Skip> skips = {});
   // GS_Dragon's draw, its m_State 5 shrink scaled between the ticks.
   [[nodiscard]] static bool drawDragon(Core &core, psx::present::GuestRedraw &redraw);
+  // GS_ExitLevel's draw: the real frame's device work stepped over, the fog pass's progress
+  // blended.
+  [[nodiscard]] static bool drawExitLevel(Core &core, psx::present::GuestRedraw &redraw);
   // The credits flyby, its fade drawn at the blended level.
   [[nodiscard]] static bool drawCredits(Core &core, psx::present::GuestRedraw &redraw);
   // A state draw up to `fade`, where it loads g_Fade, then the fade at the replay's level.

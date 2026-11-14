@@ -85,6 +85,7 @@ set(SPYRO_RUNTIME_SOURCES
   titles/spyro1/core/frame/skip_map.cpp
   titles/spyro1/core/frame/frame_draw.cpp
   titles/spyro1/core/frame/draw_section.cpp
+  titles/spyro1/core/frame/exit_fade.cpp
   titles/spyro1/core/frame/draw_motion.cpp
   titles/spyro1/core/frame/texture_scroll.cpp
   titles/spyro1/core/frame/screen_fade.cpp

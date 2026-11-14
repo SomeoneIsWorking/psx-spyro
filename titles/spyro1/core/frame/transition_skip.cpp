@@ -22,6 +22,8 @@ using guest::kDemoTypeCutscene;
 using guest::kDemoTypeLevel;
 using guest::kGamestate;
 using guest::kGamestateBalloonist;
+using guest::kGamestateExitLevel;
+using guest::kGamestateLevelTransition;
 using guest::kGamestateTitleScreen;
 using guest::kLevelTransHudActive;
 using guest::kLoadStage;
@@ -34,11 +36,7 @@ using guest::kTitlescreenMode;
 using guest::kTitlescreenStage;
 using guest::kTitleStageActive;
 
-// GS_LevelTransition, whose update is func_8002DF9C.
-constexpr std::uint32_t kStageLevelTransition = 1u;
-
 // GS_ExitLevel: func_8002C664 is the glide's whole terminal, so it is dispatched, not copied.
-constexpr std::uint32_t kStageExitLevel = 10u;
 constexpr std::uint32_t kReturnHome = 0x8002C664u;
 constexpr std::uint64_t kReturnHomeCycles = 2u << 20;
 
@@ -116,13 +114,13 @@ Cancellation classify(const TransitionState &state) {
     return Cancellation::None;
   }
   // An ended tally owns no screen, so the press falls through.
-  if (state.stage == kStageLevelTransition && state.levelTransHudActive != 0u) {
+  if (state.stage == kGamestateLevelTransition && state.levelTransHudActive != 0u) {
     return Cancellation::LevelTransitionTally;
   }
-  if (state.stage == kStageLevelTransition && musicFading(state)) {
+  if (state.stage == kGamestateLevelTransition && musicFading(state)) {
     return Cancellation::LoadingMusicFade;
   }
-  if (state.stage == kStageExitLevel) {
+  if (state.stage == kGamestateExitLevel) {
     return Cancellation::ReturnHomeSequence;
   }
   // GamestateCutsceneTransition runs a card's terminal only once that card's load reaches its gate.
