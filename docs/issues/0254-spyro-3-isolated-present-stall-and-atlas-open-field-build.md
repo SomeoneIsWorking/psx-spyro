@@ -1,6 +1,6 @@
 # 0254 — Spyro 3: an isolated 33.5 ms present stall, and the outline fields built when the Atlas opens
 
-Status: open. The isolated stall did not reproduce; the field build delays one present every time.
+Status: open for the isolated stall, which did not reproduce. The field build's late present is fixed (psxport `6e9eeb74`).
 Owners: psxport `runtime/psx/present/outline_text.cpp` (`OutlineText::Builder::drew`), `game/core/boot_prefix_frame_driver.cpp`
 (the perf meter's frames).
 
@@ -33,9 +33,12 @@ is shown about 14 ms late: one missed vblank. Atlas 4 (10 fields, after fence 12
 at arrival, fences 1014 and 1030) are the same work at other first sightings. The fields are cached by glyph and
 drawn once a run; none is drawn twice. The work is needed. Its place on the present path is the problem.
 
-Proper fix (psxport, not made): draw a font's fields away from the present that first shows its glyphs, either on a
-worker with the bitmap glyph shown until its field is ready, or for every named glyph of a font when its page first
-lands in VRAM. Either changes `OutlineText`'s contract (psxport plan 0207), so the choice is the user's.
+Fixed in psxport `6e9eeb74` (plan 0207): the fields are drawn on a worker thread and land in the atlas at the next
+sealed frame that draws text; a glyph draws its bitmap until then. Three paced runs on the same route
+(`scratch/outline-async/p1`-`p3`): fence 1264 +0.3, +0.4 and +2.9 ms (was +13.9 to +14.4), fence 1272 at most
++0.4 ms (was +5.5 to +6.2). The 14 fields land one frame later, while the Atlas cover still hides the text, and the
+10 of the second font while its page is edge-on (`scratch/outline-async/evidence-atlas-switch-u2.png`,
+`evidence-atlas-open-a82.png`).
 
 ## Meter
 `PSXPORT_DEBUG=perf` counted nothing for Spyro 2 and 3 (`0 logic frames metered`, `0 record presents`): their
