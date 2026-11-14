@@ -1,12 +1,14 @@
 // packet_layers.h — the screen-space packets of a Spyro frame its linkers name: the UI crop
-// widescreen (psxport plan 0203) shows at its 4:3 size and place over the cropped world, and the 2D
-// font's glyphs (Spyro 2 and 3) psxport draws from outline fonts (plan 0207).
+// widescreen (psxport plan 0203) shows at its 4:3 size and place over the cropped world, and the
+// glyphs of the title's fonts (GameRuntime::outlineFonts) psxport draws from outline fonts (plan
+// 0207).
 #pragma once
 
 #include "crop_ui_layers.h"
 #include "emit_memory.h"
 #include "outline_text.h"
 
+#include <array>
 #include <cstdint>
 #include <optional>
 #include <span>
@@ -34,9 +36,11 @@ public:
                    const psx::present::EmitMemory &memory,
                    std::uint32_t first,
                    std::uint32_t last);
-  // A text layout linked its glyphs, `first` to `last`.
+  // A text layout linked its glyphs of the 2D font (font 0), `first` to `last`.
   void
   linkedGlyphs(const psx::present::EmitMemory &memory, std::uint32_t first, std::uint32_t last);
+  // A drawer linked the packet at `packet`, a glyph of font `font`.
+  void linkedGlyph(std::uint32_t packet, std::uint8_t font);
   // The flatten: the packets linked since the last are the frame DrawOTag draws next, all of them
   // UI when `wholeFrame`.
   void flattened(bool wholeFrame);
@@ -45,7 +49,7 @@ public:
   void secondPass();
   // Whether the packet at `packet` of the frame last flattened is UI.
   [[nodiscard]] bool uiPacket(std::uint32_t packet) const override;
-  // The 2D font, when the packet at `packet` of the frame last flattened draws one of its cells.
+  // The font whose glyph the packet at `packet` of the frame last flattened draws, if any.
   [[nodiscard]] std::optional<std::uint8_t> glyphFont(std::uint32_t packet) const override;
 
 private:
@@ -61,7 +65,7 @@ private:
   };
 
   Layer ui_;
-  Layer glyphs_;
+  std::array<Layer, psx::present::kMaxOutlineFonts> glyphs_;
   bool wholeFrame_ = false;
   bool secondPass_ = false;
 };

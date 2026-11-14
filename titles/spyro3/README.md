@@ -23,7 +23,7 @@ stock seam at its measured leaves (`CdRead 0x8005D96C`, `CdSync 0x8005E074`, `Cd
 | `0x8002E748`, `0x8002E970` | `game/render/overlay_pair.*` | the text layouts, sprites and quads: run, and the glyph chain each links inline named crop UI and font glyphs (outline text, `game/render/text_font.h`) |
 | `0x8004E664` | `game/render/engine_render_overrides.h`, `game/render/terrain/guest_depth_bins.*` | the ordering-table flatten: assigns each packet its bin, then runs the original; the second-pass flattens of states 4 and 0xD (returns `0x8001EA40`, `0x8001EB4C`) assign none |
 | `0x80030478` | `game/render/field/guest_moby_*` | the moby visibility walk |
-| `0x80029904`, `0x80029BB0`, `0x800289C8`, `0x800291B8` | `render/hud_anchor.*` | HUD counters, lives and their icons and values anchored at the widened edges |
+| `0x80029904`, `0x80029BB0`, `0x800289C8`, `0x800291B8` | `render/hud_anchor.*` | HUD counters, lives and their icons and values anchored at the widened edges; the icon emitter's Atlas glyphs named for outline text (`render/sprite_fonts.*`) |
 | `0x80029708`, `0x800291B8`, `0x800293C4` | `render/hud_slide.*` | the widgets' slide step and digit drawers, native; in-betweens place each icon and digit between the two ticks' slides |
 
 ## Presentation

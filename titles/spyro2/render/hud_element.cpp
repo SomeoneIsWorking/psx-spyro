@@ -76,6 +76,9 @@ void draw(Core &core, float rows) {
     memory.mem_w16(packet + 0x10, static_cast<std::uint16_t>(width));
     memory.mem_w16(packet + 0x12, static_cast<std::uint16_t>(height));
     appendToOverlay(core, memory, packet);
+    if (image - kDigitImages < kDigitGlyphs.size() * kDigitImageBytes) {
+      spyro::session(core).layers.linkedGlyph(packet, kDigitFont);
+    }
     next = packet + 0x14;
     core.r[2] = packet;
   } else {

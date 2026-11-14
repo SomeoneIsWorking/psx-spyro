@@ -300,7 +300,32 @@ inline constexpr std::array<std::uint32_t, 1> kWholeFrameUiStates = {4u};
 // The 2D font's page draws its glyph shadow in CLUT indices 2, 5 and 7
 // (spyro-2 `spyro2.text-font`).
 inline constexpr std::array<int, 3> kTextShadowIndices{2, 5, 7};
-inline constexpr psx::present::OutlineFont kTextFont = spyro::textFont(kTextShadowIndices);
+
+// The HUD counter FUN_8005251C draws each digit through FUN_800520CC from the 4-byte images at
+// 8006351C (u, v, CLUT column, CLUT row): 24x16 cells across v 45 of the 2D font's page, shadowed
+// in CLUT indices 2, 7 and D (spyro-2 `spyro2.hud-digits`).
+inline constexpr std::uint32_t kDigitImages = 0x8006351Cu;
+inline constexpr std::uint32_t kDigitImageBytes = 4u;
+inline constexpr psx::present::OutlineGrid kDigitGrid{
+    .v = 45, .cellWidth = 24, .cellHeight = 16, .columns = 10};
+inline constexpr std::array<psx::present::OutlineGlyph, 10> kDigitGlyphs = {
+    kDigitGrid.glyph(0, U'0'),
+    kDigitGrid.glyph(1, U'1'),
+    kDigitGrid.glyph(2, U'2'),
+    kDigitGrid.glyph(3, U'3'),
+    kDigitGrid.glyph(4, U'4'),
+    kDigitGrid.glyph(5, U'5'),
+    kDigitGrid.glyph(6, U'6'),
+    kDigitGrid.glyph(7, U'7'),
+    kDigitGrid.glyph(8, U'8'),
+    kDigitGrid.glyph(9, U'9')};
+inline constexpr std::array<int, 3> kDigitShadowIndices{2, 7, 0xD};
+
+// The fonts psxport draws from outline fonts, the 2D font first (PacketLayers::linkedGlyphs).
+inline constexpr std::uint8_t kDigitFont = 1;
+inline constexpr std::array<psx::present::OutlineFont, 2> kOutlineFonts = {
+    spyro::textFont(kTextShadowIndices),
+    spyro::hudDigitFont(spyro::kTextPage, kDigitGlyphs, kDigitShadowIndices)};
 
 inline constexpr spyro::EngineRenderFacts kRenderFacts{
     .globals = kRenderGlobals,

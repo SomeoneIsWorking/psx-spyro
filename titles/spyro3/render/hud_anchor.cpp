@@ -5,6 +5,7 @@
 #include "native_dispatch.h"
 #include "render/hud/ui_anchor.h"
 #include "spyro3/render/hud_slide.h"
+#include "spyro3/render/sprite_fonts.h"
 
 #include <cstdint>
 
@@ -35,9 +36,11 @@ void iconEmitter(Core *core) {
   if (!drawState(*core).insideValue()) {
     shiftEmitterArgument(*core);
   }
+  const std::uint32_t sprite = core->r[4];
   const std::uint32_t firstPacket = hud_slide::primitiveCursor(*core);
   if (psx::cpu::callOriginalOrPropagate(*core, kIconEmitter)) {
     hud_slide::placeEmitted(*core, firstPacket);
+    sprite_fonts::emitted(*core, sprite, firstPacket);
   }
 }
 

@@ -5,6 +5,7 @@
 #include "ordering_table.h"
 
 #include <algorithm>
+#include <cstddef>
 
 namespace spyro {
 namespace {
@@ -62,7 +63,11 @@ void PacketLayers::linkedChain(Core &core,
 void PacketLayers::linkedGlyphs(const psx::present::EmitMemory &memory,
                                 std::uint32_t first,
                                 std::uint32_t last) {
-  glyphs_.link(memory, first, last);
+  glyphs_[0].link(memory, first, last);
+}
+
+void PacketLayers::linkedGlyph(std::uint32_t packet, std::uint8_t font) {
+  glyphs_.at(font).linking.push_back(psx::gpu::mainRamOffsetOf(packet));
 }
 
 void PacketLayers::secondPass() {
@@ -74,7 +79,9 @@ void PacketLayers::flattened(bool wholeFrame) {
     wholeFrame_ = wholeFrame;
   }
   ui_.flatten(secondPass_);
-  glyphs_.flatten(secondPass_);
+  for (Layer &glyphs : glyphs_) {
+    glyphs.flatten(secondPass_);
+  }
   secondPass_ = false;
 }
 
@@ -83,7 +90,12 @@ bool PacketLayers::uiPacket(std::uint32_t packet) const {
 }
 
 std::optional<std::uint8_t> PacketLayers::glyphFont(std::uint32_t packet) const {
-  return glyphs_.holds(packet) ? std::optional<std::uint8_t>(0) : std::nullopt;
+  for (std::size_t font = 0; font < glyphs_.size(); font++) {
+    if (glyphs_[font].holds(packet)) {
+      return static_cast<std::uint8_t>(font);
+    }
+  }
+  return std::nullopt;
 }
 
 } // namespace spyro

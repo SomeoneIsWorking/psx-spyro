@@ -103,7 +103,7 @@ std::unique_ptr<spyro::Warp> Runtime::createWarp() const {
 }
 
 std::span<const psx::present::OutlineFont> Runtime::outlineFonts() const {
-  return {&kTextFont, 1};
+  return kOutlineFonts;
 }
 
 const spyro::TitleLogoFacts &Runtime::logoFacts() const {
