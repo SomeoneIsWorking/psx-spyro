@@ -59,9 +59,10 @@ The host picture differs from it on purpose: it is not dithered (issue 0200), an
 
 ## Current focus
 
-Loading pictures (S033-S035), 2026-11-13: Spyro 1's and Spyro 3's load stages run on in one update while
-each call moves the load; what remains is the guest's own counts (the picture's count, fades, holds), Spyro 1's
-music gate and Spyro 3's owed read interrupts (issues 0248, 0249).
+Loading pictures (S033-S035), 2026-11-14: Spyro 3's level pictures and their fade-out loop end without a press
+(warp to gameplay 1072 -> 1048 fields, same landing); its owed read completions are taken between loader calls,
+and the load's second update is stage 0's own 1.96M-cycle sprite-table walk. Left: the one picture frame Spyro 3's
+count-0 update draws at 1/8, Spyro 2's pictures (on a press only), Spyro 1's entrance animation (issues 0248-0250).
 
 All three titles present on the Record path, with 60 fps as psxport F-FPS60's replay of each title's
 draw (`docs/features.md`; S020, S028, S029).
@@ -527,7 +528,8 @@ while the bit is clear also costs nothing", needing a route with a music command
 pauses the drive; stages 4-13 take one call each, stage 5 two. `g_CdState.m_IsReading` clears the frame after
 each read, so no read waits; each stage waited only for the next update's call. Since 2026-11-13
 `func_8002DF9C` is native and calls `LoadLevel` again while its last call moved the load, stopping before
-stage 12's camera wait: 19 -> 10 frames (issue 0249). The music fade stays (a press ends it). The item is **partial**: the payload, terminal state and residual latency are
+stage 12's camera wait: 19 -> 10 frames (issue 0249). The music fade stays (a press ends it); through the portal it runs inside the
+flight and tally, which hold the finished load at stage 11, so it adds nothing (2026-11-14, `scratch/loadpic/s1c.trace`). The item is **partial**: the payload, terminal state and residual latency are
 measured against the reference, and the residual picture is the guest's own cadence.
 
 The logo-hold press latch is done (2026-10-01): a Start/Cross press made in any boot fade or in the
@@ -567,8 +569,11 @@ read was in flight, and `titles/spyro3/core/loader_checksum.cpp` now completes i
 one more `VSync(0)` per frame at stages 2..7 (`0x80059038` case 1/4). Sub-state 0 leaves only when its count
 `0x8006FBC4` reaches 0xD; a press brings the count to its end (`spyro::CountedScreenSkip`, issue 0248).
 From the loading screen's call (jal `0x800588A0`) the loader override calls the loader again while its stage, or
-stage 4's step `0x8006C5E4`, moves: sub-state 1 23 -> 9 updates, 130 -> 104 fields; the nine left wait on read
-completion interrupts the stock libcd posts at the next drive service.
+stage 4's step `0x8006C5E4`, moves: sub-state 1 23 -> 9 updates, 130 -> 104 fields; the owed read completions are
+taken before each call, so stages 1-12 run in one update; stage 0's sprite-table walk (`0x80027934`, 1.96M cycles
+from the title) leaves the field's budget and puts them in the next. Since 2026-11-14 a level picture (kind
+`0x8006FBCC` below 5) ends after its count-0 update and its fade-out loop keeps two passes: `warp 0/1/0` gameplay at
+field 1048 instead of 1072, Spyro (0xF8A4, 0x533D, 0x2F67) either way; story cards keep their count (issue 0248).
 
 The boot logos: the boot overlay (WAD `0x23000` at `0x800742D0`; decomp manifest `spyro3_boot`) runs
 `0x80074DEC(1)` with the same four holds against the start field it keeps in `$s5`; `spyro::LogoHoldSkip`

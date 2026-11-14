@@ -36,6 +36,10 @@ struct CountedScreen {
   std::uint32_t mustReachKind = 0;
   // A press waits until the count reaches this, the end of the screen's fade-in. 0: none.
   std::int32_t offeredFrom = 0;
+  // While the word `loadingKind` is below `loadingKinds` the screen only covers a load: the update
+  // after the one that began it leaves, its count put where the screen's own test ends it. 0: none.
+  std::uint32_t loadingKind = 0;
+  std::uint32_t loadingKinds = 0;
 };
 
 // A fade that loops inside one guest call, one field per pass: its count is a register of the call
@@ -49,6 +53,9 @@ struct CountedLoop {
   std::int32_t step = 0;
   std::int32_t limit = 0;
   std::uint32_t minimumKept = 2;
+  // As CountedScreen's: while [loadingKind] < loadingKinds the loop ends without a press.
+  std::uint32_t loadingKind = 0;
+  std::uint32_t loadingKinds = 0;
 };
 
 struct CountedScreenFacts {
@@ -67,7 +74,7 @@ public:
   // Before each frame update.
   void observe(Core &core, bool pressed);
   // At each field of a fade loop, with the call suspended at its wait.
-  void observeLoop(psx::cpu::ResumableGuestCall &call, bool pressed);
+  void observeLoop(Core &core, psx::cpu::ResumableGuestCall &call, bool pressed);
 
 private:
   [[nodiscard]] const CountedScreen *showing(Core &core) const;

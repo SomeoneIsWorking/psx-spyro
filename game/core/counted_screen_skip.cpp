@@ -55,6 +55,30 @@ std::uint32_t minimumKept(Core &core, const CountedScreen &screen, std::int32_t 
   return remainingUpdates(screen, screen.mustReach - screen.step);
 }
 
+template <typename Count> bool loadingOnly(Core &core, const Count &count) {
+  return count.loadingKinds != 0u && core.mem_r32(count.loadingKind) < count.loadingKinds;
+}
+
+// A screen that only covers a load leaves at its first update after the one that began it.
+bool endLoadingOnly(Core &core, const CountedScreen &screen) {
+  if (!loadingOnly(core, screen)) {
+    return false;
+  }
+  const std::uint32_t kind = core.mem_r32(screen.loadingKind);
+  const auto value = static_cast<std::int32_t>(core.mem_r32(screen.word));
+  if (remainingUpdates(screen, value) <= 1u) {
+    return false;
+  }
+  core.mem_w32(screen.word, static_cast<std::uint32_t>(screen.limit));
+  lucent::info("transition",
+               "{} (kind {}) only covers a load: {} -> {}",
+               screen.name,
+               kind,
+               value,
+               screen.limit);
+  return true;
+}
+
 } // namespace
 
 const CountedScreen *CountedScreenSkip::showing(Core &core) const {
@@ -79,7 +103,7 @@ void CountedScreenSkip::observe(Core &core, bool pressed) {
     press_.clear();
     latched_ = screen;
   }
-  if (screen == nullptr) {
+  if (screen == nullptr || endLoadingOnly(core, *screen)) {
     return;
   }
   press_.observe(pressed);
@@ -100,13 +124,17 @@ void CountedScreenSkip::observe(Core &core, bool pressed) {
   lucent::info("transition", "Start/Cross ends {}: {} -> {}", screen->name, value, *to);
 }
 
-void CountedScreenSkip::observeLoop(psx::cpu::ResumableGuestCall &call, bool pressed) {
+void CountedScreenSkip::observeLoop(Core &core, psx::cpu::ResumableGuestCall &call, bool pressed) {
   const std::uint32_t resumePc = call.resumePc();
   const auto loop =
       std::find_if(facts_.loops.begin(), facts_.loops.end(), [resumePc](const CountedLoop &l) {
         return l.waitReturn == resumePc;
       });
-  if (loop == facts_.loops.end() || !pressed) {
+  if (loop == facts_.loops.end()) {
+    return;
+  }
+  const bool loading = loadingOnly(core, *loop);
+  if (!pressed && !loading) {
     return;
   }
   const auto value = static_cast<std::int32_t>(call.suspendedRegister(loop->reg));
@@ -115,7 +143,12 @@ void CountedScreenSkip::observeLoop(psx::cpu::ResumableGuestCall &call, bool pre
     return;
   }
   call.setSuspendedRegister(loop->reg, static_cast<std::uint32_t>(*to));
-  lucent::info("transition", "Start/Cross ends {}: {} -> {}", loop->name, value, *to);
+  lucent::info("transition",
+               "{} {}: {} -> {}",
+               loading ? "a load's" : "Start/Cross ends",
+               loop->name,
+               value,
+               *to);
 }
 
 } // namespace spyro

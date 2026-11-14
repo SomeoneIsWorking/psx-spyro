@@ -83,6 +83,7 @@ counter `0x800698EC` / `0x8006FBC4` and the fade word `0x80066F68` / `0x8006C598
 ## Not done
 - Spyro 2's sub-state 1 and Spyro 3's sub-states 1-2 and 5 after the flight (Spyro 2 16 updates, Spyro 3 19:
   the flight's tail and the load's first stages): not offered.
+- Spyro 1's `GS_EntranceAnimation` (GS 9) after a portal load: 34 steps, not offered (`scratch/loadpic/s1c.trace`).
 - Menus and cutscenes: Spyro 2's story scene (state 6, level 0x48) already ends on the guest's own Start;
   the pause menu's and the S1 menus' fades are not traced.
 

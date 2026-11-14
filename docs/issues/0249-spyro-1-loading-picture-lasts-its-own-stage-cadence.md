@@ -49,6 +49,25 @@ Artisans now enters Stone Hill's portal trigger region through `DispatchSpyroTri
 then GS 9 for 34 updates and gameplay, Spyro at (133162, 121859, 20983). A Cross at 1850 ends the tally
 (`level-transition tally cancelled`), stage 12 and 13 follow at 1852-1853, same landing (`fine.log`, `tally.log`).
 
+## Measured through the portal, 2026-11-14
+`warp 0/0/0`, then `warp 0/1/0` at step 1700, unpaced, hidden (`scratch/loadpic/s1c.trace`; words `GS`, `g_LoadStage`,
+`g_CdMusic.m_Flags`, `kFade`, `g_LevelTransHudActive`):
+
+| steps | state | what |
+|---|---|---|
+| 1789-1796 | GS 1, stage 2, flags 0x200 | the music fade, inside the flight and tally |
+| 1797 | flags 0x100 | the drive's pause, taken by the next `CDMusicUpdate` |
+| 1798 | stages 3-11 | the load, one update |
+| 1798-1996 | stage 11, tally up | the flight and tally (authored; Cross ends it) |
+| 1997-1998 | stages 12, 13 | the camera on Spyro, the load's terminal |
+| 1999-2032 | GS 9 | `GS_EntranceAnimation`, not offered to a press (issue 0250) |
+| 2033 | GS 0 | gameplay |
+
+On this route the music gate costs nothing: the tally holds stage 11 for 199 steps after the load is done, and a
+press on the tally also ends the music fade (`TransitionSkip`, `LevelTransitionTally`). No load wait is left; the
+music is untouched. The gate shows only on `CheatProcessLevelWarp` routes, where it is the music's fade-out (the
+drive must stop the XA stream before data reads) and stays on the press.
+
 ## Press skip
 A Start/Cross press while the fade runs writes the CD volume (`0x80075F18`) to the fade's target, so the next
 `CDMusicUpdate` (`0x8002BBE0`) ends the fade itself, issues `CdlPause` and frees the gate; the stages keep

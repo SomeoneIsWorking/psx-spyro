@@ -230,7 +230,7 @@ void BootPrefixFrameDriver::stepMainLoop(Core &core) {
       loopCall_ = loopCall_ == LoopCall::Entry ? LoopCall::Update : LoopCall::Draw;
       break;
     case TurnEnd::FadeFrame:
-      countedScreens_.observeLoop(call_, fields_.takePresentationSkip());
+      countedScreens_.observeLoop(core, call_, fields_.takePresentationSkip());
       return;
     case TurnEnd::Ran:
     case TurnEnd::Waited:

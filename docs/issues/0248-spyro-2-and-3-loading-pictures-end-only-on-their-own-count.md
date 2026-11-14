@@ -1,8 +1,9 @@
 # 0248 — Spyro 2 and 3 loading pictures, the new-game card among them, end only on their own count
 
-Status: open; Spyro 3's load stages run in one update, a press ends the picture's count. Owners:
-`game/core/counted_screen_skip.cpp` (the press), the screens in each title's `core/boot_facts.h`
-(`kCountedScreens`), `titles/spyro3/core/loader_checksum.cpp` (Spyro 3's stages).
+Status: open; Spyro 3's level pictures end without a press, its story cards and Spyro 2's pictures on a
+press. Owners: `game/core/counted_screen_skip.cpp` (the press and the loading-only end), the screens in each
+title's `core/boot_facts.h` (`kCountedScreens`, `kCountedLoops`), `titles/spyro3/core/loader_checksum.cpp`
+(Spyro 3's stages).
 
 ## Observed
 With reads due at once, entering a level still shows the loading picture: Spyro 2's `warp 0/1/0` fades the
@@ -44,6 +45,43 @@ full through the load, then its fade-out and the level's fade-in as before (`aft
 interrupts taken between calls (`scratch/loadwait3/after.log`): stage 1 at 1034, the six remaining reads all in
 1035, gameplay at 1072 instead of 1079.
 
+## Spyro 3's level pictures end without a press
+A picture below kind 5 (`0x8006FBCC`, the index `UpdateLoadingImage` reads it by; sub-state 3 enters a level only for
+0..4, 5 on are story cards: New Game is 6, the cutscene cards after it 14 and 15) only covers the load. Its count-0
+update still runs (the picture's read and LoadImage; without it loader stage 7 waits for good, cause not traced,
+spyro-3 `docs/re-frontier.md` `spyro3.loading-picture`); before the next update the count is put at 0xD, so
+sub-state 0's own test leaves for the load. The fade-out loop `0x80020168`, called only from that screen's draw,
+keeps its last two passes for the same kinds. Story cards keep their count and their press.
+
+Measured 2026-11-14 (`warp 0/1/0`, Sunny Villa from the title, unpaced, hidden; `scratch/loadpic/s3.trace` HEAD,
+`s3after.trace`, `s3after_sheet.png`), fields from the warp's start at 1015 to the first gameplay field:
+
+| fields | HEAD | now | what |
+|---|---|---|---|
+| title's start | 1015-1017 | 1015-1017 | the title's own exit |
+| picture count | 1018-1032 | 1018-1020 | presentation, loading-only |
+| load (sub-state 1) | 1033-1035 | 1021-1023 | stage 0's walk, then stages 1-12 in one update |
+| fade-out loop (sub-state 3) | 1036-1053 | 1024-1029 | loading-only; 2 passes kept |
+| level init (state 3 sub-states 2, 3) | 1054-1055 | 1030-1031 | the game's own steps |
+| level fade-in | 1056-1071 | 1032-1047 | transition, ends on a press (issue 0250) |
+| gameplay | 1072 | 1048 | |
+
+Landing identical: Spyro (0xF8A4, 0x533D, 0x2F67), camera (0xF8A4, 0x498C, 0x31D4), level 0xB in both
+(`s3head_pos.trace`, `s3after_pos.trace`). New Game (`scratch/loadpic/ng/ng2.out`): the kind 6, 14 and 15 cards each
+run sub-state 0 for 15 fields, no loading-only end logged.
+
+Left: the count-0 update increments the count before its draw, which lights the picture at 1/8 (count * 16), and
+that frame stays on screen through the load's first update (fields 1020-1025, mean 7-9 against the title's 76).
+Removing it needs what stage 7 takes from the count-0 update.
+
+## Spyro 3's load: what is left is guest work
+The owed read completions are taken by the loader drain before each call (`psx::cpu::takePendingInterrupts`): every
+read in the load is issued and completed in the same update (`scratch/loadpic/s3irq.log`, 22 of 22 delivered). The
+load still spans two updates because stage 0's `ResetHuds` (`0x800282D8`) walks the sprite table at `[0x8006C738]`
+(`0x800A2C7C` from the title) in `GetSpriteIndex` `0x80027934` for 1.96M cycles, 3.5 fields of guest CPU: the call
+leaves the field's budget, the update finishes on later turns without the drain, and stages 1-12 run on the next
+update. That is the guest's own cost, not a drive wait.
+
 ## The card before the new-game cutscene
 The same state. Spyro 2's "In the world of Dragons" storybook is kind 1: state 5 from step 1313 to the first
 cutscene frame (state 6) at 1363. Spyro 3's "An Evil Plot Unfolds..." caption is kind 6: sub-state 0
@@ -51,7 +89,7 @@ cutscene frame (state 6) at 1363. Spyro 3's "An Evil Plot Unfolds..." caption is
 `scratch/newgame/trace.py`).
 
 ## Without a press
-Nothing changes; the count is the picture's own time.
+Spyro 2's pictures and Spyro 3's story cards run their own count; Spyro 3's level pictures end as above.
 
 ## Press skip
 `spyro::CountedScreenSkip` latches a Start/Cross edge while sub-state 0 shows the picture (count 1 on; at

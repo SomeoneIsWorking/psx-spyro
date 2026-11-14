@@ -49,7 +49,10 @@ inline constexpr std::array<spyro::CountedScreen, 6> kCountedScreens{{
      .step = 1,
      .limit = 0xD,
      .minimumKept = 3u,
-     .zeroIsBefore = true},
+     .zeroIsBefore = true,
+     // The picture 0x8006FBCC indexes; below 5 sub-state 3 enters a level, 5 on are story cards.
+     .loadingKind = 0x8006FBCCu,
+     .loadingKinds = 5u},
     // FUN_80053A10 sub-state 4: the field fades in, -0x10 until below 1.
     {.name = "the level fade-in",
      .state = 3u,
@@ -104,7 +107,14 @@ inline constexpr std::array<spyro::CountedScreen, 6> kCountedScreens{{
 // FUN_80020168, the loading picture's fade-out (state 5 sub-state 3): 16 passes in one call, each
 // darkening the drawn buffer and waiting at 0x80020268; `slti $s0, 0x10` at 0x800202A0.
 inline constexpr std::array<spyro::CountedLoop, 1> kCountedLoops{{
-    {.name = "the fade-out loop", .waitReturn = 0x80020270u, .reg = 16, .step = 1, .limit = 0xF},
+    // Only from FUN_80059038's sub-state 3, after the picture 0x8006FBCC indexes.
+    {.name = "the fade-out loop",
+     .waitReturn = 0x80020270u,
+     .reg = 16,
+     .step = 1,
+     .limit = 0xF,
+     .loadingKind = 0x8006FBCCu,
+     .loadingKinds = 5u},
 }};
 
 // Game main 0x8001200C: boot prefix 0x8002AB38 (jal at 0x8001201C), then the loop jal 0x80055400 /
