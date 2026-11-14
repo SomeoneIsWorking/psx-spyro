@@ -91,3 +91,7 @@ are its config knobs. Blade size is the image's `VegetationFacts::bladeHeight`.
 On each step-2 level, reached through its warp: frames with the setting on and off showing tufts only on
 the marked textures, none on paths, water or at gameplay objects; halfway motion in the in-betweens;
 logic state identical with the setting on and off at a fixed frame.
+
+## State (2026-11-14)
+
+Step 3 (collision and moby exclusion) has a first unbuilt version shelved in the stash "G006 vegetation exclusion WIP". The one-draw-per-blade cost (Stone Hill 823 to 4,735 draws per present) is not yet traced.
