@@ -19,7 +19,7 @@ The host picture differs from it on purpose: it is not dithered (issue 0200), an
 | ID | Capability / observable outcome | State | Dependencies | Goals |
 |---|---|---|---|---|
 | S001 | The verified Spyro 1 executable reaches stage 13's title overlay under the recorded native owners | partial | — | G001 |
-| S002 | Stage-13 title modes 0 and 1 are presented | partial — on Record the guest's title overlay draws modes 0 and 1; fps60 replays the title screen in every mode but TSM_Demo (`titles/spyro1/core/frame/draw_section.cpp:DrawSection::replays`); widescreen does not move its elements | S001 | G003 |
+| S002 | Stage-13 title modes 0 and 1 are presented | verified — on Record the guest's title overlay draws modes 0 and 1; fps60 replays the title screen (TSM_Demo's card runs a logic frame a field, S020); every title element is centred by its layout (open-spyro `spyro1.title-layout`), so 16:9 keeps them where 4:3 has them, unstretched, with the 3D scene in both margins (`scratch/title16/s002_crops.png`, 2026-11-14) | S001 | G003 |
 | S003 | Stage-13 title mode 2 presents the three-slot save screen | partial — on Record the guest's overlay draws it; the 900-field mode-2 route has not been rerun on Record (it was verified on the deleted native owner) | S002 | G003 |
 | S004 | Spyro 1 boot and gameplay advance under a title-owned frame/field scheduler | partial — `spyro1::FrameDriver` runs update `0x8003385C` and GamestateDraw `0x8001ED5C`, and `spyro1::FrameDraw` runs the draw to its return, fields following the guest clock and each `VSync(0)` taking the next, so the draw's own wait loop sets the cadence (issue 0217, closed); the boot logos run on `spyro1::BootSequence` | S001 | G002, G003 |
 | S005 | Spyro 1 presents on the Record path | partial — `spyro1::Runtime` presents on Record: the device draws the guest's own ordering table in retail order, built by the retail routines and their native overrides with widened culls (terrain, actor lists and emitters, sprite queue, sky, portals, glows, particles, shadows; `titles/spyro1/render/`); there are no producers (removed 9041d072); `PSXPORT_DEBUG=recordcheck` compares each record with the device | S002, S004 | G003 |
@@ -38,7 +38,7 @@ The host picture differs from it on purpose: it is not dithered (issue 0200), an
 | S018 | Packaged first launch selects, validates and persists user-supplied game files without a terminal | missing | S001 | G004 |
 | S019 | Widescreen renders additional horizontal scene coverage without stretching the original image: every horizontal cull or screen-rect limit the title owns is overridden natively so the margins show what the view would, with guest memory untouched | partial — on Record (2026-10-15) the canvas widens (`spyro::Runtime::guestWidescreenProjection`, 684x240 at 16:9); S1's terrain, moby list planes, moby emitters, sprite queue, sky, glows and particles cull on the widened window, leaving the seen and fade bytes, moby drawn byte +0x51, sector marks and sector animation as retail's 4:3 view writes them; its portal fill and the near sky's window span the presented width (issue 0211) | S005 | G003 |
 | S030 | Spyro 1 widescreen anchors the UI: edge HUD elements sit at the widened edges, centred elements stay centred, nothing stretches | partial — the HUD icon and text records and the life-orb and egg quads take their edge class through `spyro::ui_anchor` (`spyro1::hud_anchor`); 16:9 captures show gems at the left edge, dragons centred, lives at the right edge. 2026-10-21 (B4, `warp 10` level entry, 684 vs 512 columns): gem digit 80..102 at both, dragon +86, lives 539..619 vs 367..447 (+172). The life orbs were not on screen in the capture; the transition fade covers the margins (issue 0199) | S019 | G003 |
-| S020 | Spyro 1 presents interpolated 60fps | partial — every in-between of GS_Playing, the menus, GS_Dragon, the fairy, the balloonist, the cutscenes, the credits after their first stage and the title screen but TSM_Demo replays GamestateDraw (`titles/spyro1/core/frame/draw_section.*`, tracks `draw_motion.*`); TSM_Demo's card presents every field; the other states are held. Paced judgement 2026-11-13 (`ires=0`, `fps60=1`, 3840x2160, hidden window; `scratch/pace60/`): Stone Hill turning left after `warp 0/1/0`, a simulated 60.00 Hz display over 90 logic frames steps the guest moment 0.5 per vblank 180 of 181 times, one repeat (59.82 Hz fields on 60.00 Hz), presents p50 16.75 ms p99 17.50 ms, 2 missed in the run (host load 5-7 from other agents); unpaced dumps show the in-betweens halfway (`u1_crops.png`) | S004, S005 | G003 |
+| S020 | Spyro 1 presents interpolated 60fps | partial — every in-between of GS_Playing, the menus, GS_Dragon, the fairy, the balloonist, the cutscenes, the credits after their first stage and the title screen replays GamestateDraw (`titles/spyro1/core/frame/draw_section.*`, tracks `draw_motion.*`); TSM_Demo's card (StoryIntro_Draw `0x8001E6B8`) waits one VSync with no pace loop, so each field is a logic frame and it needs no in-between (open-spyro `spyro1.story-intro-cadence`; `scratch/title16/s020_card_crops.png`); the other states are held. Paced judgement 2026-11-13 (`ires=0`, `fps60=1`, 3840x2160, hidden window; `scratch/pace60/`): Stone Hill turning left after `warp 0/1/0`, a simulated 60.00 Hz display over 90 logic frames steps the guest moment 0.5 per vblank 180 of 181 times, one repeat (59.82 Hz fields on 60.00 Hz), presents p50 16.75 ms p99 17.50 ms, 2 missed in the run (host load 5-7 from other agents); unpaced dumps show the in-betweens halfway (`u1_crops.png`) | S004, S005 | G003 |
 | S021 | Touch-enabled releases provide an authored SVG control interface | missing | S018 | G004 |
 | S022 | Spyro 1 streams its XA music through the shared CD/XA owner | partial — **MEASURED 2026-10-13 (issue 0182, psxport 0153-0155), player build in a mapped window with the user's pad:** the title stream decodes 238 of 238 sectors at -0.01% pitch (was 97, ~40% of the time audible), and the level music resumes at LBA 60000/60099 after the flyby skip (was LBA 0, silent). Still `partial`: not compared against the console, and the host queue holds ~200-290 ms of audio latency | S008 | G002 |
 | S023 | Spyro 3 has identity-derived executable facts and a title-local native boot owner through the pre-display boundary | verified — the retail boot prefix `0x8002AB38` runs through Lightrec into the title and gameplay; the 2026-11-12 runs (warps to Sunrise Spring, Sunny Villa, Buzz's Dungeon and Sorceress' Lair, the credits) exit 0 | S008 | G001 **MEASURED 2026-10-01 (issues 0159, 0160, 0162): the title screen is PRESENTED.** Insomniac logo at step 300 (128,277 of 691,200 non-black), sign/egg/ninja at 600-900 (595,485-601,554), "Spyro Year of the Dragon" with "PRESS START" at 1200-1800 (621,849-622,011), then the attract demo "Entering Demo Mode" at 2400 (509,760). 0 `intr timeout`, 0 faults in 4500 fields after the native CdInit was removed so retail `CD_init` registers libcd's interrupt handler (0159). One "CD timeout ... CdlReset" from boot-time `CD_init` remains: the controller emulation does not answer the init reset. |
@@ -98,7 +98,16 @@ On Record the guest's title overlay draws modes 0 and 1 itself; recordcheck at t
 route through the title screen to the attract demo reports `mismatched=0` (S005). The native title
 owner (`0x8007CD38` sprite emitter recipes) was deleted on 2026-10-15.
 
-Gap: widescreen does not move its elements.
+Widescreen (2026-11-14, `scratch/title16/`): Titlescreen_Draw `0x8007CEE4` places every element through
+Titlescreen_EmitSpriteQuad `0x8007CD38`, and each one (logo, PRESS START, the menu frame's halves, message and
+option strips, save slots) is symmetric about x 256 or inside the frame (open-spyro `spyro1.title-layout`), so
+each is centred and `ui_anchor` gives none a correction; guest 2D is presented centred. The scene behind is the
+play drawers with widened culls. Hidden-window `pshot`s at 3840x2160, ires 0, 4:3 against 16:9 on the same steps
+(flyby 450-1020, logo at rest 1050/1500, logo slide-out and frame slide-in 1524-1548 after Start at 1520, the card
+menu 1560-1800): the 2D elements sit at the same place and size, the margins hold terrain, sky and mobys (no black
+column beyond the guest's own border rows), and inside the 4:3 window only edges differ (3-4 %, the 684-column
+picture's 0.2 % narrower scale). `s002_crops.png`: logo and PRESS START, logo slide-out, frame slide-in, Select
+Memory Card.
 
 ### S003 — Title mode 2
 
@@ -373,8 +382,16 @@ submits. Tracks (`draw_motion.*`, `docs/plans/spyro1-motion-tracks.md`) carry th
 particles by the allocator's life, sparkles, the flame and the HUD rectangles; the dragon shrink, screen
 fade and texture scroll have their own owners beside it, and cuts come from `draw_cuts.*`. `DrawSection::replays` names the replayed states.
 
-Gap: no paced real-time judgement is recorded; TSM_Demo's card and the states `replays` does not name are
-held.
+TSM_Demo's card, StoryIntro_Draw `0x8001E6B8`, ends `DrawSync(0); VSync(0)` and DrawOTag with no
+`VSync(-1) - last < 2` wait, and StoryIntro_Update `0x80032B08` moves its timer one a call (open-spyro
+`spyro1.story-intro-cadence`), so it runs a logic frame a field and there is nothing between two to replay;
+`replays` leaves it out for that reason. Measured 2026-11-14 (`scratch/title16/`, unpaced, ires 0, fps60, 3840x2160
+sink, 16:9, hidden window): over fences 1992-2377 every present is `fields=1/1` with the logic count one higher
+than the last, between the title's and the demo's `fields=2/2` with halfway in-betweens; 12 consecutive dumped
+presents at 2200 and 2300 each move Spyro's flight and the glyphs' rock on, no present repeated
+(`s020_card_crops.png`).
+
+Gap: the states `replays` does not name are held.
 
 ### S021 — SVG touch-control interface
 
