@@ -50,13 +50,41 @@ and the scenery mobys that are plants (trees, bushes and flowers drawn as mobys 
 ## Steps
 
 1. Spyro 1 census and the plant-moby inventory for all three titles (decomp names for Spyro 1, moby type
-   ids and model counts for Spyro 2 and 3).
+   ids and model counts for Spyro 2 and 3). **Partial:** the near-face census of all three step-2 levels is
+   `tools/vegetation_listing.py`'s report (Spyro 1 Stone Hill: 40 textures, 6,659 near faces, lawn record
+   40 alone 3,160; Spyro 2 Summer Forest: 87 textures, 8,160 faces; Spyro 3 Sunny Villa: 89 textures,
+   5,791 faces). Spyro 1 reads `g_Environment` (`0x800785A8`: sectors +0, count +4, 16-byte detail
+   texture records +0x18), names its texture by the polygon's links byte (+8) and packs height as
+   `(word << 2) & 0xFFC`. The plant-moby inventory is not done.
 2. The listing tool and the reviewed vegetation tables for one level per title (Spyro 1 Stone Hill,
-   Spyro 2 Summer Forest, Spyro 3 Sunny Villa).
-3. Exclusion from collision and mobys, shown as a debug overlay on those levels.
+   Spyro 2 Summer Forest, Spyro 3 Sunny Villa). **Done:** `tools/vegetation_listing.py <title> <ram>
+   <vram> <out>` (inputs `dumpram`/`vramraw` at the level's warp) lists each record with its face count,
+   flatness, two-sided and translucent faces, and cuts its full-bright 32x32 tile from VRAM into
+   `tex_<n>.png` and `sheet.png`; the reviewed tables are `titles/<t>/render/vegetation_table.h`, each
+   record with the crop judged.
+3. Exclusion from collision and mobys, shown as a debug overlay on those levels. **Partial:** placement
+   drops a grown face that shares a corner with a path record of the table, or lies in a translucent
+   sector, and logs the counts per level (`[vegetation] level N: ... dropped ... beside a path`). Not
+   done: the collision lookup (water, special surface, walkable slope), moby spawn points, and the
+   overlay.
 4. Tuft geometry and the draw in the terrain buckets, judged unpaced at `ires=0`, `fps60=1`, 3840x2160,
    then the cost in `perf-units` (GPU work per present, CPU instructions per frame) against the run spread.
+   **Drawn, cost too high:** a tuft is four GT3 blades cut from its face's own texture tile and shaded
+   from its face's near colour, placed by a hash of the polygon record's address and index,
+   projected host-side with the draw's camera (the replay's blended one in an in-between) and inserted
+   after the last terrain packet of its depth bin through `psx::gpu::HostPackets::insertAfter` at the
+   flatten, depth-tested as terrain. Guest RAM is byte-identical with the setting on and off at a fixed
+   step on all three levels. Cost (2026-11-14, Summer Forest step 1400 and Stone Hill step 3000, two runs
+   each on Summer Forest, run spread 0): Summer Forest GPU draws/present p50 543 -> 1,967, triangles
+   31.2k -> 46.1k, upload 984 -> 1,712 KiB; CPU present 142.6 -> 232.8 Minsn/frame. Stone Hill draws 823
+   -> 4,735, CPU present 146.8 -> 343.9 Minsn/frame. Each blade costs about one record draw; the next
+   step is to find what splits the record batches per blade (`record_rasterizer` batch rule) or build
+   tufts that batch, before more levels.
 5. Tables for the remaining levels, then the setting in the menu.
+
+The setting is `more_vegetation` (saved, off by default, `enh_int`, so off in a comparison run);
+`vegetation_density` (tufts per million square vertex units) and `vegetation_distance` (vertex units)
+are its config knobs. Blade size is the image's `VegetationFacts::bladeHeight`.
 
 ## Proof
 

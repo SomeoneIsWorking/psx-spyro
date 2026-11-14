@@ -15,6 +15,7 @@
 
 #include "render/terrain/guest_terrain_animation.h"
 #include "render/terrain/guest_terrain_screen.h"
+#include "render/terrain/terrain_vegetation.h"
 
 #include <array>
 #include <cstdint>
@@ -106,6 +107,8 @@ struct Facts {
   CoarseFacts coarse{};
   FineFacts fine{};
   ResplitFacts resplit{};
+  // Added grass (G006): where the image keeps what placement reads, and its reviewed tables.
+  VegetationFacts vegetation{};
 };
 
 } // namespace spyro::guest_terrain

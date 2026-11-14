@@ -3,6 +3,7 @@
 #pragma once
 
 #include "core/draw_motion.h"
+#include "spyro2/render/vegetation_table.h"
 #include "render/engine_render_overrides.h"
 #include "render/text_font.h"
 #include "spyro2/core/game_state.h"
@@ -123,6 +124,20 @@ inline constexpr spyro::guest_terrain::Facts kTerrainFacts{
             .queue = 0x2400u,              // the coarse split list, already walked
             .trianglePieces = 0x80062560u, // 80028974
             .quadPieces = 0x8006257Cu,     // 800287A8
+        },
+    // Placement reads the sectors and records the detail pass reads; the level is the level FUN_80019230 stores.
+    .vegetation =
+        {
+            .levelId = 0x80066F90u,
+            .sectorTable = 0x800673D4u,
+            .textureTable = 0x800673F4u,
+            .recordSize = 48,
+            .fullBright = 8,
+            .heightShift = 3,
+            .heightMask = 0x1FFCu,
+            .textureByte = false,
+            .bladeHeight = 140,
+            .levels = kVegetationLevels,
         },
 };
 

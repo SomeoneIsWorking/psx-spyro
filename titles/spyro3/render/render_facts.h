@@ -3,6 +3,7 @@
 #pragma once
 
 #include "core/draw_motion.h"
+#include "spyro3/render/vegetation_table.h"
 #include "render/engine_render_overrides.h"
 #include "render/text_font.h"
 #include "spyro3/render/intro_card_facts.h"
@@ -122,6 +123,20 @@ inline constexpr spyro::guest_terrain::Facts kTerrainFacts{
             .queue = 0x2400u,              // the coarse split list, already walked
             .trianglePieces = 0x80066228u, // 80027138
             .quadPieces = 0x80066244u,     // 80026F6C
+        },
+    // Placement reads the sectors and records the detail pass reads; the level is the level FUN_800584BC stores.
+    .vegetation =
+        {
+            .levelId = 0x8006C5BCu,
+            .sectorTable = 0x8006D048u,
+            .textureTable = 0x8006D068u,
+            .recordSize = 48,
+            .fullBright = 8,
+            .heightShift = 3,
+            .heightMask = 0x1FFCu,
+            .textureByte = false,
+            .bladeHeight = 140,
+            .levels = kVegetationLevels,
         },
 };
 

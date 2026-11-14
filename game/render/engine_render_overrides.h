@@ -100,7 +100,9 @@ template <const EngineRenderFacts &facts> void drawSpyro(Core *core) {
 
 template <const EngineRenderFacts &facts> void flatten(Core *core) {
   PacketLayers &layers = session(*core).layers;
-  if (std::ranges::find(facts.unbinnedFlattens, core->r[31]) == facts.unbinnedFlattens.end()) {
+  const bool binned =
+      std::ranges::find(facts.unbinnedFlattens, core->r[31]) == facts.unbinnedFlattens.end();
+  if (binned) {
     const depth_bins::Bins published = depth_bins::publishedBins(*core, facts.globals);
     depth_bins::assignBins(*core, published);
     depth_bins::assignOverlay(*core, published, depth_bins::overlayBins(*core, facts.globals));
@@ -108,7 +110,9 @@ template <const EngineRenderFacts &facts> void flatten(Core *core) {
     layers.secondPass();
   }
   layers.flattened(facts.wholeFrameUi.covers(*core));
-  (void)psx::cpu::callOriginalOrPropagate(*core, facts.flatten);
+  if (psx::cpu::callOriginalOrPropagate(*core, facts.flatten) && binned) {
+    session(*core).vegetation.link(*core, core->r[2]);
+  }
 }
 
 } // namespace engine_render

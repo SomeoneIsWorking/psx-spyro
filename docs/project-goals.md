@@ -153,7 +153,7 @@ Constraints and non-goals:
 - Added vegetation has no collision and changes no guest state, gameplay or timing.
 - No new art assets, and nothing that has to ship with the product.
 
-Related state: none yet; plan `docs/plans/more-vegetation.md`.
+Related state: S039; plan `docs/plans/more-vegetation.md`.
 
 ## G007 — Right-stick camera
 

@@ -11,6 +11,7 @@
 #include "game_runtime.h"
 #include "image_identity.h"
 #include "render/packet_layers.h"
+#include "render/terrain/terrain_vegetation.h"
 
 class Core;
 
@@ -34,6 +35,8 @@ public:
   std::unique_ptr<TitleState> titleState;
   // The frame's crop widescreen UI and 2D font glyphs, named by the title's linkers.
   PacketLayers layers;
+  // Added grass (G006): placed per level, built by the terrain drawer, linked at the flatten.
+  guest_terrain::Vegetation vegetation;
 };
 
 // The session of the Game `core` belongs to; a native override reaches it from its Core alone.

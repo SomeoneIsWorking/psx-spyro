@@ -1,6 +1,7 @@
 #include "render/terrain/guest_terrain_drawer.h"
 
 #include "core.h"
+#include "core/session.h"
 #include "render/field/guest_view_slope.h"
 
 namespace spyro::guest_terrain {
@@ -16,6 +17,7 @@ const TerrainFrame &Drawer::run() {
   frame.argument = core_.r[4];
   frame.scratch = image_.scratch(core_);
   image_.drawPasses(frame);
+  session(core_).vegetation.draw(frame, facts.vegetation);
   // The exit: retail reloads the borrowed registers from the save area, which the native passes
   // never changed, and returns with whatever its last pass left in v0 and v1. The cursor word is
   // where the next draw allocates from.

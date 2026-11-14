@@ -2,6 +2,7 @@
 // tables its passes read, each named by the instruction that reaches it.
 #pragma once
 
+#include "spyro1/render/vegetation_table.h"
 #include "render/field/guest_render_globals.h"
 #include "render/terrain/guest_terrain_facts.h"
 #include "spyro1/core/guest_globals.h"
@@ -115,6 +116,20 @@ inline constexpr spyro::guest_terrain::Facts kSharedFacts{
             .queue = 0x2000u,              // 80028588
             .trianglePieces = 0x8006D5C8u, // 8002A510
             .quadPieces = 0x8006D5E4u,     // 8002A344
+        },
+    // Placement reads the sectors and records the detail pass reads; the level is g_LevelId.
+    .vegetation =
+        {
+            .levelId = guest::kLevelId,
+            .sectorTable = guest::kEnvironment + lod::kSectors,
+            .textureTable = guest::kEnvironment + lod::kDetailTextures,
+            .recordSize = 16,
+            .fullBright = 8,
+            .heightShift = 2,
+            .heightMask = 0xFFCu,
+            .textureByte = true,
+            .bladeHeight = 55,
+            .levels = kVegetationLevels,
         },
 };
 

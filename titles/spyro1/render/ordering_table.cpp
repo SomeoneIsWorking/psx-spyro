@@ -11,7 +11,9 @@ namespace {
 
 void flattenOverride(Core *core) {
   OrderingTable::assignSlots(*core, core->r[4]);
-  (void)psx::cpu::callOriginalOrPropagate(*core, OrderingTable::kFlatten);
+  if (psx::cpu::callOriginalOrPropagate(*core, OrderingTable::kFlatten)) {
+    spyro::session(*core).vegetation.link(*core, core->r[2]);
+  }
 }
 
 } // namespace
