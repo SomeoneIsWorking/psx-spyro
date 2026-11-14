@@ -17,8 +17,6 @@ using spyro::guest_word::asSigned;
 using spyro::guest_word::sra;
 using terrain::kRenderGlobals;
 
-// 8001FEEC: the fog colour.
-inline constexpr std::uint32_t kFogColour = 0x80078A50u;
 // 8001F8A0: a scaled record farther than this is not drawn.
 inline constexpr std::uint32_t kFarthestScaled = 0xF618u;
 // The faded colour set, and the near detail runs' old words.

@@ -65,6 +65,9 @@ inline constexpr std::uint32_t kSpuMusicFadeCurrent = 0x80076230u;
 // g_Fade: the screen fade GamestateDraw and TitlescreenDraw draw while it is non-zero.
 inline constexpr std::uint32_t kFade = 0x80075918u;
 
+// g_dwWorldFogColor: the colour fog fades toward.
+inline constexpr std::uint32_t kWorldFogColour = 0x80078A50u;
+
 // g_TitlescreenState (titlescreen.h): four-byte fields in declaration order.
 inline constexpr std::uint32_t kTitlescreenState = 0x80078D78u;
 inline constexpr std::uint32_t kTitlescreenMode = kTitlescreenState + 0x00u;     // m_Mode

@@ -4,6 +4,7 @@
 #include "gte_registers.h"
 #include "render/field/guest_render_globals.h"
 #include "render/terrain/guest_terrain_fog.h"
+#include "spyro1/core/guest_globals.h"
 #include "spyro1/render/actor_emitter_layout.h"
 
 namespace spyro1::actors {
@@ -272,7 +273,7 @@ void ActorEmitter::fadeToFog() {
   auto &gte = core_.gte();
   std::uint32_t from = memory_.mem_r32(frame_ + frame::kFarColours);
   std::uint32_t out = kFadedColours;
-  spyro::guest_terrain::loadFarColour(gte, memory_.mem_r32(kFogColour));
+  spyro::guest_terrain::loadFarColour(gte, memory_.mem_r32(guest::kWorldFogColour));
   const std::uint32_t end =
       from + (std::uint32_t{memory_.mem_r16(frame_ + frame::kColourCount)} << 2);
   gte.writeData(gte::kRgbc, memory_.mem_r32(from));

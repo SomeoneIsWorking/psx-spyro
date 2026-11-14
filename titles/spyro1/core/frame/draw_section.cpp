@@ -106,6 +106,14 @@ constexpr std::uint32_t kExitLevelTail = 0x8001C96Cu;
 constexpr std::uint32_t kExitLevelBackdropPass = 0u;
 constexpr std::uint32_t kLoadImage = 0x8005FA28u;
 constexpr std::uint32_t kDrawSync = 0x8005F764u;
+// Pass 1 stores ComputeDepthCuedColor(g_dwWorldFogColor, 0, progress) into the back DRAWENV's
+// r0/g0/b0 (+0x19) and PutDrawEnv sends it: SetDrawEnv(&env->dr_env (+0x1C), env), the packet's
+// tag terminated (0x8005FE50), then the device queue.
+constexpr std::uint32_t kComputeDepthCuedColor = 0x80017E54u;
+constexpr std::uint32_t kSetDrawEnv = 0x800608E0u;
+constexpr std::uint32_t kDrawEnvClearColour = 0x19u;
+constexpr std::uint32_t kDrawEnvPacket = 0x1Cu;
+constexpr std::uint32_t kTagLink = 0x00FFFFFFu;
 
 // func_8001CFDC, GS_Dragon: every m_State's drawers, fade and border join at its DrawSync,
 // 0x8001D644.
@@ -287,15 +295,36 @@ bool DrawSection::drawExitLevel(Core &core, psx::present::GuestRedraw &redraw) {
         {{.at = kPutDrawEnv}, {.at = kLoadImage}, {.at = kDrawSync}}};
     return drawTo(redraw, kExitLevelDraw, kExitLevelTail, applied);
   }
+  psx::present::ReplayFrame &replay = *core.runtime.replayFrame(core);
   const std::optional<std::uint32_t> progress =
-      motion(core).exitFade().progress(core.runtime.replayFrame(core)->replaying());
+      motion(core).exitFade().progress(replay.replaying());
+  bool relinked = true;
   const std::array<psx::present::GuestRedraw::Skip, 1> fogged{
       {{.at = kPutDrawEnv, .host = [&] {
-          if (progress) {
-            redraw.writeWord(portals::kFadeStep, *progress);
+          if (!progress) {
+            return;
           }
+          // The real frame sent its clear colour; the in-between's is the blended progress's.
+          const std::uint32_t env = core.r[psx::cpu::kA0];
+          redraw.writeWord(portals::kFadeStep, *progress);
+          const std::array<std::uint32_t, 3> fog{
+              core.mem_r32(guest::kWorldFogColour), 0u, *progress};
+          relinked = step(redraw, kComputeDepthCuedColor, fog);
+          const std::uint32_t colour = core.r[psx::cpu::kV0];
+          lucent::debug("replay",
+                        "spyro1 exit fog fill 0x{:06X} at progress {}",
+                        colour & 0xFFFFFFu,
+                        *progress);
+          for (std::uint32_t channel = 0; channel < 3u; ++channel) {
+            redraw.writeByte(env + kDrawEnvClearColour + channel,
+                             static_cast<std::uint8_t>(colour >> (8u * channel)));
+          }
+          const std::array<std::uint32_t, 2> put{env + kDrawEnvPacket, env};
+          relinked = relinked && step(redraw, kSetDrawEnv, put);
+          redraw.writeWord(env + kDrawEnvPacket, core.mem_r32(env + kDrawEnvPacket) | kTagLink);
+          replay.relink(env + kDrawEnvPacket);
         }}}};
-  return drawTo(redraw, kExitLevelDraw, kExitLevelTail, fogged);
+  return drawTo(redraw, kExitLevelDraw, kExitLevelTail, fogged) && relinked;
 }
 
 bool DrawSection::drawState(Core &core, psx::present::GuestRedraw &redraw) {
