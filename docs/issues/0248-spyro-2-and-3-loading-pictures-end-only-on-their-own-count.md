@@ -48,9 +48,28 @@ interrupts taken between calls (`scratch/loadwait3/after.log`): stage 1 at 1034,
 ## Level pictures end without a press
 A level picture only covers the load: in Spyro 3 a kind (`0x8006FBCC`) of 0..4, which sub-state 3 sends into a level
 (5 on are story cards: New Game 6, the cutscene cards after it 14 and 15); in Spyro 2 a kind (`0x800698F4`) of 0, 3,
-5, 9, 13 or 16, which sub-state 2 sends into the level through `FUN_800171BC` (the others start a cutscene, open the
-guidebook or branch on the level; spyro-2 `docs/re-frontier.md` `spyro2.loading-picture`). Each title's
-`kLevelPictures` names them.
+5, 9, 13 or 16, which sub-state 2 sends into the level through `FUN_800171BC`, and 10, 14 and 17 when sub-state 2's
+branch for them goes there: 10 while the level `0x80066F90` is Gulp's Overlook (0x2E), 14 while it is Ripto's Arena
+(0x42), 17 while `0x80067178` is clear. The others start a cutscene or open the guidebook (spyro-2
+`docs/re-frontier.md` `spyro2.loading-picture`). Each title's `kLevelPictures` names them, Spyro 2's branches as
+`LoadingKindWhen` entries read from guest state after the count-0 update: nothing in state 5 writes those words
+before sub-state 2 reads them. Kinds 10 and 14 first come with the table level (0x4C, 0x4F), a story card into
+cutscene 8 or 0xB; the title overlay's post-cutscene dispatcher `0x800742F8` calls them again with the arena's level.
+Kind 17 enters the attract demo's level from the title (state 6, `0x8007A3CC`) and goes back to the title once the
+demo has set `0x80067178` (`0x800159C8`).
+
+Measured 2026-11-14, unpaced, hidden, against a HEAD build (`scratch/kinds/`, `trace.py`; words state, sub-state,
+count, kind, level, `0x80067178`; landing is Spyro's and the camera's position 40 steps into gameplay):
+
+| kind | route | before | after | landing |
+|---|---|---|---|---|
+| 10 | `warp 1/0/0`, then `warp 1/11/0` (boss door, `0x8001A290`) | card 1023-1037, cutscene 8, picture 2443-2457, gameplay 2498 | card unchanged, picture 2443 only, gameplay 2473 | identical (`k10*.trace`) |
+| 14 | `warp 2/0/0`, then the door's own `0x80019230(0xE)` with `0x80066F68` 0xFF | card unchanged, cutscene 0xB, picture 2216-2230, gameplay 2271 | gameplay 2246 | identical (`k14*.trace`) |
+| 17 | boot, title idle into the demo | demo entry 1904-1934, gameplay 1975; demo exit 2461-2475 | demo entry gameplay 1950; demo exit 2436-2450, its 14 updates kept | identical, both demos (`k17*.trace`) |
+
+25 steps saved per level entry. The Gulp picture is never drawn: black from the cutscene's end until the arena fades
+in at 2459 instead of 2484 (`k10after_lvl.png` against `k10before_lvl.png`); the card before cutscene 8 keeps its
+fade-in, full brightness and fade-out (`k10after_card.png`).
 
 The count-0 update runs as the guest makes it. What the load takes from it is its `CDLoadSync`'s wait: in Spyro 3
 `while (CDLoadTime())` runs `CDMusicUpdate` until the XA music's stop (`0x8006E48C` 8, 9, 0, two `CdlPause`) is

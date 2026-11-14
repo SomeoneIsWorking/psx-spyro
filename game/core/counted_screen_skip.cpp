@@ -61,8 +61,16 @@ std::uint32_t minimumKept(Core &core, const CountedScreen &screen, std::int32_t 
 }
 
 bool loadingKind(Core &core, const LoadingKinds &loading) {
-  const std::uint32_t kind = loading.mask == 0u ? 32u : core.mem_r32(loading.kind);
-  return kind < 32u && ((loading.mask >> kind) & 1u) != 0u;
+  if (loading.kind == 0u) {
+    return false;
+  }
+  const std::uint32_t kind = core.mem_r32(loading.kind);
+  if (kind < 32u && ((loading.mask >> kind) & 1u) != 0u) {
+    return true;
+  }
+  return std::any_of(loading.when.begin(), loading.when.end(), [&](const LoadingKindWhen &when) {
+    return when.kind == kind && core.mem_r32(when.word) == when.value;
+  });
 }
 
 // A screen that only covers a load, past the update that began it: the next update leaves.

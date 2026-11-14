@@ -11,10 +11,19 @@ class Core;
 
 namespace spyro {
 
-// The kinds of a screen that only cover a load: bit k of `mask` set when the word `kind` holds k.
+// A kind that only covers a load while `word` holds `value`: the branch its leaving update takes.
+struct LoadingKindWhen {
+  std::uint32_t kind = 0;
+  std::uint32_t word = 0;
+  std::uint32_t value = 0;
+};
+
+// The kinds of a screen that only cover a load: bit k of `mask` set when the word `kind` holds k,
+// and the kinds of `when` while their word holds its value.
 struct LoadingKinds {
   std::uint32_t kind = 0;
   std::uint32_t mask = 0;
+  std::span<const LoadingKindWhen> when;
 };
 
 // A screen the player does not control that its update ends on its own count: each update moves a

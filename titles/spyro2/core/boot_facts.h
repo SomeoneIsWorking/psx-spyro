@@ -34,8 +34,16 @@ inline constexpr std::array<spyro::LogoHold, 4> kLogoHolds{
 
 // The loading pictures FUN_80019364 indexes by 0x800698F4 that only cover a load: its sub-state 2
 // enters the level (FUN_800171BC) for 0, 3, 5, 9, 13 and 16; the others start a cutscene
-// (0x80073E48), open the guidebook (18) or branch on the level (10, 14) or on 0x80067178 (17).
-inline constexpr spyro::LoadingKinds kLevelPictures{.kind = 0x800698F4u, .mask = 0x12229u};
+// (0x80073E48), open the guidebook (18) or take one of these branches.
+inline constexpr std::array<spyro::LoadingKindWhen, 3> kLevelPictureBranches{{
+    // 10 and 14 enter the level when it is Gulp's Overlook / Ripto's Arena.
+    {.kind = 10u, .word = kLevelId, .value = 0x2Eu},
+    {.kind = 14u, .word = kLevelId, .value = 0x42u},
+    // 17 enters the level while 0x80067178 is clear and goes to the title when it is set.
+    {.kind = 17u, .word = 0x80067178u, .value = 0u},
+}};
+inline constexpr spyro::LoadingKinds kLevelPictures{
+    .kind = 0x800698F4u, .mask = 0x12229u, .when = kLevelPictureBranches};
 
 // The screens a Start/Cross press ends (spyro::CountedScreenSkip): counter 0x800698EC, fade
 // 0x80066F68.
