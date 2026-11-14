@@ -122,7 +122,7 @@ std::unique_ptr<spyro::Warp> Runtime::createWarp() const {
   return std::make_unique<Warp>();
 }
 
-std::span<const psx::present::OutlineFont> Runtime::outlineFonts() const {
+std::span<const psx::present::OutlineFont> Runtime::outlineFonts(Core & /*core*/) const {
   return kOutlineFonts;
 }
 

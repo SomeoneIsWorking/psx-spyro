@@ -5,6 +5,7 @@
 #include "spyro3/core/boot_facts.h"
 #include "spyro3/core/loader_checksum.h"
 #include "spyro3/core/logo_facts.h"
+#include "spyro3/core/title_state.h"
 #include "spyro3/core/warp.h"
 #include "spyro3/render/hud_anchor.h"
 #include "spyro3/render/hud_slide.h"
@@ -87,7 +88,7 @@ void Runtime::registerOverrides(Game &game) {
 }
 
 std::unique_ptr<spyro::TitleState> Runtime::createTitleState() const {
-  return std::make_unique<hud_anchor::DrawState>();
+  return std::make_unique<TitleState>();
 }
 
 const spyro::FollowCameraFacts &Runtime::followCamera() const {
@@ -102,8 +103,8 @@ std::unique_ptr<spyro::Warp> Runtime::createWarp() const {
   return std::make_unique<Warp>();
 }
 
-std::span<const psx::present::OutlineFont> Runtime::outlineFonts() const {
-  return kOutlineFonts;
+std::span<const psx::present::OutlineFont> Runtime::outlineFonts(Core &core) const {
+  return titleState(core).fonts.follow(core);
 }
 
 const spyro::TitleLogoFacts &Runtime::logoFacts() const {

@@ -6,7 +6,6 @@
 #include "render/engine_render_overrides.h"
 #include "render/text_font.h"
 #include "spyro3/render/intro_card_facts.h"
-#include "spyro3/render/sprite_fonts.h"
 
 #include <array>
 #include <cstdint>
@@ -276,9 +275,7 @@ inline constexpr std::array<std::uint32_t, 3> kWholeScreenReturns = {
 
 // The 2D font's page draws its glyph shadow in CLUT index 2 (spyro-3 `spyro3.text-font`).
 inline constexpr std::array<int, 1> kTextShadowIndices{2};
-// The fonts psxport draws from outline fonts, the 2D font first (PacketLayers::linkedGlyphs).
-inline constexpr std::array<psx::present::OutlineFont, 2> kOutlineFonts = {
-    spyro::textFont(kTextShadowIndices), sprite_fonts::kAtlasFontFace};
+inline constexpr psx::present::OutlineFont kTextFont = spyro::textFont(kTextShadowIndices);
 
 inline constexpr spyro::EngineRenderFacts kRenderFacts{
     .globals = kRenderGlobals,

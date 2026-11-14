@@ -23,7 +23,7 @@ public:
   const spyro::FollowCameraFacts &followCamera() const override;
   const spyro::TitleLogoFacts &logoFacts() const override;
   // The 2D font (render/text_font.h).
-  std::span<const psx::present::OutlineFont> outlineFonts() const override;
+  std::span<const psx::present::OutlineFont> outlineFonts(Core &core) const override;
   const psx::game::TitleDebugMenu &debugMenu() const override {
     return debugMenu_;
   }

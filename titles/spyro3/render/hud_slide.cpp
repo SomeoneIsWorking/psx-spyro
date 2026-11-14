@@ -10,6 +10,7 @@
 #include "projected_vertex.h"
 #include "r3000.h"
 #include "replay_frame.h"
+#include "spyro3/core/title_state.h"
 #include "spyro3/render/hud_anchor.h"
 
 #include <array>
@@ -34,7 +35,7 @@ constexpr std::uint32_t kPacketBytes = 0x28u;
 constexpr std::array<std::uint32_t, 4> kCorners = {0x08u, 0x10u, 0x18u, 0x20u};
 
 hud_anchor::DrawState &drawState(Core &core) {
-  return static_cast<hud_anchor::DrawState &>(*spyro::session(core).titleState);
+  return titleState(core).hud;
 }
 
 spyro::HudSlide &slideOf(Core &core) {

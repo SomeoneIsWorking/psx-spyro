@@ -1,7 +1,8 @@
 // sprite_fonts.h — Spyro 3's fonts drawn a glyph a call through the icon emitter FUN_800289C8 from
 // a SpriteData table (8 bytes an entry: u0, v0, CLUT, u1, v1 inclusive, DR_TPAGE), as psxport draws
 // them from outline fonts (plan 0207): the Atlas book font (spyro-3 `spyro3.atlas-font`), whose
-// string drawer 0x80076228 hands the emitter entries 0x42-0xA2 of *0x80070108.
+// string drawer 0x80076228 hands the emitter entries 0x42-0xA2 of *0x80070108, and the HUD digits
+// the value emitter 0x800291B8 draws from *0x8006C788, whose entries move with the level.
 #pragma once
 
 #include "host_input.h"
@@ -11,6 +12,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <span>
 
 class Core;
 
@@ -26,6 +28,14 @@ inline constexpr std::uint32_t kAtlasLast = 0xA2u;
 
 // Each font's place in Runtime::outlineFonts; the 2D font is 0.
 inline constexpr std::uint8_t kAtlasFont = 1;
+inline constexpr std::uint8_t kDigitFont = 2;
+
+inline constexpr std::uint32_t kDigitSprites = 0x8006C788u; // word: the level's SpriteData table
+inline constexpr std::uint32_t kFirstDigit = 0x800719CCu;   // halfword: the entry of digit 0
+// Digits 0-9, then the slash the ratio drawer 0x800293C4 draws between two values.
+inline constexpr std::size_t kDigitGlyphs = 11;
+// The digits' gold bands lie over a shadow one texel right and below in these CLUT indices.
+inline constexpr std::array<int, 3> kDigitShadowIndices{2, 7, 0xA};
 
 // One SpriteData entry of a font: its index, DR_TPAGE and rectangle (all glyphs 12 wide, 4bpp, y
 // 0).
@@ -154,5 +164,17 @@ inline constexpr psx::present::OutlineFont kAtlasFontFace{
 // After the icon emitter drew SpriteData entry `sprite` as its packets from `firstPacket` to the
 // cursor, names them as that entry's font's glyphs, if it is one.
 void emitted(Core &core, std::uint32_t sprite, std::uint32_t firstPacket);
+
+// The fonts as the loaded level lays them out: the 2D font, the Atlas font and the HUD digits read
+// from the level's table (none while no table is loaded).
+class Fonts {
+public:
+  // Reads the digits' entries again and returns every font.
+  std::span<const psx::present::OutlineFont> follow(Core &core);
+
+private:
+  std::array<OutlineGlyph, kDigitGlyphs> digits_{};
+  std::array<psx::present::OutlineFont, 3> fonts_{};
+};
 
 } // namespace spyro3::sprite_fonts

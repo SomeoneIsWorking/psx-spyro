@@ -221,6 +221,7 @@ set(SPYRO_RUNTIME_SOURCES
   titles/spyro3/core/warp.cpp
   titles/spyro3/render/hud_anchor.cpp
   titles/spyro3/render/sprite_fonts.cpp
+  titles/spyro3/core/title_state.cpp
   titles/spyro3/render/hud_slide.cpp)
 
 add_library(spyro_runtime STATIC ${SPYRO_RUNTIME_SOURCES})

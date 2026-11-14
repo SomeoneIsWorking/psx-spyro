@@ -1,5 +1,7 @@
 #include "spyro3/render/hud_anchor.h"
 
+#include "spyro3/core/title_state.h"
+
 #include "core.h"
 #include "core/session.h"
 #include "native_dispatch.h"
@@ -13,7 +15,7 @@ namespace spyro3::hud_anchor {
 namespace {
 
 DrawState &drawState(Core &core) {
-  return static_cast<DrawState &>(*spyro::session(core).titleState);
+  return titleState(core).hud;
 }
 
 // The emitter's x ($a1) by the class of the widget being drawn, if it has one.

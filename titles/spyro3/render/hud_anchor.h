@@ -40,7 +40,7 @@ constexpr std::optional<spyro::ui_anchor::Anchor> counterAnchor(std::uint32_t el
 }
 
 // The widget whose drawer is running, carried down to the emitters it calls; zero is none.
-class DrawState final : public spyro::TitleState {
+class DrawState {
 public:
   void begin(std::uint32_t widgetElement) {
     element_ = widgetElement;
