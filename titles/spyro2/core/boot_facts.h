@@ -32,6 +32,11 @@ inline constexpr std::uint32_t kVSyncQueryCounter = 0x80066618u;
 inline constexpr std::array<spyro::LogoHold, 4> kLogoHolds{
     {{0x8007750Cu, 0xA4u}, {0x800776A4u, 0x3Cu}, {0x800778ECu, 0xB4u}, {0x80077BA0u, 0xB4u}}};
 
+// The loading pictures FUN_80019364 indexes by 0x800698F4 that only cover a load: its sub-state 2
+// enters the level (FUN_800171BC) for 0, 3, 5, 9, 13 and 16; the others start a cutscene
+// (0x80073E48), open the guidebook (18) or branch on the level (10, 14) or on 0x80067178 (17).
+inline constexpr spyro::LoadingKinds kLevelPictures{.kind = 0x800698F4u, .mask = 0x12229u};
+
 // The screens a Start/Cross press ends (spyro::CountedScreenSkip): counter 0x800698EC, fade
 // 0x80066F68.
 inline constexpr std::array<spyro::CountedScreen, 7> kCountedScreens{{
@@ -47,7 +52,8 @@ inline constexpr std::array<spyro::CountedScreen, 7> kCountedScreens{{
      .zeroIsBefore = true,
      .mustReach = 0xB,
      .mustReachFlags = 0x80063278u,
-     .mustReachKind = 0x800698F4u},
+     .mustReachKind = 0x800698F4u,
+     .loading = kLevelPictures},
     // FUN_8001722C sub-state 1, behind black: ++ once the load is issued and leave past 5. A
     // respawn sets 0x800698F8 and holds to 0x4F instead.
     {.name = "the level load hold",
@@ -116,7 +122,16 @@ inline constexpr std::array<spyro::CountedScreen, 7> kCountedScreens{{
 // FUN_800159C8): 16 passes in one call, each darkening the drawn buffer and waiting at 0x8004D910;
 // `slti $s0, 0x10` at 0x8004D948.
 inline constexpr std::array<spyro::CountedLoop, 1> kCountedLoops{{
-    {.name = "the fade-out loop", .waitReturn = 0x8004D918u, .reg = 16, .step = 1, .limit = 0xF},
+    // FUN_800151F0 calls it at sub-state 0 count 0 for the screen before and at sub-state 2 for the
+    // picture.
+    {.name = "the fade-out loop",
+     .waitReturn = 0x8004D918u,
+     .reg = 16,
+     .step = 1,
+     .limit = 0xF,
+     .loading = kLevelPictures,
+     .state = 5u,
+     .subState = 2u},
 }};
 
 // Game main 0x80011ADC: boot prefix 0x80011E9C (jal at 0x80011AE4), then the loop jal 0x8001B140 /

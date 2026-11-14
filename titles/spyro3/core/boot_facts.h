@@ -37,6 +37,10 @@ inline constexpr std::uint32_t kVSyncQueryCounter = 0x8006B480u;
 inline constexpr std::array<spyro::LogoHold, 4> kLogoHolds{
     {{0x80074FD8u, 0xA4u}, {0x800750B4u, 0x3Cu}, {0x800751E8u, 0xB4u}, {0x800755E0u, 0xB4u}}};
 
+// The loading pictures FUN_80058778 indexes by 0x8006FBCC that only cover a load: its sub-state 3
+// enters a level for 0..4; 5 on are story cards.
+inline constexpr spyro::LoadingKinds kLevelPictures{.kind = 0x8006FBCCu, .mask = 0x1Fu};
+
 // The screens a Start/Cross press ends (spyro::CountedScreenSkip): counter 0x8006FBC4, fade
 // 0x8006C598.
 inline constexpr std::array<spyro::CountedScreen, 6> kCountedScreens{{
@@ -50,9 +54,7 @@ inline constexpr std::array<spyro::CountedScreen, 6> kCountedScreens{{
      .limit = 0xD,
      .minimumKept = 3u,
      .zeroIsBefore = true,
-     // The picture 0x8006FBCC indexes; below 5 sub-state 3 enters a level, 5 on are story cards.
-     .loadingKind = 0x8006FBCCu,
-     .loadingKinds = 5u},
+     .loading = kLevelPictures},
     // FUN_80053A10 sub-state 4: the field fades in, -0x10 until below 1.
     {.name = "the level fade-in",
      .state = 3u,
@@ -113,8 +115,9 @@ inline constexpr std::array<spyro::CountedLoop, 1> kCountedLoops{{
      .reg = 16,
      .step = 1,
      .limit = 0xF,
-     .loadingKind = 0x8006FBCCu,
-     .loadingKinds = 5u},
+     .loading = kLevelPictures,
+     .state = 5u,
+     .subState = 3u},
 }};
 
 // Game main 0x8001200C: boot prefix 0x8002AB38 (jal at 0x8001201C), then the loop jal 0x80055400 /

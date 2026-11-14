@@ -226,6 +226,10 @@ void BootPrefixFrameDriver::stepMainLoop(Core &core) {
         loopCall_ = LoopCall::Update;
         return;
       }
+      // A level picture's leaving update runs before a draw can show the picture.
+      if (loopCall_ == LoopCall::Update && countedScreens_.leavesBeforeDraw(core)) {
+        break;
+      }
       // The update of the same logic frame follows an entry, without a second frame begin.
       loopCall_ = loopCall_ == LoopCall::Entry ? LoopCall::Update : LoopCall::Draw;
       break;

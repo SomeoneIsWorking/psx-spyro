@@ -11,6 +11,12 @@ class Core;
 
 namespace spyro {
 
+// The kinds of a screen that only cover a load: bit k of `mask` set when the word `kind` holds k.
+struct LoadingKinds {
+  std::uint32_t kind = 0;
+  std::uint32_t mask = 0;
+};
+
 // A screen the player does not control that its update ends on its own count: each update moves a
 // word by `step` and leaves once that move passes `limit` (up: past `limit`, down: below it).
 struct CountedScreen {
@@ -36,10 +42,9 @@ struct CountedScreen {
   std::uint32_t mustReachKind = 0;
   // A press waits until the count reaches this, the end of the screen's fade-in. 0: none.
   std::int32_t offeredFrom = 0;
-  // While the word `loadingKind` is below `loadingKinds` the screen only covers a load: the update
-  // after the one that began it leaves, its count put where the screen's own test ends it. 0: none.
-  std::uint32_t loadingKind = 0;
-  std::uint32_t loadingKinds = 0;
+  // A kind that only covers a load leaves at the update after the one that began it, through
+  // `mustReach` when that update is owed, before any draw shows the picture.
+  LoadingKinds loading{};
 };
 
 // A fade that loops inside one guest call, one field per pass: its count is a register of the call
@@ -53,9 +58,10 @@ struct CountedLoop {
   std::int32_t step = 0;
   std::int32_t limit = 0;
   std::uint32_t minimumKept = 2;
-  // As CountedScreen's: while [loadingKind] < loadingKinds the loop ends without a press.
-  std::uint32_t loadingKind = 0;
-  std::uint32_t loadingKinds = 0;
+  // As CountedScreen's, while the game is in `state` / `subState`: the loop ends without a press.
+  LoadingKinds loading{};
+  std::uint32_t state = 0;
+  std::uint32_t subState = 0;
 };
 
 struct CountedScreenFacts {
@@ -73,6 +79,9 @@ public:
 
   // Before each frame update.
   void observe(Core &core, bool pressed);
+  // After a frame update: a screen that only covers a load has begun, and its leaving update
+  // runs before any draw shows it.
+  [[nodiscard]] bool leavesBeforeDraw(Core &core) const;
   // At each field of a fade loop, with the call suspended at its wait.
   void observeLoop(Core &core, psx::cpu::ResumableGuestCall &call, bool pressed);
 

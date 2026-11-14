@@ -47,35 +47,49 @@ bool anySet(Core &core, const std::array<std::uint32_t, 2> &words, bool none) {
   return listed ? false : none;
 }
 
+// Whether the update reaching `mustReach` is still owed its work from `value`.
+bool mustReachOwed(Core &core, const CountedScreen &screen, std::int32_t value) {
+  return screen.mustReach != 0 && value < screen.mustReach &&
+         core.mem_r8(screen.mustReachFlags + core.mem_r32(screen.mustReachKind)) != 0u;
+}
+
 std::uint32_t minimumKept(Core &core, const CountedScreen &screen, std::int32_t value) {
-  if (screen.mustReach == 0 || value >= screen.mustReach ||
-      core.mem_r8(screen.mustReachFlags + core.mem_r32(screen.mustReachKind)) == 0u) {
+  if (!mustReachOwed(core, screen, value)) {
     return screen.minimumKept;
   }
   return remainingUpdates(screen, screen.mustReach - screen.step);
 }
 
-template <typename Count> bool loadingOnly(Core &core, const Count &count) {
-  return count.loadingKinds != 0u && core.mem_r32(count.loadingKind) < count.loadingKinds;
+bool loadingKind(Core &core, const LoadingKinds &loading) {
+  const std::uint32_t kind = loading.mask == 0u ? 32u : core.mem_r32(loading.kind);
+  return kind < 32u && ((loading.mask >> kind) & 1u) != 0u;
 }
 
-// A screen that only covers a load leaves at its first update after the one that began it.
+// A screen that only covers a load, past the update that began it: the next update leaves.
+bool loadingOnlyToEnd(Core &core, const CountedScreen &screen) {
+  return loadingKind(core, screen.loading) &&
+         remainingUpdates(screen, static_cast<std::int32_t>(core.mem_r32(screen.word))) > 1u;
+}
+
+// Where it leaves from: the update `mustReach` owes first, when its work is asked for.
+std::int32_t loadingOnlyEnd(Core &core, const CountedScreen &screen, std::int32_t value) {
+  const std::int32_t owed = screen.mustReach - screen.step;
+  return value < owed && mustReachOwed(core, screen, value) ? owed : screen.limit;
+}
+
 bool endLoadingOnly(Core &core, const CountedScreen &screen) {
-  if (!loadingOnly(core, screen)) {
+  if (!loadingOnlyToEnd(core, screen)) {
     return false;
   }
-  const std::uint32_t kind = core.mem_r32(screen.loadingKind);
   const auto value = static_cast<std::int32_t>(core.mem_r32(screen.word));
-  if (remainingUpdates(screen, value) <= 1u) {
-    return false;
-  }
-  core.mem_w32(screen.word, static_cast<std::uint32_t>(screen.limit));
+  const std::int32_t to = loadingOnlyEnd(core, screen, value);
+  core.mem_w32(screen.word, static_cast<std::uint32_t>(to));
   lucent::info("transition",
                "{} (kind {}) only covers a load: {} -> {}",
                screen.name,
-               kind,
+               core.mem_r32(screen.loading.kind),
                value,
-               screen.limit);
+               to);
   return true;
 }
 
@@ -95,6 +109,11 @@ const CountedScreen *CountedScreenSkip::showing(Core &core) const {
     }
   }
   return nullptr;
+}
+
+bool CountedScreenSkip::leavesBeforeDraw(Core &core) const {
+  const CountedScreen *screen = showing(core);
+  return screen != nullptr && loadingOnlyToEnd(core, *screen);
 }
 
 void CountedScreenSkip::observe(Core &core, bool pressed) {
@@ -133,7 +152,9 @@ void CountedScreenSkip::observeLoop(Core &core, psx::cpu::ResumableGuestCall &ca
   if (loop == facts_.loops.end()) {
     return;
   }
-  const bool loading = loadingOnly(core, *loop);
+  const bool loading = core.mem_r32(facts_.gameState) == loop->state &&
+                       core.mem_r32(facts_.subState) == loop->subState &&
+                       loadingKind(core, loop->loading);
   if (!pressed && !loading) {
     return;
   }

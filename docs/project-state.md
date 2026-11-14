@@ -54,15 +54,16 @@ The host picture differs from it on purpose: it is not dithered (issue 0200), an
 | S037 | Spyro 1/2/3 crop widescreen: the world fills the wide display as the 4:3 band, the HUD, text and menus stay whole at their 4:3 place, guest memory untouched | partial — psxport plan 0203 draws the band and the UI at their own scales; every title names its UI through the overlay pair's link and text layouts (`game/render/overlay_pair.*`, `game/render/packet_layers.*`), less each image's RE'd whole-screen draws; Spyro 1 also its screen-space sprite-queue chains, Spyro 2 its pause screen (state 4) whole. 2026-11-13 at 16:9 ires 8: guest RAM equal to the 4:3 run in all three; HUD and pause whole and steady across in-betweens. Not yet seen: a Spyro 2/3 conversation box | S019, S030 | G003 |
 | S038 | Spyro 2/3 text and button prompts drawn from outline fonts at the internal resolution, in the bitmap font's place, colours and shadow; button cells in the glyphs of the pad in hand | partial — the two text layouts name their glyph packets (`game/render/packet_layers.*`) and `game/render/text_font.h` names the page's cells (Fredoka for letters, PromptFont for buttons and the star); psxport plan 0207 draws them. 2026-11-13 at ires 0, 3840x2160: Spyro 2 Summer Forest pause, Spyro 3 Sunrise Spring pause and Help sharp, shaded and shadowed, consecutive presents of the sliding pause panel both outlined. Not covered: the title screen's memory-card text, Spyro 3's Atlas book font and the HUD counters (other drawers). Button faces follow the pad: Xbox A green, B red, X blue, Y yellow; PlayStation the game's colours (Spyro 3 Help, 2026-11-13) | S037 | G003 |
 | S033 | Spyro 1: load operations complete without loading-only waits or presentation; logos cancel through the recovered route | partial — M1 and M2 measured against the full-console reference (28/28 payload digests identical; 0 hand-off field differences at 4 terminals) and R6 decided; M4 measured: a level change from play shows the loading picture 19 logic frames (38 fields), all guest-owned: 8 in stage 3's music-fade gate and 11 at one `LoadLevel` stage per frame, no read waiting; the stages after the gate now run in one update while each call moves the load on (`level_transition_update.cpp`), 19 -> 10 frames, change to gameplay 40 -> 22 fields; a Start/Cross press ends the fade at its own target (issue 0249) | S008, S011 | G005 |
-| S034 | Spyro 2: load operations complete without loading-only waits or presentation; logos cancel through the recovered route | partial — the loading screen's read poll no longer waits out drive time (stock read completions `ReadTiming::AtOnce`): Glimmer from state 5 to gameplay 522 -> 106 fields; Start/Cross ends each boot logo hold through its own test (`spyro::LogoHoldSkip`): paced boot 9.62 s -> 2.80 s, 576 -> 168 fields; its loading picture waits on no data: the count runs before the load, which is one synchronous update (issue 0248); a Start/Cross press ends the picture's count, Glimmer arrival 4 frames sooner; it ends the level fade-in and load hold too, Glimmer arrival 10 frames sooner, the fade-out loop before a load (12 frames), the Exit Level fade (8), the portal flight (18) and the two skies after it (178) (issue 0250) | S008, S024 | G005 |
-| S035 | Spyro 3: load operations complete without loading-only waits or presentation; logos cancel through the recovered route | partial — stock reads are due at once and the loader's code checksum, which ran in drive time, is completed by `spyro3::installLoaderChecksum` (issue 0247): state 5 entry to gameplay 663 -> 131 fields; Start/Cross ends each boot logo hold through its own test: paced boot 11.31 s -> 4.43 s, 677 -> 265 fields; the loading screen's loader runs on in the same update while each call moves the load (`loader_checksum.cpp`), state 5 entry to gameplay 130 -> 104 fields (issue 0248); a Start/Cross press ends the loading picture's count, Sunny Villa arrival 6 frames and the new-game card 6-8 frames sooner (issue 0248); it ends the level fade-in too, 8 frames sooner, and the picture's fade-out loop, 8 more, the Exit Level fade (8), the portal flight (18) and the two skies after it (180) (issue 0250) | S008, S025 | G005 |
+| S034 | Spyro 2: load operations complete without loading-only waits or presentation; logos cancel through the recovered route | partial — the loading screen's read poll no longer waits out drive time (stock read completions `ReadTiming::AtOnce`): Glimmer from state 5 to gameplay 522 -> 106 fields; Start/Cross ends each boot logo hold through its own test (`spyro::LogoHoldSkip`): paced boot 9.62 s -> 2.80 s, 576 -> 168 fields; its loading picture waits on no data: the count runs before the load, which is one synchronous update (issue 0248); its level pictures (kinds 0, 3, 5, 9, 13, 16) end without a press and are never drawn, the autosave at 0xB kept: Glimmer from the title 1002 -> 977 fields (issue 0248); a Start/Cross press ends a story card's count, Glimmer arrival 4 frames sooner; it ends the level fade-in and load hold too, Glimmer arrival 10 frames sooner, the fade-out loop before a load (12 frames), the Exit Level fade (8), the portal flight (18) and the two skies after it (178) (issue 0250) | S008, S024 | G005 |
+| S035 | Spyro 3: load operations complete without loading-only waits or presentation; logos cancel through the recovered route | partial — stock reads are due at once and the loader's code checksum, which ran in drive time, is completed by `spyro3::installLoaderChecksum` (issue 0247): state 5 entry to gameplay 663 -> 131 fields; Start/Cross ends each boot logo hold through its own test: paced boot 11.31 s -> 4.43 s, 677 -> 265 fields; the loading screen's loader runs on in the same update while each call moves the load (`loader_checksum.cpp`), state 5 entry to gameplay 130 -> 104 fields (issue 0248); its level pictures (kinds 0-4) end without a press and are never drawn: Sunny Villa from the title 1072 -> 1046 fields (issue 0248); a Start/Cross press ends a story card's count, the new-game card 6-8 frames sooner (issue 0248); it ends the level fade-in too, 8 frames sooner, and the picture's fade-out loop, 8 more, the Exit Level fade (8), the portal flight (18) and the two skies after it (180) (issue 0250) | S008, S025 | G005 |
 
 ## Current focus
 
-Loading pictures (S033-S035), 2026-11-14: Spyro 3's level pictures and their fade-out loop end without a press
-(warp to gameplay 1072 -> 1048 fields, same landing); its owed read completions are taken between loader calls,
-and the load's second update is stage 0's own 1.96M-cycle sprite-table walk. Left: the one picture frame Spyro 3's
-count-0 update draws at 1/8, Spyro 2's pictures (on a press only), Spyro 1's entrance animation (issues 0248-0250).
+Loading pictures (S033-S035), 2026-11-14: Spyro 2's and Spyro 3's level pictures end without a press and are never
+drawn: the count-0 update runs (it waits out the music's stop the load needs), then the leaving update runs before a
+draw. Warp to gameplay: Spyro 3 1072 -> 1046 fields, Spyro 2 1002 -> 977, same landings; Spyro 2's autosave at 0xB
+kept. Spyro 1's arrival camera has no count to end on (issue 0250). Open: a stock read's completion announced behind
+a `CdlPause`'s responses is never delivered (issue 0248), met only when the music stop runs inside a load.
 
 All three titles present on the Record path, with 60 fps as psxport F-FPS60's replay of each title's
 draw (`docs/features.md`; S020, S028, S029).
@@ -535,7 +536,7 @@ measured against the reference, and the residual picture is the guest's own cade
 The logo-hold press latch is done (2026-10-01): a Start/Cross press made in any boot fade or in the
 stage 3->10 loader is honoured at the next hold through the existing hold-skip route, measured as the
 first hold 202 -> 0 fields (first-fade press) and the second hold 198 -> 0 fields (loader press) with
-the fade and load-state field counts unchanged (`docs/issues/0155`, "Latch measured"). The flyby card and tally are authored and stay, cancellable.
+the fade and load-state field counts unchanged (`docs/issues/0155`, "Latch measured"). The flyby card and tally are authored and stay, cancellable. The arrival camera after a portal load (GS 9, 34 updates) leaves on the camera's pitch or preset, not a count, and stays (issue 0250).
 
 ### S034 — Spyro 2 loading removal
 
@@ -550,7 +551,10 @@ state-0 frame 476 steps / 522 fields before (418 of them in sub-state 1), 71 ste
 (sub-state 1 one step, 4 fields). The resident image after arrival matches the drive-time run's apart
 from 8 libcd/libetc data words near `0x800663C8`. Pictures: `scratch/frameloop/shots/s2_load_960.png`
 (the loading picture), `s2_play_1004.png` (first gameplay). Sub-state 0 leaves only when its count reaches
-0xE; a press brings the count to its end (`spyro::CountedScreenSkip`, issue 0248).
+0xE. For a level picture (`kLevelPictures`: the kinds whose sub-state 2 enters the level through `FUN_800171BC`) the
+update after the count-0 one runs before any draw, its count at 0xD, or 0xA when `0x80063278[kind]` asks for the
+autosave so the 0xB update still runs it: Glimmer from the title at gameplay 977 instead of 1002, same landing. On a
+story card a press brings the count to its end (`spyro::CountedScreenSkip`, issue 0248).
 
 The boot logos: the boot overlay (WAD `0x23000` at `0x8006D264`; decomp manifest `spyro2_boot`) runs
 `0x80077374(1)`, whose holds are `while (VSync(-1) - [0x80067E00] < n) VSync(0)`: Sony 0xA4, Universal 0x3C
@@ -572,8 +576,9 @@ From the loading screen's call (jal `0x800588A0`) the loader override calls the 
 stage 4's step `0x8006C5E4`, moves: sub-state 1 23 -> 9 updates, 130 -> 104 fields; the owed read completions are
 taken before each call, so stages 1-12 run in one update; stage 0's sprite-table walk (`0x80027934`, 1.96M cycles
 from the title) leaves the field's budget and puts them in the next. Since 2026-11-14 a level picture (kind
-`0x8006FBCC` below 5) ends after its count-0 update and its fade-out loop keeps two passes: `warp 0/1/0` gameplay at
-field 1048 instead of 1072, Spyro (0xF8A4, 0x533D, 0x2F67) either way; story cards keep their count (issue 0248).
+`0x8006FBCC` below 5) is never drawn: its count-0 update runs (its `CDLoadSync` waits out the music's stop the load
+needs) and the leaving update runs before the draw; its fade-out loop keeps two passes: `warp 0/1/0` gameplay at
+field 1046 instead of 1072, Spyro (0xF8A4, 0x533D, 0x2F67) either way; story cards keep their count (issue 0248).
 
 The boot logos: the boot overlay (WAD `0x23000` at `0x800742D0`; decomp manifest `spyro3_boot`) runs
 `0x80074DEC(1)` with the same four holds against the start field it keeps in `$s5`; `spyro::LogoHoldSkip`

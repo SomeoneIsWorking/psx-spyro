@@ -76,6 +76,14 @@ counter `0x800698EC` / `0x8006FBC4` and the fade word `0x80066F68` / `0x8006C598
   the cruise runs its full course (`held.log`). Boarding, lift-off and the descent move the balloon per update and
   stay unskippable.
 
+## No faithful terminal transition
+- Spyro 1's arrival camera (GS 9, `GS_ARRIVAL_CAMERA`) after a portal load: 34 steps (`scratch/loadpic/s1c.trace`).
+  `CameraSettle_Update` `0x8002E000` runs a gameplay tick and a camera tick each update while Spyro glides in
+  (`SPYRO_SUB_GLIDE_ARRIVE`) and leaves only when the camera pitch, wrapped to signed 12 bits, is below -0x200 or the
+  camera's parameter block has become the glide-in preset `g_anCameraParamTransitionGlideIn`. Neither is a count and
+  the state reads no pad; ending it would mean writing the camera's pitch or preset and leaving Spyro mid-glide in
+  gameplay, so it stays unskippable (open-spyro `docs/re-frontier.md` `spyro1.arrival-camera`).
+
 ## Not wanted
 - The fade-out and respawn hold after a death (sub-state 0 and 1 while `0x800698F8` / `0x8006FBD0` is set): not
   skipped, per the user, 2026-11-12.
@@ -83,7 +91,6 @@ counter `0x800698EC` / `0x8006FBC4` and the fade word `0x80066F68` / `0x8006C598
 ## Not done
 - Spyro 2's sub-state 1 and Spyro 3's sub-states 1-2 and 5 after the flight (Spyro 2 16 updates, Spyro 3 19:
   the flight's tail and the load's first stages): not offered.
-- Spyro 1's `GS_EntranceAnimation` (GS 9) after a portal load: 34 steps, not offered (`scratch/loadpic/s1c.trace`).
 - Menus and cutscenes: Spyro 2's story scene (state 6, level 0x48) already ends on the guest's own Start;
   the pause menu's and the S1 menus' fades are not traced.
 
