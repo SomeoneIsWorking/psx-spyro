@@ -218,7 +218,12 @@ void BootPrefixFrameDriver::stepMainLoop(Core &core) {
       }
     }
     const std::uint64_t fieldsAtTurn = fields_.fields();
-    const TurnEnd end = advanceTurn(core, siteOf(loopCall_));
+    const TurnEnd end = [&] {
+      const GpuPerf::PhaseScope phase(core.game->perf,
+                                      loopCall_ == LoopCall::Draw ? GpuPerf::Phase::Present
+                                                                  : GpuPerf::Phase::GameLogic);
+      return advanceTurn(core, siteOf(loopCall_));
+    }();
     switch (end) {
     case TurnEnd::Returned:
       if (loopCall_ == LoopCall::Draw) {
@@ -325,13 +330,24 @@ void BootPrefixFrameDriver::stepFrame(Core &core, std::uint32_t frame) {
   if (phase_ == Phase::Boot) {
     stepBoot(core);
   }
-  // The boot's last field and the first logic frame share a step.
-  if (phase_ == Phase::MainLoop) {
+  // A main-loop step is the metered frame; the boot's last field and the first logic frame share a
+  // step, which is not.
+  const bool metered = phase_ == Phase::MainLoop;
+  GpuPerf &perf = core.game->perf;
+  if (metered) {
+    perf.frameBegin();
+    perf.markPre();
     stepMainLoop(core);
   }
   // The guest's last command of the step has executed; the record is sealed next.
   cut_.onFrameTail(core);
-  fields_.presentFrame();
+  {
+    const GpuPerf::PhaseScope phase(perf, GpuPerf::Phase::Present);
+    fields_.presentFrame();
+  }
+  if (metered) {
+    perf.frameEnd();
+  }
   // Without a logic-frame clock OtAttr never drops its packet spans and attributes reused pool
   // words to stale writers.
   core.rsub.otAttr.beginLogicFrame(frame);
