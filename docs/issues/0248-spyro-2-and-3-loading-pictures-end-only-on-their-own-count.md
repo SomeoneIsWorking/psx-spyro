@@ -56,12 +56,17 @@ The count-0 update runs as the guest makes it. What the load takes from it is it
 `while (CDLoadTime())` runs `CDMusicUpdate` until the XA music's stop (`0x8006E48C` 8, 9, 0, two `CdlPause`) is
 over, before any loader read (spyro-3 `docs/re-frontier.md` `spyro3.loading-picture`). Skipped (the count put at 0xD
 before it, `scratch/loadpic2/skip2`, `skip4`), the stop runs inside the loader's own polls, and the 18-sector read
-stage 6's step issues just after a `CdlPause` (`[cdc] cmd 0x09`, issued from libcd's `0x800614C4`) has its
-completion announced behind that pause's responses (`queue_empty=false`, `I_STAT=0x004`); the guest's handlers
-clear the CD bit (`w I_STAT 0x7FB` at `0x8005C848`, `0x8005C984`), no further CD edge is raised, the data-ready is
-never delivered (`19 of 19 delivered`, no 20th; `psx::cd::readyCompletionOwed` needs that bit), and stage 7 waits 75
-updates for `CDLoadTime`'s own timeout to re-issue the read. That lost completion is a framework CD defect, not
-traced further here; the picture keeps its count-0 update, so the load never meets it.
+stage 6's step issues just after a `CdlPause` (`[cdc] cmd 0x09`, issued from libcd's `0x8006143C`) used to have its
+completion queued behind that pause's INT3, where libcd's own CD handler, inside libetc's dispatch loop, acknowledged
+it unseen (`19 of 19 delivered`, no 20th) and stage 7 waited 75 updates for `CDLoadTime`'s timeout. psxport issue
+0204 fixed that: an owed read completion now becomes current only with nothing queued ahead and outside an interrupt
+dispatch, so the framework delivers it. Measured 2026-11-14 with the count put at 0xD at count 0 by a REPL write
+(`scratch/cd0248/head.trace`, `fix2.trace`): the guest acknowledges the pause's INT3 and INT2, the read's INT1 is
+delivered in the same update (`20 of 20 delivered`), stage 7 lasts one update instead of 75 (steps 1024-1099 -> 1024),
+gameplay at step 1050 instead of 1124. Unskipped, every landing is unchanged: Spyro 3 and Spyro 2 `warp 0/1/0` match
+`scratch/loadpic2/s3final.trace` and `s2after.trace` line for line (`scratch/cd0248/s3.trace`, `s2.trace`), and Spyro 1
+(`warp 0/0/0`, `0/1/0`) and a Tomba 2 area load (`warp 1/0`, `0/0`) match a build without the fix step for step
+(`s1head.trace`, `t2head.trace`). The picture keeps its count-0 update all the same.
 
 After that update `CountedScreenSkip::leavesBeforeDraw` tells the frame driver the picture is a level picture, and
 the driver runs the next update at once instead of the draw: before it the count goes to the screen's end (0xD),

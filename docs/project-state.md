@@ -62,8 +62,8 @@ The host picture differs from it on purpose: it is not dithered (issue 0200), an
 Loading pictures (S033-S035), 2026-11-14: Spyro 2's and Spyro 3's level pictures end without a press and are never
 drawn: the count-0 update runs (it waits out the music's stop the load needs), then the leaving update runs before a
 draw. Warp to gameplay: Spyro 3 1072 -> 1046 fields, Spyro 2 1002 -> 977, same landings; Spyro 2's autosave at 0xB
-kept. Spyro 1's arrival camera has no count to end on (issue 0250). Open: a stock read's completion announced behind
-a `CdlPause`'s responses is never delivered (issue 0248), met only when the music stop runs inside a load.
+kept. Spyro 1's arrival camera has no count to end on (issue 0250). A stock read's completion behind a `CdlPause`'s
+responses is delivered since psxport issue 0204 (issue 0248).
 
 All three titles present on the Record path, with 60 fps as psxport F-FPS60's replay of each title's
 draw (`docs/features.md`; S020, S028, S029).
