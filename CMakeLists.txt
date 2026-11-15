@@ -241,6 +241,3 @@ psxport_add_product(spyro_port
   HEADER core/title_runtime_registry.h
   LIBRARIES spyro_runtime)
 add_dependencies(spyro_port gen_gpu_shaders)
-set_target_properties(spyro_port PROPERTIES
-  ENABLE_EXPORTS ON
-  RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
