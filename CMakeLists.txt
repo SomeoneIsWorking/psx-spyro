@@ -27,12 +27,6 @@ set(Python3_EXECUTABLE "${CMAKE_SOURCE_DIR}/.venv/bin/python3"
     CACHE FILEPATH "Project interpreter" FORCE)
 
 find_package(ZLIB REQUIRED)
-find_package(zstd CONFIG QUIET)
-if(NOT TARGET zstd::libzstd_shared)
-  find_library(ZSTD_LIBRARY zstd REQUIRED)
-  add_library(zstd::libzstd_shared SHARED IMPORTED)
-  set_target_properties(zstd::libzstd_shared PROPERTIES IMPORTED_LOCATION "${ZSTD_LIBRARY}")
-endif()
 find_package(Threads REQUIRED)
 
 add_subdirectory(${PSXPORT_DIR}/vendor/beetle-psx/deps/libchdr
