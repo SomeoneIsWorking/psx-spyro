@@ -9,3 +9,7 @@ Maybes, not yet asked for as work.
   Open: co-op or competitive rules (gems, dragons, enemy targets, a Sparx each), moby activation and terrain LOD
   keyed to one player's distance, four section runs per logic frame at fps60, Spyro 1 first. Prior-art check
   before a plan.
+- **More distant detail** (user, 2026-11-15). Widescreen margins show far-away sectors as the game's own
+  flat-shaded far LOD (issue 0255, Spyro 3's intro castle). A mod could raise the classifier's detail depth
+  (`kDetailListDepth`, `game/render/terrain/guest_terrain_classify.cpp`) so more sectors take the textured
+  detail pass. Open: the cost per field (`perf-units`), the far pass's near limit, and whether fog hides the seam.
