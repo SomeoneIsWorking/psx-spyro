@@ -6,8 +6,9 @@ on:
       tag:
         description: Release tag, e.g. v0.1.0
         required: true
-  push:
-    tags: ['v*']
+      platforms:
+        description: linux, windows and macos, space-separated (publish_release.py builds the first two locally)
+        default: linux windows macos
 
 permissions:
   contents: write
@@ -17,4 +18,5 @@ jobs:
     uses: SomeoneIsWorking/psxport/.github/workflows/title-release.yml@main
     with:
       product: spyro_port
-      tag: ${{ inputs.tag || github.ref_name }}
+      tag: ${{ inputs.tag }}
+      platforms: ${{ inputs.platforms }}
