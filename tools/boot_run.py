@@ -4,8 +4,7 @@
     uv run --frozen python tools/boot_run.py --title spyro2
     uv run --frozen python tools/boot_run.py --title spyro3 --frames 600
 
-Prints fields, product steps, presentation fences, translated and executed blocks, faults, fallbacks
-by reason, CD reads against delivered completions, and the named stop or resume address; the log
+Prints fields, product steps, presentation fences, executed blocks and instructions, faults, CD reads against delivered completions, and the named stop or resume address; the log
 parser is `boot_log.py`. Exit 2 refuses a missing port, image or disc; exit 1 is a log that names
 neither a resume nor a stop, or (with `--require-cd-match`) reads that differ from deliveries.
 The log goes to `scratch/boot/<title>.log`.

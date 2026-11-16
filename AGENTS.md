@@ -1,7 +1,7 @@
 # SpyroEngine
 
-Native PC products for the original PSX Spyro trilogy; remaining guest instructions run through
-psxport's Lightrec integration. Execution policy: the `dynarec-port`, `dynarec-runtime` and
+Native PC products for the original PSX Spyro trilogy; remaining guest instructions run on
+psxport's per-`Core` interpreter (`GuestExecutor`). Execution policy: the `dynarec-port`, `dynarec-runtime` and
 `dynarec-overrides` skills. Also read [`../AGENTS.md`](../AGENTS.md),
 [`external/psxport/AGENTS.md`](external/psxport/AGENTS.md) and
 [`docs/migration.md`](docs/migration.md) before changing execution architecture. Feature chains are
@@ -20,8 +20,8 @@ in [`docs/features.md`](docs/features.md).
 - Spyro 2 is `SCUS_944.25`, entry `0x8005478C`, game main `0x80011ADC`, display bootstrap
   `0x80011BBC`, libetc VSync `0x80058EDC`.
 - Spyro 3 is `SCUS_944.67`, entry `0x80059444`, game main `0x8001200C`, libetc VSync `0x8005956C`.
-- Spyro 2 and 3 run their retail boot prefix through Lightrec and reach gameplay
-  (`docs/project-state.md`).
+- Spyro 2 and 3 ran their retail boot prefix and reached gameplay on the recompiler, before the
+  interpreter replaced it (`docs/project-state.md`).
 
 ## Title selector
 

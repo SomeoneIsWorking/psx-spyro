@@ -7,8 +7,6 @@ from dataclasses import dataclass, field
 
 _PAIRS = re.compile(r"(\w+)=(\d+)")
 _RUN_COMPLETE = re.compile(r"\[runtime\] run complete: (?P<body>.*)")
-_FALLBACK_REASONS = ("compilation_failed", "self_modifying_code", "unsupported_block", "load_delay_hazard",
-                     "unsafe_instruction_fetch")
 _RESUME = re.compile(r"delivered (?P<fields>\d+) field\(s\) in total .*ending the run at resume (?P<pc>0x[0-9A-Fa-f]+)")
 _STOP = re.compile(r"\] Spyro \d stopped: (?P<body>.*)")
 _STOP_PC = re.compile(r"at guest pc=(?P<pc>0x[0-9A-Fa-f]+) ra=(?P<ra>0x[0-9A-Fa-f]+)")
@@ -38,14 +36,9 @@ class BootReport:
     fields: int | None = None
     product_steps: int | None = None
     presentation_fences: int | None = None
-    translated_blocks: int | None = None
     executed_blocks: int | None = None
     executed_instructions: int | None = None
     faults: int | None = None
-    fallback_calls: int | None = None
-    fallback_instructions: int | None = None
-    fallback_reasons: dict[str, int] = field(default_factory=dict)
-    refused_reasons: dict[str, int] = field(default_factory=dict)
     reads: list[tuple[int, int]] = field(default_factory=list)  # (sectors, LBA) per CdRead issued
     completions_queued: int = 0
     deliveries: int = 0
@@ -68,9 +61,9 @@ def _pairs(body: str) -> dict[str, int]:
 
 
 def ledger_sections(text: str, phase: str = "") -> dict[str, dict[str, int]]:
-    """The `guest:` and `fallback:` lines of psx::cpu::ledgerLines; `phase` is logLedger's prefix."""
+    """The `guest:` and `budget_exit:` lines of psx::cpu::ledgerLines; `phase` is logLedger's prefix."""
     lead = re.escape(f"{phase}: ") if phase else ""
-    pattern = re.compile(rf"(?:^|\s){lead}(?P<section>guest|fallback): (?P<body>.*)")
+    pattern = re.compile(rf"(?:^|\s){lead}(?P<section>guest|budget_exit): (?P<body>.*)")
     sections: dict[str, dict[str, int]] = {}
     for line in text.splitlines():
         if (m := pattern.search(line)) is not None:
@@ -82,16 +75,9 @@ def parse(log: str) -> BootReport:
     report = BootReport()
     ledger = ledger_sections(log, "run-end")
     if (guest := ledger.get("guest")) is not None:
-        report.translated_blocks = guest.get("translated_blocks")
         report.executed_blocks = guest.get("executed_blocks")
         report.executed_instructions = guest.get("executed_instructions")
         report.faults = guest.get("faults")
-    if (fallback := ledger.get("fallback")) is not None:
-        report.fallback_calls = fallback.get("calls")
-        report.fallback_instructions = fallback.get("instructions")
-        report.fallback_reasons = {key: fallback[key] for key in _FALLBACK_REASONS if key in fallback}
-        report.refused_reasons = {key: fallback[f"refused_{key}"] for key in _FALLBACK_REASONS
-                                  if f"refused_{key}" in fallback}
     for line in log.splitlines():
         if (m := _RUN_COMPLETE.search(line)) is not None:
             counts = _pairs(m["body"])
@@ -160,18 +146,10 @@ def render(report: BootReport, *, title: str) -> str:
         f"  fields delivered:        {_value(report.fields, 'no field count in the log')}",
         f"  product steps:           {_value(report.product_steps, aborted)}",
         f"  presentation fences:     {_value(report.presentation_fences, aborted)}",
-        f"  translated blocks:       {_value(report.translated_blocks, aborted)}",
         f"  executed blocks:         {_value(report.executed_blocks, aborted)}",
         f"  executed instructions:   {_value(report.executed_instructions, aborted)}",
         f"  faults:                  {_value(report.faults, aborted)}",
-        f"  fallback calls:          {_value(report.fallback_calls, aborted)}",
-        f"  fallback instructions:   {_value(report.fallback_instructions, aborted)}",
     ]
-    if report.fallback_reasons:
-        reasons = ", ".join(f"{k}={v}" for k, v in report.fallback_reasons.items())
-        lines.append(f"  fallback by reason:      {reasons}")
-        refused = ", ".join(f"{k}={v}" for k, v in report.refused_reasons.items())
-        lines.append(f"  refused by reason:       {refused}")
     reads = len(report.reads)
     if report.published:
         lines.append(

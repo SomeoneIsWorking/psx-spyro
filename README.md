@@ -73,11 +73,11 @@ A supplied executable selects its title by serial, PS-X EXE header, size and has
 
 ## How it works
 
-The port is a native/dynamic-recompiler hybrid built on
+The port is a native/interpreter hybrid built on
 [psxport](https://github.com/SomeoneIsWorking/psxport). Native C++ replaces the parts of each game
 that the port owns (frame loop, drawing culls, CD loading, HUD placement), and every other MIPS
-instruction is translated at run time by Lightrec from your own game files. Nothing is translated
-offline and no guest code is shipped.
+instruction runs at run time on psxport's interpreter, straight from your own game files. Nothing is
+translated offline and no guest code is shipped.
 
 `game/` holds what the three titles share; `titles/<title>/` holds each title's identity, frame
 driver and overrides. [`docs/codemap.md`](docs/codemap.md) maps every module,

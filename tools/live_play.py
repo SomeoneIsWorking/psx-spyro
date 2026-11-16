@@ -158,7 +158,7 @@ def effective_configuration(client: LiveClient) -> dict:
 
 
 def guest_execution(client: LiveClient) -> dict:
-    """The executor's ledger now, keyed by its `guest` and `fallback` sections."""
+    """The executor's ledger now, keyed by its `guest` and `budget_exit` sections."""
     return boot_log.ledger_sections(client.send("guest"))
 
 
@@ -175,20 +175,14 @@ def report_run(client: LiveClient) -> None:
         print(f"[live]   env variables that matched no knob: {config['unmatched']}")
 
     counters = guest_execution(client)
-    dynarec = counters.get("guest", {})
-    fallback = counters.get("fallback", {})
-    executed = dynarec.get("executed_blocks", 0)
+    guest = counters.get("guest", {})
+    executed = guest.get("executed_blocks", 0)
     print(f"[live] guest execution: {executed} executed blocks, "
-          f"{dynarec.get('executed_instructions', 0)} instructions, "
-          f"{dynarec.get('translated_blocks', 0)} translated, "
-          f"{dynarec.get('cache_hits', 0)} cache hits / {dynarec.get('cache_misses', 0)} misses, "
-          f"{dynarec.get('invalidations', 0)} invalidations, {dynarec.get('faults', 0)} faults")
-    print(f"[live] interpreter fallback: {fallback.get('calls', -1)} calls, "
-          f"{fallback.get('instructions', -1)} instructions, "
-          f"{fallback.get('refused_calls', -1)} refused")
+          f"{guest.get('executed_instructions', 0)} instructions, "
+          f"{guest.get('invalidations', 0)} invalidations, {guest.get('faults', 0)} faults")
     if executed <= 0:
         raise SystemExit("REFUSED: the product presented frames but executed no guest blocks; "
-                         "a play-through with no dynarec execution is not gameplay evidence")
+                         "a play-through with no guest execution is not gameplay evidence")
 
 
 def main() -> int:
