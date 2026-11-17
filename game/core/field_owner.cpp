@@ -115,7 +115,9 @@ bool FieldOwner::deliver(FieldRequest request) {
 
   game_.pad.serviceFrame();
   const bool startEdge = game_.pad.pressedButton(psx::input::kButtonStart);
-  skipPress_.observe(game_.pad.pressedButton(psx::input::kButtonStart | psx::input::kButtonCross));
+  // A selector preview skips what the player does not control, as a press would.
+  skipPress_.observe(game_.session.preview() ||
+                     game_.pad.pressedButton(psx::input::kButtonStart | psx::input::kButtonCross));
   if (!game_.timing.advanceDisplayFields(
           {1, 1}, psx::frame::fieldRateMilliHz(game_.timing.displayFieldRate()))) {
     lucent::error(
