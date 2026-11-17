@@ -178,3 +178,15 @@ Constraints and non-goals:
 - No detached debug free-fly camera; cutscenes, flybys and scripted shots stay as authored.
 
 Related state: none yet; plan `docs/plans/0252-right-stick-camera.md`.
+## G008 — Continue
+
+When a save exists, the title menu's first option is "Continue", selected by default, and it loads the newest
+save through the game's own load path; without a save the menu is unchanged. Each title keeps its own retail
+saving (Spyro 2 and 3 already autosave). Where a title stops to ask about saving between levels, the prompt is
+replaced by an autosave through the game's own save routine with an autosave icon, as the workspace title scope
+says.
+
+Success requires "Continue" in Spyro 1, 2 and 3 restoring the newest save's terminal state as the retail load
+would.
+
+
