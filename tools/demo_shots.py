@@ -58,7 +58,9 @@ def main() -> int:
     port.run(300)  # past the demo's load and fade-in
     done = 0
     for field in sorted(int(f) for f in args.at.split(",")):
-        port.run(field - done)
+        # run(0) still steps a field, which would put every later shot one field late.
+        if field > done:
+            port.run(field - done)
         done = field
         port.shot(str(out / f"f{field}.ppm"))
     port.end()
