@@ -64,7 +64,9 @@ def main() -> int:
     print(f"demo started at frame {start}; {len(totals)} presents measured over {after} fields")
     if totals:
         q = statistics.quantiles(totals, n=10)
-        print(f"gpu ms/present: p50 {statistics.median(totals):.2f}  p90 {q[8]:.2f}  max {max(totals):.2f}")
+        # Contention from other GPU users and late wakeups only ever adds time: p10 is the steadier comparison.
+        print(f"gpu ms/present: p10 {q[0]:.2f}  p50 {statistics.median(totals):.2f}  p90 {q[8]:.2f}  "
+              f"max {max(totals):.2f}")
     for line in lines:
         if ("[perf] cpu" if cpu else "[perf] gpu time") in line:
             print(line)
