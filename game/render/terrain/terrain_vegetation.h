@@ -66,7 +66,7 @@ private:
   // Why a tuft grows or not; the `vegetationmap` debug channel draws every tuft tinted by it.
   enum class Status : std::uint8_t {
     Grown,
-    Bare, // grown, on a face with no collision under it
+    Bare, // no collision under it: not ground, such as a tree canopy sharing the lawn texture
     Path,
     BesidePath,
     Translucent,
@@ -77,7 +77,7 @@ private:
     Count
   };
   // The map's tint by status, a blade's modulation colour (0x80 the texel as is): grown green,
-  // on no collision white, path yellow, beside a path orange, translucent cyan, water blue,
+  // no collision white, path yellow, beside a path orange, translucent cyan, water blue,
   // special magenta, steep red, at an object dark grey.
   static constexpr std::array<std::uint32_t, static_cast<std::size_t>(Status::Count)> kMapTints{
       0x10FF10u,

@@ -67,7 +67,8 @@ and the scenery mobys that are plants (trees, bushes and flowers drawn as mobys 
    sector. Each tuft then looks up the world collision triangle under it
    (`game/render/terrain/vegetation_ground.*`: the header's triangle count +0, surface count +4, packed
    triangles +0x10 in Spyro 1 / +0x14 in Spyro 2 and 3, surface bytes +0x18, unpacked as
-   `UnpackWorldCollisionTri` 0x80017CB8 / 0x8001C214 / 0x8004F5DC do) and is dropped on water (Spyro 2/3:
+   `UnpackWorldCollisionTri` 0x80017CB8 / 0x8001C214 / 0x8004F5DC do) and is dropped where none lies
+   under it (not ground: Summer Forest's tree canopies share its lawn texture), on water (Spyro 2/3:
    the triangle's z word & 0x4000; Spyro 1: at or below `g_anLevelDeathPlaneZTable`), on a special
    surface (low six bits not 0x3F) or on a slope at or past 0x17. A tuft is also dropped while any of its
    blades could reach into a level object's cull sphere at placement: the object's radius is the one its
@@ -109,7 +110,8 @@ logic state identical with the setting on and off at a fixed frame.
 ## State (2026-11-17)
 
 Steps 3 and 4 are drawn and batched; step 4's remaining cost is in the framework's record planner and
-place weld. Step 5: Spyro 1 has Stone Hill, Town Square and Magic Crafters; Peace Keepers' home is
-desert, Alpine Ridge and Beast Makers' census runs did not reach the level in time, and Tree Tops has
+place weld. Step 5: Spyro 1 has Stone Hill, Town Square, Magic Crafters and Dream Weavers (its near
+lawn uses a vertex-tinted white texture also used off the lawn, so only the far lawn grows); Peace
+Keepers' home is desert, Alpine Ridge and Beast Makers' census runs did not reach the level in time, and Tree Tops has
 one plain grass texture (21) not yet seen in a frame. Spyro 2 and 3 have one level each. The setting
 is the menu row "More vegetation" (`Runtime::titleIntSettings`).

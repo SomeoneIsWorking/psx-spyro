@@ -30,10 +30,18 @@ inline constexpr std::array<std::uint8_t, 6> kTownSquarePaths{28, 51, 50, 60, 59
 inline constexpr std::array<std::uint8_t, 2> kMagicCraftersGrows{17, 57};
 inline constexpr std::array<std::uint8_t, 3> kMagicCraftersPaths{45, 37, 58};
 
-inline constexpr std::array<spyro::guest_terrain::VegetationLevel, 3> kVegetationLevels{{
+// Dream Weavers (level 50), `warp 4/0/0`.
+// grows: 43 lawn, plain green (0x800F (64,64)); 10 lawn with pale specks (0x8009 (192,64)).
+// Not 11: lawn fading into cloud.
+// paths: 21 grey stone; 37 pink brick.
+inline constexpr std::array<std::uint8_t, 2> kDreamWeaversGrows{43, 10};
+inline constexpr std::array<std::uint8_t, 2> kDreamWeaversPaths{21, 37};
+
+inline constexpr std::array<spyro::guest_terrain::VegetationLevel, 4> kVegetationLevels{{
     {.level = 11, .grows = kStoneHillGrows, .paths = kStoneHillPaths},
     {.level = 13, .grows = kTownSquareGrows, .paths = kTownSquarePaths},
     {.level = 30, .grows = kMagicCraftersGrows, .paths = kMagicCraftersPaths},
+    {.level = 50, .grows = kDreamWeaversGrows, .paths = kDreamWeaversPaths},
 }};
 
 } // namespace spyro1::terrain

@@ -296,11 +296,11 @@ void Vegetation::place(Core &core, const VegetationFacts &facts, const Vegetatio
     return census[static_cast<std::size_t>(status)];
   };
   lucent::info("vegetation",
-               "level {}: {} tufts grown, {} of them on no collision; dropped {} on water, {} on a "
+               "level {}: {} tufts grown; dropped {} on no collision, {} on water, {} on a "
                "special surface, {} steep, {} at {} objects, {} beside a path, {} translucent; {} "
                "on paths; {} collision triangles",
                level.level,
-               tally(Status::Grown) + tally(Status::Bare),
+               tally(Status::Grown),
                tally(Status::Bare),
                tally(Status::Water),
                tally(Status::Special),
@@ -385,7 +385,7 @@ void Vegetation::draw(TerrainFrame &frame, const VegetationFacts &facts) {
   std::uint32_t inReach = 0;
   const bool map = lucent::channel_on("vegetationmap");
   for (const Tuft &tuft : tufts_) {
-    const bool grows = tuft.status == Status::Grown || tuft.status == Status::Bare;
+    const bool grows = tuft.status == Status::Grown;
     if (!grows && !map) {
       continue;
     }
