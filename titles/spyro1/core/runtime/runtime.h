@@ -24,8 +24,6 @@ public:
   std::optional<psx::gpu::PacketPoolExtent> packetPool(Core &core) const override;
   // The boot logos are uploads at the native width; no widening applies to them.
   bool guestPictureIsNativeWidth(const Game &game) const override;
-  // The flyby card is 4:3 (render/flyby_card.h).
-  psx::present::PictureBeyondBuffer pictureBeyondBuffer(Core &core) const override;
   bool sealedFrameIsCut(Core &core) const override;
   psx::present::ReplayFrame *replayFrame(Core &core) override;
   // Where this disc's own logo is; see titles/spyro1/core/frame/logo_facts.h.

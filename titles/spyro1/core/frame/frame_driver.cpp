@@ -4,6 +4,7 @@
 #include "core/session.h"
 #include "game.h"
 #include "guest_call.h"
+#include "spyro1/core/frame/flyby_card.h"
 #include "spyro1/core/frame/guest_update_budget.h"
 #include "spyro1/core/native_state.h"
 
@@ -118,7 +119,10 @@ void FrameDriver::stepFrame(Core &core, std::uint32_t) {
   } else {
     replay_.forget();
   }
-  draw_.run(core, fields_);
+  {
+    const FlybyCardPlacement placement(core);
+    draw_.run(core, fields_);
+  }
   cut_.onFrameDrawn(core);
   cut_.onFrameTail(core);
   fields_.presentFrame();

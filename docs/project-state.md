@@ -377,8 +377,10 @@ window use the presented bounds (`spyro::presentedBounds`), so a portal reaching
 The flyby card ("THE ADVENTURE BEGINS/CONTINUES...", "IN THE WORLD OF DRAGONS...", "ENTERING DEMO MODE...":
 GS_TitleScreen in TSM_Demo, drawn by `0x8001E6B8`) is a 4:3 composition: GamestateCutsceneTransition parks Spyro
 just past the 4:3 edges between passes (ticks 80-120 at x `0x1400`, 200-240 at `0x2880`), so the widened view
-showed him frozen in the margins. `spyro1::flyby_card` reports no picture beside the buffer while the card shows,
-and the canvas pillarboxes it (`scratch/advcont/before_after.png`, ticks 100, 210, 250).
+showed him frozen in the margins. While the card draws Spyro on a widened canvas, `spyro1::FlybyCardPlacement`
+scales his x offset from the card's camera (yaw `0x400`: world x is screen x) by the projection's widening for that
+one GamestateDraw and restores retail's place after, so the 4:3 path spans the canvas: every place past a 4:3 edge
+lands past the widened edge and the passes enter and leave at it (`scratch/advcont/before_after.png`).
 
 ### S020 — Spyro 1 60 fps
 
