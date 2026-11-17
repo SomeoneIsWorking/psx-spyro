@@ -30,6 +30,10 @@ TSM_DEMO = 3
 def main() -> int:
     args = [a for a in sys.argv[1:] if a != "--cpu"]
     cpu = "--cpu" in sys.argv[1:]
+    # A run takes minutes, so anything but a log path, a field count and --cpu stops before it starts.
+    if not args or len(args) > 2 or any(a.startswith("-") for a in args) or (len(args) > 1 and not args[1].isdigit()):
+        print(__doc__.split("\n\n")[2].strip(), file=sys.stderr)
+        return 2
     log = Path(args[0]).resolve()
     after = int(args[1]) if len(args) > 1 else 1800
     env = drive.environment("spyro1")
