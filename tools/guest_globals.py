@@ -63,11 +63,14 @@ def load(headers: Sequence[Path] = HEADERS) -> dict[str, int]:
 
 
 def title_facts(slug: str) -> dict[str, int]:
-    return load((ROOT / "titles" / slug / "core" / "boot_facts.h",))
+    """The title's boot facts and its game-state word (core/game_state.h)."""
+    core = ROOT / "titles" / slug / "core"
+    return load(tuple(path for path in (core / "game_state.h", core / "boot_facts.h") if path.is_file()))
 
 
 def render_field(slug: str, name: str) -> int:
-    """The one `.name = value,` designated initialiser in the title's render facts."""
+    """The one `.name = value,` designated initialiser in the title's render facts that owns the value; a copy
+    naming another initialiser's field (`.name = kRenderGlobals.name,`) refers back to it and is skipped."""
     path = ROOT / "titles" / slug / "render" / "render_facts.h"
     if not path.is_file():
         raise ToolError(f"missing guest-address owner: {path}")
@@ -75,6 +78,9 @@ def render_field(slug: str, name: str) -> int:
     for number, line in enumerate(path.read_text().splitlines(), start=1):
         match = DESIGNATED.match(line)
         if match and match.group("name") == name:
+            value = match.group("value").split("//")[0].strip()
+            if re.fullmatch(r"k\w+\.\w+", value):
+                continue
             values.append(_term(match.group("value").split("//")[0].strip(), {}, f"{path.name}:{number}"))
     if len(values) != 1:
         raise ToolError(f"{path.name}: expected one .{name} initialiser, found {len(values)}")
