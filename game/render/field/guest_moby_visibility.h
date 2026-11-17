@@ -143,6 +143,10 @@ void walk(Core &core,
           const guest_render_globals::Globals &globals,
           const Selection &selection);
 
+// The bounding sphere radius the walk culls record `rec` by (SCUS_944.25 800439F4), view units;
+// 0 while its mesh is not resident.
+[[nodiscard]] std::uint32_t boundingRadius(Core &core, const Facts &facts, std::uint32_t rec);
+
 // The record's mesh in slots A and B of `keyframes` is resident and counts the same vertices: the
 // drawer (SCUS_944.25 80044504) walks frame B's stream with slot A's count.
 [[nodiscard]] bool

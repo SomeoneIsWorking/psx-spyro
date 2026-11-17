@@ -34,6 +34,7 @@ constexpr std::uint32_t kRenderListEndBelow = 0x10;                             
 constexpr std::uint32_t kMeshDetail = 0x02; // u16: centre shift (low), detail level (high)
 constexpr std::uint32_t kMeshOverlayDetail = 0x03;
 constexpr std::uint32_t kMeshRadius = 0x07;    // u8, x16
+constexpr std::uint32_t kMeshRadiusShift = 4;
 constexpr std::uint32_t kMeshSubSphere = 0x08; // packed i8 x, y, z and u8 radius, x8
 constexpr std::uint32_t kMeshTextures = 0x24;
 constexpr std::uint32_t kMeshSlotsAnimation = 0x34;
@@ -284,7 +285,8 @@ MobyWalk::Step MobyWalk::drawCandidate(std::uint32_t rec,
   const Candidate candidate{.rec = rec, .mesh = slotMesh(core_, slots.slot()), .slots = slots};
   const std::uint32_t mesh = candidate.mesh;
   core_.gte().loadRotation(camera_);
-  const std::uint32_t radius = static_cast<std::uint32_t>(core_.mem_r8(mesh + kMeshRadius)) << 4;
+  const std::uint32_t radius = static_cast<std::uint32_t>(core_.mem_r8(mesh + kMeshRadius))
+                               << kMeshRadiusShift;
   core_.gte().writeData(gte::kIr3, asWord(offset.dx));
   core_.gte().writeData(gte::kIr1, asWord(offset.dy));
   core_.gte().writeData(gte::kIr2, asWord(offset.dz));
@@ -554,6 +556,16 @@ animationLoop(Core &core, const Facts &facts, std::uint32_t meshIndex, std::uint
     return std::nullopt;
   }
   return keyframe_blend::Loop{.start = 0, .end = frames};
+}
+
+std::uint32_t boundingRadius(Core &core, const Facts &facts, std::uint32_t rec) {
+  const MeshSlots slots = meshSlots(
+      core, facts, core.mem_r16(rec + moby_record::kMesh), core.mem_r32(rec + record::kKeyframes));
+  if (!slots.resident()) {
+    return 0;
+  }
+  return static_cast<std::uint32_t>(core.mem_r8(slotMesh(core, slots.slot()) + kMeshRadius))
+         << kMeshRadiusShift;
 }
 
 void walk(Core &core,

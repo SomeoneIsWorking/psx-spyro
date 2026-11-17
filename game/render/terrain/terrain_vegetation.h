@@ -5,6 +5,8 @@
 #pragma once
 
 #include "gp0_primitive_decode.h"
+#include "render/terrain/vegetation_ground.h"
+#include "title_settings.h"
 
 #include <array>
 #include <cstdint>
@@ -39,8 +41,18 @@ struct VegetationFacts {
   // A blade's middle height in vertex units: about a third of Spyro standing, as the title draws
   // him.
   std::uint32_t bladeHeight = 0;
+  VegetationGroundFacts ground;
+  // The level's objects: the word holding its first 0x58-byte record (flag byte +0x48 negative
+  // skipped, -1 after the last; Spyro 1's actor mode byte reads the same), and each one's bounding
+  // radius in view units as its walk culls by, 0 for none. Nothing grows inside it at the level's
+  // start.
+  std::uint32_t objects = 0;
+  std::uint32_t (*objectRadius)(Core &core, std::uint32_t record) = nullptr;
   std::span<const VegetationLevel> levels;
 };
+
+// The settings row: Off / On, off by default.
+const psx::game::TitleIntSetting &moreVegetationSetting();
 
 class Vegetation {
 public:
@@ -50,24 +62,55 @@ public:
   // last terrain packet.
   void link(Core &core, std::uint32_t root);
 
-  // Faces kept, and faces dropped by each exclusion, at the last placement (overlay and log).
-  struct Census {
-    std::uint32_t faces = 0;
-    std::uint32_t tufts = 0;
-    std::uint32_t besidePath = 0;
-    std::uint32_t translucent = 0;
-  };
-
 private:
+  // Why a tuft grows or not; the `vegetationmap` debug channel draws every tuft tinted by it.
+  enum class Status : std::uint8_t {
+    Grown,
+    Bare, // grown, on a face with no collision under it
+    Path,
+    BesidePath,
+    Translucent,
+    Water,
+    Special,
+    Steep,
+    Object,
+    Count
+  };
+  // The map's tint by status, a blade's modulation colour (0x80 the texel as is): grown green,
+  // on no collision white, path yellow, beside a path orange, translucent cyan, water blue,
+  // special magenta, steep red, at an object dark grey.
+  static constexpr std::array<std::uint32_t, static_cast<std::size_t>(Status::Count)> kMapTints{
+      0x10FF10u,
+      0xFFFFFFu,
+      0x00E0FFu,
+      0x0080FFu,
+      0xFFFF00u,
+      0xFF4020u,
+      0xFF00FFu,
+      0x1010FFu,
+      0x303030u};
+  static constexpr std::size_t kBladesPerTuft = 4;
+  // A blade's shape, fixed by its tuft's seed: its heading, lean and height share, and the texel
+  // column it is cut from.
+  struct Blade {
+    float cos = 0.0f;
+    float sin = 0.0f;
+    float lean = 0.0f;
+    float height = 0.0f;
+    std::uint32_t column = 0;
+  };
   struct Tuft {
     std::int32_t x = 0; // vertex units, the sector packing's
     std::int32_t y = 0;
     std::int32_t z = 0;
-    std::uint32_t seed = 0;
+    std::array<Blade, kBladesPerTuft> blades{};
     std::uint32_t colour = 0; // the face's first near colour
     std::uint32_t uv = 0;     // the face's full-bright pair: uv0 | clut << 16
     std::uint32_t page = 0;   // uv1 | tpage << 16
+    Status status = Status::Grown;
   };
+  // A tuft's blades from its seed.
+  static std::array<Blade, kBladesPerTuft> bladesOf(std::uint32_t seed);
   struct Built {
     std::uint32_t anchor = 0;
     psx::gpu::PacketBuffer<9> packet;
@@ -79,8 +122,6 @@ private:
   std::uint32_t placedTable_ = 0;
   std::vector<Tuft> tufts_;
   std::vector<Built> built_;
-  Census census_{};
-  std::uint32_t site_ = 0;
 };
 
 } // namespace spyro::guest_terrain

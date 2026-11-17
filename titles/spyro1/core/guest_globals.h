@@ -46,6 +46,7 @@ inline constexpr std::uint32_t kPlayerControlFlags = kSpyro + 0x1F4u; // 0x80078
 // g_Environment (environment.h): +0x0C is the occlusion group count, +0x2C the collision header.
 inline constexpr std::uint32_t kEnvironment = 0x800785A8u;
 inline constexpr std::uint32_t kEnvironmentOcclusionGroupCount = kEnvironment + 0x0Cu;
+inline constexpr std::uint32_t kWorldCollision = kEnvironment + 0x2Cu; // g_pWorldCollisionHeader
 
 // g_LoadStage (main.c): the streaming/load phase the main loop and the boot sequence both watch.
 inline constexpr std::uint32_t kLoadStage = 0x80075864u;
@@ -144,6 +145,10 @@ inline constexpr std::uint32_t kMagnitudeTable = 0x80074B84u;
 // g_LevelId and g_NextLevelId: current and requested level identifiers.
 inline constexpr std::uint32_t kLevelId = 0x8007596Cu;
 inline constexpr std::uint32_t kNextLevelId = 0x800758B4u;
+// g_nLevelIndex: the level's index into the per-level tables.
+inline constexpr std::uint32_t kLevelIndex = 0x80075964u;
+// g_anLevelDeathPlaneZTable: per level index, the height Spyro is lost below (water or a drop).
+inline constexpr std::uint32_t kDeathPlaneTable = 0x8006E9A4u;
 
 // external/open-spyro names: g_apTitleCardNames per homeworld (1..6), g_apLevelNameStrings at
 // (id / 10 - 1) * 6 + id % 10 ("HOME" for a homeworld), g_abLevelTotalDragonsTable at the same

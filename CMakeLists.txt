@@ -171,6 +171,7 @@ set(SPYRO_RUNTIME_SOURCES
   game/render/terrain/guest_terrain_fine.cpp
   game/render/terrain/guest_terrain_fog.cpp
   game/render/terrain/terrain_vegetation.cpp
+  game/render/terrain/vegetation_ground.cpp
   game/render/terrain/guest_terrain_grid.cpp
   game/render/terrain/guest_terrain_mesh.cpp
   game/render/terrain/guest_terrain_resplit.cpp

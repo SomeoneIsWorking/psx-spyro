@@ -2,10 +2,11 @@
 // tables its passes read, each named by the instruction that reaches it.
 #pragma once
 
-#include "spyro1/render/vegetation_table.h"
 #include "render/field/guest_render_globals.h"
 #include "render/terrain/guest_terrain_facts.h"
 #include "spyro1/core/guest_globals.h"
+#include "spyro1/render/actor_bounds.h"
+#include "spyro1/render/vegetation_table.h"
 
 #include <cstdint>
 
@@ -129,6 +130,15 @@ inline constexpr spyro::guest_terrain::Facts kSharedFacts{
             .heightMask = 0xFFCu,
             .textureByte = true,
             .bladeHeight = 55,
+            .ground =
+                {
+                    .header = guest::kWorldCollision,
+                    .triangles = 0x10, // UnpackWorldCollisionTri 0x80017CD0
+                    .deathPlanes = guest::kDeathPlaneTable,
+                    .levelIndex = guest::kLevelIndex,
+                },
+            .objects = guest::kLevelMobys,
+            .objectRadius = actors::boundingRadius,
             .levels = kVegetationLevels,
         },
 };

@@ -54,7 +54,6 @@ constexpr std::uint32_t kSpyroState = kSpyroRotation + 0x44u; // +0x78
 constexpr std::uint32_t kBurstMatrix = 0x80078C20u;           // +0x1C8, m_headRotationMatrix
 constexpr std::uint32_t kBurstVectors = 0x8006E238u;     // D_8006E238, four 12-byte local offsets
 constexpr std::uint32_t kShadowFanOffsets = 0x8006E2A8u; // D_8006E2A8, the ring's eight fan offsets
-constexpr std::uint32_t kHeightThresholdTable = 0x8006E9A4u; // D_8006E9A4, one word per level
 constexpr std::uint32_t kAnimationSlot = 0x80075268u; // D_80075268, the animation-detail slot
 constexpr std::uint32_t kBurstFrameBytes = 0x40u;
 constexpr std::uint32_t kShadowFrameBytes = 0x30u;
@@ -74,7 +73,6 @@ constexpr std::int32_t kShadowDropRange = 0x365;
 constexpr std::int32_t kShadowLiftScale = 194;
 
 constexpr std::uint32_t kEmitterFunction = 0x800758E4u;
-constexpr std::uint32_t kLevelIndex = 0x80075964u; // g_LevelIndex
 constexpr std::uint32_t kCameraType = 0x80076E28u; // g_Camera + 0x58
 
 constexpr std::uint32_t kAnimationDetails =
@@ -435,8 +433,8 @@ void updateGroundShadow(Core *c) {
   if (drop >= kShadowDropRange) {
     c->mem_w32(shadow_block::kBias, 5);
   }
-  const std::int32_t threshold =
-      static_cast<std::int32_t>(c->mem_r32(kHeightThresholdTable + c->mem_r32(kLevelIndex) * 4u));
+  const std::int32_t threshold = static_cast<std::int32_t>(
+      c->mem_r32(guest::kDeathPlaneTable + c->mem_r32(guest::kLevelIndex) * 4u));
   const std::uint32_t proximity = c->mem_r32(kSurfaceProximityState);
   const std::uint32_t suppress =
       threshold >= static_cast<std::int32_t>(reference) || proximity != 0u ? 1u : 0u;

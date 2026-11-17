@@ -87,7 +87,9 @@ inline constexpr std::uint32_t kShadowFrame = 0x3E;
 inline constexpr std::uint32_t kBlend = 0x40; // non-zero blends frame 0 toward frame 1
 // The weight is 64ths (weight << 6 into the 0x1000 INTPL scale).
 inline constexpr spyro::keyframe_blend::Progress kBlendProgress{64};
-inline constexpr std::uint32_t kDepthBias = 0x4B;     // low six bits
+// Low six bits; the signed byte picks the list: > 0 the main, < 0 the secondary, 0 the sprite
+// queue (open-spyro renderList).
+inline constexpr std::uint32_t kDepthBias = 0x4B;
 inline constexpr std::uint32_t kSecondaryWord = 0x4C; // the sprite queue's palette selector
 inline constexpr std::uint32_t kCullDistance = 0x50;  // halfword: low byte <<8, bit 8 adds 0x200
 inline constexpr std::uint32_t kScreenSpace = 0x80;   // in the cull halfword: a HUD record
@@ -101,6 +103,7 @@ namespace mesh {
 inline constexpr std::uint32_t kFrames = 0x38;
 inline constexpr std::uint32_t kFrameCount = 0x00;
 inline constexpr std::uint32_t kRadius = 0x07;
+inline constexpr std::uint32_t kRadiusShift = 4; // the byte is 16 view units a step
 inline constexpr std::uint32_t kDepthShift = 0x0B;
 inline constexpr std::uint32_t kVertexSteps = 0x24;
 } // namespace mesh

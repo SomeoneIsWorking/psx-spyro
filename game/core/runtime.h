@@ -36,7 +36,8 @@ public:
   // draws them.
   const psx::present::OutlineGlyphs *outlineGlyphs(Core &core) const final;
   bool interpolates() const final;
-  // The right-stick camera row (core/stick_camera.h).
+  // The right-stick camera (core/stick_camera.h) and more vegetation
+  // (render/terrain/terrain_vegetation.h) rows.
   std::span<const psx::game::TitleIntSetting> titleIntSettings() const final;
 
 protected:

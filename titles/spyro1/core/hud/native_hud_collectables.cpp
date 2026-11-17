@@ -43,7 +43,6 @@ constexpr std::uint32_t kSpriteRect = kHud + 0x4C4u;
 // The guest forms the rectangle's source table as the orb count's own address plus 0x388.
 constexpr std::uint32_t kSpriteValues = kLifeOrbCount + 0x388u;
 
-constexpr std::uint32_t kLevelIndex = 0x80075964u;
 constexpr std::uint32_t kLevelGemCount = 0x80077420u;
 constexpr std::uint32_t kLevelTarget = 0x80075810u;
 constexpr std::uint32_t kTreasureTotal = 0x80075830u;
@@ -117,7 +116,7 @@ void takeLeftoverArgument(Hud &hud) {
 
 // g_LevelGemCount[the level now resident], read fresh at each of the guest's own read points.
 std::uint32_t levelGemCount(const Hud &hud) {
-  return hud.c->mem_r32(kLevelGemCount + 4u * hud.c->mem_r32(kLevelIndex));
+  return hud.c->mem_r32(kLevelGemCount + 4u * hud.c->mem_r32(guest::kLevelIndex));
 }
 
 // Ids are looked up with the sub-state before the step, so id and store differ by one.
@@ -234,8 +233,8 @@ void stepGemDisplay(Hud &hud) {
       c->mem_w32(kTally, have + 1u);
     }
     // 0x80054C50: only an exact match with sub-state zero parks the display on 4.
-    const std::uint32_t target =
-        static_cast<std::uint32_t>(c->mem_r16s(kGemCollectTarget + 2u * c->mem_r32(kLevelIndex)));
+    const std::uint32_t target = static_cast<std::uint32_t>(
+        c->mem_r16s(kGemCollectTarget + 2u * c->mem_r32(guest::kLevelIndex)));
     if (c->mem_r32(kTally) == target && c->mem_r8(kGemSubState) == 0u) {
       c->mem_w8(kGemDisplay, 4u);
     }

@@ -60,6 +60,31 @@ inline constexpr spyro::guest_render_globals::Globals kRenderGlobals{
 // game/render/guest_terrain_*.cpp with the instruction that reaches them; those tables live in the
 // same static data region in both images of this family and their addresses are quoted there per
 // image.
+// The moby visibility walk, 0x80043858.
+//
+//   800438A4  the level's moby array, at 0x80066F14; the records are 0x58 bytes and the walk starts
+//             at the LAST one.
+//   800438B0  the drawer parameter parked in VZ1, at 0x80066FA4.
+//   800438E4  the per-mesh slot array table, at 0x80068C94.
+//   80043F0C  frame B's share per keyframe progress byte, at 0x80062868.
+//   800440D0  v0 on return is 0x8006820C; 800440D8 stores the close-list cursor at 0x80068214.
+//   80043B9C  the sine table, at 0x80061BD8; the cosine table is the same table a quarter turn on.
+inline constexpr spyro::guest_moby::Facts kMobyFacts{
+    .entry = 0x80043858u,
+    .overrideName = "spyro2-moby-visibility",
+    .firstRecordWord = 0x80066F14u,
+    .drawerParameter = 0x80066FA4u,
+    .meshSlotTable = 0x80068C94u,
+    .keyframeBlend = 0x80062868u,
+    .closeCursorHome = 0x80068214u,
+    .exitV0 = 0x8006820Cu,
+};
+
+// A level object's bounding radius, for the vegetation's cut-outs.
+inline std::uint32_t objectRadius(Core &core, std::uint32_t record) {
+  return spyro::guest_moby::boundingRadius(core, kMobyFacts, record);
+}
+
 inline constexpr spyro::guest_terrain::Facts kTerrainFacts{
     .entry = 0x80023BB4u,
     .overrideName = "spyro2-terrain-drawer",
@@ -125,7 +150,8 @@ inline constexpr spyro::guest_terrain::Facts kTerrainFacts{
             .trianglePieces = 0x80062560u, // 80028974
             .quadPieces = 0x8006257Cu,     // 800287A8
         },
-    // Placement reads the sectors and records the detail pass reads; the level is the level FUN_80019230 stores.
+    // Placement reads the sectors and records the detail pass reads; the level is the level
+    // FUN_80019230 stores.
     .vegetation =
         {
             .levelId = 0x80066F90u,
@@ -137,28 +163,17 @@ inline constexpr spyro::guest_terrain::Facts kTerrainFacts{
             .heightMask = 0x1FFCu,
             .textureByte = false,
             .bladeHeight = 140,
+            // The world block's +0x28 (the hit publish reads it there).
+            .ground =
+                {
+                    .header = 0x800673D4u + 0x28u,
+                    .triangles = 0x14,  // 0x8001C22C
+                    .waterBit = 0x4000, // 0x8003DB1C
+                },
+            .objects = kMobyFacts.firstRecordWord,
+            .objectRadius = objectRadius,
             .levels = kVegetationLevels,
         },
-};
-
-// The moby visibility walk, 0x80043858.
-//
-//   800438A4  the level's moby array, at 0x80066F14; the records are 0x58 bytes and the walk starts
-//             at the LAST one.
-//   800438B0  the drawer parameter parked in VZ1, at 0x80066FA4.
-//   800438E4  the per-mesh slot array table, at 0x80068C94.
-//   80043F0C  frame B's share per keyframe progress byte, at 0x80062868.
-//   800440D0  v0 on return is 0x8006820C; 800440D8 stores the close-list cursor at 0x80068214.
-//   80043B9C  the sine table, at 0x80061BD8; the cosine table is the same table a quarter turn on.
-inline constexpr spyro::guest_moby::Facts kMobyFacts{
-    .entry = 0x80043858u,
-    .overrideName = "spyro2-moby-visibility",
-    .firstRecordWord = 0x80066F14u,
-    .drawerParameter = 0x80066FA4u,
-    .meshSlotTable = 0x80068C94u,
-    .keyframeBlend = 0x80062868u,
-    .closeCursorHome = 0x80068214u,
-    .exitV0 = 0x8006820Cu,
 };
 
 // Spyro's drawer, 0x80041DBC. It projects his vertices with RTPS and keeps each SZ3 (800423CC),

@@ -4,7 +4,9 @@
 #include "enhancement_gate.h"
 #include "gte_registers.h"
 #include "host_packets.h"
+#include "render/field/guest_moby_visibility.h"
 #include "render/field/guest_render_globals.h"
+#include "render/field/moby_record.h"
 #include "render/terrain/guest_depth_bins.h"
 #include "render/terrain/guest_terrain_frame.h"
 #include "render/terrain/guest_terrain_polygon.h"
@@ -26,17 +28,28 @@ psx::config::Var<long> cv_vegetation_density("vegetation_density", 48, psx::conf
 psx::config::Var<long> cv_vegetation_distance("vegetation_distance", 0x1400, psx::config::kSaved);
 const psx::config::Registration kRegistration{
     cv_more_vegetation, cv_vegetation_density, cv_vegetation_distance};
+const std::array<const char *, 2> kOffOn{"Off", "On"};
+const psx::game::TitleIntSetting kSetting{.id = "more_vegetation",
+                                          .label = "More vegetation",
+                                          .unit = "",
+                                          .var = &cv_more_vegetation,
+                                          .range = {.min = 0, .max = 1, .step = 1},
+                                          .labels = kOffOn};
 
 constexpr std::uint32_t kGt3Code = 0x34000000u;
-constexpr std::uint32_t kBladesPerTuft = 4;
 // A blade's base half-width, height range and spread from its tuft's centre, in its image's blade
 // heights (VegetationFacts::bladeHeight).
 constexpr float kBladeHalfWidth = 0.06f;
 constexpr float kBladeHeightMin = 0.6f;
 constexpr float kBladeHeightSpan = 0.8f;
 constexpr float kTuftSpread = 0.14f;
+// A blade's tip lies this share of its height out from its base.
+constexpr float kBladeLeanMin = 0.15f;
+constexpr float kBladeLeanSpan = 0.35f;
 // Nearer than this, a blade's projection outgrows its texture's detail.
 constexpr float kNearDepth = 96.0f;
+// The blades' draw site and model: KSEG2, where no guest function or render-list entry lies.
+constexpr std::uint32_t kBladeSite = 0xC0000000u;
 
 std::uint32_t mix(std::uint32_t value) {
   value += 0x9E3779B9u;
@@ -106,9 +119,26 @@ std::uint32_t textureOf(Core &core, const VegetationFacts &facts, std::uint32_t 
 
 } // namespace
 
+const psx::game::TitleIntSetting &moreVegetationSetting() {
+  return kSetting;
+}
+
+std::array<Vegetation::Blade, Vegetation::kBladesPerTuft> Vegetation::bladesOf(std::uint32_t seed) {
+  std::array<Blade, kBladesPerTuft> blades{};
+  for (Blade &blade : blades) {
+    seed = mix(seed);
+    const float angle = unit(seed) * 6.2831853f;
+    blade = {.cos = std::cos(angle),
+             .sin = std::sin(angle),
+             .lean = kBladeLeanMin + kBladeLeanSpan * unit(mix(seed)),
+             .height = kBladeHeightMin + kBladeHeightSpan * unit(mix(seed + 1)),
+             .column = (seed >> 3) % 28u};
+  }
+  return blades;
+}
+
 void Vegetation::place(Core &core, const VegetationFacts &facts, const VegetationLevel &level) {
   tufts_.clear();
-  census_ = {};
   const std::uint32_t table = core.mem_r32(facts.sectorTable);
   const std::uint32_t count = core.mem_r32(facts.sectorTable + 4);
   const std::uint32_t textures = core.mem_r32(facts.textureTable);
@@ -141,7 +171,8 @@ void Vegetation::place(Core &core, const VegetationFacts &facts, const Vegetatio
   for (const Sector &sector : sectors) {
     for (std::uint32_t r = sector.records; r < sector.end; r += polygon::kSize) {
       const std::uint32_t texture = textureOf(core, facts, r);
-      if (!grows(texture)) {
+      const bool path = isPath(texture);
+      if (!path && !grows(texture)) {
         continue;
       }
       const PackedIndices ids(core.mem_r32(r + polygon::kIndices));
@@ -150,17 +181,16 @@ void Vegetation::place(Core &core, const VegetationFacts &facts, const Vegetatio
       if (*std::ranges::max_element(corner) >= sector.vertices.size()) {
         continue;
       }
-      if (sector.translucent) {
-        ++census_.translucent;
-        continue;
+      Status status = Status::Grown;
+      if (path) {
+        status = Status::Path;
+      } else if (sector.translucent) {
+        status = Status::Translucent;
+      } else if (std::ranges::any_of(corner, [&](std::uint32_t c) {
+                   return pathCorners.contains(sector.vertices[c]);
+                 })) {
+        status = Status::BesidePath;
       }
-      if (std::ranges::any_of(corner, [&](std::uint32_t c) {
-            return pathCorners.contains(sector.vertices[c]);
-          })) {
-        ++census_.besidePath;
-        continue;
-      }
-      ++census_.faces;
       const std::uint32_t colourWord = core.mem_r32(r + polygon::kColours);
       const std::uint32_t colour =
           core.mem_r32(sector.colours + ((colourWord >> 22) & 0x3FCu)) & 0xFFFFFFu;
@@ -191,22 +221,96 @@ void Vegetation::place(Core &core, const VegetationFacts &facts, const Vegetatio
           tufts_.push_back({.x = a.x + static_cast<std::int32_t>(std::lround(s * ux + t * vx)),
                             .y = a.y + static_cast<std::int32_t>(std::lround(s * uy + t * vy)),
                             .z = a.z + static_cast<std::int32_t>(std::lround(s * uz + t * vz)),
-                            .seed = mix(seed ^ 0x5BD1E995u),
+                            .blades = bladesOf(mix(seed ^ 0x5BD1E995u)),
                             .colour = colour,
                             .uv = uv,
-                            .page = page});
+                            .page = page,
+                            .status = status});
         }
       }
     }
   }
-  census_.tufts = static_cast<std::uint32_t>(tufts_.size());
+  // The collision under each tuft, in world units: the packing's z, x and height are the world's
+  // x, y and z, each a quarter of a world unit's scale (guest_render_globals::kNearViewShift).
+  struct Object {
+    std::int32_t x = 0;
+    std::int32_t y = 0;
+    std::int32_t z = 0;
+    double radius = 0.0;
+  };
+  std::vector<Object> objects;
+  for (std::uint32_t rec = core.mem_r32(facts.objects); facts.objectRadius != nullptr;
+       rec += moby_record::kBytes) {
+    const auto flag = static_cast<std::int8_t>(core.mem_r8(rec + guest_moby::record::kFlag));
+    if (flag == guest_moby::record::kEnd) {
+      break;
+    }
+    const std::uint32_t radius = flag < 0 ? 0 : facts.objectRadius(core, rec);
+    if (radius != 0) {
+      objects.push_back(
+          {.x = static_cast<std::int32_t>(core.mem_r32(rec + moby_record::kX)),
+           .y = static_cast<std::int32_t>(core.mem_r32(rec + moby_record::kY)),
+           .z = static_cast<std::int32_t>(core.mem_r32(rec + moby_record::kZ)),
+           .radius = static_cast<double>(radius << guest_render_globals::kNearViewShift)});
+    }
+  }
+  // How far a tuft's blades reach from its base point: the farthest tip, in world units.
+  const float tallest = kBladeHeightMin + kBladeHeightSpan;
+  const double reach = static_cast<double>(
+      std::hypot(kTuftSpread + kBladeHalfWidth + (kBladeLeanMin + kBladeLeanSpan) * tallest,
+                 tallest) *
+      static_cast<float>(facts.bladeHeight << guest_render_globals::kNearViewShift));
+  const VegetationGround ground(core, facts.ground);
+  std::array<std::uint32_t, static_cast<std::size_t>(Status::Count)> census{};
+  for (Tuft &tuft : tufts_) {
+    constexpr std::uint32_t shift = guest_render_globals::kNearViewShift;
+    const std::int32_t x = tuft.z << shift;
+    const std::int32_t y = tuft.x << shift;
+    const std::int32_t z = tuft.y << shift;
+    if (tuft.status == Status::Grown && std::ranges::any_of(objects, [&](const Object &o) {
+          return std::hypot(x - o.x, y - o.y, z - o.z) < o.radius + reach;
+        })) {
+      tuft.status = Status::Object;
+    }
+    if (tuft.status == Status::Grown) {
+      switch (ground.at(x, y, z)) {
+      case VegetationGround::Kind::Ground:
+        break;
+      case VegetationGround::Kind::Bare:
+        tuft.status = Status::Bare;
+        break;
+      case VegetationGround::Kind::Water:
+        tuft.status = Status::Water;
+        break;
+      case VegetationGround::Kind::Special:
+        tuft.status = Status::Special;
+        break;
+      case VegetationGround::Kind::Steep:
+        tuft.status = Status::Steep;
+        break;
+      }
+    }
+    ++census[static_cast<std::size_t>(tuft.status)];
+  }
+  const auto tally = [&census](Status status) {
+    return census[static_cast<std::size_t>(status)];
+  };
   lucent::info("vegetation",
-               "level {}: {} tufts on {} faces; dropped {} beside a path, {} translucent",
+               "level {}: {} tufts grown, {} of them on no collision; dropped {} on water, {} on a "
+               "special surface, {} steep, {} at {} objects, {} beside a path, {} translucent; {} "
+               "on paths; {} collision triangles",
                level.level,
-               census_.tufts,
-               census_.faces,
-               census_.besidePath,
-               census_.translucent);
+               tally(Status::Grown) + tally(Status::Bare),
+               tally(Status::Bare),
+               tally(Status::Water),
+               tally(Status::Special),
+               tally(Status::Steep),
+               tally(Status::Object),
+               objects.size(),
+               tally(Status::BesidePath),
+               tally(Status::Translucent),
+               tally(Status::Path),
+               ground.triangles());
 }
 
 void Vegetation::draw(TerrainFrame &frame, const VegetationFacts &facts) {
@@ -226,7 +330,9 @@ void Vegetation::draw(TerrainFrame &frame, const VegetationFacts &facts) {
     placedLevel_ = levelId;
     placedTable_ = table;
   }
-  site_ = frame.facts.entry;
+  // One model: a blade tests against the terrain and objects before it and paints over earlier
+  // blades in order, so a bin's blades draw as one run whatever they overlap.
+  core.depthTest.mark(kBladeSite, psx::present::DepthOrder::Model);
   const float reach = static_cast<float>(psx::config::enh_int(cv_vegetation_distance));
   const auto size = static_cast<float>(facts.bladeHeight);
   const psx::gte::RotationWords rw = frame.rotation();
@@ -272,12 +378,17 @@ void Vegetation::draw(TerrainFrame &frame, const VegetationFacts &facts) {
       return std::nullopt;
     }
     return psx::gte::ProjectedVertex::nearest(
-        GtePlace{.x = sx, .y = sy, .z = rz, .back = 0.0f, .model = 0});
+        GtePlace{.x = sx, .y = sy, .z = rz, .back = 0.0f, .model = kBladeSite});
   };
   const std::uint32_t capacity =
       static_cast<std::uint32_t>(psx::gpu::HostPackets::kPacketCapacity / 2);
   std::uint32_t inReach = 0;
+  const bool map = lucent::channel_on("vegetationmap");
   for (const Tuft &tuft : tufts_) {
+    const bool grows = tuft.status == Status::Grown || tuft.status == Status::Bare;
+    if (!grows && !map) {
+      continue;
+    }
     const float dx = static_cast<float>(tuft.x) - camera[1];
     const float dy = static_cast<float>(tuft.y) - camera[2];
     const float dz = static_cast<float>(tuft.z) - camera[0];
@@ -288,15 +399,14 @@ void Vegetation::draw(TerrainFrame &frame, const VegetationFacts &facts) {
     ++inReach;
     // Full height to half the reach, then down to nothing at it, so the edge never pops.
     const float grown = std::min(1.0f, 2.0f * (1.0f - distance / reach));
-    std::uint32_t seed = tuft.seed;
-    for (std::uint32_t blade = 0; blade < kBladesPerTuft && built_.size() < capacity; ++blade) {
-      seed = mix(seed);
-      const float angle = unit(seed) * 6.2831853f;
-      const float lean = 0.15f + 0.35f * unit(mix(seed));
-      const float height =
-          grown * size * (kBladeHeightMin + kBladeHeightSpan * unit(mix(seed + 1)));
-      const float ca = std::cos(angle);
-      const float sa = std::sin(angle);
+    for (const Blade &blade : tuft.blades) {
+      if (built_.size() == capacity) {
+        break;
+      }
+      const float lean = blade.lean;
+      const float height = grown * size * blade.height;
+      const float ca = blade.cos;
+      const float sa = blade.sin;
       const float bx = static_cast<float>(tuft.x) + kTuftSpread * size * ca;
       const float bz = static_cast<float>(tuft.z) + kTuftSpread * size * sa;
       const float by = static_cast<float>(tuft.y);
@@ -316,21 +426,24 @@ void Vegetation::draw(TerrainFrame &frame, const VegetationFacts &facts) {
       if (anchor == 0) {
         continue;
       }
-      const std::uint32_t column = (seed >> 3) % 28u;
+      const std::uint32_t column = blade.column;
       const std::uint32_t base = tuft.uv & 0xFFFFu;
       const std::uint32_t clut = tuft.uv & 0xFFFF0000u;
       const std::uint32_t tpage = tuft.page & 0xFFFF0000u;
+      const std::uint32_t colour =
+          map ? kMapTints[static_cast<std::size_t>(tuft.status)] : tuft.colour;
       const std::uint32_t tipColour =
-          std::min<std::uint32_t>(0xFF, (tuft.colour & 0xFF) * 5 / 4) |
-          std::min<std::uint32_t>(0xFF, ((tuft.colour >> 8) & 0xFF) * 5 / 4) << 8 |
-          std::min<std::uint32_t>(0xFF, ((tuft.colour >> 16) & 0xFF) * 5 / 4) << 16;
+          map ? colour
+              : std::min<std::uint32_t>(0xFF, (colour & 0xFF) * 5 / 4) |
+                    std::min<std::uint32_t>(0xFF, ((colour >> 8) & 0xFF) * 5 / 4) << 8 |
+                    std::min<std::uint32_t>(0xFF, ((colour >> 16) & 0xFF) * 5 / 4) << 16;
       Built &built = built_.emplace_back();
       built.anchor = anchor;
       psx::gpu::PacketBuffer<9> &packet = built.packet;
-      packet.store(0, tuft.colour | kGt3Code);
+      packet.store(0, colour | kGt3Code);
       packet.storeVertex(1, *left);
       packet.store(2, clut | (base + 0x1F00u + column));
-      packet.store(3, tuft.colour);
+      packet.store(3, colour);
       packet.storeVertex(4, *right);
       packet.store(5, tpage | (base + 0x1F00u + column + 3));
       packet.store(6, tipColour);
@@ -354,7 +467,7 @@ void Vegetation::link(Core &core, std::uint32_t root) {
   // A table flattened before and never walked keeps no stale tufts.
   core.hostPackets.discard(root);
   for (const Built &built : built_) {
-    core.hostPackets.insertAfter(core, root, built.anchor, built.packet.view(), site_);
+    core.hostPackets.insertAfter(core, root, built.anchor, built.packet.view(), kBladeSite);
   }
   built_.clear();
 }

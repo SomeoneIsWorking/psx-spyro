@@ -24,7 +24,6 @@ using scroll::kWideRecordSize;
 // delay slot of the arm test, so it runs whichever arm is taken, and `0x8002AE58` (software) and
 // `0x8002AFF8` (GTE) are the same `lw $a2,0x10($a2)`. g_Environment + 0x10, the surface table, is
 // a different pointer and must not be read here.
-constexpr std::uint32_t kTerrainCollision = 0x800785D4u;
 constexpr std::uint32_t kVertexBlock = 0x10u;
 constexpr std::uint32_t kGteScratch = 0x1F800000u;
 constexpr std::uint32_t kVertexStride = 0x0Cu;
@@ -504,7 +503,7 @@ void blendNodeLight(Core *c, const ListNode &at, Tail &tail) {
     // TWO dependent loads, not one address: 0x8002AE40 `lw $a2,0x2c($a2)` reads the pointer at
     // 0x800785D4 and 0x8002AE58 `lw $a2,0x10($a2)` then reads the record block through it.
     // Collapsing them into `mem[0x800785E4]` reads a different word entirely.
-    const std::uint32_t records = c->mem_r32(c->mem_r32(kTerrainCollision) + kVertexBlock);
+    const std::uint32_t records = c->mem_r32(c->mem_r32(guest::kWorldCollision) + kVertexBlock);
     multiply(firstStride, green, tail);
     const std::uint32_t source = base + tail.lo;
     const std::uint32_t end = source + firstStride;
@@ -517,7 +516,7 @@ void blendNodeLight(Core *c, const ListNode &at, Tail &tail) {
     return;
   }
   // The same two dependent loads as the software arm above, the GTE half at 0x8002AFF8.
-  const std::uint32_t records = c->mem_r32(c->mem_r32(kTerrainCollision) + kVertexBlock);
+  const std::uint32_t records = c->mem_r32(c->mem_r32(guest::kWorldCollision) + kVertexBlock);
   multiply(firstStride, blue, tail);
   std::uint32_t far = base + tail.lo;
   multiply(firstStride, green, tail);

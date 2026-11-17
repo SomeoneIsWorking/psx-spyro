@@ -6,12 +6,18 @@
 #include "core/title_logo.h"
 #include "frame_pacer.h"
 #include "game.h"
+#include "render/terrain/terrain_vegetation.h"
+
+#include <array>
 
 namespace spyro {
 namespace {
 
 // No rectangle, so nothing is read and nothing is drawn.
 constexpr TitleLogoFacts kNoLogoFacts{};
+
+const std::array<psx::game::TitleIntSetting, 2> kTitleSettings{
+    rightStickCameraSetting(), guest_terrain::moreVegetationSetting()};
 
 } // namespace
 
@@ -47,7 +53,7 @@ bool Runtime::interpolates() const {
 }
 
 std::span<const psx::game::TitleIntSetting> Runtime::titleIntSettings() const {
-  return {&rightStickCameraSetting(), 1};
+  return kTitleSettings;
 }
 
 const psx::present::GuestWidescreenProjection *Runtime::guestWidescreenProjection() const {

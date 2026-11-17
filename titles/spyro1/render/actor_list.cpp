@@ -11,6 +11,8 @@
 #include "render/field/moby_record.h"
 #include "spyro1/core/guest_globals.h"
 #include "spyro1/core/native_state.h"
+#include "spyro1/render/actor_bounds.h"
+#include "spyro1/render/sprite_queue.h"
 
 #include <algorithm>
 #include <array>
@@ -130,7 +132,8 @@ void ListBuilder::visit(std::uint32_t record) {
   const std::uint32_t frames = memory_.mem_r32(record + moby::kFrames);
   const std::uint32_t frame0 = frame(mesh, frames & 0xFFu);
   core_.gte().loadRotation(camera_);
-  const std::uint32_t radius = std::uint32_t{memory_.mem_r8(frame0 + mesh::kRadius)} << 4;
+  const std::uint32_t radius = std::uint32_t{memory_.mem_r8(frame0 + mesh::kRadius)}
+                               << mesh::kRadiusShift;
   core_.gte().writeData(gte::kIr3, static_cast<std::uint32_t>(dx));
   core_.gte().writeData(gte::kIr1, static_cast<std::uint32_t>(dy));
   core_.gte().writeData(gte::kIr2, static_cast<std::uint32_t>(dz));
@@ -224,6 +227,22 @@ template <const ListPass &Pass> void listOverride(Core *core) {
 }
 
 } // namespace
+
+std::uint32_t boundingRadius(Core &core, std::uint32_t record) {
+  const std::uint32_t mesh = core.mem_r32(
+      spyro1::guest::kModels + std::uint32_t{core.mem_r16(record + moby_record::kMesh)} * 4);
+  if (mesh == 0 || (core.mem_r16(record + moby::kCullDistance) & moby::kScreenSpace) != 0) {
+    return 0;
+  }
+  // The sprite queue culls by fixed margins: the horizontal lateral one is 25/32 of its radius
+  // (spyro::guest_moby_frustum::SphereMargins).
+  if (core.mem_r8(record + moby::kDepthBias) == 0) {
+    return static_cast<std::uint32_t>(kQueueMargins.horizontalLateral) * 32 / 25;
+  }
+  const std::uint32_t frame0 =
+      core.mem_r32(mesh + mesh::kFrames + (core.mem_r32(record + moby::kFrames) & 0xFFu) * 4);
+  return std::uint32_t{core.mem_r8(frame0 + mesh::kRadius)} << mesh::kRadiusShift;
+}
 
 void registerListOverrides(Core &core) {
   psx::cpu::installNativeOverride(

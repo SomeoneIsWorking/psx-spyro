@@ -62,25 +62,39 @@ and the scenery mobys that are plants (trees, bushes and flowers drawn as mobys 
    flatness, two-sided and translucent faces, and cuts its full-bright 32x32 tile from VRAM into
    `tex_<n>.png` and `sheet.png`; the reviewed tables are `titles/<t>/render/vegetation_table.h`, each
    record with the crop judged.
-3. Exclusion from collision and mobys, shown as a debug overlay on those levels. **Partial:** placement
+3. Exclusion from collision and mobys, shown as a debug overlay on those levels. **Done:** placement
    drops a grown face that shares a corner with a path record of the table, or lies in a translucent
-   sector, and logs the counts per level (`[vegetation] level N: ... dropped ... beside a path`). Not
-   done: the collision lookup (water, special surface, walkable slope), moby spawn points, and the
-   overlay.
+   sector. Each tuft then looks up the world collision triangle under it
+   (`game/render/terrain/vegetation_ground.*`: the header's triangle count +0, surface count +4, packed
+   triangles +0x10 in Spyro 1 / +0x14 in Spyro 2 and 3, surface bytes +0x18, unpacked as
+   `UnpackWorldCollisionTri` 0x80017CB8 / 0x8001C214 / 0x8004F5DC do) and is dropped on water (Spyro 2/3:
+   the triangle's z word & 0x4000; Spyro 1: at or below `g_anLevelDeathPlaneZTable`), on a special
+   surface (low six bits not 0x3F) or on a slope at or past 0x17. A tuft is also dropped while any of its
+   blades could reach into a level object's cull sphere at placement: the object's radius is the one its
+   drawer culls by (Spyro 2/3 the moby walk's mesh radius; Spyro 1 the list builder's first-frame radius,
+   or the sprite queue's fixed sphere for a gem or other queued record), plus the blades' farthest
+   reach. Radii are view units (world >> 2). `PSXPORT_DEBUG=vegetationmap` draws every tuft tinted by why
+   it grows or not: green grown, white on no collision, yellow on a path, orange beside one, cyan
+   translucent, blue water, magenta special, red steep, dark grey at an object.
 4. Tuft geometry and the draw in the terrain buckets, judged unpaced at `ires=0`, `fps60=1`, 3840x2160,
    then the cost in `perf-units` (GPU work per present, CPU instructions per frame) against the run spread.
    **Drawn, cost too high:** a tuft is four GT3 blades cut from its face's own texture tile and shaded
    from its face's near colour, placed by a hash of the polygon record's address and index,
    projected host-side with the draw's camera (the replay's blended one in an in-between) and inserted
    after the last terrain packet of its depth bin through `psx::gpu::HostPackets::insertAfter` at the
-   flatten, depth-tested as terrain. Guest RAM is byte-identical with the setting on and off at a fixed
-   step on all three levels. Cost (2026-11-14, Summer Forest step 1400 and Stone Hill step 3000, two runs
-   each on Summer Forest, run spread 0): Summer Forest GPU draws/present p50 543 -> 1,967, triangles
-   31.2k -> 46.1k, upload 984 -> 1,712 KiB; CPU present 142.6 -> 232.8 Minsn/frame. Stone Hill draws 823
-   -> 4,735, CPU present 146.8 -> 343.9 Minsn/frame. Each blade costs about one record draw; the next
-   step is to find what splits the record batches per blade (`record_rasterizer` batch rule) or build
-   tufts that batch, before more levels.
-5. Tables for the remaining levels, then the setting in the menu.
+   flatten. Guest RAM is byte-identical with the setting on and off at a fixed
+   step on all three levels. Cost before the batching (2026-11-14): Summer Forest GPU draws/present p50 543 -> 1,967, Stone Hill
+   823 -> 4,735; each blade cost about one record draw, because overlapping blades of the polygon depth
+   order open a new depth group each. **Batched (2026-11-17):** every blade is one draw site and model
+   (`kBladeSite`) marked `DepthOrder::Model`, so a bin's blades are one run whatever they overlap
+   (about four draws per bin that holds blades), and each blade's shape is fixed at placement. Same
+   warps and recipe on the Ally, two or more runs a side: Stone Hill (0/1/0, step 3000) draws p50
+   767-823 -> 1,439, CPU present 145-155 -> 302 Minsn/frame; Summer Forest (0/0/0, step 1400) draws
+   551 -> 1,663, CPU present 151 -> 239. The remaining CPU is in the framework: a profile of the on run
+   against the off one puts the added samples in `RecordPlanner::Builder::addTriangle` (16%),
+   `PlaceWeld::weld` and its sort of every sited vertex (14%), with the blade build itself at 9%.
+   Cutting further needs blades the planner and the weld can take more cheaply (a framework change).
+5. Tables for the remaining levels, then the setting in the menu. **Menu done**; tables partial (State).
 
 The setting is `more_vegetation` (saved, off by default, `enh_int`, so off in a comparison run);
 `vegetation_density` (tufts per million square vertex units) and `vegetation_distance` (vertex units)
@@ -92,6 +106,10 @@ On each step-2 level, reached through its warp: frames with the setting on and o
 the marked textures, none on paths, water or at gameplay objects; halfway motion in the in-betweens;
 logic state identical with the setting on and off at a fixed frame.
 
-## State (2026-11-14)
+## State (2026-11-17)
 
-Step 3 (collision and moby exclusion) has a first unbuilt version shelved in the stash "G006 vegetation exclusion WIP". The one-draw-per-blade cost (Stone Hill 823 to 4,735 draws per present) is not yet traced.
+Steps 3 and 4 are drawn and batched; step 4's remaining cost is in the framework's record planner and
+place weld. Step 5: Spyro 1 has Stone Hill, Town Square and Magic Crafters; Peace Keepers' home is
+desert, Alpine Ridge and Beast Makers' census runs did not reach the level in time, and Tree Tops has
+one plain grass texture (21) not yet seen in a frame. Spyro 2 and 3 have one level each. The setting
+is the menu row "More vegetation" (`Runtime::titleIntSettings`).

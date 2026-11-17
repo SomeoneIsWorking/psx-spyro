@@ -34,11 +34,6 @@ using terrain::kRenderGlobals;
 using spyro::guest_word::asSigned;
 using spyro::guest_word::sra;
 
-// 80022C04..80022CC4: the sphere margins are constants here, not the mesh's radius.
-constexpr frustum::SphereMargins kMargins{.horizontalLateral = 0x66,
-                                          .horizontalDepth = 0x4D,
-                                          .verticalLateral = 0x79,
-                                          .verticalDepth = 0x28};
 constexpr std::int32_t kNearPlane = 0x80;
 // Closer than this a record with a negative +0x1C stages its drop shadow (80022C30).
 constexpr std::int32_t kShadowDepth = 0x1100;
@@ -227,7 +222,7 @@ std::optional<SpriteQueue::Centre> SpriteQueue::placeInWorld(const Placement &pl
     return std::nullopt;
   }
   const std::uint32_t shadowFlag = memory_.mem_r32(record + moby::kShadowFlag);
-  if (frustum::outsideHorizontal(view, kMargins, view_.slope)) {
+  if (frustum::outsideHorizontal(view, kQueueMargins, view_.slope)) {
     return std::nullopt;
   }
   mesh_ = memory_.mem_r32(spyro1::guest::kModels + meshIndex * 4);
@@ -242,10 +237,10 @@ std::optional<SpriteQueue::Centre> SpriteQueue::placeInWorld(const Placement &pl
       memory_.mem_w32(shadows_ - 4, static_cast<std::uint32_t>(std::int32_t{shadowByte}));
     }
   }
-  if (frustum::outsideVertical(view, kMargins)) {
+  if (frustum::outsideVertical(view, kQueueMargins)) {
     return std::nullopt;
   }
-  edge_ = frustum::insideFrustum(view, kMargins, view_.slope) ? 0u : kStraddlesView;
+  edge_ = frustum::insideFrustum(view, kQueueMargins, view_.slope) ? 0u : kStraddlesView;
   angles_ = memory_.mem_r32(record + moby_record::kAngles);
   const std::uint32_t tint = memory_.mem_r8(record + moby::kTint);
 
@@ -253,7 +248,8 @@ std::optional<SpriteQueue::Centre> SpriteQueue::placeInWorld(const Placement &pl
   Centre centre{.x = static_cast<std::uint32_t>(view.x) << 1,
                 .y = v0_ << 1,
                 .z = v1_ << 1,
-                .seenAtRetail = !frustum::outsideHorizontal(view, kMargins, frustum::kRetailSlope)};
+                .seenAtRetail =
+                    !frustum::outsideHorizontal(view, kQueueMargins, frustum::kRetailSlope)};
   v0_ = centre.y;
   v1_ = centre.z;
   depthBin_ = sra(centre.z, 6);

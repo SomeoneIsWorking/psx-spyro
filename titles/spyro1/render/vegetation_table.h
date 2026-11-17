@@ -16,8 +16,24 @@ namespace spyro1::terrain {
 inline constexpr std::array<std::uint8_t, 2> kStoneHillGrows{40, 4};
 inline constexpr std::array<std::uint8_t, 4> kStoneHillPaths{11, 30, 15, 18};
 
-inline constexpr std::array<spyro::guest_terrain::VegetationLevel, 1> kVegetationLevels{{
+// Town Square (level 13), `warp 0/3/0`.
+// grows: 6 lawn, plain green (0x801C (160,128)); 5 lawn with yellow specks (0x801C (128,128));
+// 11 lawn, plain green (0x801D (64,128)). Not 25, 27 or 9: grass fading into stone.
+// paths: 28 pink cobbles; 51, 50, 60, 59 sandstone slabs; 49 sand.
+inline constexpr std::array<std::uint8_t, 3> kTownSquareGrows{6, 5, 11};
+inline constexpr std::array<std::uint8_t, 6> kTownSquarePaths{28, 51, 50, 60, 59, 49};
+
+// Magic Crafters (level 30), `warp 2/0/0`.
+// grows: 17 lawn, plain green (0x8019 (192,192)); 57 lawn with yellow specks (0x800B (160,64)).
+// Not 33, 35, 31, 34 or 36: lawn with snow at its edges.
+// paths: 45 grey stone; 37 checker tiles; 58 pale stone floor.
+inline constexpr std::array<std::uint8_t, 2> kMagicCraftersGrows{17, 57};
+inline constexpr std::array<std::uint8_t, 3> kMagicCraftersPaths{45, 37, 58};
+
+inline constexpr std::array<spyro::guest_terrain::VegetationLevel, 3> kVegetationLevels{{
     {.level = 11, .grows = kStoneHillGrows, .paths = kStoneHillPaths},
+    {.level = 13, .grows = kTownSquareGrows, .paths = kTownSquarePaths},
+    {.level = 30, .grows = kMagicCraftersGrows, .paths = kMagicCraftersPaths},
 }};
 
 } // namespace spyro1::terrain

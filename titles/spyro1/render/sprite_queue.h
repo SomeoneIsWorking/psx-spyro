@@ -20,6 +20,12 @@ class Core;
 
 namespace spyro1::actors {
 
+// 80022C04..80022CC4: the sphere margins are constants here, not the mesh's radius.
+inline constexpr spyro::guest_moby_frustum::SphereMargins kQueueMargins{.horizontalLateral = 0x66,
+                                                                        .horizontalDepth = 0x4D,
+                                                                        .verticalLateral = 0x79,
+                                                                        .verticalDepth = 0x28};
+
 // What the presentation asks of the queue: the sphere cull's slope and the outcode window.
 struct QueueView {
   spyro::guest_moby_frustum::HorizontalSlope slope;
