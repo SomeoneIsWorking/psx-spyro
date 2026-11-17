@@ -88,6 +88,7 @@ Frame loop: each title's driver runs one logic frame per step, update then draw 
 - `titles/spyro1/render/screen_overlays.h` — S1 facts for the shared letterbox
 - `titles/spyro1/render/particle*` — S1 particles / emit list
 - `titles/spyro1/render/screen.h` — S1 retail outcode window for widened culls
+- `titles/spyro1/render/flyby_card.*` — S1 flyby card (TSM_Demo, `0x8001E6B8`): 4:3, pillarboxed on a widened canvas
 - `titles/spyro1/render/pause_backdrop.*` — S1 pause backdrop: the grey read-back page (func_80017E98) declared as a read-back texture
 - `titles/spyro1/render/crop_facts.h` — S1's whole-screen overlay links, which crop with the picture; the sprite queue names its screen-space chains UI
 - `titles/spyro1/render/inventory_band.*` — S1 inventory row band (inline in 0x8001A40C, linked at 0x8001BEC0): its right edge moved onto the buffer's on a widened canvas when it starts at column 0, so the margin rule continues it

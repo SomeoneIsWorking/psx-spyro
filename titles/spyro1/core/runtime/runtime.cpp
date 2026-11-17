@@ -44,6 +44,7 @@
 #include "spyro1/render/drawn_records.h"
 #include "spyro1/render/drop_shadow.h"
 #include "spyro1/render/flame.h"
+#include "spyro1/render/flyby_card.h"
 #include "spyro1/render/glow_pools.h"
 #include "spyro1/render/glows.h"
 #include "spyro1/render/hud_anchor.h"
@@ -198,6 +199,10 @@ std::optional<psx::gpu::PacketPoolExtent> Runtime::packetPool(Core &core) const 
 
 bool Runtime::guestPictureIsNativeWidth(const Game &game) const {
   return game.frameDriver == nullptr || !game.frameDriverAs<FrameDriver>().pastBootPrefix();
+}
+
+psx::present::PictureBeyondBuffer Runtime::pictureBeyondBuffer(Core &core) const {
+  return flyby_card::pictureBeyondBuffer(core);
 }
 
 bool Runtime::sealedFrameIsCut(Core &core) const {

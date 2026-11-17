@@ -374,6 +374,12 @@ drew; a moby's drawn byte +0x51 and the sector marks
 The portal fill (screen triangles `0x8006CB8C`, corners moved onto the presented edges) and the near sky's outline
 window use the presented bounds (`spyro::presentedBounds`), so a portal reaching into a margin fills it (issue 0211).
 
+The flyby card ("THE ADVENTURE BEGINS/CONTINUES...", "IN THE WORLD OF DRAGONS...", "ENTERING DEMO MODE...":
+GS_TitleScreen in TSM_Demo, drawn by `0x8001E6B8`) is a 4:3 composition: GamestateCutsceneTransition parks Spyro
+just past the 4:3 edges between passes (ticks 80-120 at x `0x1400`, 200-240 at `0x2880`), so the widened view
+showed him frozen in the margins. `spyro1::flyby_card` reports no picture beside the buffer while the card shows,
+and the canvas pillarboxes it (`scratch/advcont/before_after.png`, ticks 100, 210, 250).
+
 ### S020 — Spyro 1 60 fps
 
 `spyro1::Runtime::interpolates()` is true; in-betweens are psxport F-FPS60's replay of GamestateDraw

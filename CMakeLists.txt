@@ -89,6 +89,7 @@ set(SPYRO_RUNTIME_SOURCES
   titles/spyro1/core/frame/level_transition_update.cpp
   titles/spyro1/core/frame/frame_driver.cpp
   titles/spyro1/render/ordering_table.cpp
+  titles/spyro1/render/flyby_card.cpp
   game/render/packet_layers.cpp
   game/render/overlay_pair.cpp
   titles/spyro1/core/input/input_phase.cpp
