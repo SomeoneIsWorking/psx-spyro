@@ -50,7 +50,6 @@ constexpr std::uint32_t kCdLoadOffset = 0x8007A6E0u;
 constexpr std::uint32_t kTitleScreenCopy = 0x8007DDE8u;
 constexpr std::uint32_t kCopyBuf = 0x800785D8u;
 constexpr std::uint32_t kDiscCopyBuf = 0x800785DCu;
-constexpr std::uint32_t kCutsceneIdx = 0x8007566Cu;
 constexpr std::uint32_t kUpdateMoby = 0x80075734u;
 constexpr std::uint32_t kExitLevelFlag = 0x80075900u;
 constexpr std::uint32_t kHeadLookTarget = 0x80078BFCu;
@@ -85,7 +84,7 @@ constexpr std::uint32_t kPadDown = 0x4000u;
 constexpr std::uint32_t kPadLeft = 0x8000u;
 constexpr std::uint32_t kPadLeftRight = 0xA000u;
 constexpr std::uint32_t kPadLeftRightCross = 0xA040u;
-constexpr std::uint32_t kPadStartCross = 0x840u;
+constexpr std::uint32_t kPadStartCross = guest::kPadStart | guest::kPadCross;
 constexpr std::uint32_t kPadCrossTriangle = 0x50u;
 
 constexpr std::uint32_t kScreenOptions = 1u;
@@ -223,7 +222,7 @@ void updatePauseMenuInput(Core *c) {
     c->mem_w32(kCopyBuf, kTitleScreenCopy);
     c->mem_w32(kDiscCopyBuf, kTitleScreenCopy);
     c->mem_w32(kLoadStage, 0u);
-    c->mem_w32(kCutsceneIdx, 0u);
+    c->mem_w32(guest::kCutsceneIdx, 0u);
     c->mem_w32(c->r[29] - kFrameBytes + kStackArgumentOffset, kCdLoadTimeout);
     psx::cpu::callGuestNow(*c,
                            kOverrideName,

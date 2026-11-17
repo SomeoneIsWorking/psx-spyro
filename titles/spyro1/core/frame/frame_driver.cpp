@@ -36,8 +36,7 @@ FrameDriver::FrameDriver(Game &game)
                                      .fieldCounter = kVblankCounter,
                                      .rootHandlerSlot = kRootHandlers},
               &skipMap_),
-      boot_(fields_, skipMap_), transitions_(fields_), motion_(game.core, nativeState(game.core)),
-      cut_(kFrameCutFacts) {}
+      boot_(fields_, skipMap_), motion_(game.core, nativeState(game.core)), cut_(kFrameCutFacts) {}
 
 void FrameDriver::initialize(Core &core) {
   fields_.publish();

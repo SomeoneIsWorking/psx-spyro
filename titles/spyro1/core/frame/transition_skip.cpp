@@ -3,7 +3,6 @@
 #include "spyro1/core/guest_globals.h"
 
 #include "core.h"
-#include "core/field_owner.h"
 #include "guest_abi.h"
 #include "guest_call.h"
 #include "native_dispatch.h"
@@ -18,15 +17,36 @@ namespace {
 
 using guest::kCdMusicFading;
 using guest::kCdMusicFlags;
+using guest::kCutsceneIdx;
+using guest::kCutsceneIntro;
+using guest::kCutsceneLayout;
+using guest::kCutsceneLayoutCurrentTick;
+using guest::kCutsceneLayoutDuration;
+using guest::kDeltaTime;
+using guest::kDemoMode;
 using guest::kDemoTypeCutscene;
 using guest::kDemoTypeLevel;
+using guest::kDragonCutsceneCameraLength;
+using guest::kDragonCutsceneState;
+using guest::kDragonCutsceneTicks;
+using guest::kDragonStateSpeech;
 using guest::kGamestate;
 using guest::kGamestateBalloonist;
+using guest::kGamestateCutscene;
+using guest::kGamestateDragon;
 using guest::kGamestateExitLevel;
 using guest::kGamestateLevelTransition;
 using guest::kGamestateTitleScreen;
 using guest::kLevelTransHudActive;
 using guest::kLoadStage;
+using guest::kPad;
+using guest::kPadBufferedDown;
+using guest::kPadBufferedInputCount;
+using guest::kPadBufferedInputs;
+using guest::kPadBufferedInputStride;
+using guest::kPadCross;
+using guest::kPadHeld;
+using guest::kPadStart;
 using guest::kSpuCdVolumeLeft;
 using guest::kSpuMusicFadeCurrent;
 using guest::kSpuMusicFadeTarget;
@@ -70,6 +90,26 @@ constexpr std::uint32_t kActorCutsceneTimer = 0x800777ECu;
 constexpr std::uint32_t kActorCutsceneCruise = 5u;
 constexpr std::uint32_t kCruiseEnd = 0x100u;
 
+// GamestateCutsceneUpdate's intro skip: from tick 241 with Start or Cross held, short of the last
+// 32 ticks, m_Duration = (tick >> 1) + 16 fades out into EndCutscenePlayback.
+constexpr std::int32_t kIntroSkipFirstTick = 241;
+constexpr std::int32_t kIntroSkipTailTicks = 32;
+constexpr std::int32_t kIntroSkipFadeTicks = 16;
+
+constexpr std::uint32_t kSkipButtons = kPadStart | kPadCross;
+
+// PadVSync's edge is ~m_Held & input: a skip button still held over the terminal's PadReset
+// (LoadLevelScene) would come back as a new press. `held` is m_Held's skip buttons before it.
+void consumeSkipPress(Core &core, std::uint32_t held) {
+  core.mem_w32(kPad, core.mem_r32(kPad) & ~kSkipButtons);
+  for (std::uint32_t slot = 0; slot < kPadBufferedInputCount; ++slot) {
+    const std::uint32_t down =
+        kPadBufferedInputs + slot * kPadBufferedInputStride + kPadBufferedDown;
+    core.mem_w32(down, core.mem_r32(down) & ~kSkipButtons);
+  }
+  core.mem_w32(kPadHeld, core.mem_r32(kPadHeld) | held);
+}
+
 // Leaves through the function's own epilogue back to the frame update's call site.
 void runIntroCardTerminal(Core &core) {
   const std::uint32_t entrySp = core.r[psx::cpu::kSp];
@@ -109,6 +149,22 @@ bool flybyCardUp(const TransitionState &state) {
          (state.demoType == kDemoTypeLevel || state.demoType == kDemoTypeCutscene);
 }
 
+// Before tick 241 the guest refuses the press; the port takes that range with the guest's own
+// write.
+bool introCutsceneRefusesPress(const TransitionState &state) {
+  return state.stage == kGamestateCutscene && state.cutsceneIdx == kCutsceneIntro &&
+         state.cutsceneTick < kIntroSkipFirstTick &&
+         state.cutsceneTick < state.cutsceneDuration * 2 - kIntroSkipTailTicks;
+}
+
+// func_8002F3E4 m_State 4 leaves for 5 at 0x80030D54 (voice stopped, camera on the track's last
+// frame) once m_CutsceneTicks reaches twice the camera length; its own Cross skip takes that
+// branch.
+bool dragonSpeaking(const TransitionState &state) {
+  return state.stage == kGamestateDragon && state.dragonState == kDragonStateSpeech &&
+         state.dragonTicks < state.dragonCameraLength * 2;
+}
+
 Cancellation classify(const TransitionState &state) {
   if (!state.skipPressed) {
     return Cancellation::None;
@@ -136,10 +192,14 @@ Cancellation classify(const TransitionState &state) {
       state.actorCutsceneTimer < kCruiseEnd) {
     return Cancellation::BalloonistCruise;
   }
+  if (introCutsceneRefusesPress(state)) {
+    return Cancellation::IntroCutscene;
+  }
+  if (dragonSpeaking(state)) {
+    return Cancellation::DragonSpeech;
+  }
   return Cancellation::None;
 }
-
-TransitionSkip::TransitionSkip(spyro::FieldOwner &fields) : fields_(fields) {}
 
 void TransitionSkip::observe(Core &core) {
   TransitionState state{
@@ -154,7 +214,21 @@ void TransitionSkip::observe(Core &core) {
       .musicFadeStep = static_cast<std::int32_t>(core.mem_r32(kSpuMusicFadeCurrent)),
       .actorCutsceneSubstate = core.mem_r32(kActorCutsceneSubstate),
       .actorCutsceneTimer = core.mem_r32(kActorCutsceneTimer),
-      .skipPressed = fields_.takePresentationSkip()};
+      // The press the guest's own update reads; a recorded demo's pad is not the player's.
+      .skipPressed = core.mem_r32(kDemoMode) == 0u && (core.mem_r32(kPad) & kSkipButtons) != 0u};
+  if (state.stage == kGamestateCutscene) {
+    const std::uint32_t layout = core.mem_r32(kCutsceneLayout);
+    state.cutsceneIdx = core.mem_r32(kCutsceneIdx);
+    state.cutsceneTick = static_cast<std::int32_t>(
+        core.mem_r32(layout + kCutsceneLayoutCurrentTick) + core.mem_r32(kDeltaTime));
+    state.cutsceneDuration =
+        static_cast<std::int32_t>(core.mem_r32(layout + kCutsceneLayoutDuration));
+  }
+  if (state.stage == kGamestateDragon) {
+    state.dragonState = core.mem_r32(kDragonCutsceneState);
+    state.dragonTicks = static_cast<std::int32_t>(core.mem_r32(kDragonCutsceneTicks));
+    state.dragonCameraLength = static_cast<std::int32_t>(core.mem_r32(kDragonCutsceneCameraLength));
+  }
 
   // A card's load can outlast the one-field edge by hundreds of frames.
   if (!flybyCardUp(state)) {
@@ -171,7 +245,17 @@ void TransitionSkip::observe(Core &core) {
     cruisePress_.clear();
   }
 
-  switch (classify(state)) {
+  const Cancellation cancellation = classify(state);
+  if (cancellation == Cancellation::None) {
+    return;
+  }
+  const std::uint32_t held = core.mem_r32(kPadHeld) & kSkipButtons;
+  cancel(core, cancellation, state);
+  consumeSkipPress(core, held);
+}
+
+void TransitionSkip::cancel(Core &core, Cancellation cancellation, const TransitionState &state) {
+  switch (cancellation) {
   case Cancellation::None:
     return;
   case Cancellation::LevelTransitionTally:
@@ -254,6 +338,28 @@ void TransitionSkip::observe(Core &core) {
                  kIntroCardTerminal,
                  core.mem_r32(kGamestate),
                  core.mem_r32(kLoadStage));
+    return;
+  case Cancellation::IntroCutscene: {
+    const auto duration =
+        static_cast<std::uint32_t>((state.cutsceneTick >> 1) + kIntroSkipFadeTicks);
+    core.mem_w32(core.mem_r32(kCutsceneLayout) + kCutsceneLayoutDuration, duration);
+    ++cancellations_;
+    lucent::info("transition",
+                 "intro cutscene fades out ({}) from tick {}; duration {} -> {}",
+                 cancellations_,
+                 state.cutsceneTick,
+                 state.cutsceneDuration,
+                 duration);
+    return;
+  }
+  case Cancellation::DragonSpeech:
+    core.mem_w32(kDragonCutsceneTicks, static_cast<std::uint32_t>(state.dragonCameraLength * 2));
+    ++cancellations_;
+    lucent::info("transition",
+                 "dragon speech ended ({}) at tick {} of {}; its own test leaves for state 5",
+                 cancellations_,
+                 state.dragonTicks,
+                 state.dragonCameraLength * 2);
     return;
   }
 }

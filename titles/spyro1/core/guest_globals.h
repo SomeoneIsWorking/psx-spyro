@@ -109,6 +109,10 @@ inline constexpr std::uint32_t kTitlescreenAnimSteps = 16u;
 // g_CutsceneLayout (loaders.c), written once at 0x80014A38; m_CurrentTick is its first word.
 inline constexpr std::uint32_t kCutsceneLayout = 0x80075680u;
 inline constexpr std::uint32_t kCutsceneLayoutCurrentTick = 0x00u;
+inline constexpr std::uint32_t kCutsceneLayoutDuration = 0x08u; // m_Duration, half ticks
+// g_CutsceneIdx: 1 is the intro, 2 and 3 the endings before each credits roll.
+inline constexpr std::uint32_t kCutsceneIdx = 0x8007566Cu;
+inline constexpr std::uint32_t kCutsceneIntro = 1u;
 
 // Non-zero while the respawn/game-over arm fades over a frozen gameplay frame.
 inline constexpr std::uint32_t kGameplayDrawFrame = 0x8007593Cu;
@@ -169,8 +173,16 @@ inline constexpr std::uint32_t kSkipLowPolyWorld = 0x8007591Cu;
 // g_DemoMode (gamepad.h): DEMO_MODE_NONE/PLAY/RECORD.
 inline constexpr std::uint32_t kDemoMode = 0x80075714u;
 
-// g_Pad (gamepad.h): m_Down at +0, m_Released at +4, m_Held at +8.
+// g_Pad (gamepad.h): m_Down at +0, m_Released at +4, m_Held at +8; m_BufferedInputs[4] from +0x44,
+// 0x18 apart, each with its m_Down at +8.
 inline constexpr std::uint32_t kPad = 0x80077378u;
+inline constexpr std::uint32_t kPadHeld = kPad + 0x08u;
+inline constexpr std::uint32_t kPadBufferedInputs = kPad + 0x44u;
+inline constexpr std::uint32_t kPadBufferedInputStride = 0x18u;
+inline constexpr std::uint32_t kPadBufferedInputCount = 4u;
+inline constexpr std::uint32_t kPadBufferedDown = 0x08u;
+inline constexpr std::uint32_t kPadCross = 0x40u;  // PAD_CROSS
+inline constexpr std::uint32_t kPadStart = 0x800u; // PAD_START
 
 // cheat_HomeworldSelected (cheats.c): the homeworld CheatProcessLevelWarp adds the level button to.
 inline constexpr std::uint32_t kCheatHomeworldSelected = 0x800758ECu;
@@ -180,6 +192,10 @@ inline constexpr std::uint32_t kDragonCutscene = 0x80077030u;
 inline constexpr std::uint32_t kDragonCutsceneState = kDragonCutscene + 0x28u; // m_State
 inline constexpr std::uint32_t kDragonCutsceneFade = kDragonCutscene + 0x44u;  // m_Fade
 inline constexpr std::uint32_t kDragonCutsceneTicks = kDragonCutscene + 0x3Cu; // m_CutsceneTicks
+// unk_0x4C: the camera track's length in frames; a state runs it over twice as many ticks.
+inline constexpr std::uint32_t kDragonCutsceneCameraLength = kDragonCutscene + 0x4Cu;
+// m_State 4: the rescued dragon speaks.
+inline constexpr std::uint32_t kDragonStateSpeech = 4u;
 
 // D_80075744: the inventory page shown; D_800757CC slides between pages and jumps by 0x380 as this
 // changes.

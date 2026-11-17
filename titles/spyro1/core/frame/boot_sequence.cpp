@@ -249,7 +249,7 @@ bool BootSequence::step(Core &core) {
       if (++iteration_ == 8) {
         iteration_ = 0;
         core.mem_w32(spyro1::guest::kLoadStage, 3u);
-        core.mem_w32(0x8007566Cu, 0u);
+        core.mem_w32(spyro1::guest::kCutsceneIdx, 0u);
         phase_ = Phase::AdvanceLoadState;
       }
       return false;
