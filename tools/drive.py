@@ -185,6 +185,16 @@ class Port:
         Path(ROOT / path).parent.mkdir(parents=True, exist_ok=True)
         self._send(f"dumpram {path}")
 
+    def present_shot(self, path: str) -> None:
+        """Capture what the window shows (the letterboxed picture at the sink's size, overlay included) to `path`,
+        returning once the port has written it."""
+        Path(ROOT / path).parent.mkdir(parents=True, exist_ok=True)
+        self._send(f"pshot {path}")
+        for line in self._lines():
+            if "pshot ->" in line and path in line:
+                return
+        raise ToolError(f"the port exited before writing the present shot {path}")
+
     def repl_command(self, line: str) -> None:
         """Send one line to the product's REPL and let its owner answer."""
         self._send(line)
@@ -381,7 +391,9 @@ def environment(title: str = "spyro1", settings: Path | None = None,
 
 
 def launch_inputs(title: str, executable: Path) -> tuple[Path, Path]:
-    """The built port and the title's provisioned image, refused by name when either is missing."""
+    """The built port and the title's provisioned image, refused by name when either is missing.
+    `DRIVE_EXECUTABLE` names another build to run instead (a kept before/after pair)."""
+    executable = Path(os.environ.get("DRIVE_EXECUTABLE") or executable).resolve()
     if not executable.is_file():
         raise ToolError(f"the built port is missing: {executable} - build target spyro_port first")
     image = ROOT / provision_title.SPECS[title].executable

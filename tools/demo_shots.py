@@ -5,10 +5,11 @@ Runs hidden, silent and unpaced on a 3840x2160 sink; `ires` 0 is the judgement s
 `--recordcheck` also logs, per present, the display pixels that differ from the device (presentation.md, Check).
 
     uv run --frozen python tools/demo_shots.py scratch/screenshots/demo-8x --ires 0 [--at 0,300,600,900]
-    uv run --frozen python tools/demo_shots.py scratch/screenshots/demo-1x --ires 1 --recordcheck
+    uv run --frozen python tools/demo_shots.py scratch/screenshots/demo-1x --ires 1 --recordcheck [--present]
 
-Writes `<dir>/f<field>.ppm` per field past the demo's load and `<dir>/run.log`; prints recordcheck's mismatch
-counts when asked.
+Writes `<dir>/f<field>.ppm` (the record picture) per field past the demo's load and `<dir>/run.log`; with
+`--present` also `<dir>/p<field>.ppm`, what the window shows at the sink's size (`pshot`), the check for a
+presentation change; prints recordcheck's mismatch counts when asked.
 """
 import argparse
 import re
@@ -31,6 +32,7 @@ def main() -> int:
     parser.add_argument("--ires", type=int, default=0, help="internal resolution: 0 auto (8x on this sink), 1 native")
     parser.add_argument("--at", default="0,300,600,900", help="fields past the demo's load to shoot, ascending")
     parser.add_argument("--recordcheck", action="store_true", help="log display pixels that differ from the device")
+    parser.add_argument("--present", action="store_true", help="also shoot what the window shows (pshot)")
     args = parser.parse_args()
     out = Path(args.out)
     (ROOT / out).mkdir(parents=True, exist_ok=True)
@@ -63,6 +65,8 @@ def main() -> int:
             port.run(field - done)
         done = field
         port.shot(str(out / f"f{field}.ppm"))
+        if args.present:
+            port.present_shot(str(out / f"p{field}.ppm"))
     port.end()
     print(f"shots in {out}: " + ", ".join(f"f{f}.ppm" for f in args.at.split(",")))
     if args.recordcheck:
