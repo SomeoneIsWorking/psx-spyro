@@ -4,9 +4,9 @@
 #include "game.h"
 #include "spyro3/core/boot_facts.h"
 #include "spyro3/core/loader_checksum.h"
-#include "spyro3/core/logo_facts.h"
 #include "spyro3/core/title_state.h"
 #include "spyro3/core/warp.h"
+#include "spyro3/core/wordmark.h"
 #include "spyro3/render/hud_anchor.h"
 #include "spyro3/render/hud_slide.h"
 #include "spyro3/render/render_facts.h"
@@ -107,8 +107,8 @@ std::span<const psx::present::OutlineFont> Runtime::outlineFonts(Core &core) con
   return titleState(core).fonts.follow(core);
 }
 
-const spyro::TitleLogoFacts &Runtime::logoFacts() const {
-  return kLogoFacts;
+const spyro::WadWordmark &Runtime::wordmark() const {
+  return kWordmark;
 }
 
 } // namespace spyro3

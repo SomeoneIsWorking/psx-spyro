@@ -215,9 +215,8 @@ void TransitionSkip::observe(Core &core) {
       .musicFadeStep = static_cast<std::int32_t>(core.mem_r32(kSpuMusicFadeCurrent)),
       .actorCutsceneSubstate = core.mem_r32(kActorCutsceneSubstate),
       .actorCutsceneTimer = core.mem_r32(kActorCutsceneTimer),
-      // The press the guest's own update reads, or a selector preview's; a recorded demo's pad is not the player's.
-      .skipPressed = core.mem_r32(kDemoMode) == 0u &&
-                     (core.game->session.preview() || (core.mem_r32(kPad) & kSkipButtons) != 0u)};
+      // The press the guest's own update reads; a recorded demo's pad is not the player's.
+      .skipPressed = core.mem_r32(kDemoMode) == 0u && (core.mem_r32(kPad) & kSkipButtons) != 0u};
   if (state.stage == kGamestateCutscene) {
     const std::uint32_t layout = core.mem_r32(kCutsceneLayout);
     state.cutsceneIdx = core.mem_r32(kCutsceneIdx);

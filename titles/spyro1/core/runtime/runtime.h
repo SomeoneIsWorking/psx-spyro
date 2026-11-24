@@ -26,8 +26,7 @@ public:
   bool guestPictureIsNativeWidth(const Game &game) const override;
   bool sealedFrameIsCut(Core &core) const override;
   psx::present::ReplayFrame *replayFrame(Core &core) override;
-  // Where this disc's own logo is; see titles/spyro1/core/frame/logo_facts.h.
-  const spyro::TitleLogoFacts &logoFacts() const override;
+  const spyro::WadWordmark &wordmark() const override;
 
   const psx::game::TitleDebugMenu &debugMenu() const override {
     return debugMenu_;

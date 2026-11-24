@@ -21,7 +21,7 @@ public:
   void registerOverrides(Game &game) override;
   const spyro::FollowCameraFacts &followCamera() const override;
   std::optional<psx::gpu::PacketPoolExtent> packetPool(Core &core) const override;
-  const spyro::TitleLogoFacts &logoFacts() const override;
+  const spyro::WadWordmark &wordmark() const override;
   // The 2D font (render/text_font.h), the HUD digits and the title strings.
   std::span<const psx::present::OutlineFont> outlineFonts(Core &core) const override;
   const psx::game::TitleDebugMenu &debugMenu() const override {

@@ -25,7 +25,7 @@ Frame loop: each title's driver runs one logic frame per step, update then draw 
 - `game/core/native_execution.h` — nested guest call return address `$ra` and lowered stack frame
 - `game/core/archive_transfer*` — WAD archive / CD file transfer with per-Core completion and refusal
 - `game/core/guest_magnitude.*` — reciprocal magnitude / vector length normalise step, GTE square sum and square root table
-- `game/core/title_logo*` — title wordmark for the picker panel, rebuilt from the title screen's draws at its gate
+- `game/core/wad_wordmark.*` — a title's wordmark read from its WAD.WAD for the selector panel
 - `game/core/debug/debug_menu.*` — `spyro::DebugMenu`, the title debug menu (psxport `TitleDebugMenu`): the warp catalogue (homeworld, level, arrival) named from each title's guest name tables and grouped under the homeworld its guest table gives each level, moby listing and teleport verbs, and `credits` (the title's credits cheat effect, armed as a warp placement entry); S1/S2 derive their own
 - `game/core/debug/warp.*` — the warp arrival: the level entered from the idle title screen or, where the title has a route, from gameplay, change after change from wherever the game resumes play until gameplay is in it, then an optional placement: applied at once, or a guest entry the frame driver runs as its own call before the update; a placement may name the one that follows it
 - `game/core/debug/portal_entry.*` — S2/S3 level trigger and portal records: which portal of the current level leads to a level, for the warp's entry through it

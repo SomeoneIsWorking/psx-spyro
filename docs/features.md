@@ -43,7 +43,7 @@ S2 and S3 take the BIOS pad path.
 
 | hop | title | joins | owner |
 |---|---|---|---|
-| 1 | all | psxport F-PICK.1 | `game/core/runtime.cpp:spyro::Runtime::panelLogo` — `extractPanelLogo` over each title's `logoFacts`; only S1 has a wordmark |
+| 1 | all | psxport F-PICK.1 | `game/core/runtime.cpp:spyro::Runtime::panelArt` → `game/core/wad_wordmark.cpp:wadWordmark` over each title's `wordmark()` (`titles/<t>/…/wordmark.h`) |
 
 ## F-CD
 

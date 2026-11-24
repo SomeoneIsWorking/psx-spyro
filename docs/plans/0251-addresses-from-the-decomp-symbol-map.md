@@ -42,7 +42,7 @@ IMAGE <name> MAP <file>...)`) generates them under `build/`; they are never comm
 ## Order
 
 1. Write the tool and CMake function in psxport; build `spyro_port` with headers nothing includes yet.
-2. Spyro 2, then Spyro 3: `render_facts.h`, `boot_facts.h`, `draw_section.h`, `logo_facts.h`, then the rest of
+2. Spyro 2, then Spyro 3: `render_facts.h`, `boot_facts.h`, `draw_section.h`, then the rest of
    `titles/spyro{2,3}`; one commit per header. Each missing name goes into the fork first (fork commit, submodule bump
    in the port change that uses it).
 3. Spyro 1: `guest_functions.h`, `guest_globals.h`, `guest_gp.h`, then `titles/spyro1/render`, then

@@ -19,8 +19,8 @@
 #include "spyro1/core/frame/draw_cuts.h"
 #include "spyro1/core/frame/frame_driver.h"
 #include "spyro1/core/frame/level_transition_update.h"
-#include "spyro1/core/frame/logo_facts.h"
 #include "spyro1/core/frame/native_draw_setup.h"
+#include "spyro1/core/frame/wordmark.h"
 #include "spyro1/core/hud/native_hud_collectables.h"
 #include "spyro1/core/hud/native_pause_menu.h"
 #include "spyro1/core/hud/native_pixel_fade.h"
@@ -210,8 +210,8 @@ psx::present::ReplayFrame *Runtime::replayFrame(Core &core) {
                                            : &core.game->frameDriverAs<FrameDriver>().replay();
 }
 
-const spyro::TitleLogoFacts &Runtime::logoFacts() const {
-  return kLogoFacts;
+const spyro::WadWordmark &Runtime::wordmark() const {
+  return kWordmark;
 }
 
 std::uint64_t Runtime::inputPhase(Core &core) const {

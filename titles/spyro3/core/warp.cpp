@@ -1,7 +1,6 @@
 #include "spyro3/core/warp.h"
 
 #include "spyro3/core/boot_facts.h"
-#include "spyro3/core/logo_facts.h"
 
 #include "core.h"
 #include "core/debug/portal_entry.h"

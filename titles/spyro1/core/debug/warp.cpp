@@ -1,10 +1,8 @@
 #include "spyro1/core/debug/warp.h"
 
 #include "core.h"
-#include "core/title_logo.h"
 #include "guest_call.h"
 #include "spyro1/core/debug/teleport.h"
-#include "spyro1/core/frame/logo_facts.h"
 #include "spyro1/core/guest_functions.h"
 #include "spyro1/core/guest_globals.h"
 
@@ -65,7 +63,9 @@ bool Warp::levelExists(std::uint32_t level) {
 
 bool Warp::titleScreenIdle(Core &core) const {
   // Spyro on the title platform with the logo up, waiting for Start or the demo timeout.
-  return spyro::titleLogoGateOpen(core, kLogoFacts);
+  return core.mem_r32(kGamestate) == guest::kGamestateTitleScreen &&
+         core.mem_r32(kTitlescreenMode) == guest::kTitleModeInit &&
+         core.mem_r32(guest::kTitlescreenSubState) == guest::kTitleWaiting;
 }
 
 void Warp::startLevel(Core &core, std::uint32_t level) const {

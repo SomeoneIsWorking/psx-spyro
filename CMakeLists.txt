@@ -71,7 +71,7 @@ set(SPYRO_RUNTIME_SOURCES
   game/core/debug/warp.cpp
   game/core/runtime.cpp
   game/core/title_runtime_registry.cpp
-  game/core/title_logo.cpp
+  game/core/wad_wordmark.cpp
   game/render/terrain/guest_camera_builder.cpp
   game/render/terrain/guest_depth_bins.cpp
   game/render/hud/ui_anchor.cpp

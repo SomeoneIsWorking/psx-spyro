@@ -3,7 +3,6 @@
 #include "core.h"
 #include "core/session.h"
 #include "core/stick_camera.h"
-#include "core/title_logo.h"
 #include "frame_pacer.h"
 #include "game.h"
 #include "render/terrain/terrain_vegetation.h"
@@ -13,17 +12,10 @@
 namespace spyro {
 namespace {
 
-// No rectangle, so nothing is read and nothing is drawn.
-constexpr TitleLogoFacts kNoLogoFacts{};
-
 const std::array<psx::game::TitleIntSetting, 2> kTitleSettings{
     rightStickCameraSetting(), guest_terrain::moreVegetationSetting()};
 
 } // namespace
-
-const TitleLogoFacts &Runtime::logoFacts() const {
-  return kNoLogoFacts;
-}
 
 std::unique_ptr<psx::game::TitleSessionState> Runtime::createSession(Game &) {
   auto created = std::make_unique<Session>();
@@ -36,12 +28,8 @@ std::optional<double> Runtime::presentDeadline(Core &core, psx::frame::FieldCade
   return core.game->framePacer.presentedFieldsDeadline(core, cadence);
 }
 
-bool Runtime::showsOwnLogo(Core &core) const {
-  return titleLogoGateOpen(core, logoFacts());
-}
-
-std::span<const psx::present::LogoTexture> Runtime::logoTextures() const {
-  return logoFacts().textures;
+std::optional<psx::present::ArtScene> Runtime::panelArt(psx::cd::Disc &disc) const {
+  return wadWordmark(disc, wordmark());
 }
 
 std::unique_ptr<TitleState> Runtime::createTitleState() const {

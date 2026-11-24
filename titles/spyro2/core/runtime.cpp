@@ -3,8 +3,8 @@
 #include "core.h"
 #include "game.h"
 #include "spyro2/core/boot_facts.h"
-#include "spyro2/core/logo_facts.h"
 #include "spyro2/core/warp.h"
+#include "spyro2/core/wordmark.h"
 #include "spyro2/render/hud_anchor.h"
 #include "spyro2/render/render_facts.h"
 #include "spyro2/render/title_strings.h"
@@ -131,8 +131,8 @@ void Runtime::codeLanded(Core &core, const psx::code_module::Digest &content) {
   title_strings::landed(core, content);
 }
 
-const spyro::TitleLogoFacts &Runtime::logoFacts() const {
-  return kLogoFacts;
+const spyro::WadWordmark &Runtime::wordmark() const {
+  return kWordmark;
 }
 
 } // namespace spyro2

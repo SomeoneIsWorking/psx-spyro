@@ -1,7 +1,7 @@
 #include "spyro2/core/warp.h"
 
 #include "spyro2/core/boot_facts.h"
-#include "spyro2/core/logo_facts.h"
+#include "spyro2/core/game_state.h"
 
 #include "core.h"
 #include "core/debug/portal_entry.h"
