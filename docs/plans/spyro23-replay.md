@@ -274,7 +274,7 @@ data and no packet is keyed.
 
 ## Proof
 
-- Builds: psxport, then `spyro_port`, through `external/psxport/tools/heavy.py build`.
+- Builds: psxport, then `spyro_port`.
 - Spyro 2 Glimmer and Spyro 3 Sunrise Spring through their warps, judgement settings, unpaced, camera turning and
   Spyro running (held buttons); crops of camera pan, Spyro, a walking moby, a glow and particles across presents
   (`scratch/replay2/blink.py` adapted): each in-between halfway, nothing missing. `replay:warn` 0, no
